@@ -57,16 +57,16 @@ PLATFORMS = {
 # The macOS hint bar as it rendered before platform-aware labels: kept byte-exact.
 MACOS_EN_HINT_HTML = (
     "<kbd>⌘K</kbd> palette · <kbd>⌘N</kbd> new chat · <kbd>⌘J</kbd> activity"
-    " · <kbd>⌘/</kbd> pet appearance · <kbd>⌘F</kbd> search chats"
+    " · <kbd>⌘/</kbd> choose pet · <kbd>⌘F</kbd> search chats"
     " · <kbd>⌘,</kbd> settings · <kbd>Esc</kbd> stop"
 )
 CTRL_EN_HINT_TEXT = (
-    "Ctrl+K palette · Ctrl+N new chat · Ctrl+J activity · Ctrl+/ pet appearance"
+    "Ctrl+K palette · Ctrl+N new chat · Ctrl+J activity · Ctrl+/ choose pet"
     " · Ctrl+F search chats · Ctrl+, settings · Esc stop"
 )
 # The same bar in a plain browser tab: Ctrl+N is the browser's own key there, so it is withheld.
 CTRL_EN_BROWSER_TAB_HINT_TEXT = (
-    "Ctrl+K palette · Ctrl+J activity · Ctrl+/ pet appearance"
+    "Ctrl+K palette · Ctrl+J activity · Ctrl+/ choose pet"
     " · Ctrl+F search chats · Ctrl+, settings · Esc stop"
 )
 # What the desktop shell (pywebview) exposes before any page script runs: the page only asks

@@ -16184,6 +16184,7 @@ def _page_fragments() -> tuple[str, ...]:
     from core.notification_fragment import render_notification_fragment
     from core.price_safety_fragment import render_price_safety_fragment
     from core.routines_fragment import render_routines_fragment
+    from core.seasonal_fragment import render_seasonal_fragment
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.ui_chip_fragment import render_chip_fragment
     from core.wallet_fragment import render_wallet_fragment
@@ -16205,6 +16206,7 @@ def _page_fragments() -> tuple[str, ...]:
         render_council_fragment(),
         render_council_card_fragment(),
         render_browser_card_fragment(),
+        render_seasonal_fragment(),
         render_companion_fragment(),
         render_wallet_fragment(),
         render_contacts_fragment(),

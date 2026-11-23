@@ -1056,6 +1056,17 @@ def _settings_groups() -> list[dict]:
                     widget="companion_pet",
                     keywords=["appearance", "character", "palette", "pet", "companion", "desktop", "sprite", "pixel", "hide", "reset", "position", "return", "detach"],
                 ),
+                _row(
+                    id="seasonal_touches",
+                    label="Christmas hat",
+                    help=(
+                        "From 1 December to 6 January the VOOL logo at the top of the window wears a small "
+                        "Christmas hat. It goes away on its own after that. Turn it off here at any time."
+                    ),
+                    kind="custom",
+                    widget="seasonal",
+                    keywords=["seasonal", "christmas", "xmas", "holiday", "winter", "hat", "logo", "decoration"],
+                ),
             ],
         },
         {
@@ -2323,6 +2334,7 @@ function renderWidget(row, host) {
   if (w === 'setup_progress') return widgetSetupProgress(stack);
   if (w === 'appearance') return widgetAppearance(stack);
   if (w === 'companion_pet') return widgetCompanionPet(stack);
+  if (w === 'seasonal') return widgetSeasonal(stack);
   if (w === 'advanced_links') return widgetAdvancedLinks(stack);
   if (w === 'extras_memory') return widgetExtras(stack, 'memory');
   if (w === 'cloud_disclosure') {
@@ -3044,10 +3056,31 @@ function widgetAppearance(stack) {
   stack.appendChild(said);
 }
 
+// Christmas hat on the header logo (core/seasonal_fragment.py): one on/off switch kept on this
+// computer; every open VOOL window shows or hides the hat at once.
+function widgetSeasonal(stack) {
+  const api = window.VoolSeasonal;
+  if (!api) { stack.appendChild(el('div', 'empty', T('settings.seasonal.unavailable', 'The Christmas hat switch did not load. Reload Settings and try again.'))); return; }
+  const wrap = el('label', 'inline');
+  const box = el('input');
+  box.type = 'checkbox';
+  box.id = 'seasonalToggle';
+  box.checked = api.enabled();
+  wrap.append(box, el('span', null, T('settings.seasonal.toggle', 'Show the Christmas hat')));
+  const said = el('span', 'subtle', '');
+  said.setAttribute('role', 'status');
+  box.addEventListener('change', () => {
+    said.textContent = api.setEnabled(box.checked)
+      ? T('settings.appearance.saved', 'Saved on this computer.')
+      : T('settings.appearance.unsaved', 'Could not be saved, so it applies to this window only.');
+  });
+  stack.append(wrap, said);
+}
+
 let petToggleRefresh = null, petToggleHooked = false;
 function widgetCompanionPet(stack) {
   const api = (window.pywebview && window.pywebview.api) ? window.pywebview.api : null;
-  const appearance = el('button', 'btn', 'Customise pet');
+  const appearance = el('button', 'btn', 'Choose your pet');
   appearance.type = 'button';
   appearance.id = 'petAppearanceBtn';
   const appearanceStatus = el('span', 'subtle', '');
@@ -3056,7 +3089,7 @@ function widgetCompanionPet(stack) {
     try {
       if (api && api.open_companion_appearance) {
         const result = await api.open_companion_appearance();
-        appearanceStatus.textContent = result && result.ok ? 'Pet appearance opened in VOOL.' : 'Open a VOOL chat to customise the pet.';
+        appearanceStatus.textContent = result && result.ok ? 'The pet picker opened in VOOL.' : 'Open a VOOL chat to customise the pet.';
         return;
       }
       const owner = window.opener || (window.parent !== window ? window.parent : null);
@@ -3064,12 +3097,12 @@ function widgetCompanionPet(stack) {
         if (owner.closeSettingsFrame) owner.closeSettingsFrame();
         owner.VoolCompanionDrawer.open();
         owner.focus();
-        appearanceStatus.textContent = 'Pet appearance opened in VOOL.';
+        appearanceStatus.textContent = 'The pet picker opened in VOOL.';
       } else {
         appearanceStatus.textContent = 'Open Settings from a VOOL chat to customise the pet.';
       }
     } catch (e) {
-      appearanceStatus.textContent = 'Pet appearance is unavailable. Open Settings from a VOOL chat and try again.';
+      appearanceStatus.textContent = 'The pet picker is unavailable. Open Settings from a VOOL chat and try again.';
     }
   });
   const appearanceBar = el('div', 'inline');
@@ -6909,6 +6942,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.plugin_migration import retired_slots
     from core.provider_key_guide import provider_key_guide
     from core.routines_fragment import render_routines_fragment
+    from core.seasonal_fragment import SEASONAL_JS
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.settings_ui_kit import SETTINGS_KIT_CSS
     from core.wallet_fragment import _qr_vendor_js, render_wallet_fragment
@@ -6922,7 +6956,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
         "/*__PHONE_QR_VENDOR__*/", _qr_vendor_js(), 1
     ).replace(
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS + "\n" + SETTINGS_KIT_CSS
-    ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
+    ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS + "\n" + SEASONAL_JS, 1).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_settings_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
         + "\n" + render_x_social_fragment() + "\n" + render_my_things_fragment() + "\n" + render_routines_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_drop_settings_fragment() + "\n" + render_lend_fragment() + "\n</body>", 1
     )

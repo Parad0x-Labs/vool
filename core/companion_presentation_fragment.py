@@ -20,8 +20,9 @@ Laws baked in (demo-companion-vooling-ux pass-001, docs 02/03/04/05/10):
 * Exactly ONE companion sprite: it presents the one served worker that exists today.
   There is no code path that can spawn a second sprite, so a fake fleet is impossible
   by construction; multi-worker rendering waits for real AGENT_* producers.
-* No chain-of-thought: the channel is allowlist-only upstream; the popover renders only
-  typed fields (model provenance tiers, lane, measurable progress, review verdict).
+* No chain-of-thought: the channel is allowlist-only upstream. A tap on the pet opens no
+  panel: the old worker/model-provenance card was engine detail full of "unknown" rows, and
+  the owner removed it (2026-11-23). The Activity panel is where a run's detail lives.
 * Drag/dock/hide changes presentation geometry only, persisted client-side under
   ``vool_ninja_pos_v1``; nothing here touches run/event/store objects.
 
@@ -117,22 +118,6 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
 body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important; }
-.vool-ninja-pop {
-  /* The layer is click-through; its own panels must take the clicks they draw (otherwise a
-     menu row presses whatever app control sits under it). */
-  pointer-events: auto;
-  position: fixed; z-index: 45; width: 300px; max-height: min(70vh, 480px); overflow-y: auto;
-  background: var(--panel,#1b1b1e); color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140);
-  border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.5); padding: 10px 12px; font-size: 12px;
-}
-.vool-ninja-pop h4 { margin: 8px 0 3px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted, #8b94a3); }
-.vool-ninja-pop h4:first-child { margin-top: 0; }
-.vool-ninja-pop .vn-row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
-.vool-ninja-pop .vn-row b { font-weight: 600; }
-.vool-ninja-pop .vn-row span { color: var(--muted, #8b94a3); text-align: right; word-break: break-word; }
-.vool-ninja-pop .vn-verdict { font-weight: 700; }
-.vool-ninja-pop .vn-close { position: absolute; right: 8px; top: 6px; background: none; border: none;
-  color: var(--muted, #8b94a3); cursor: pointer; font-size: 14px; }
 .vool-ninja-menu {
   pointer-events: auto;
   position: fixed; z-index: 46; min-width: 180px; background: var(--panel, #14181f);
@@ -467,7 +452,7 @@ function vnApply(view, ev) {
     return true;
   }
 
-  // Typed field capture for the identity popover (the popover renders only these).
+  // Typed field capture.
   if (ev.model) view.model = ev.model;
   if (ev.cost) view.cost = Object.assign({}, view.cost, ev.cost);
   if (ev.measurable) view.measurable = ev.measurable;
@@ -934,7 +919,7 @@ let vnLayer = null, vnSprite = null, vnCanvas = null, vnCtx = null, vnSr = null;
 let vnBubble = null, vnBubbleTitle = null, vnBubbleActivity = null;
 /* Bounded display lengths. Chat names are operator-facing labels, not documents. */
 const VN_TITLE_MAX = 42, VN_ACTIVITY_MAX = 34;
-let vnPop = null, vnMenu = null, vnLab = null;
+let vnMenu = null, vnLab = null;
 //: Minimum time one activity phrase stays readable before a newer phrase replaces it.
 //: Presentation cadence ONLY (the pack allows wall-clock to animate cadence); it never creates,
 //: delays or reorders execution truth, and terminal states ignore it.
@@ -1538,85 +1523,6 @@ let vnLoopTimer = null;
 setInterval(function () { if (vnBooted && (!document.hidden || vnDesktopActive)) vnPaintNow(Date.now()); }, 1200);
 
 // ---------------------------------------------------------------------------
-// Popover: identity inspection from typed fields only. Provenance renders as data
-// columns (actual > selected > requested/policy > recorded > unknown); unknown tiers
-// render the literal word. No chain-of-thought surface exists in these payloads.
-function vnProvRow(label, value) {
-  return '<div class="vn-row"><b>' + label + '</b><span>' + esc(String(value == null || value === "" ? "unknown" : value)) + "</span></div>";
-}
-function vnRenderPopover(chatId) {
-  if (!vnPop) return;
-  vnCloseMenu(false);  // one pet panel at a time
-  const view = VN_VIEWS.get(String(chatId || ""));
-  const pres = vnResolve(view);
-  const m = (view && view.model) || {};
-  const actual = m.actual_adapter_provider_id && m.actual_adapter_model_id
-    ? m.actual_adapter_provider_id + "/" + m.actual_adapter_model_id : null;
-  const selected = m.selected_provider_id && m.selected_model_id
-    ? m.selected_provider_id + "/" + m.selected_model_id : null;
-  const requested = (m.requested_provider_id || m.requested_model_id)
-    ? (m.requested_provider_id || "?") + "/" + (m.requested_model_id || "?") : null;
-  const policy = (m.policy_provider_id || m.policy_model_id)
-    ? (m.policy_provider_id || "?") + "/" + (m.policy_model_id || "?") : null;
-  const recorded = m.provider_id && m.model_id ? m.provider_id + "/" + m.model_id : null;
-  const paid = m.paid === true ? "paid" : m.lane ? "free" : "unknown";
-  let progress = "unknown";
-  if (view && view.measurable && view.measurable.total) {
-    progress = Math.round(1000 * (view.measurable.current || 0) / view.measurable.total) / 10 + "%";
-  }
-  const diag = (view && view.diagnostics) || {};
-  let html = '<button type="button" class="vn-close" aria-label="Close">×</button>';
-  html += "<h4>Worker</h4>";
-  html += '<div class="vn-row"><b>identity</b><span>VOOL served lane</span></div>';
-  html += '<div class="vn-row"><b>chat lane</b><span>' + esc(String(chatId || "unknown")) + "</span></div>";
-  html += "<h4>Model provenance</h4>";
-  html += vnProvRow("actual adapter", actual);
-  html += vnProvRow("selected", selected);
-  html += vnProvRow("requested", requested);
-  html += vnProvRow("planned (policy)", policy);
-  html += vnProvRow("recorded", recorded);
-  html += vnProvRow("locality", m.locality);
-  html += "<h4>Lane &amp; spend class</h4>";
-  html += vnProvRow("lane", m.lane);
-  html += vnProvRow("spend class", paid);
-  html += "<h4>Current activity</h4>";
-  html += '<div class="vn-row"><b>state</b><span>' + esc(pres.state) + "</span></div>";
-  html += '<div class="vn-row"><b>category</b><span>' + esc(pres.category || "unknown") + "</span></div>";
-  html += '<div class="vn-row"><b>status</b><span>' + esc(pres.phraseText || "unknown") + "</span></div>";
-  html += "<h4>Progress</h4>";
-  html += '<div class="vn-row"><b>measurable</b><span>' + esc(progress) + "</span></div>";
-  html += "<h4>Result verdict</h4>";
-  html += '<div class="vn-row vn-verdict"><b>verdict</b><span>' + esc(pres.state) + "</span></div>";
-  if (view && view.reviewState) html += vnProvRow("review state", view.reviewState);
-  if (diag && (diag.reason || diag.error_kind)) {
-    html += "<h4>Failure cause</h4>";
-    html += vnProvRow("reason", diag.reason);
-    html += vnProvRow("error kind", diag.error_kind);
-    if (diag.retryable === true) html += vnProvRow("recovery", "recoverable");
-  }
-  html += '<div class="vn-row" style="margin-top:8px"><button type="button" class="vn-ledger" style="width:100%;cursor:pointer">Open Activity ledger</button></div>';
-  vnPop.innerHTML = html;
-  vnPop.style.display = "block";
-  if (vnSprite) {
-    const sr = vnSprite.getBoundingClientRect();
-    const pw = 300, vw = window.innerWidth || 1200, vh = window.innerHeight || 800;
-    let px = sr.left - pw - 12;
-    if (px < 8) px = Math.min(sr.right + 12, vw - pw - 8);
-    const ph = Math.min(vh * 0.7, 480);
-    let py = Math.min(Math.max(8, sr.top - 40), Math.max(8, vh - ph - 8));
-    vnPop.style.left = Math.round(px) + "px";
-    vnPop.style.top = Math.round(py) + "px";
-  }
-  const close = vnPop.querySelector(".vn-close");
-  if (close && close.addEventListener) close.addEventListener("click", function () { vnPop.style.display = "none"; });
-  const ledger = vnPop.querySelector(".vn-ledger");
-  if (ledger && ledger.addEventListener) ledger.addEventListener("click", function () {
-    vnPop.style.display = "none";
-    if (typeof window.openPanel === "function") window.openPanel();
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Drag / dock / hide. Pointer pipeline with capture; dragging mutates presentation
 // geometry ONLY and can never reach run/event/store objects.
 function vnBindDrag(el) {
@@ -1654,11 +1560,9 @@ function vnBindDrag(el) {
       vnDrag = null;
       el.classList.remove("dragging");
       el.classList.remove("over-critical");
-      if (!wasMoved) {
-        if (vnPop && vnPop.style.display === "block") { vnPop.style.display = "none"; return; }
-        vnRenderPopover(typeof displayedChat !== "undefined" ? displayedChat : "");
-        return;
-      }
+      // A tap (press and release without a drag) opens nothing: the pet is a companion, not a
+      // control panel. Right-click (or Space) still opens the pet menu.
+      if (!wasMoved) return;
       let nx = parseFloat(el.style.left) || 0, ny = parseFloat(el.style.top) || 0;
       if (vnEdgeSnap) {
         const vw = window.innerWidth || 1200, vh = window.innerHeight || 800;
@@ -1820,17 +1724,9 @@ document.addEventListener("keydown", function (e) {
     vnCloseMenu(vnMenuFromKeyboard);
     return;
   }
-  if (e.key === "Escape" && vnPop && vnPop.style.display === "block") {
-    e.preventDefault(); e.stopPropagation();
-    vnPop.style.display = "none";
-  }
 }, true);
 document.addEventListener("pointerdown", function (e) {
   if (vnMenuOpen() && !vnMenu.contains(e.target)) vnCloseMenu(false);
-  if (!vnPop || vnPop.style.display !== "block") return;
-  if (vnPop.contains(e.target)) return;
-  if (vnSprite && vnSprite.contains(e.target)) return;  // the tap-toggle owns this case
-  vnPop.style.display = "none";
 }, true);
 
 function vnNativeCompanionApi() {
@@ -1968,7 +1864,6 @@ function vnOpenMenu(x, y, fromKeyboard) {
   // Focus goes back to the pet on close only when the menu came from the pet's own key: a
   // right-click while typing must leave the keyboard where the user was typing.
   vnMenuFromKeyboard = fromKeyboard === true;
-  if (vnPop) vnPop.style.display = "none";  // one pet panel at a time
   vnMenu.innerHTML = "";
   const spec = (window.VoolCompanionWorld.characters || {})[vnPos.personality] || {};
   const items = [
@@ -1981,8 +1876,7 @@ function vnOpenMenu(x, y, fromKeyboard) {
   // desktop pet's own button and Settings carry it.
   items.push(
     ["Motion: " + vnPos.motion, vnCycleMotion],
-    ["Pet: " + String(spec.name || vnPos.personality), vnCyclePersonality],
-    ["Activity detail", function () { vnRenderPopover(typeof displayedChat !== "undefined" ? displayedChat : ""); }]
+    ["Pet: " + String(spec.name || vnPos.personality), vnCyclePersonality]
   );
   for (let i = 0; i < items.length; i++) {
     const b = document.createElement("button");
@@ -2070,9 +1964,6 @@ function vnBoot() {
   vnSprite.appendChild(vnHit);
   // No pill is left behind when the pet is hidden: a hidden pet is simply gone, and Settings
   // (Companion > Show pet) brings it back. The old "Companion" pill sat over the sidebar's buttons.
-  vnPop = document.createElement("div");
-  vnPop.className = "vool-ninja-pop";
-  vnPop.style.display = "none";
   vnMenu = document.createElement("div");
   vnMenu.className = "vool-ninja-menu";
   vnMenu.style.display = "none";
@@ -2082,7 +1973,6 @@ function vnBoot() {
   vnLab.addEventListener("click", function (e) { if (e.target === vnLab) vnCloseCharacterLab(); });
   vnLayer.appendChild(vnSr);
   vnLayer.appendChild(vnSprite);
-  vnLayer.appendChild(vnPop);
   vnLayer.appendChild(vnMenu);
   vnLayer.appendChild(vnLab);
   document.body.appendChild(vnLayer);
@@ -2180,7 +2070,6 @@ window.VoolCompanion = {
   isHidden: function () { return vnPos.hidden === true; },
   pos: function () { return vnPos; },
   spriteCount: function () { return vnSprite && !vnPos.hidden ? 1 : (vnSprite ? 0 : 0); },
-  popoverHtml: function (chatId) { vnRenderPopover(chatId); return vnPop ? vnPop.innerHTML : ""; },
   clamp: vnClampFree,
   resolveDrop: vnResolveDrop,
   loadPos: vnLoadPos,

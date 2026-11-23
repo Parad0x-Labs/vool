@@ -1,4 +1,4 @@
-"""Pet appearance controls, reached from Settings or the command palette.
+"""The "Choose your pet" panel, reached from Settings, the command palette or Cmd+/.
 
 The chat renderer remains the sole owner of pet presentation. General preferences,
 memory and privacy use their existing Settings surfaces. No prototype controls or
@@ -25,13 +25,21 @@ _DRAWER_CSS = """
 .vcd-seg button{flex:1;padding:5px;border-radius:6px;font-size:12px;color:var(--muted,#9aa1af);background:none;border:none;cursor:pointer}
 .vcd-seg button.vcd-on{background:var(--panel,#161a21);color:var(--ink,#e8eaf0)}
 .vcd-seg button:disabled{opacity:.45;cursor:default}
-.vcd-preview{display:flex;justify-content:center;align-items:center;background:var(--field,#1d2129);
+.vcd-preview{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;background:var(--field,#1d2129);
   border:1px solid var(--border,#262b35);border-radius:9px;padding:10px;margin-bottom:14px}
 .vcd-preview canvas{width:96px;height:96px}
+.vcd-preview .vcd-now{font-size:11px;color:var(--muted,#9aa1af)}
+.vcd-preview .vcd-now-name{font-size:13px;font-weight:600}
+.vcd-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .vcd-note{font-size:11px;color:var(--muted,#9aa1af);margin-top:12px;line-height:1.5}
-.vcd-card{display:flex;gap:10px;align-items:center;background:var(--field,#1d2129);border:1px solid var(--border,#262b35);
-  border-radius:9px;padding:8px 10px;margin-bottom:6px;width:100%;cursor:pointer;color:var(--ink,#e8eaf0);text-align:left;font:inherit;font-size:12.5px}
-.vcd-card.vcd-on{outline:1px solid var(--accent,#5eead4)}
+.vcd-card{position:relative;display:flex;flex-direction:column;gap:4px;align-items:center;background:var(--field,#1d2129);border:1px solid var(--border,#262b35);
+  border-radius:9px;padding:8px 6px;width:100%;cursor:pointer;color:var(--ink,#e8eaf0);text-align:center;font:inherit;font-size:12px}
+.vcd-card:hover{border-color:var(--muted,#9aa1af)}
+.vcd-card canvas{width:48px;height:48px}
+.vcd-card .vcd-name{line-height:1.25}
+.vcd-card.vcd-on{border:2px solid var(--accent,#5eead4);padding:7px 5px;background:color-mix(in srgb,var(--accent,#5eead4) 12%,var(--field,#1d2129))}
+.vcd-card .vcd-tag{display:none;font-size:10px;font-weight:600;color:var(--accent,#5eead4)}
+.vcd-card.vcd-on .vcd-tag{display:block}
 .vcd-group{margin:10px 0 4px;color:var(--muted,#9aa1af);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
 .vcd-card:focus-visible{outline:2px solid var(--accent,#5eead4);outline-offset:2px}
 .vcd-card small{color:var(--muted,#9aa1af)}
@@ -66,21 +74,26 @@ function petTab(){
   var active = (world && world.resolvePet ? world.resolvePet(pos.personality) : pos.personality) || 'spark';
   /* The drawer covers the right side of the window, where the docked pet lives, so the
      choice is previewed HERE, live, instead of on a pet the drawer hides. */
-  var html = '<div class="vcd-preview"><canvas id="vcdPreview" width="48" height="48" role="img" aria-label="Preview: ' + esc((characters[active] || {}).name || active) + '"></canvas></div>' +
-    '<div class="vcd-field"><label>Pet</label><div class="vcd-seg" id="vcdPetOnOff">' +
-    '<button type="button" data-pet="on"' + (pos.hidden ? '' : ' class="vcd-on"') + '>On</button>' +
-    '<button type="button" data-pet="off"' + (pos.hidden ? ' class="vcd-on"' : '') + '>Off</button></div></div>' +
-    '<div class="vcd-field"><label>Character</label>';
+  var activeName = (characters[active] || {}).name || active;
+  var html = '<div class="vcd-preview"><canvas id="vcdPreview" width="48" height="48" role="img" aria-label="Your pet: ' + esc(activeName) + '"></canvas>' +
+    '<span class="vcd-now">Your pet</span><span class="vcd-now-name" id="vcdNowName">' + esc(activeName) + '</span></div>' +
+    '<div class="vcd-field"><label id="vcdShowLbl">Show pet</label><div class="vcd-seg" id="vcdPetOnOff" role="group" aria-labelledby="vcdShowLbl">' +
+    '<button type="button" data-pet="on"' + (pos.hidden ? '' : ' class="vcd-on"') + ' aria-pressed="' + (pos.hidden ? 'false' : 'true') + '">On</button>' +
+    '<button type="button" data-pet="off"' + (pos.hidden ? ' class="vcd-on"' : '') + ' aria-pressed="' + (pos.hidden ? 'true' : 'false') + '">Off</button></div></div>' +
+    '<div class="vcd-field"><label id="vcdPickLbl">Pick a pet</label><div class="vcd-grid" role="group" aria-labelledby="vcdPickLbl">';
   Object.keys(characters).forEach(function(id){
     var spec = characters[id] || {};
-    html += '<button type="button" class="vcd-card' + (id === active ? ' vcd-on' : '') + '" data-char="' + esc(id) + '" aria-pressed="' + (id === active ? 'true' : 'false') + '">' +
-      '<b>' + esc(spec.name || id) + '</b></button>';
+    var on = id === active;
+    html += '<button type="button" class="vcd-card' + (on ? ' vcd-on' : '') + '" data-char="' + esc(id) + '" aria-pressed="' + (on ? 'true' : 'false') + '"' +
+      ' title="' + (on ? 'Your pet' : 'Choose ' + esc(spec.name || id)) + '">' +
+      '<canvas class="vcd-thumb" data-thumb="' + esc(id) + '" width="48" height="48" aria-hidden="true"></canvas>' +
+      '<span class="vcd-name">' + esc(spec.name || id) + '</span><span class="vcd-tag">Selected</span></button>';
   });
+  html += '</div>';
   // No Style row: every painted pet keeps the colours it was painted in, so a colour style
   // would be a button that changes nothing.
   html += '</div>' +
-    '<p class="vcd-note">Tip: drag the pet past the edge of the window to put it on your desktop.</p>' +
-    '<p class="vcd-note">Appearance changes only the pet. Your tasks and their status stay the same.</p>';
+    '<p class="vcd-note">Tip: drag the pet past the edge of the window to put it on your desktop.</p>';
   if (!companion) html += '<p class="vcd-note">Companion layer not loaded in this view.</p>';
   return html;
 }
@@ -113,6 +126,7 @@ function paintPreview(now){
   if (!ctx) return;
   // Redraw only when what is shown changes; a painting still decoding counts as a change.
   var ready = !world.ready || world.ready(character);
+  paintThumbs(world, pos.pack || 'default');
   var key = [character, pos.pack || 'default', frame, ready].join('|');
   if (key !== previewKey) {
     world.draw(ctx, 'idle', frame, {character: character, pack: pos.pack || 'default', ground: false,
@@ -120,7 +134,25 @@ function paintPreview(now){
     previewKey = key;
   }
   // Reduced motion shows one still pose: no animation loop at all.
-  if ((!reduced || !ready) && typeof requestAnimationFrame === 'function') previewFrame = requestAnimationFrame(paintPreview);
+  if ((!reduced || !ready || thumbsPending) && typeof requestAnimationFrame === 'function') previewFrame = requestAnimationFrame(paintPreview);
+}
+/* Each choice shows its own pet, still, so the list reads as "pick this one", not as names. */
+var thumbsPending = false;
+function paintThumbs(world, pack){
+  thumbsPending = false;
+  if (!drawer) return;
+  var thumbs = drawer.querySelectorAll('canvas[data-thumb]');
+  for (var i = 0; i < thumbs.length; i++) {
+    var c = thumbs[i];
+    if (c.getAttribute('data-painted') === '1') continue;
+    var id = c.getAttribute('data-thumb');
+    var ok = !world.ready || world.ready(id);
+    if (world.fit) world.fit(c, 48);
+    var tctx = c.getContext && c.getContext('2d');
+    if (!tctx) continue;
+    world.draw(tctx, 'idle', 0, {character: id, pack: pack, ground: false, reduced: true, elapsed: 0});
+    if (ok) c.setAttribute('data-painted', '1'); else thumbsPending = true;
+  }
 }
 function startPreview(){
   stopPreview();
@@ -156,10 +188,10 @@ function buildDrawer(){
   drawer = document.createElement('div');
   drawer.id = 'vcdDrawer';
   drawer.setAttribute('role', 'dialog');
-  drawer.setAttribute('aria-label', 'Pet appearance');
+  drawer.setAttribute('aria-label', 'Choose your pet');
   drawer.hidden = true;
-  drawer.innerHTML = '<div class="vcd-head"><b>Pet appearance</b>' +
-    '<button type="button" class="vcd-x" title="Close (Esc)" aria-label="Close pet appearance">Close</button></div>' +
+  drawer.innerHTML = '<div class="vcd-head"><b>Choose your pet</b>' +
+    '<button type="button" class="vcd-x" title="Close (Esc)" aria-label="Close">Close</button></div>' +
     '<div class="vcd-body"></div>';
   document.body.appendChild(drawer);
   drawer.querySelector('.vcd-x').addEventListener('click', closeDrawer);
@@ -202,7 +234,7 @@ document.addEventListener('keydown', function(ev){
 function boot(){
   mountNewChatKbd();
   if (window.VoolPalette && window.VoolPalette.register) {
-    try { window.VoolPalette.register('companion-drawer', 'Pet appearance', toggleDrawer, '\\u2318/'); } catch (e) {}
+    try { window.VoolPalette.register('companion-drawer', 'Choose your pet', toggleDrawer, '\\u2318/'); } catch (e) {}
   }
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

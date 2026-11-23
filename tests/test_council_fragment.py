@@ -119,7 +119,7 @@ def test_pet_appearance_uses_settings_without_header_clutter() -> None:
     fragment = render_companion_drawer_fragment()
     page = render_vool_chat_html(build_commit="test-commit")
     assert "window.VoolCompanionDrawer" in page
-    assert "Pet appearance" in fragment
+    assert "Choose your pet" in fragment and "Pet appearance" not in fragment
     for removed in ("vcdCapBtn", "vcdPalBtn", "vcdOpenLab", "vool_profile_prefs", "voiceTab", "profileTab"):
         assert removed not in fragment
     assert "drawer.hidden = true" in fragment
@@ -129,7 +129,10 @@ def test_drawer_retains_actual_pet_controls() -> None:
     from core.companion_drawer_fragment import render_companion_drawer_fragment
 
     fragment = render_companion_drawer_fragment()
-    assert "Your tasks and their status stay the same" in fragment
+    # Owner 2026-11-23: the panel reads as choosing your pet, each choice shows its own pet,
+    # and the current one is plainly marked.
+    for label in ("Choose your pet", "Pick a pet", "Show pet", "Your pet", "Selected", "data-thumb"):
+        assert label in fragment, label
     for action in ("chooseCharacter", "companion.hideDesktopPet()", "companion.hide(false)", "companion.dock()"):
         assert action in fragment
     # Owner 2026-11-22: painted pets keep the colours they were painted in, so the drawer no
@@ -160,19 +163,17 @@ def test_shortcut_map_is_fully_visible() -> None:
     assert "margin-top:auto" in extras
 
 
-def test_companion_popover_is_placed_toggled_and_closable() -> None:
-    """Live defect 2026-08-28: a tap opened the provenance popover unpositioned (top-left),
-    every tap reopened it, and nothing but its own X could close it."""
+def test_a_tap_on_the_pet_opens_no_engine_card() -> None:
+    """Owner 2026-11-23: a pet click opened a WORKER / MODEL PROVENANCE card full of
+    "unknown" engine rows. A tap now opens nothing; the menu stays on right-click."""
     from core.companion_presentation_fragment import render_companion_fragment
 
     fragment = render_companion_fragment()
-    assert 'vnPop.style.left = Math.round(px) + "px"' in fragment, "popover must be placed by the sprite"
-    assert 'if (vnPop && vnPop.style.display === "block") { vnPop.style.display = "none"; return; }' in fragment, (
-        "a tap on the sprite toggles the popover instead of reopening it"
-    )
+    for gone in ("vool-ninja-pop", "Model provenance", "vnRenderPopover", "Activity detail", "spend class"):
+        assert gone not in fragment, gone
+    assert "if (!wasMoved) return;" in fragment, "a tap without a drag does nothing"
     assert '-webkit-tap-highlight-color: transparent' in fragment, "WKWebView tap square must be killed"
     assert '.vn-caption:empty, #companionLayer .vn-menu:empty { display: none; }' in fragment
-    assert 'e.key === "Escape" && vnPop' in fragment, "Esc closes the popover"
     assert "atEdge && vnNativeCompanionApi()" in fragment, "edge-release hands the sprite to the desktop"
 
 

@@ -32,7 +32,7 @@ function El(display, computed) {
 // The three companion shells exactly as the companion fragment boots them: present in the
 // page, hidden with inline display:none. `open` rewrites one shell per scenario.
 const shells = {
-  menu: new El('none'), pop: new El('none'), lab: new El('none'),
+  menu: new El('none'), lab: new El('none'),
 };
 const legacyOverlays = {};   // id -> El, only populated by the overlay scenario
 const listeners = { capture: [], bubble: [] };
@@ -40,14 +40,12 @@ globalThis.document = {
   getElementById: (id) => legacyOverlays[id] || null,
   querySelector: (sel) => {
     if (sel.indexOf('.vool-ninja-menu') >= 0) return shells.menu;
-    if (sel.indexOf('.vool-ninja-pop') >= 0) return shells.pop;
     if (sel.indexOf('.vool-character-lab') >= 0) return shells.lab;
     return null;
   },
   querySelectorAll: (sel) => {
     const out = [];
     if (sel.indexOf('.vool-ninja-menu') >= 0) out.push(shells.menu);
-    if (sel.indexOf('.vool-ninja-pop') >= 0) out.push(shells.pop);
     if (sel.indexOf('.vool-character-lab') >= 0) out.push(shells.lab);
     return out;
   },
@@ -94,7 +92,6 @@ def _press_esc(scenario: str) -> int:
         "hidden": "",
         # the companion code opens the ninja menu with inline display:block
         "menu-open": "shells.menu.style.display = 'block';",
-        "pop-open": "shells.pop.style.display = 'block';",
         "lab-open": "shells.lab.style.display = 'flex';",
         # a class-level hide (no inline style): visible only through getComputedStyle
         "css-hidden-lab": (
@@ -136,10 +133,10 @@ def test_esc_stops_the_run_when_the_companion_shells_are_hidden() -> None:
 
 
 @pytest.mark.parametrize(
-    "scenario", ["menu-open", "pop-open", "lab-open", "settings-overlay-open"]
+    "scenario", ["menu-open", "lab-open", "settings-overlay-open"]
 )
 def test_esc_defers_to_a_surface_the_user_can_see(scenario: str) -> None:
-    """An open companion menu/pop/lab (or legacy overlay) owns Esc; the run keeps going."""
+    """An open companion menu/lab (or legacy overlay) owns Esc; the run keeps going."""
     assert _press_esc(scenario) == 0
 
 

@@ -32,13 +32,12 @@ def _css_rule(css: str, selector: str) -> str:
     return match.group(1)
 
 
-def test_the_pet_menu_and_status_card_take_their_own_clicks() -> None:
+def test_the_pet_menu_takes_its_own_clicks() -> None:
     css = render_companion_fragment()
     # The layer they live in is click-through; without their own pointer-events every row
     # clicked whatever app control sat underneath it.
     assert re.search(r"#companionLayer\s*\{[^}]*pointer-events:\s*none", css)
-    for selector in (".vool-ninja-pop", ".vool-ninja-menu"):
-        assert re.search(r"pointer-events:\s*auto", _css_rule(css, selector)), selector
+    assert re.search(r"pointer-events:\s*auto", _css_rule(css, ".vool-ninja-menu"))
 
 
 def _run(driver: str) -> dict:
@@ -64,15 +63,13 @@ try {
   const layer = document.body.children.find((c) => c.id === "companionLayer");
   const sprite = layer.children.find((c) => c.attrs && c.attrs.role === "button");
   const menu = layer.children.find((c) => c.className === "vool-ninja-menu");
-  const pop = layer.children.find((c) => c.className === "vool-ninja-pop");
   const fire = (type, ev) => (__docH[type] || []).forEach((f) => f(Object.assign(
     { preventDefault() {}, stopPropagation() {} }, ev)));
   const open = () => sprite.__on.contextmenu({ preventDefault() {}, stopPropagation() {}, clientX: 50, clientY: 50 });
 
-  pop.style.display = "block";
   open();
   res.openShown = menu.style.display;
-  res.popAfterMenu = pop.style.display;
+  res.popCount = layer.children.filter((c) => c.className === "vool-ninja-pop").length;
   res.rows = menu.children.map((b) => b.textContent);
   fire("keydown", { key: "Escape" });
   res.afterEscape = menu.style.display;
@@ -103,7 +100,8 @@ out(res);
 def test_the_pet_menu_closes_like_any_menu_and_shows_only_what_works() -> None:
     out = _run(MENU_DRIVER)
     assert out["openShown"] == "block"
-    assert out["popAfterMenu"] == "none", "one pet panel at a time"
+    assert out["popCount"] == 0, "the pet has no worker/provenance card (owner 2026-11-23)"
+    assert not any(r.startswith("Activity detail") for r in out["rows"]), out["rows"]
     assert out["afterEscape"] == "none", "Escape closes the menu"
     assert out["afterInsidePress"] == "block", "pressing a row is not a click outside"
     assert out["afterOutsidePress"] == "none", "a click elsewhere closes the menu"

@@ -258,17 +258,14 @@ law("T6.stale_seq_rejected_no_ghosts", () => {
   eq(VC.spriteCount(), 1, "exactly one companion sprite while one real worker exists");
 });
 
-// -- T7 progress only from measurable ---------------------------------------------
-function progressValue(html) {
-  const m = html.match(/measurable<\/b><span>([^<]*)</);
-  assert(m, "popover must render a measurable row");
-  return m[1];
-}
-law("T7.progress_only_from_measurable", () => {
+// -- T7 a tap on the pet opens no engine card (owner 2026-11-23) --------------------
+law("T7.no_engine_card_on_the_pet", () => {
   VC.consume("m1", { type: "task.started", seq: 1 });
-  eq(progressValue(VC.popoverHtml("m1")), "unknown", "absent numbers must render unknown");
   VC.consume("m1", { type: "tool.completed", seq: 2, measurable: { current: 2, total: 4 } });
-  eq(progressValue(VC.popoverHtml("m1")), "50%", "measurable current/total is the only percent source");
+  assert(typeof VC.popoverHtml === "undefined", "the worker/model-provenance card is gone");
+  const walk = (n) => [n].concat((n.children || []).reduce((a, c) => a.concat(walk(c)), []));
+  const pops = walk(document.body).filter((n) => n.className === "vool-ninja-pop");
+  eq(pops.length, 0, "no provenance card node is built");
 });
 
 // -- T8 FINISH gate ------------------------------------------------------------------
@@ -537,7 +534,7 @@ def js_law_results() -> dict:
     "T4.replay_determinism",
     "T5.override_priority_stack",
     "T6.stale_seq_rejected_no_ghosts",
-    "T7.progress_only_from_measurable",
+    "T7.no_engine_card_on_the_pet",
     "T8.finish_unreachable_without_task_finalizing",
     "T9.ended_run_only_verification_mutates",
     "T10.drag_presentation_only",
