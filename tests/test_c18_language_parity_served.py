@@ -452,8 +452,10 @@ class C18LanguageParityServed(unittest.TestCase):
             payload = self.chat(TYPO_EN_QUESTION, session_id="sess-typo-en", model=LOCAL)
 
             self.assertEqual(_reply_text(payload), ENGLISH_REPAIR)
+            # Answers only: the turn's tool judge and the said-in-passing judgement also ask this local model
+            # (no other model is loaded), and they are not answers the guard repaired.
             self.assertEqual(
-                self.local.generations_for(LOCAL),
+                len(self.local.answer_calls_for(LOCAL)),
                 2,
                 "the guard must spend exactly one repair. Wire calls to the local model: "
                 + json.dumps(
