@@ -3314,8 +3314,15 @@ def _kept_fact_words(sentence: str, *, session_id: str | None, source_context: M
     Mac run12 (6aabca905): "prisimink, kad kaimyno šuo ėda vien obuolius" ("remember that ...") was saved whole, so a
     recall answered with the request in it."""
     words = str(sentence or "").split()
+    # Only a lead the person set off with a mark (a comma, a colon, a semicolon or a dash) can be left off, and at
+    # most one word after it ("prisimink, kad ..."): offered every first word, qwen3:8b picked versions that cut the
+    # fact itself ("mano kuprinė žalia ir ji laikoma balkone" was saved as "ji laikoma balkone", Mac run15).
+    marked = next((index for index, word in enumerate(words[:_KEPT_FACT_LEAD_WORDS])
+                   if word[-1:] in ",;:" or word in {"-", "\u2013", "\u2014"}), None)
+    if marked is None:
+        return str(sentence or "")
     versions = [" ".join(words[start:]).lstrip(" ,;:\u2013\u2014-").strip()
-                for start in range(min(_KEPT_FACT_LEAD_WORDS, len(words) - 1))]
+                for start in range(min(marked + 3, len(words) - 1))]
     versions = [version for version in dict.fromkeys(versions) if len(version.split()) >= 2]
     if len(versions) < 2:
         return str(sentence or "")

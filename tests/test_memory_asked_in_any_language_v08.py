@@ -645,3 +645,15 @@ def test_a_keep_the_person_asks_not_to_make_keeps_nothing(home, monkeypatch, see
                                                  source_context=dict(OWNER))
     assert handled and reply == pm.KEEP_NOT_WANTED_REPLY, reply
     assert _plain(name).casefold() not in _plain(_entries()).casefold()
+
+
+def test_a_kept_fact_with_no_marked_lead_is_kept_whole(monkeypatch):
+    """Mac run15 (879d8eeb8): offered every first word, the judge cut "mano kuprinė žalia ir ji laikoma balkone" to "ji
+    laikoma balkone". Only a lead set off by a mark is ever left off, with at most one word after the mark."""
+    asked = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_kept_fact", lambda _m, versions, **_k: asked.append(versions) or 3)
+    whole = "mano kuprinė žalia ir ji laikoma balkone"
+    assert pm._kept_fact_words(whole, session_id=CHAT, source_context={}) == whole and not asked
+    led = "prisimink, kad kaimyno šuo ėda vien morkas"
+    assert pm._kept_fact_words(led, session_id=CHAT, source_context={}) == "kaimyno šuo ėda vien morkas"
+    assert all(len(version.split()) >= len(led.split()) - 2 for version in asked[0]), asked
