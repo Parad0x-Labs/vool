@@ -684,10 +684,11 @@ def test_a_fact_said_in_passing_with_dont_keep_it_is_not_kept_by_the_keep_step(h
     assert pm.keep_stated_facts(plain, session_id=CHAT, access_policy=_policy(CHAT), source_context=dict(OWNER)) == 1
 
 
-@pytest.mark.parametrize("tool_pick", [None, "Memory, keep"])
-def test_a_forget_settled_by_one_reading_is_none_when_the_person_asks_not_to_keep(monkeypatch, tool_pick):
-    """probe17 on 1bf694c5 (qwen3:8b): six Lithuanian "<fact>, tik nesaugok šito" read forget by the memory question and
-    yes by the forget question."""
+@pytest.mark.parametrize("tool_pick", [None, "Memory, keep", "Memory, recall"])
+def test_a_forget_settled_by_one_reading_stands_without_further_questions(monkeypatch, tool_pick):
+    """probe18/probe19 (qwen3:8b): guarding a tie forget with the keep-wanted and lasting-fact questions lost real
+    forgets ("fogret everything about my tent", "pamiršk viską apie mano lempą"). A "<fact>, don't keep it" read as a
+    forget is safe: it erases only held facts it names, and says nothing was erased when it names none."""
     plugin_ask.forget()
     monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
 
@@ -696,16 +697,32 @@ def test_a_forget_settled_by_one_reading_is_none_when_the_person_asks_not_to_kee
             return (0,)
         return (next(n for n, choice in enumerate(choices, 1) if choice.startswith(tool_pick)),)
 
+    asked = []
     monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", arbitrate)
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: "forget")
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "yes")
-    # probe18 (e17d3c5f): keep-wanted alone read "forget everything about my tent" as "don't keep"; the message must
-    # also tell a lasting fact of its own.
-    for wanted, fact, expected in (("no", "yes", ""), ("no", "no", "forget"), ("no", None, "forget"),
-                                   ("yes", "yes", "forget"), (None, "yes", "forget")):
-        monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, _w=wanted, **_k: _w)
-        monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda *_a, _f=fact, **_k: _f)
-        text = f"laikau lempą palėpėje, tik nesaugok šito ({tool_pick} {wanted} {fact})"
-        plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
-        assert plugin_ask.judged_memory_ask(text) == expected, wanted
+    monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, **_k: asked.append("wanted") or "no")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda *_a, **_k: asked.append("lasting") or "yes")
+    text = f"pamiršk viską apie mano lempą ({tool_pick})"
+    plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
+    assert plugin_ask.judged_memory_ask(text) == "forget"
+    assert not asked
     plugin_ask.forget()
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_fact_whose_lead_went_at_a_dash_loses_no_more_words(home, monkeypatch, seed):
+    """Mac run19 (f7e6cf69): "Prasau isiminti — mano valtis oranzine, laikau ja sandeliuke." lost its lead at the dash,
+    then the picker read "mano valtis oranzine," as a second lead and saved only "laikau ja sandeliuke"."""
+    rng = random.Random(f"one-lead-{seed}")
+    colour = rng.choice(["oranzine", "žalia", "mėlyna"])
+    text = rng.choice([f"Prasau isiminti — mano valtis {colour}, laikau ja sandeliuke.",
+                       f"Įsimink: mano valtis {colour}, stovi garaže."])
+    _judged(text, "keep")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_kept_fact", lambda _m, versions, **_k: len(versions))
+    handled, reply = maybe_handle_memory_command(text, session_id=CHAT, access_policy=_policy(CHAT),
+                                                 source_context=dict(OWNER))
+    assert handled and reply == pm.KEPT_REPLY, reply
+    assert f"mano valtis {colour}" in _entries(), _entries()

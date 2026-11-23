@@ -3155,18 +3155,22 @@ def _judged_forget_order(
     return " ".join(f"Forget {item.rstrip(' .!;')}." for item in named)
 
 
-def _judged_keep_statements(text: str) -> list[str]:
+def _judged_keep_statements(text: str, *, led: list[bool] | None = None) -> list[str]:
     """The facts a keep ask the judge read carries: its sentences that are not questions, each without a short lead
-    before a colon or a dash (the order: "Įsimink du dalykus: ...", "Ir dar - ...")."""
+    before a colon or a dash (the order: "Įsimink du dalykus: ...", "Ir dar - ..."). ``led``, when given, gets one
+    flag per fact: whether its lead was left off here."""
     facts: list[str] = []
     for sentence in _SENTENCE_SPLIT_RE.split(str(text or "").strip()):
         clean = " ".join(sentence.split()).strip()
-        led = _SHORT_LEAD_RE.match(clean)
-        if led and len(led.group("lead").split()) <= 3 and len(led.group("rest").split()) >= 2:
-            clean = led.group("rest").strip()
+        match = _SHORT_LEAD_RE.match(clean)
+        stripped = bool(match and len(match.group("lead").split()) <= 3 and len(match.group("rest").split()) >= 2)
+        if stripped:
+            clean = match.group("rest").strip()
         clean = clean.rstrip(" .!")
         if len(clean.split()) >= 2 and "?" not in clean:
             facts.append(clean)
+            if led is not None:
+                led.append(stripped)
     return facts
 
 
@@ -3209,7 +3213,8 @@ def _judged_memory_turn(
         if turn_is_private(source_context, policy.chat_id):
             keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
             return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
-        facts = _judged_keep_statements(text)
+        led: list[bool] = []
+        facts = _judged_keep_statements(text, led=led)
         if not facts:
             return None
         if _keep_not_wanted(text, session_id=session_id, source_context=source_context):
@@ -3219,8 +3224,12 @@ def _judged_memory_turn(
         # me what colour my bike is ...", no question mark) was saved as a fact and answered "Locked in" (Mac run10,
         # eb8c907cc). What is kept must be told as a fact, by the keep step's own question; a keep ask that tells
         # nothing is a recall.
-        facts = [_kept_fact_words(fact, session_id=session_id, source_context=source_context)
-                 for fact in facts if _told_as_fact(fact, session_id=session_id, source_context=source_context)]
+        # One lead at most is left off a kept fact: a fact whose lead went above is kept as it now stands. Mac run19
+        # (f7e6cf69): "Prasau isiminti — mano valtis oranzine, laikau ja sandeliuke." lost its lead at the dash, then
+        # the picker read "mano valtis oranzine," as a second lead and only "laikau ja sandeliuke" was saved.
+        facts = [fact if lead_gone else _kept_fact_words(fact, session_id=session_id, source_context=source_context)
+                 for fact, lead_gone in zip(facts, led, strict=True)
+                 if _told_as_fact(fact, session_id=session_id, source_context=source_context)]
         if not facts:
             reply = _judged_recall_reply(text, session_id=session_id, policy=policy, source_context=source_context)
             if reply is None and not _chat_earlier_user_turns(session_id):
