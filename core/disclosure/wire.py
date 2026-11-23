@@ -177,6 +177,30 @@ def _prune() -> None:
             del _DETACHED_APPROVED[approved]
 
 
+def _open(item: Preview) -> bool:
+    """A request that still waits on the owner: attached and undecided, or detached and undecided."""
+    if item.invalidated or item.sent or item.decision is not None:
+        return False
+    return item.detached or _waiting_on_owner(item)
+
+
+def _make_room_locked() -> None:
+    """Drop the oldest requests nobody waits on, so the cap counts only requests still open.
+
+    Every call is kept here for its preview and comparison until _TTL, finished or not, and the cap
+    counted all of them as open. A served chat of 38 short turns (each with its answer, the turn's tool
+    judge and its side calls) reached 128 within five minutes on 02c37a13b, and the next answer was
+    refused "Too many open requests" with no preview open at all. Expiring a finished or in-flight
+    request only drops its cached bytes and never cancels its turn (see _prune)."""
+    for ident, item in sorted(_PREVIEWS.items(), key=lambda pair: pair[1].created):
+        if len(_PREVIEWS) < _LIMIT:
+            return
+        if _open(item) or (item.home, item.chat_id, item.turn_id) in _CANCELLED:
+            continue  # a stopped turn's tombstone lives as long as its requests do
+        _expire(item)
+        del _PREVIEWS[ident]
+
+
 def _current(item: Preview) -> bool:
     if item.invalidated:
         return False
@@ -738,6 +762,8 @@ def _prepare(payload: dict[str, Any], *, url: str, context: dict[str, Any], requ
                 # send could not wait for the review.
                 del _DETACHED_APPROVED[(key[0], key[1], binding)]
                 ask = False
+            if len(_PREVIEWS) >= _LIMIT:
+                _make_room_locked()
             if len(_PREVIEWS) >= _LIMIT:
                 raise DisclosureRefused("Too many open requests. Close a preview and try again.")
             detach = ask and binding not in prior and not context.get("review_waits")
