@@ -130,10 +130,9 @@ its exact command. The template demonstrates that exchange. Metadata alone does 
 native providers or scanners to other hosts. Installation inside Claude Code and Codex
 requires testing in those applications.
 
-For the existing registry, supply `registry.json` with `kind: plugin` and your publisher/package
-identity. Set package `name`, `vool.id` and tool namespaces to
-`core.registry.artifact.native_identity(package_id)` before packing. Run
-`python -m tools.community_skills pack` with scratch and output outside the distribution.
-The registry performs complete deterministic and independent review; its existing signing
-authority binds the full distribution digest. Local validation is not admission. A store
-review never enables the plugin or grants runtime permissions.
+Share a plugin as its folder, or as a folder in a public GitHub repository at an exact commit
+(Add-ons, Plugins, "Review from GitHub": repository, the full 40-character commit, the folder).
+The Skill Codex lists skills; it does not take plugin packages. Check a folder before you share it
+with `python -m tools.plugin_check FOLDER` (add `--json` for a tool or an agent): it prints the
+sentence a person installing would read and, for the maker, the field at fault and what to write
+instead. The guides for makers are in [docs/creators](../creators/README.md).

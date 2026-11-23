@@ -192,6 +192,8 @@ _RULES = (
 #: or a link with a query is ordinary, so they are read by the rules above only.
 _ASK_FOR = r"\b(?:ask|request)\b(?:\s+\S+){0,4}?\s+for\s+(?:\S+\s+){0,6}?"
 _COLLECT = r"\b(?:collect|obtain|take\s+down|write\s+down|note\s+down|record|get)\s+(?:\S+\s+){0,4}?"
+_TO_TYPE = (r"\b(?:ask|tell|have|get|instruct|prompt)\b(?:\s+\S+){0,4}?\s+to\s+(?:type|enter|give|send|share|provide|"
+            r"read\s+out|write|paste|say)\s+(?:\S+\s+){0,6}?")
 _CARD_THING = (r"(?:(?:the|their|your|his|her)\s+)?(?:(?:bank|credit|debit|payment)\s+)?card(?:'s)?\s+"
                r"(?:number|numbers|details|expiry|expiration|cvv|cvc|security\s+code)\b|"
                r"long\s+number\s+on\s+the\s+(?:front|back)\b|\bcvv\b|\bcvc\b|"
@@ -227,7 +229,7 @@ _IMPORT_RULES = (
         r"\b(?:add|append|put|include|attach|encode|insert)\b[^.!?\n]{0,60}?\b(?:to|in|into|onto|at\s+the\s+end\s+of)\s+"
         r"(?:the|this|that|a|each)\s+(?:link|url|web\s+address|address\s+bar|query)", re.IGNORECASE),
      "Skills can't show pictures from web addresses or put the person's words into a link. Take that out."),
-    ("card-ask", re.compile(r"(?:" + _ASK_FOR + "|" + _COLLECT + r")(?:" + _CARD_THING + ")", re.IGNORECASE),
+    ("card-ask", re.compile(r"(?:" + _ASK_FOR + "|" + _COLLECT + "|" + _TO_TYPE + r")(?:" + _CARD_THING + ")", re.IGNORECASE),
      "Skills can't ask for card numbers, expiry dates, PINs or passwords. Take that sentence out."),
     ("phishing", re.compile(
         r"\[[^\]\n]{0,80}\b(?:verify|confirm|log\s*in|login|sign\s*in|unlock|reset|update|secure|restore)\b"

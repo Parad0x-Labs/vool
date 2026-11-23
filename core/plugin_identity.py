@@ -172,29 +172,43 @@ def identity_refusal(manifest: Any, *, digest: str = "") -> str:
     anything. It reads the id, the name, the maker's name and the key labels. A package whose
     exact bytes are one of VOOL's own (``core.plugin_migration``) is VOOL's and is not refused.
     """
+    return identity_note(manifest, digest=digest)[0]
+
+
+_ID_FIX = ("Choose another id. Kept back: the ids of the packs VOOL ships, any id that starts with vool or parad0x, "
+           "and the names VOOL's own tools start with (email, skill, workspace, memory and the rest).")
+_TEXT_FIX = ("Change this field. It is plain text: letters, numbers, spaces and a few marks, with no VOOL or Skill "
+             "Codex name, no word or mark that says it was checked or chosen, no hidden or look-alike letters, no link.")
+
+
+def identity_note(manifest: Any, *, digest: str = "") -> tuple[str, dict]:
+    """(the refusal sentence, the note for the plugin's maker: which field and what to change); ("", {}) when fine."""
     if not isinstance(manifest, dict):
-        return ""   # not a manifest at all: the reader that follows says so
+        return "", {}   # not a manifest at all: the reader that follows says so
     from core.plugin_migration import own_package, reserved_refusal
 
     block = manifest.get("vool") if isinstance(manifest.get("vool"), dict) else {}
-    ids = [value for value in (manifest.get("name"), block.get("id")) if isinstance(value, str)]
-    if any(own_package(plugin_id, digest) for plugin_id in ids):
-        return ""
-    for plugin_id in ids:
+    ids = [(where, value) for where, value in (("name", manifest.get("name")), ("vool.id", block.get("id")))
+           if isinstance(value, str)]
+    if any(own_package(plugin_id, digest) for _where, plugin_id in ids):
+        return "", {}
+    for where, plugin_id in ids:
         refusal = reserved_refusal(plugin_id.strip(), digest)
         if refusal:
-            return refusal
+            return refusal, {"where": where, "fix": _ID_FIX}
     interface = manifest.get("interface") if isinstance(manifest.get("interface"), dict) else {}
-    for shown in (block.get("name"), block.get("publisher"), interface.get("displayName")):
+    for where, shown in (("vool.name", block.get("name")), ("vool.publisher", block.get("publisher")),
+                         ("interface.displayName", interface.get("displayName"))):
         refusal = display_refusal(shown)
         if refusal:
-            return refusal
+            return refusal, {"where": where, "fix": _TEXT_FIX}
     credentials = block.get("credentials") if isinstance(block.get("credentials"), dict) else {}
-    for slot in credentials.values():
+    for slot_name, slot in credentials.items():
         refusal = display_refusal(slot.get("label") if isinstance(slot, dict) else None, name=False)
         if refusal:
-            return refusal
-    return ""
+            where = "vool.credentials." + "".join(char for char in str(slot_name) if char.isalnum() or char in "_-")[:80] + ".label"
+            return refusal, {"where": where, "fix": _TEXT_FIX}
+    return "", {}
 
 
 _SHOWN_LIMIT = 60
@@ -260,6 +274,7 @@ __all__ = [
     "VOUCHING",
     "builtin_tool_names",
     "display_refusal",
+    "identity_note",
     "identity_refusal",
     "prompt_data",
     "reserved_id",

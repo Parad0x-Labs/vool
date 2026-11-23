@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 
 from core import plugin_lifecycle as lifecycle
-from core.plugin_identity import identity_refusal
+from core.plugin_identity import identity_note, identity_refusal
 from core.plugin_package import PackageError, capture_package
 from core.plugin_paths import child_of
 from core.plugin_tools import PluginManifestError, confined_plugin_id, load_manifest, parse_manifest
@@ -198,8 +198,11 @@ def prepare_local(folder: str, *, update=False, source="local", local_findings=0
         # Who the package says it is, read before anything else about it: an id, a name or a
         # maker's name that poses as VOOL's own, or as checked by anyone, goes no further. The
         # GitHub door ends here too, so both are held to the one rule.
-        if refusal := identity_refusal(captured.manifest, digest=captured.digest):
-            raise lifecycle.LifecycleError(refusal)
+        refusal, note = identity_note(captured.manifest, digest=captured.digest)
+        if refusal:
+            named = lifecycle.LifecycleError(refusal)
+            named.maker_note = note
+            raise named
         plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
         if not plugin.vool:
             raise lifecycle.LifecycleError("This plugin was made for an older VOOL. Ask its maker for an update.")

@@ -396,6 +396,11 @@ def main(argv=None) -> int:
             print(canonical({"status": "created", "next": "Edit instructions and native manifest, then lint and pack."}).decode())
             return 0
         if args.command == "new":
+            from core.skill_tools import _slug, name_problem, reserved_name_reason
+
+            # Said now, not three steps later at import.
+            refused = name_problem(args.name) or reserved_name_reason(_slug(args.name))
+            require(not refused, refused)
             scaffold(args.folder, args.name, args.namespace, args.author)
             print(canonical({"status": "created", "skill_folder": str(args.folder),
                              "metadata": str(metadata_path(args.folder)),
@@ -410,7 +415,10 @@ def main(argv=None) -> int:
                                      "Tool names and limits: docs/guides/skill-tools-and-limits.md"}).decode())
             return 0
         if args.command == "zip":
-            print(canonical(zip_skill(args.folder, args.output)).decode())
+            try:
+                print(canonical(zip_skill(args.folder, args.output)).decode())
+            except FileExistsError:
+                require(False, "that zip file already exists", "Delete it, or give another file with --output.")
             return 0
         if args.command == "stage":
             print(canonical(stage_skill(args.folder, overwrite=args.overwrite)).decode())
@@ -432,6 +440,20 @@ def main(argv=None) -> int:
             info = bind(info, lambda path: (args.source / path_name(path)).read_bytes())
             raw = pack(args.source, info, args.scratch)
         report = preflight(raw, args.scratch)
+        # The author's own check also reads the skill's text by the rules try, zip, stage and the Skill
+        # Codex apply. Without them lint passed a skill that every later step refused. (The service
+        # runs its full checks after preflight, so preflight itself stays as it is.)
+        from core.registry.checks import skill_text_findings
+
+        seen = {(item.get("path"), item.get("line"), item.get("reason")) for item in report["findings"]}
+        for name, data in sorted(inspect(raw)["files"].items()):
+            if name.endswith("SKILL.md"):
+                for item in skill_text_findings(data.decode("utf-8", "replace")):
+                    item = dict(item, path=name)
+                    if item.get("rule") and (item["path"], item.get("line"), item.get("reason")) not in seen:
+                        report["findings"].append(item)
+        if report["findings"]:
+            report["status"] = "blocked"
         warnings = [line for name, data in sorted(inspect(raw)["files"].items()) if name.endswith("SKILL.md")
                     for line in frontmatter_warnings(data.decode("utf-8", "replace"))]
         if warnings:

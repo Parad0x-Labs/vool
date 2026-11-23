@@ -44,5 +44,5 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"js
 3. Replace `bin/server` with your code. To use a plain program instead of MCP, see the word-count walk-through
    in [docs/authoring.md](https://github.com/Parad0x-Labs/vool-plugins/blob/main/docs/authoring.md#build-your-first-plugin).
 4. Update this README, CHANGELOG.md, `.mcp.json`, and the copyright line in LICENSE.
-5. Run the vool-plugins repository's `python3 scripts/check.py --vool-source /path/to/vool <your-folder>`, then `scripts/try.py` from the vool-plugins repository, as shown
-   in the guide.
+5. From a VOOL checkout, run `python -m tools.plugin_check <your-folder>`. It prints what a person installing
+   would read and, when the folder is refused, the field at fault and what to write instead.
