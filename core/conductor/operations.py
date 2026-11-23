@@ -647,6 +647,17 @@ def _workspace_source_inquiry(request_text: str) -> bool:
     words = {token.strip(".").lower() for token in _WORD_RE.findall(str(request_text or ""))}
     if not words & _WORKSPACE_SOURCE_CUES:
         return False
+    # An order to run or change something in the project is no inquiry into its source: "kick off the test suite here
+    # and tell me which ones broke" was answered with a search hit for "test suite" and the tests never ran
+    # (routing-gaps rig, qwen3:8b, 2026-11-23, V-048). Read by the run-order shape and the turn judge's pick.
+    try:
+        from core.agent_runtime.fast_paths_utility import _judged_as_work_on_files
+        from core.clean_loop.route import is_run_order
+
+        if is_run_order(request_text) or _judged_as_work_on_files(request_text):
+            return False
+    except Exception:
+        pass
     # A question about the person's own documents ("read my packing list file", "which of my files
     # mentions the boiler service?") is not a code inquiry: this source-scoped investigation drops
     # every .txt/.md/.csv by design, so it found 0 files and the turn said it could not read files

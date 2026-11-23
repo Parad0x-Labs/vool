@@ -636,6 +636,9 @@ def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id
         verdict = intent_arbiter.arbitrate_web_ask(flat, chat_id=str(session_id or ""), source_context=source_context)
     except Exception:
         verdict = None
+    import logging
+
+    logging.getLogger(__name__).info("web ask verdict: %s", verdict if verdict in ("yes", "no") else "none")
     if verdict not in ("yes", "no"):
         return None   # nothing judged it: not remembered, a later reader may still get a judgement
     with _WEB_VERDICTS_LOCK:

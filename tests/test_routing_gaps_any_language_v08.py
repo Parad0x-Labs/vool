@@ -243,3 +243,18 @@ def test_a_run_order_naming_the_project_is_not_answered_with_a_listing(text, key
     assert maybe_handle_folder_overview_request(
         object(), text, session_id="c4", source_surface="openclaw", source_context=context
     ) is None, text
+
+
+@pytest.mark.parametrize("text,keys", [
+    ("kick off the test suite here and tell me which ones broke", ("run",)),
+    ("execute the project tests and say which ones broke", ()),
+])
+def test_a_run_order_is_not_a_source_inquiry(text, keys, monkeypatch):
+    from core.conductor.operations import _workspace_source_inquiry
+
+    _judge(monkeypatch, keys)
+    if keys:
+        plugin_ask.judge_turn(text, source_context=OWNER, session_id="d1")
+    assert not _workspace_source_inquiry(text)
+    assert not _workspace_source_inquiry(text.split(" and ")[0])   # the clause the conductor reads
+    assert _workspace_source_inquiry("which file in this project implements the test suite runner")
