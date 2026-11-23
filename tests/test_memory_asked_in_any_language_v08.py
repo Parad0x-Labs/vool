@@ -699,9 +699,13 @@ def test_a_forget_settled_by_one_reading_is_none_when_the_person_asks_not_to_kee
     monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", arbitrate)
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: "forget")
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "yes")
-    for wanted, expected in (("no", ""), ("yes", "forget"), (None, "forget")):
+    # probe18 (e17d3c5f): keep-wanted alone read "forget everything about my tent" as "don't keep"; the message must
+    # also tell a lasting fact of its own.
+    for wanted, fact, expected in (("no", "yes", ""), ("no", "no", "forget"), ("no", None, "forget"),
+                                   ("yes", "yes", "forget"), (None, "yes", "forget")):
         monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, _w=wanted, **_k: _w)
-        text = f"laikau lempą palėpėje, tik nesaugok šito ({tool_pick} {wanted})"
+        monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda *_a, _f=fact, **_k: _f)
+        text = f"laikau lempą palėpėje, tik nesaugok šito ({tool_pick} {wanted} {fact})"
         plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
         assert plugin_ask.judged_memory_ask(text) == expected, wanted
     plugin_ask.forget()

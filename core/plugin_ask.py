@@ -48,15 +48,17 @@ _JUDGED: OrderedDict[str, tuple[float, tuple[str, ...], tuple[Any, ...]]] = Orde
 _BUILTINS: OrderedDict[str, tuple[float, tuple[str, ...]]] = OrderedDict()
 
 #: VOOL's own personal tools as the judge reads them: (key, description, the tools a pick seats). The descriptions say
-#: what each does for the person, so a judge reading any language can tell a reminder from a calendar event.
+#: what each does for the person, so a judge reading any language can tell a reminder from a calendar event. Mac run18
+#: (e17d3c5f): "isimink du dalykus: mano palapine melyna ir ji laikoma rusyje" ("remember two things: my tent is blue
+#: and kept in the cellar") was judged Reminders and Contacts, raised a reminder approval card and saved nothing.
 BUILTIN_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("reminders", "Reminders: VOOL itself reminds the person of something at a time they give; set, list, move or "
-     "cancel such a reminder.",
+     "cancel such a reminder. Asking VOOL to remember a fact, with no time to be reminded at, is not a reminder.",
      ("operator.schedule_reminder", "operator.list_reminders", "operator.move_reminder", "operator.cancel_reminder")),
     ("calendar", "Calendar: what is on the person's calendar and when they are free, or put an event on it.",
      ("operator.show_agenda", "operator.check_availability", "operator.schedule_calendar_event")),
     ("contacts", "Contacts: the people the person saved, with their phone numbers, emails and addresses; find, save, "
-     "change or delete one.",
+     "change or delete one. A thing of the person's (its colour, where it is kept) is not a contact.",
      ("contacts.search", "contacts.save", "contacts.update", "contacts.delete")),
     ("mail", "Email: read or search the person's own email inbox.", ("email.read",)),
     ("notes", "Notes: save a note for the person, or find and read the notes they saved.",
@@ -248,11 +250,14 @@ def _memory_kind_confirmed(
     disagree = bool(picked) and kind in {"keep", "recall", "forget"} and kind not in picked
     if not tools and ("forget" in named or disagree):
         agreed = kind == "forget" and "forget" in picked
-        # A forget one reading names and the yes/no settles is not one when the person says something now and asks
+        # A forget one reading names and the yes/no settles is not one when the message itself tells a fact and asks
         # not to keep it: on qwen3:8b all six Lithuanian "<fact>, tik nesaugok šito" ("... just don't save this") of
-        # probe17 (1bf694c5) were read forget by the memory question and yes by the forget question.
+        # probe17 (1bf694c5) were read forget by the memory question and yes by the forget question. The keep-wanted
+        # question alone also reads a forget order as "don't keep" (probe18: five English forgets lost), so the
+        # message must also tell a lasting fact of its own, which an order to forget what was told does not.
         if agreed or (asked("forget", intent_arbiter.arbitrate_forget_order) == "yes"
-                      and asked("keep wanted", intent_arbiter.arbitrate_keep_wanted) != "no"):
+                      and not (asked("keep wanted", intent_arbiter.arbitrate_keep_wanted) == "no"
+                               and asked("tells a fact", intent_arbiter.arbitrate_lasting_fact) == "yes")):
             decided = "forget"
     if not decided and not tools and kind == "keep" and "keep" in picked:
         decided = "keep"
