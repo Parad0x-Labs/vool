@@ -321,10 +321,10 @@ def test_a_person_makes_their_own_browser_plugin_and_it_runs(browser, site, tmp_
 
 # -- the Plugins page, served by the normal app ------------------------------------------
 
-from tests.test_plugin_services_v1 import https_service  # noqa: E402,F401  (a fixture)
+from tests.test_plugin_services_v1 import https_service
 
 
-def test_the_plugins_page_makes_reviews_and_groups_a_browser_plugin_in_plain_words(tmp_path, https_service):  # noqa: F811
+def test_the_plugins_page_makes_reviews_and_groups_a_browser_plugin_in_plain_words(tmp_path, https_service):
     from playwright.sync_api import expect
 
     from tests.served_browser import launch_chromium

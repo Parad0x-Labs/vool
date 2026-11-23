@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from tests.test_desk_browser import socks  # noqa: F401  (a fixture: a recording relay)
+from tests.test_desk_browser import socks
 from tools.browser import browser_render
 
 
@@ -62,7 +62,7 @@ def _full_engine() -> str:
     return binary
 
 
-def _lookup(monkeypatch, socks, page) -> tuple[dict, set[str]]:  # noqa: F811
+def _lookup(monkeypatch, socks, page) -> tuple[dict, set[str]]:
     port, asked = socks
     for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "NO_PROXY", "no_proxy", "all_proxy"):
         monkeypatch.delenv(name, raising=False)
@@ -74,13 +74,13 @@ def _lookup(monkeypatch, socks, page) -> tuple[dict, set[str]]:  # noqa: F811
     return result, {host for _, host in asked}
 
 
-def test_a_lookup_asks_the_network_for_its_page_and_nothing_else(monkeypatch, socks, page):  # noqa: F811
+def test_a_lookup_asks_the_network_for_its_page_and_nothing_else(monkeypatch, socks, page):
     result, hosts = _lookup(monkeypatch, socks, page)
     assert result["status"] == "ok" and "95 moons" in result["text"]
     assert hosts == {"lookup-site.test"}
 
 
-def test_without_the_quiet_settings_the_same_lookup_contacts_other_servers(monkeypatch, socks, page):  # noqa: F811
+def test_without_the_quiet_settings_the_same_lookup_contacts_other_servers(monkeypatch, socks, page):
     """The measurement that makes the check above mean something on this engine."""
     monkeypatch.setattr(browser_render, "QUIET_FLAGS", ("--disable-background-networking",))
     result, hosts = _lookup(monkeypatch, socks, page)
@@ -101,7 +101,7 @@ def test_the_lookup_engine_and_the_browser_window_share_one_quiet_list():
     assert sum(arg.startswith("--disable-features=") for arg in argv) == 1
 
 
-def _session_start(monkeypatch, socks) -> set[str]:  # noqa: F811
+def _session_start(monkeypatch, socks) -> set[str]:
     """Start the engine behind a VOOL browser session on a recorded way out; open no page."""
     from core import private_web
     from core.vool_browser import sessions
@@ -122,12 +122,12 @@ def _session_start(monkeypatch, socks) -> set[str]:  # noqa: F811
     return {host for _, host in asked}
 
 
-def test_starting_a_browser_session_asks_the_network_for_nothing(monkeypatch, socks):  # noqa: F811
+def test_starting_a_browser_session_asks_the_network_for_nothing(monkeypatch, socks):
     pytest.importorskip("playwright")
     assert _session_start(monkeypatch, socks) == set()
 
 
-def test_without_the_quiet_settings_a_session_start_contacts_other_servers(monkeypatch, socks):  # noqa: F811
+def test_without_the_quiet_settings_a_session_start_contacts_other_servers(monkeypatch, socks):
     """The measurement that makes the check above mean something on this engine."""
     pytest.importorskip("playwright")
     from core.vool_browser import engine

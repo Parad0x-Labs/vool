@@ -15,13 +15,13 @@ import pytest
 
 from core import private_web, private_web_service, tor_runtime
 from core.i18n import catalog_for
-from tests.first_run_pact_rig import pact_rig as pact_rig  # noqa: F401  (fixture)
-from tests.test_live_browser import world as world  # noqa: F401  (fixture)
-from tests.test_tor_runtime import fake_tor as fake_tor  # noqa: F401  (fixture)
+from tests.first_run_pact_rig import pact_rig as pact_rig
+from tests.test_live_browser import world as world
+from tests.test_tor_runtime import fake_tor as fake_tor
 
 
 @pytest.fixture
-def tor_here(tmp_path, monkeypatch, fake_tor):  # noqa: F811
+def tor_here(tmp_path, monkeypatch, fake_tor):
     """This computer has Tor: the stand-in program, as VOOL's one shared Tor."""
     runtime = tor_runtime.TorRuntime(data_dir=tmp_path / "tor-data", binary=fake_tor)
     monkeypatch.setattr(tor_runtime, "_SHARED", runtime)
@@ -37,7 +37,7 @@ def no_tor_here(monkeypatch):
 
 
 @pytest.fixture
-def pane(world, tmp_path):  # noqa: F811
+def pane(world, tmp_path):
     """The pane, opened in a real engine against the app's own doors."""
     from playwright.sync_api import sync_playwright
 
