@@ -30,7 +30,6 @@ from . import desk as desk_module
 from . import live
 from .live import TIMEOUT, BrowserFault, LiveSession
 
-
 #: A human check, found by its shape and never by a page's wording: a visible frame served
 #: by a service whose only job is to tell people from programs, or a visible element carrying
 #: the standard widget marker those services require. Fixed source; no page text is used.

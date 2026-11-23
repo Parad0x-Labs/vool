@@ -96,15 +96,43 @@ def downloads_dir() -> Path:
     return Path.home() / "Downloads" / "VOOL Downloads"
 
 
+#: The search a new profile starts with, written as the person's own entry and not as one
+#: of the engine's built-in ones. Measured on the engine: with its built-in default it asks
+#: that search company's site for something at every start and builds each new tab from
+#: that company's servers; a built-in alternative makes every new tab a page fetched from
+#: the alternative. An entry of the person's own, with no new-tab address, makes the start
+#: silent and the new tab a page that lives inside the engine.
+STARTING_SEARCH: dict[str, Any] = {
+    "short_name": "DuckDuckGo",
+    "keyword": "duckduckgo.com",
+    "url": "https://duckduckgo.com/?q={searchTerms}",
+    "suggestions_url": "",
+    "favicon_url": "",
+    "new_tab_url": "",
+    "alternate_urls": [],
+    "input_encodings": ["UTF-8"],
+    "prepopulate_id": 0,
+    "safe_for_autoreplace": False,
+    "is_active": 1,
+    "id": "7",
+    "date_created": "0",
+    "last_modified": "0",
+    "synced_guid": "b0a7c1f4-6d2e-4f6a-9d3b-0f5e6a7c8d91",
+}
+
+
 def default_preferences() -> dict[str, Any]:
     """What a new profile starts with. The person can change any of it in the browser.
 
     The best of what other browsers offer, with the privacy they leave off: the site
     being visited keeps its cookies so sign-ins last, other sites' cookies are blocked,
     a plain unencrypted page warns before it opens, nothing typed in the address bar is
-    sent anywhere until Enter, and files land in a folder of their own.
+    sent anywhere until Enter, the engine asks no search company for anything by itself,
+    and files land in a folder of their own.
     """
     return {
+        "default_search_provider_data": {"template_url_data": dict(STARTING_SEARCH)},
+        "default_search_provider": {"guid": STARTING_SEARCH["synced_guid"]},
         "https_only_mode_enabled": True,
         "enable_do_not_track": True,
         "profile": {
@@ -345,6 +373,8 @@ class Desk:
         self._thread.start()
         self._main: _Window | None = None
         self._private: list[_Window] = []
+        # Held here so a watcher lives as long as its window: a task nothing holds can be dropped.
+        self._watchers: set[asyncio.Task[None]] = set()
         self._gate: asyncio.Lock | None = None
         self.unclean_private: list[str] = []
         self._lists_timer: asyncio.TimerHandle | None = None
@@ -377,13 +407,15 @@ class Desk:
             window = _Window(_root() / ("private-" + secrets.token_hex(8)), private=True)
             await window.start()
             self._private.append(window)
-            asyncio.ensure_future(self._watch_private(window))
+            watcher = asyncio.ensure_future(self._watch_private(window))
+            self._watchers.add(watcher)
+            watcher.add_done_callback(self._watchers.discard)
         else:
             window = await self._ensure_main()
         self._keep_lists_fresh()
         await window.open(url)
 
-    async def _ensure_main(self) -> "_Window":
+    async def _ensure_main(self) -> _Window:
         if self._main is None or not self._main.alive():
             if self._main is not None:
                 await self._main.stop()
@@ -598,7 +630,19 @@ def stop_all() -> None:
 
 
 __all__ = [
-    "NEVER_PASSED", "QUIET_FLAGS", "Desk", "DeskFault", "desk", "engine_binary",
-    "default_preferences", "downloads_dir", "launch_flags", "normalise_address", "profile_dir",
-    "plugins_changed", "route_changed", "seed_preferences", "stop_all",
+    "NEVER_PASSED",
+    "QUIET_FLAGS",
+    "Desk",
+    "DeskFault",
+    "default_preferences",
+    "desk",
+    "downloads_dir",
+    "engine_binary",
+    "launch_flags",
+    "normalise_address",
+    "plugins_changed",
+    "profile_dir",
+    "route_changed",
+    "seed_preferences",
+    "stop_all",
 ]

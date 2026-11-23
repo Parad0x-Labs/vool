@@ -309,6 +309,10 @@ def test_starting_preferences_are_written_once_and_never_over_the_persons_own(ho
     assert written["https_only_mode_enabled"] is True
     assert written["profile"]["cookie_controls_mode"] == 1
     assert written["safebrowsing"]["enabled"] is False and written["search"]["suggest_enabled"] is False
+    # The starting search is an entry of the person's own, with no new-tab or suggestion address.
+    search = written["default_search_provider_data"]["template_url_data"]
+    assert (search["prepopulate_id"], search["new_tab_url"], search["suggestions_url"]) == (0, "", "")
+    assert written["default_search_provider"]["guid"] == search["synced_guid"]
     assert written["download"]["default_directory"] == str(desk_module.downloads_dir())
     # The person switched a protection off in the browser: the next start keeps their choice.
     written["https_only_mode_enabled"] = False
@@ -477,9 +481,8 @@ def test_switching_private_web_on_closes_the_direct_window_and_the_next_one_send
     # this machine looked up. Nothing reached the site around the route.
     assert all(kind == 3 for kind, _ in asked), asked
     assert hits == []
-    # The engine's own background services stay silent. KNOWN GAP, kept visible here: the
-    # engine still makes one contact to its built-in default search site at start.
-    assert {host for _, host in asked} <= {"far-end-only.example", "www.google.com"}, asked
+    # The engine's own background services stay silent: the page is all the route was asked for.
+    assert {host for _, host in asked} == {"far-end-only.example"}, asked
 
     # The route goes down while the window is open: the next open refuses and the window is gone.
     monkeypatch.setattr(private_web, "route_problem", lambda state=None: "down")
@@ -489,9 +492,49 @@ def test_switching_private_web_on_closes_the_direct_window_and_the_next_one_send
     assert not any(path == "/after" for _, path, _ in hits)
 
 
+def test_the_engine_asks_no_search_company_for_anything_at_start_or_for_a_new_tab(
+    browser, files_site, socks, monkeypatch
+):
+    """Left with its built-in search, the engine asks that company's site for something at
+    every start and builds each new tab from that company's servers.
+
+    Every request of these windows goes through the recording route, by name, so what the
+    route was asked for is the complete list of what the engine asked the network for.
+    """
+    from core import private_web
+
+    port, _ = files_site
+    socks_port, asked = socks
+    monkeypatch.setattr(private_web, "current_route", lambda: private_web.RouteState(kind=private_web.ROUTE_TOR, socks_port=socks_port))
+    monkeypatch.setattr(private_web, "route_problem", lambda state=None: None)
+
+    def others():
+        return {host for _, host in asked} - {"far-end-only.example"}
+
+    browser.open(f"http://far-end-only.example:{port}/first")
+    assert _wait(lambda: (3, "far-end-only.example") in asked), asked
+
+    async def new_tab():
+        page = await browser.context_for_agent().new_page()
+        await page.goto("chrome://newtab/")
+        return page.url
+
+    opened = browser._call(new_tab())
+    # The engine's own answer to "whose new tab is this": the page it keeps for a search
+    # that is not one of its built-in ones, drawn from inside the engine.
+    assert opened.startswith("chrome://new-tab-page-third-party"), opened
+    assert not _wait(others, seconds=12), asked
+
+    # A private window starts from a profile of its own: the same holds there.
+    asked.clear()
+    browser.open(f"http://far-end-only.example:{port}/quiet", private=True)
+    assert _wait(lambda: (3, "far-end-only.example") in asked), asked
+    assert not _wait(others, seconds=12), asked
+
+
 # -- the owner's HTTP door, with the real switch ---------------------------------
 
-from tests.first_run_pact_rig import pact_rig as pact_rig  # noqa: E402
+from tests.first_run_pact_rig import pact_rig as pact_rig
 
 
 def test_the_owner_door_opens_the_window_only_after_the_real_switch_is_on(pact_rig, site, request):

@@ -15,7 +15,7 @@ import pytest
 
 from core.vool_browser import desk as desk_module
 from core.vool_browser import live
-from tests.first_run_pact_rig import pact_rig as pact_rig  # noqa: F401
+from tests.first_run_pact_rig import pact_rig as pact_rig
 from tests.test_desk_browser import _quiet_test_engine, _wait
 
 CHAT = "window-chat"
@@ -214,7 +214,7 @@ def test_ending_the_session_closes_vools_tab_only_and_a_closed_tab_is_replaced(w
     # The person closes VOOL's tab by hand: the next allowed step opens a fresh one.
     desk_module.desk()._call(item._page.close())
     snap = agent(rig, item, "navigate", {"url": origin + "/members"})
-    assert snap["state"] == "ready" and "Members" == snap["title"]
+    assert snap["state"] == "ready" and snap["title"] == "Members"
 
     item.stop()
     assert item.state == "stopped"

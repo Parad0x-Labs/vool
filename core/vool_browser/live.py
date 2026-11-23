@@ -196,7 +196,7 @@ def works_in_window() -> bool:
         return True
 
 
-def _new_session(chat: str) -> "LiveSession":
+def _new_session(chat: str) -> LiveSession:
     from core.private_chat import is_private
 
     # A private chat never touches the lasting profile: it keeps the separate view,
