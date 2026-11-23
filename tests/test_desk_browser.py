@@ -532,6 +532,67 @@ def test_the_engine_asks_no_search_company_for_anything_at_start_or_for_a_new_ta
     assert not _wait(others, seconds=12), asked
 
 
+def test_a_site_keeps_its_own_cookies_and_gets_none_when_another_site_embeds_it(browser):
+    """Sign-ins last because the visited site keeps its cookies. A site embedded in another
+    site's page (an advert, a like button, a tracker) gets none of its cookies there.
+
+    The cookie is one that asks to be sent everywhere (SameSite=None; Secure), the kind
+    trackers use; the engine honours Secure for this machine's own name without a certificate.
+    """
+    seen: list[tuple[str, str, str]] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            host = self.headers.get("Host", "").split(":")[0]
+            seen.append((host, self.path, self.headers.get("Cookie", "")))
+            self.send_response(200)
+            if self.path == "/embedded.js":
+                self.send_header("content-type", "text/javascript")
+                self.send_header("Set-Cookie", "follow=you; Max-Age=86400; Path=/; SameSite=None; Secure")
+                self.end_headers()
+                return
+            self.send_header("content-type", "text/html")
+            if self.path == "/sign-in":
+                self.send_header("Set-Cookie", "signed=in; Max-Age=86400; Path=/; SameSite=None; Secure")
+            self.end_headers()
+            port = self.server.server_port
+            self.wfile.write(
+                f"<title>page</title><script src='http://localhost:{port}/embedded.js'></script>".encode()
+                if self.path.startswith("/news") else b"<title>page</title>"
+            )
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    port = server.server_port
+
+    def cookies(host, path):
+        return [cookie for h, p, cookie in seen if (h, p) == (host, path)]
+
+    try:
+        # The person signs in at a site and comes back to it: the site knows them.
+        browser.open(f"http://localhost:{port}/sign-in")
+        assert _wait(lambda: cookies("localhost", "/sign-in"))
+        browser.open(f"http://localhost:{port}/account")
+        assert _wait(lambda: cookies("localhost", "/account"))
+        assert cookies("localhost", "/account") == ["signed=in"]
+        # Another site's page embeds that site, twice. It is not told who the person is,
+        # and the cookie it tries to leave on the first visit is not there on the second.
+        browser.open(f"http://127.0.0.1:{port}/news-1")
+        assert _wait(lambda: len(cookies("localhost", "/embedded.js")) == 1)
+        browser.open(f"http://127.0.0.1:{port}/news-2")
+        assert _wait(lambda: len(cookies("localhost", "/embedded.js")) == 2)
+        assert cookies("localhost", "/embedded.js") == ["", ""], seen
+        # Visited again by the person, the site still knows them, and only by its own cookie.
+        browser.open(f"http://localhost:{port}/account-again")
+        assert _wait(lambda: cookies("localhost", "/account-again"))
+        assert cookies("localhost", "/account-again") == ["signed=in"]
+    finally:
+        server.shutdown()
+
+
 # -- the owner's HTTP door, with the real switch ---------------------------------
 
 from tests.first_run_pact_rig import pact_rig as pact_rig
