@@ -1577,6 +1577,11 @@ def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
         item.stop()
         return {"ok": True, "status": "stopped"}
     if op in {"session.status", "inspect"}:
+        if op == "inspect" and item.in_window and item.refresh() == "moved":
+            # The tab is on another site than the one a step was allowed for.
+            return {"ok": False, "status": "page_moved",
+                    "note": "The tab now shows a different site than the one you were allowed to open. "
+                            "Propose vool-browser.navigate for the page you need."}
         snap = item.snapshot()
         if op == "session.status":
             snap.pop("frame", None)

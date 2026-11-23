@@ -63,6 +63,15 @@ def world(pact_rig, request, monkeypatch):
                 return self._send(b"<h1>Signed in</h1>", extra={"Set-Cookie": "member=yes; Max-Age=3600; Path=/"})
             if path == "/file":
                 return self._send(b"06:05 early", "application/octet-stream", {"Content-Disposition": 'attachment; filename="timetable.txt"'})
+            if path == "/checked":
+                # The standard widget marker; the stand-in "service" script draws the widget
+                # the way the real ones do. Solving it (a click) reveals the content.
+                return self._send(b"""<title>Checked</title><h1 id="state">One moment</h1>
+<div class="cf-turnstile" data-sitekey="test-key" style="width:300px;height:65px;border:1px solid #888" id="widget">verify</div>
+<script>document.getElementById('widget').addEventListener('click', function () {
+  this.remove(); document.getElementById('state').textContent = 'Fares: 4.20 single'; });</script>""")
+            if path == "/badge-only":
+                return self._send(b"<title>Shop</title><h1>Open shop</h1><div class='g-recaptcha' data-sitekey='k' style='display:none'></div>")
             if path == "/opens-window":
                 return self._send(b"<h1>Opener</h1><a target='_blank' href='/popup-page'>New window link</a><script>window.open('/popup-page')</script>")
             self._send(PAGE if path == "/members" else b"<h1>Other</h1>")
@@ -228,3 +237,39 @@ def test_a_private_chat_and_the_switched_off_choice_keep_the_separate_view(world
     rig.post("/api/browser/settings", {"enabled": False})
     status, data = rig.post("/api/browser/settings", {"enabled": True})
     assert data["agent_in_window"] is False
+
+
+def test_a_human_check_is_handed_to_the_person_and_vool_reads_on_after_they_pass_it(world):
+    rig, origin, requests = world
+    item = session(origin)
+    context_ = {"session_id": CHAT, "surface": "api", "platform": "web_companion"}
+    snap = agent(rig, item, "navigate", {"url": origin + "/checked"})
+    assert snap["state"] == "ready"
+    check = snap["result"]["human_check"]
+    assert check["required"] is True and "Do not try to pass" in check["note"]
+    assert "4.20" not in snap["result"]["page"]["text"]
+    # The widget is not something VOOL is offered to act on.
+    assert not [n for n in item.model_nodes() if "verify" in str(n.get("label", "")).lower()]
+    seen = live.tool_intent("vool-browser.inspect", {}, context_)
+    assert seen["result"]["human_check"]["required"] is True
+
+    # The person passes the check themselves, in the tab.
+    desk_module.desk()._call(item._page.click("#widget"))
+    seen = live.tool_intent("vool-browser.inspect", {}, context_)
+    assert "Fares: 4.20 single" in seen["result"]["page"]["text"]
+    assert "human_check" not in seen["result"]
+
+    # A hidden marker (a site that only scores visits in the background) is not a check.
+    snap = agent(rig, item, "navigate", {"url": origin + "/badge-only"})
+    assert "human_check" not in snap["result"] and "Open shop" in snap["result"]["page"]["text"]
+
+
+def test_vool_does_not_read_its_tab_after_the_person_took_it_to_another_site(world):
+    rig, origin, requests = world
+    item = session(origin)
+    context_ = {"session_id": CHAT, "surface": "api", "platform": "web_companion"}
+    agent(rig, item, "navigate", {"url": origin + "/members"})
+    other = origin.replace("127.0.0.1", "localhost")
+    desk_module.desk()._call(item._page.goto("about:blank"))
+    seen = live.tool_intent("vool-browser.inspect", {}, context_)
+    assert seen == {"ok": False, "status": "page_moved", "note": seen["note"]} and other not in repr(seen)
