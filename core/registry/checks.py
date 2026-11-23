@@ -66,7 +66,37 @@ _RESERVED = re.compile(r"\b(?:verified|official|certified|endorsed|tested by|par
 _ENDORSED = re.compile(r"\b(?:verified|approved|certified|endorsed|tested|checked|reviewed)\s+by\s+(?:vool|the skill codex|"
                        r"parad0x|paradox)\b|\b(?:official|verified)\s+(?:vool|skill codex)\b|\bparad0x\s+labs\b|"
                        r"\bvool[- ]team\b", re.IGNORECASE)
+# The same words written to slip past the two rules above ("0fficial", "Ｏｆｆｉｃｉａｌ", "Tested  by VOOL",
+# "Editors' Choice", a check mark): read on folded text, with digits and signs that stand in for letters
+# made letters, apostrophes dropped and every run of spaces, hyphens, dots and underscores made one space.
+_STAND_INS = str.maketrans({"0": "o", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s", "|": "l"})
+_APOSTROPHES = re.compile("['\u2018\u2019\u02bc`\u00b4]")
+_SPACERS = re.compile(r"[\s\-_./\\]+")
+_VOUCHERS = r"(?:the )?(?:vool|skill codex|paradox|editors?|staff)"
+# A claim that someone vouched for the skill. Refused in a name, a summary, a description and the skill's files.
+_CLAIM = re.compile(
+    r"\beditors? ?(?:choice|pick)s?\b|\bstaff ?(?:pick|choice)s?\b|"
+    r"\b(?:tested|verified|checked|reviewed|approved|recommended|trusted|certified|endorsed|picked|chosen|featured|"
+    r"made|built|backed|powered) by " + _VOUCHERS + r"\b|"
+    r"\b(?:official|verified|certified|trusted|recommended|approved) (?:vool|skill codex)\b|"
+    r"\bvool(?:s)? (?:official|verified|certified|recommended|approved|trusted|tested|pick|choice|staff|team|labs)\b|"
+    r"\b(?:by|from) (?:the )?(?:vool team|vool labs|paradox ?labs|skill codex team)\b|\bby vool\b|\bparadox ?labs\b")
+# Words that vouch by themselves in the short text a card shows: a name, a summary, a description.
+_VOUCH_WORDS = re.compile(r"\b(?:verified|official|officially|certified|endorsed)\b|\btested by\b|\bsafe to use\b|"
+                          r"\bsecurity checked\b")
+# A name is the card's heading: there even "Featured" or the product's own name reads as VOOL speaking.
+_NAME_WORDS = re.compile(r"vool|\bv o o l\b|skill ?codex|\bparadox\b(?= ?(?:lab|team|official|$))|"
+                         r"\b(?:featured|recommended|trusted|approved)\b")
+# Marks that read as a badge in a name. A sentence may carry one ("done ✓"); a card's heading may not.
+_BADGE_MARKS = re.compile("[\u2713\u2714\u2705\u2611\U0001f5f8\u2605\u2606\u2b50\U0001f31f\U0001f3c5"
+                          "\U0001f396\U0001f3c6\U0001f947\U0001f6e1\U0001f530\U0001f4af\u2122\u00ae]")
 _SHELL = r"(?:/(?:usr/)?(?:local/)?bin/)?(?:env\s+)?(?:ba|z|da|k|fi)?sh"
+# What nobody needs to hand a skill, and the words that say whose it is.
+_SECRET_THING = (r"(?:(?:recovery|seed|secret|backup|wallet)\s+(?:phrase|words|key)|mnemonic|private\s+keys?|keystore|"
+                 r"wallet\s+file|password|passcode|passphrase|api\s+keys?|access\s+tokens?|session\s+(?:token|cookie)s?|"
+                 r"2fa\s+codes?|one-time\s+codes?|verification\s+codes?|security\s+codes?|pin\s+(?:code|number)s?|ssh\s+keys?)")
+_THEIRS = r"(?:their|your|his|her|(?:user|person|owner|customer)(?:'s|\u2019s))"
+_WHOSE = r"(?:the|a|an|all|any|both|each|every|full|whole|complete|\d{1,2}|twelve|twenty-four|" + _THEIRS + r")"
 # Rules run on folded text: NFKC, invisible marks and combining marks taken out, look-alike letters made Latin, and
 # every line joined with a space, so nothing hides behind a line break, a continuation or a different alphabet.
 _RULES = (
@@ -99,11 +129,16 @@ _RULES = (
         r"pastebin\.com|paste\.ee|hastebin\.com|glot\.io|rentry\.co|ghostbin\.\w+)/", re.IGNORECASE),
         "Skills can't use short links, raw addresses or paste sites. Link to the real page, or take the link out."),
     ("secret-ask", re.compile(
-        r"\b(?:send|paste|enter|share|provide|type(?!\s+of\b)|give|upload|reveal|tell|input|submit|copy|dm)\b[^.!?\n]{0,60}?"
-        r"\b(?:(?:recovery|seed|secret|backup|wallet)\s+(?:phrase|words|key)|mnemonic|private\s+keys?|keystore|"
-        r"wallet\s+file|password|passcode|passphrase|api\s+keys?|access\s+tokens?|session\s+(?:token|cookie)s?|"
-        r"2fa\s+codes?|one-time\s+codes?|verification\s+codes?|security\s+codes?|pin\s+(?:code|number)s?|ssh\s+keys?)",
-        re.IGNORECASE),
+        r"(?:\b(?:send|paste|enter|share|provide|type(?!\s+of\b)|give|upload|reveal|tell|input|submit|copy|dm)\b[^.!?\n]{0,60}?|"
+        # "Ask the user for their recovery phrase": the ask and its "for" in one sentence, not past a "then".
+        r"\b(?:ask|prompt)\b[^.!?\n]{0,40}?\bfor\b(?:(?!\bthen\b)[^.!?\n;:]){0,50}?|"
+        # "Request the 12 recovery words", "read out their seed phrase": the thing right after the verb.
+        r"\b(?:request|collect|obtain|gather|capture|record|read\s+out|write\s+down|note\s+down|take\s+down)\s+"
+        r"(?:" + _WHOSE + r"\s+){0,3}?(?:\w+\s+)?|"
+        # "This skill needs your password": a plainer verb counts only with the person named as the owner.
+        r"\b(?:needs?|wants?|requires?)\s+(?:the\s+)?" + _THEIRS + r"\s+(?:\w+\s+){0,2}?|"
+        r"\bwhat(?:'s|\s+is|\s+are)\s+(?:the\s+)?" + _THEIRS + r"\s+(?:\w+\s+){0,2}?)"
+        r"\b" + _SECRET_THING, re.IGNORECASE),
         "Skills can't ask for recovery phrases, keys, passwords or codes. Take that out."),
     ("wallet", re.compile(r"\b0x[0-9a-fA-F]{40}\b|\b(?:bc1|tb1)[02-9ac-hj-np-z]{11,71}\b|"
                           r"(?<![A-Za-z0-9/])(?=[1-9A-HJ-NP-Za-km-z]*\d)(?=[1-9A-HJ-NP-Za-km-z]*[A-HJ-NP-Z])"
@@ -136,12 +171,13 @@ _RULES = (
     ("letters", re.compile(r"(?<!\w)(?=\w*[A-Za-z])(?=\w*[Ͱ-ϿЀ-ԯ])\w+"),
      "This word mixes letters from different alphabets, which can hide what it says. Retype it in one alphabet."),
 )
-#: Extra rules for a skill coming INTO VOOL (a zip, a chat import, GitHub or Browse, a draft, an install).
-#: They catch what the shared Skill Codex rules above let through and red teams wrote anyway: a claim that
-#: the person already agreed, a line dressed as VOOL's own source line or a new set of rules, a picture
-#: or link that carries the person's words out in its address, a request for card or cash-machine
-#: numbers, and a link that looks like a sign-in page. A published skill is checked by the Skill Codex
-#: rules; the skill_text_findings caller adds these.
+#: More rules for every skill, whichever way it comes: published to the Skill Codex, or a zip, a chat
+#: import, GitHub or Browse, a draft, an install. They catch what the rules above let through: a claim
+#: that the person already agreed, a line dressed as VOOL's own source line or a new set of rules, a
+#: picture or link that carries the person's words out in its address, a request for card or
+#: cash-machine numbers, and a link that looks like a sign-in page. A published skill is never held to
+#: fewer rules than one a friend sends as a file. Plugin packages hold source code, where a picture tag
+#: or a link with a query is ordinary, so they are read by the rules above only.
 _ASK_FOR = r"\b(?:ask|request)\b(?:\s+\S+){0,4}?\s+for\s+(?:\S+\s+){0,6}?"
 _COLLECT = r"\b(?:collect|obtain|take\s+down|write\s+down|note\s+down|record|get)\s+(?:\S+\s+){0,4}?"
 _CARD_THING = (r"(?:(?:the|their|your|his|her)\s+)?(?:(?:bank|credit|debit|payment)\s+)?card(?:'s)?\s+"
@@ -161,7 +197,10 @@ _IMPORT_RULES = (
         re.IGNORECASE),
      "Skills can't say the person already agreed or that asking can be skipped. Take that out."),
     ("voice", re.compile(
-        r"\(\s*source\s*:|\bblock\s+[0-9a-f]{12}\b|"
+        # VOOL's own source line ends "; block <tag>" and names VOOL or how far the text is trusted. A plain
+        # citation, "(source: the page the tool returned)", is how VOOL's own answers cite and is no forgery.
+        r"\(\s*source\s*:[^()\n]{0,200}?(?:;\s*block\b|\b(?:vool|built-?in|(?:un)?trusted|skill\s+codex|third-party\s+text|"
+        r"person's\s+own)\b)|\bblock\s+[0-9a-f]{12}\b|"
         r"\b(?:end|start)\s+of\s+(?:the\s+)?(?:guidance|instructions|rules)\b|"
         r"\b(?:new|updated)\s+(?:guidance|instructions|rules)\s+from\b|"
         r"\b(?:note|message|update|notice|guidance|instructions?)\s+from\s+(?:the\s+)?vool\b|"
@@ -192,6 +231,31 @@ _LOOKALIKE = str.maketrans({
     "І": "I", "Ј": "J", "Ѕ": "S", "Ү": "Y", "α": "a", "ο": "o", "ρ": "p", "ν": "v", "ι": "i", "κ": "k", "τ": "t",
     "υ": "u", "ϲ": "c", "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N",
     "Ο": "O", "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X"})
+
+
+def _card_forms(value: str) -> tuple[str, ...]:
+    """The value as a person reads it at a glance: folded, lower case, stand-in signs read as letters."""
+    folded = _SPACERS.sub(" ", _APOSTROPHES.sub("", _fold(value)[1].casefold())).strip().translate(_STAND_INS)
+    return tuple(dict.fromkeys((folded.replace("1", "l"), folded.replace("1", "i"))))
+
+
+def _vouching(value: str, *, name: bool = False, card: bool = False) -> str | None:
+    """The words in this value that read as VOOL or the Skill Codex vouching for the skill, or None.
+
+    `card` is for the short text a listing shows (summary, description); `name` for a title or an id.
+    """
+    mark = _BADGE_MARKS.search(unicodedata.normalize("NFKC", value))
+    if mark and name:
+        return mark.group(0)
+    if name and re.search(r"parad0x", _fold(value)[1], re.IGNORECASE):
+        return "Parad0x"
+    patterns = (_CLAIM, *((_VOUCH_WORDS,) if name or card else ()), *((_NAME_WORDS,) if name else ()))
+    for form in _card_forms(value):
+        for pattern in patterns:
+            match = pattern.search(form)
+            if match:
+                return match.group(0).strip()
+    return None
 
 
 def _finding(check: str, path: str, reason: str, *, line: int | None = None, quote: str | None = None,
@@ -486,16 +550,38 @@ def _license(artifact: dict) -> list[dict]:
     return []
 
 
+def _header_block(text: str) -> str:
+    """The name and description lines at the top of a SKILL.md, which a listing shows; empty when there are none."""
+    if not text.startswith("---"):
+        return ""
+    end = text.find("\n---", 3)
+    return text[3:end] if end > 0 else ""
+
+
 def _quality(artifact: dict, texts: dict[str, str], *, official: bool) -> list[dict]:
     info, findings = artifact["metadata"], []
+    shown = set()  # what a card already answered for, so one claim is one finding
     if not official:
         for field in ("id", "title", "summary"):
             value = str(info.get(field) or "")
+            shown.add(value)
             match = _RESERVED.search(value.replace("-", " ") if field == "id" else value)
-            if match:
-                findings.append(_finding("quality", "registry.json", f"The {field} says \"{match.group(0)}\". Only the "
+            said = match.group(0) if match else _vouching(value, name=field != "summary", card=True)
+            if said:
+                findings.append(_finding("quality", "registry.json", f"The {field} says \"{said}\". Only the "
                                          "Skill Codex can mark a skill that way; take the word out.", quote=value,
                                          rule="reserved-summary" if field == "summary" else "reserved-name"))
+        # The manifest's own name and description are shown on the installed card.
+        manifest = artifact["manifest"]
+        interface = manifest.get("interface") if isinstance(manifest.get("interface"), dict) else {}
+        for label, value, name in (("name", interface.get("displayName"), True), ("description", manifest.get("description"), False)):
+            value = str(value or "")
+            said = None if value in shown else _vouching(value, name=name, card=True)
+            if said:
+                shown.add(value)
+                findings.append(_finding("quality", ".codex-plugin/plugin.json", f"The {label} says \"{said}\". Only "
+                                         "the Skill Codex can mark a skill that way; take the word out.", quote=value,
+                                         rule="reserved-name" if name else "reserved-summary"))
     if len(info["summary"].strip()) < 10:
         findings.append(_finding("quality", "registry.json", "Write a summary that says what the skill does.", rule="summary"))
     for name, text in texts.items():
@@ -513,6 +599,23 @@ def _quality(artifact: dict, texts: dict[str, str], *, official: bool) -> list[d
                                              "mark a skill that way; take the word out.",
                                              line=_line(text, match.start()), quote=_quote(text, match.start(), match.end()),
                                              rule="endorsed"))
+                    continue
+                if name.endswith(".json"):
+                    continue  # its shown fields are read above; the raw rule has read the rest
+                # The same claim behind other letters, spacing or a line break; and the header a listing shows.
+                lines = text.splitlines()
+                header = len(_header_block(text).splitlines()) if name.endswith("/SKILL.md") else 0
+                for index, line in enumerate(lines):
+                    in_header = 0 < index <= header and line.split(":", 1)[0].strip().lower() in ("name", "description")
+                    value = line.split(":", 1)[1] if in_header else line
+                    said = None if value.strip().strip("\"'") in shown else _vouching(value, card=in_header)
+                    if not said and not in_header and index + 1 < len(lines) and not _vouching(lines[index + 1]):
+                        said = _vouching(line + " " + lines[index + 1])  # a claim broken over two lines
+                    if said:
+                        findings.append(_finding("quality", name, f"It says \"{said}\". Only the Skill Codex can mark a "
+                                                 "skill that way; take the word out.", line=index + 1,
+                                                 quote=" ".join(line.split()), rule="endorsed"))
+                        break
     return findings
 
 
@@ -542,7 +645,8 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     metadata_words = "\n".join(_strings(json.loads(metadata_text(artifact, checksums=False))))
     secrets, secret_lines = _secrets({**texts, REVIEW_METADATA: metadata_words})
     findings["secrets"] += secrets
-    findings["instructions-primary"] += _instructions(texts, secret_lines)
+    rules = _RULES + _IMPORT_RULES if artifact["metadata"]["kind"] == "skill" else _RULES
+    findings["instructions-primary"] += _instructions(texts, secret_lines, rules)
     findings["license"] += _license(artifact)
     findings["quality"] += _quality(artifact, texts, official=official)
     if artifact["manifest"].get("requires"):
@@ -575,7 +679,7 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
         "source": {"publication": publication, "artifact_sha256": artifact["sha256"]},
         "archive": {"files": len(artifact["files"]), "bytes": artifact["raw_length"]},
         "secrets": {}, "code": {}, "license": {"license": "MIT"}, "quality": {},
-        "instructions-primary": {"rules": [rule for rule, _, _ in _RULES]},
+        "instructions-primary": {"rules": [rule for rule, _, _ in rules]},
         "dependencies": {"pins": {}},
         "native-boundaries": {"obeys_native_rules": True, "conflicts": [],
                               "overlaps": sorted({item["control"] for item in boundaries["native_control_overlaps"]})},
