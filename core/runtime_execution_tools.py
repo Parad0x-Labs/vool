@@ -1871,6 +1871,36 @@ def _machine_find_folder(
         not_found.append("The search hit its time limit before covering everything, so a deeper folder could exist.")
     if not include_drives and _find_folder_drives():
         not_found.append('I looked in your home folder only. Say "on my external drive" to search your other drives too.')
+    if (arguments or {}).get("any_kind") is True:
+        # Nothing in the ask said "folder" ("can u find budget-8bb7 on my computer"): the name is all
+        # there is, so the file half is half of the search, not a side note. When it could not run,
+        # the answer says so and the search did not fully run. CI on 4b39b40d5 (2026-11-24): that
+        # half's "none of the searchable folders are readable" was dropped and the try ticked done.
+        file_search = _machine_find_file({"name": name}, workspace_root=workspace_root)
+        file_matches = [str(path) for path in list((file_search.details or {}).get("matches") or [])] if file_search.ok else []
+        if file_matches:
+            return RuntimeExecutionResult(
+                handled=True, ok=True, status="executed",
+                response_text=" ".join(not_found) + "\n" + str(file_search.response_text or ""),
+                details={"matches": [], "file_matches": file_matches, "observation": observation},
+            )
+        if not file_search.ok:
+            reason = str(file_search.response_text or "").strip().rstrip(".")
+            failed = _tool_observation(
+                intent="machine.find_folder", tool_surface="machine", ok=False, status=str(file_search.status or "unavailable"),
+                query=name, match_count=0, scanned_dirs=scanned_dirs, searched_roots=[*first, *roots], timed_out=timed_out,
+            )
+            return RuntimeExecutionResult(
+                handled=True, ok=False, status=str(file_search.status or "unavailable"),
+                response_text=" ".join(not_found) + f" I could not look for files named '{name}': {reason[:1].lower() + reason[1:]}.",
+                details={"matches": [], "file_matches": [], "observation": failed},
+            )
+        not_found.append(str(file_search.response_text or ""))
+        return RuntimeExecutionResult(
+            handled=True, ok=True, status="executed",
+            response_text=" ".join(not_found),
+            details={"matches": [], "file_matches": [], "observation": observation},
+        )
     # "check my Invoices folder" when the invoices are loose files: say where they are.
     files = _files_named_like(name, workspace_root=workspace_root)
     if files:

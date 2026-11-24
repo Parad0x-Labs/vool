@@ -1057,6 +1057,30 @@ def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
     mutating verb (delete/move/clean...) or an explicitly remote target ("in google
     drive") suppresses the match. The extracted name must contain a real word.
     """
+    found = _machine_folder_search(text)
+    return ("machine.find_folder", found[0]) if found else None
+
+
+def machine_folder_search_arguments(text: str, name: str) -> dict[str, Any]:
+    """The machine.find_folder arguments for a search the person asked for in ``text``.
+
+    ``drives`` when they named a plugged-in drive. ``any_kind`` when nothing in the ask says the thing
+    is a folder ("can u find budget-8bb7 on my computer"): the name is all there is, so the search is
+    for a folder OR a file of that name, and a file half that could not run is part of the answer.
+    CI on 4b39b40d5 (2026-11-24): that ask searched folders only, said "No folder matching", and the
+    file half's "none of the searchable folders are readable" was dropped on the floor."""
+    arguments: dict[str, Any] = {"name": name}
+    if machine_folder_search_wants_drives(text):
+        arguments["drives"] = True
+    found = _machine_folder_search(text)
+    if found is not None and found[1]:
+        arguments["any_kind"] = True
+    return arguments
+
+
+def _machine_folder_search(text: str) -> tuple[str, bool] | None:
+    """(name, kind_unsaid) for a folder-search ask, else None. ``kind_unsaid`` is True when no folder
+    noun marked the thing as a folder and only the this-host phrase did."""
     lowered = normalize_current_scope_reference(text)
     if not lowered:
         return None
@@ -1077,6 +1101,7 @@ def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
     if not _FOLDER_SEARCH_VERB_RE.search(lowered) and not asks_location:
         return None
     match = _FOLDER_NAMED_RE.search(lowered) or _FOLDER_SEARCH_RE.search(lowered)
+    kind_unsaid = False
     if match is None and asks_location:
         # The name can sit either side of the folder noun, and need not follow a verb.
         match = _FOLDER_NAME_AFTER_NOUN_RE.search(lowered) or _FOLDER_NAME_BEFORE_NOUN_RE.search(lowered)
@@ -1087,7 +1112,7 @@ def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
         # "find me a good restaurant on this machine" is a folder search for "good restaurant".
         bare = _FOLDER_BARE_NAME_ON_HOST_RE.search(lowered)
         if bare is not None and not str(bare.group("name") or "").strip().split()[1:]:
-            match = bare
+            match, kind_unsaid = bare, True
     if not match:
         return None
     name = " ".join(str(match.group("name") or "").split()).strip(" .'\"-")
@@ -1102,7 +1127,7 @@ def machine_folder_search_intent(text: str) -> tuple[str, str] | None:
         return None  # a preposition or a pointer is never a folder's name
     if len(clean_name) < 2:
         return None
-    return ("machine.find_folder", clean_name)
+    return (clean_name, kind_unsaid)
 
 
 # A FILE asked for by its name: "a picture named daily 4", "the pdf called invoice-7". Measured on a

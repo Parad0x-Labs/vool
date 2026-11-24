@@ -29,6 +29,7 @@ from ops import semantic_requestgraph_gold as gold_corpus
 # Imported rather than discovered -- see `_fixtures` for why this is not a conftest.
 from tests.semantic_phase0._fixtures import (
     block_outbound_network,
+    held_environment,
     keep_the_checkout_clean,
     make_agent_module,
     pin_the_signing_key_passphrase,
@@ -93,10 +94,9 @@ def _permission_state() -> dict:
 
 
 def _drive(make_agent, text: str, session_id: str, *, mode: str) -> dict:
-    os.environ["VOOL_SEMANTIC_REACH"] = "1"
-    os.environ["VOOL_SEMANTIC_RESOLVER"] = mode
     previous_cwd = os.getcwd()
-    with tempfile.TemporaryDirectory(prefix="vool_shadow_") as workdir:
+    with held_environment({"VOOL_SEMANTIC_REACH": "1", "VOOL_SEMANTIC_RESOLVER": mode}), \
+            tempfile.TemporaryDirectory(prefix="vool_shadow_") as workdir:
         try:
             os.chdir(workdir)
             before = _permission_state()
@@ -119,7 +119,6 @@ def _drive(make_agent, text: str, session_id: str, *, mode: str) -> dict:
             return {"__raised__": f"{type(exc).__name__}: {exc}"}
         finally:
             os.chdir(previous_cwd)
-            os.environ.pop("VOOL_SEMANTIC_RESOLVER", None)
 
 
 def _receipt_signature(receipt) -> dict:
