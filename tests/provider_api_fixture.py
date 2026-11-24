@@ -119,6 +119,8 @@ def _gmail_message_model(entry: dict[str, Any], state: _State, thread_id: str) -
         "threadId": entry.get("thread_id") or thread_id,
         "snippet": entry["body"][:120],
         "payload": payload,
+        # users.messages labelIds: an inbox message is unread until UNREAD is removed (default unread, as before).
+        "labelIds": ["INBOX", "UNREAD"] if entry.get("unread", True) else ["INBOX"],
     }
 
 
@@ -136,6 +138,7 @@ def _graph_message_model(entry: dict[str, Any], state: _State) -> dict[str, Any]
         "replyTo": entry.get("reply_to") or [],
         "receivedDateTime": entry["date"],
         "isRead": bool(entry.get("is_read", False)),
+        "internetMessageId": entry["message_id"],
         "internetMessageHeaders": headers,
     }
 
@@ -622,6 +625,21 @@ class ProviderApiServer:
                     mail = None if (prov, acct) in outer.state.graph_mail_null else address
                     self._json(200, {"mail": mail, "userPrincipalName": address, "id": address})
                     return
+                if prov == "gmail" and parsed.path == "/gmail/v1/users/me/labels/INBOX":
+                    # users.labels.get: the documented per-label counters.
+                    mailbox = outer.state.gmail_mailboxes.get(self._mailbox_of(record)) \
+                        or outer.state.gmail_mailboxes.get(acct) or []
+                    unread = sum(1 for m in mailbox if "UNREAD" in (m.get("labelIds") or []))
+                    self._json(200, {"id": "INBOX", "name": "INBOX", "type": "system",
+                                     "messagesTotal": len(mailbox), "messagesUnread": unread})
+                    return
+                if prov == "graph" and parsed.path.lower().rstrip("/") == "/v1.0/me/mailfolders/inbox":
+                    # mailFolder resource: the documented unreadItemCount of the well-known Inbox.
+                    mailbox = outer.state.graph_mailboxes.get(self._mailbox_of(record)) \
+                        or outer.state.graph_mailboxes.get(acct) or []
+                    self._json(200, {"id": "inbox", "displayName": "Inbox", "totalItemCount": len(mailbox),
+                                     "unreadItemCount": sum(1 for m in mailbox if not m.get("isRead"))})
+                    return
                 if prov == "gmail" and parsed.path.startswith("/gmail/v1/users/me/messages"):
                     mailbox = outer.state.gmail_mailboxes.get(self._mailbox_of(record)) \
                         or outer.state.gmail_mailboxes.get(acct) or []
@@ -654,7 +672,9 @@ class ProviderApiServer:
                                 ok = ok and term[8:].strip('"').lower() in blob.lower()
                             elif term.startswith("rfc822msgid:"):
                                 ok = ok and term[len("rfc822msgid:"):].strip('"') == headers.get("message-id", "").strip("<>")
-                            elif term in ("is:unread", "in:anywhere"):
+                            elif term == "is:unread":
+                                ok = ok and "UNREAD" in (m.get("labelIds") or [])
+                            elif term in ("in:anywhere", "in:inbox"):
                                 continue
                         if ok:
                             matched.append({"id": m["id"], "threadId": m["threadId"]})
@@ -849,6 +869,17 @@ class ProviderApiServer:
             model = _gmail_message_model(e, self.state, thread)
             models.append(model)
         self.state.gmail_mailboxes[address] = models
+
+    def gmail_deliver(self, address: str, entry: dict[str, Any]) -> str:
+        """One newly arrived message, appended to the mailbox the way the provider adds it."""
+        model = _gmail_message_model(entry, self.state, self.state.next_id("th-"))
+        self.state.gmail_mailboxes.setdefault(address, []).append(model)
+        return model["id"]
+
+    def graph_deliver(self, address: str, entry: dict[str, Any]) -> str:
+        model = _graph_message_model(entry, self.state)
+        self.state.graph_mailboxes.setdefault(address, []).append(model)
+        return model["id"]
 
     def gmail_sent(self, address: str) -> list[dict[str, Any]]:
         return list(self.state.gmail_sent.get(address) or [])

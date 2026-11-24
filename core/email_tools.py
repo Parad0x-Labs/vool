@@ -1258,6 +1258,97 @@ def message_in_folder(*, account: str = "", folder: str = "Sent", message_id: st
     return FolderLookupResult(True, "absent", f"{wanted} was not found in {folder}.", found=False)
 
 
+@dataclass
+class InboxHeaders:
+    """What the new-mail watcher may know about one inbox: the unread count and the headers of the newest
+    unread messages. Never a body, never a snippet, and reading it never marks anything read."""
+
+    ok: bool
+    status: str
+    message: str = ""
+    unread: int = 0
+    #: newest first where the provider says so: {"key", "ref", "from", "subject", "date"}; an entry whose
+    #: "ref" was in ``known_refs`` carries only {"ref", "known": True} and was not fetched again.
+    messages: list[dict[str, Any]] = field(default_factory=list)
+
+
+#: The header fields the watcher fetches. Nothing else of a message is ever requested.
+WATCH_HEADER_FIELDS = ("MESSAGE-ID", "FROM", "SUBJECT", "DATE")
+
+
+def _header_entry(parsed: Any, *, ref: str) -> dict[str, Any]:
+    return {
+        "key": normalize_message_id(parsed.get("Message-ID")),
+        "ref": ref,
+        "from": _decoded_header(parsed, "From")[:200],
+        "subject": _decoded_header(parsed, "Subject")[:300],
+        "date": str(parsed.get("Date") or "")[:100],
+    }
+
+
+def unread_inbox_headers(*, account: str, window: int = 20, known_refs: frozenset[str] = frozenset(),
+                         addresses: tuple[str, ...] = ()) -> InboxHeaders:
+    """The unread count of ``account``'s inbox and the headers of its ``window`` newest unread messages.
+
+    IMAP opens the inbox with EXAMINE (read-only) and fetches ``BODY.PEEK[HEADER.FIELDS (...)]`` for the
+    four watched fields only, so no flag changes. Gmail and Graph read their documented unread counter and
+    the metadata of unread inbox messages. ``addresses`` pins the IMAP connection to already-checked IPs.
+    Never raises: every failure is a typed status."""
+    window = max(1, min(50, int(window or 20)))
+    account, creds, refusal = _selected_account("imap", str(account or ""))
+    if refusal is not None:
+        return InboxHeaders(False, refusal.status, refusal.message)
+    try:
+        adapter = _provider_adapter(account, creds)
+    except Exception as exc:
+        failure = _provider_read_error(exc)
+        return InboxHeaders(False, failure.status, failure.message)
+    if adapter is not None:
+        try:
+            return adapter.unread_headers(limit=window, known_refs=known_refs)
+        except Exception as exc:
+            failure = _provider_read_error(exc)
+            return InboxHeaders(False, failure.status, failure.message)
+    if not creds:
+        return InboxHeaders(False, "needs_credentials", f"No IMAP credentials stored for account '{account}'.")
+    try:
+        imap = _imap_connect(creds, addresses=addresses)
+    except Exception as exc:
+        return InboxHeaders(False, "read_failed", f"Could not reach the mail server ({type(exc).__name__}).")
+    try:
+        with imap:
+            try:
+                imap.login(str(creds.get("username") or ""), str(creds.get("password") or ""))
+            except imaplib.IMAP4.error:
+                return InboxHeaders(False, "auth_failed", "The mail server refused the saved sign-in.")
+            try:
+                _select_readonly(imap, "INBOX")
+            except _FolderNotSelectable:
+                return InboxHeaders(False, "no_folder", "The mail server did not open the inbox.")
+            _typ, data = imap.search(None, "UNSEEN")
+            seqs = data[0].split() if data and data[0] else []
+            newest = list(reversed(seqs[-window:]))
+            messages: list[dict[str, Any]] = []
+            if newest:
+                spec = "(BODY.PEEK[HEADER.FIELDS (" + " ".join(WATCH_HEADER_FIELDS) + ")])"
+                _t, fetched = imap.fetch(b",".join(newest).decode("ascii"), spec)
+                by_seq: dict[str, dict[str, Any]] = {}
+                for part in fetched or []:
+                    if not (isinstance(part, tuple) and len(part) >= 2 and isinstance(part[1], (bytes, bytearray))):
+                        continue
+                    head = part[0].decode("latin-1", "replace") if isinstance(part[0], (bytes, bytearray)) else str(part[0])
+                    seq = head.split(" ", 1)[0].strip()
+                    parsed = email_lib.message_from_bytes(bytes(part[1]))
+                    by_seq[seq] = _header_entry(parsed, ref="")
+                for raw_seq in newest:
+                    entry = by_seq.get(raw_seq.decode("ascii", "replace"))
+                    if entry is not None:
+                        messages.append(entry)
+            return InboxHeaders(True, "executed", "", unread=len(seqs), messages=messages)
+    except Exception as exc:  # network drop mid-session
+        return InboxHeaders(False, "read_failed", f"The mail check stopped ({type(exc).__name__}).")
+
+
 def read_email(*, account: str = "", folder: str = "INBOX", limit: int = 10) -> EmailReadResult:
     """Fetch the most recent messages (headers + a text snippet), read-only (BODY.PEEK). Never raises."""
     return search_email(account=account, folder=folder, limit=limit)
@@ -1267,6 +1358,7 @@ __all__ = [
     "EmailReadResult",
     "EmailResult",
     "FolderLookupResult",
+    "InboxHeaders",
     "email_signature_for",
     "has_email_account",
     "message_in_folder",
@@ -1278,4 +1370,5 @@ __all__ = [
     "search_email",
     "send_email",
     "threading_headers",
+    "unread_inbox_headers",
 ]

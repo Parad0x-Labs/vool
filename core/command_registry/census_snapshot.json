@@ -1219,6 +1219,13 @@
       "registry_command_id": "learning.list",
       "surface": "http"
     },
+    "http:GET:/api/mail/alerts": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/mail/alerts",
+      "note": "new-mail alerts: the top mail icon's unread count and the Settings line, stored state only (core/mail_watch.py)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/market/watches": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/market/watches",
@@ -3672,7 +3679,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 341,
+    "EXTERNAL_TRANSPORT_ONLY": 342,
     "GENERATED_ADAPTER": 174,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

@@ -5607,15 +5607,35 @@
     "live.home_point_local": "Fonctionne sur votre machine.",
     "live.home_point_account": "Sans compte.",
     "live.home_point_ask": "Demande avant d’agir.",
-    "live.home_point_forget": "Oublie quand vous le dites."
+    "live.home_point_forget": "Oublie quand vous le dites.",
+    "notif.mail_from": "Nouvel e-mail de {sender}",
+    "notif.mail_count": "Nouveaux e-mails : {n}",
+    "mail.icon_unknown": "E-mail : pas encore vérifié",
+    "mail.icon_unread": "E-mails non lus : {n}",
+    "mail.icon_action": "Cliquez pour un résumé",
+    "mail.brief_prompt": "Fais-moi un bref résumé de mes e-mails non lus.",
+    "mail.brief_button": "Résume-moi",
+    "mail.state.online_access_off": "La vérification est en pause : « Se connecter de lui-même » est désactivé.",
+    "mail.state.needs_reconnect": "Le serveur de messagerie a refusé la connexion enregistrée. Reconnectez la boîte aux lettres dans les Réglages.",
+    "mail.state.unreachable": "La dernière vérification n’a pas pu joindre le serveur de messagerie. VOOL réessaie.",
+    "mail.title": "Nouvel e-mail",
+    "mail.unavailable": "La vérification des nouveaux e-mails est indisponible pour le moment.",
+    "mail.not_connected": "Connectez une boîte aux lettres pour recevoir les alertes de nouveaux e-mails.",
+    "mail.toggle.check": "Vérifier automatiquement les nouveaux e-mails",
+    "mail.saved.on": "Activé. VOOL vérifie votre boîte de réception toutes les quelques minutes et ne lit que l’expéditeur et l’objet.",
+    "mail.saved.off": "Désactivé. VOOL ne vérifie plus vos e-mails en arrière-plan.",
+    "mail.toggle.details": "Afficher l’expéditeur et l’objet dans les alertes",
+    "mail.saved.details_on": "Les alertes indiquent l’expéditeur et l’objet.",
+    "mail.saved.details_off": "Les alertes indiquent seulement combien d’e-mails sont arrivés."
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

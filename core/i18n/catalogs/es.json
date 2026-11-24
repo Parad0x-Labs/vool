@@ -5607,15 +5607,35 @@
     "live.home_point_local": "Funciona en tu equipo.",
     "live.home_point_account": "Sin cuenta.",
     "live.home_point_ask": "Pregunta antes de actuar.",
-    "live.home_point_forget": "Olvida cuando se lo pides."
+    "live.home_point_forget": "Olvida cuando se lo pides.",
+    "notif.mail_from": "Nuevo correo de {sender}",
+    "notif.mail_count": "Correos nuevos: {n}",
+    "mail.icon_unknown": "Correo: aún sin revisar",
+    "mail.icon_unread": "Correos sin leer: {n}",
+    "mail.icon_action": "Haz clic para un resumen",
+    "mail.brief_prompt": "Dame un resumen breve de mis correos sin leer.",
+    "mail.brief_button": "Resúmemelo",
+    "mail.state.online_access_off": "La revisión está en pausa: «Conectarse por su cuenta» está desactivado.",
+    "mail.state.needs_reconnect": "El servidor de correo rechazó el inicio de sesión guardado. Vuelve a conectar el buzón en Ajustes.",
+    "mail.state.unreachable": "La última revisión no pudo llegar al servidor de correo. VOOL lo vuelve a intentar.",
+    "mail.title": "Correo nuevo",
+    "mail.unavailable": "La revisión de correo nuevo no está disponible ahora.",
+    "mail.not_connected": "Conecta un buzón para recibir avisos de correo nuevo.",
+    "mail.toggle.check": "Revisar correos nuevos automáticamente",
+    "mail.saved.on": "Activado. VOOL revisa tu bandeja de entrada cada pocos minutos y solo lee quién escribió y el asunto.",
+    "mail.saved.off": "Desactivado. VOOL ya no revisa tu correo en segundo plano.",
+    "mail.toggle.details": "Mostrar remitente y asunto en los avisos",
+    "mail.saved.details_on": "Los avisos indican el remitente y el asunto.",
+    "mail.saved.details_off": "Los avisos solo dicen cuántos correos llegaron."
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

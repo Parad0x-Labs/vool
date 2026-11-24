@@ -5607,15 +5607,35 @@
     "live.home_point_local": "Працює на вашому комп’ютері.",
     "live.home_point_account": "Без облікового запису.",
     "live.home_point_ask": "Запитує, перш ніж діяти.",
-    "live.home_point_forget": "Забуває, коли ви скажете."
+    "live.home_point_forget": "Забуває, коли ви скажете.",
+    "notif.mail_from": "Новий лист від {sender}",
+    "notif.mail_count": "Нові листи: {n}",
+    "mail.icon_unknown": "Пошта: ще не перевірено",
+    "mail.icon_unread": "Непрочитані листи: {n}",
+    "mail.icon_action": "Натисніть для зведення",
+    "mail.brief_prompt": "Дай коротке зведення моїх непрочитаних листів.",
+    "mail.brief_button": "Зведення",
+    "mail.state.online_access_off": "Перевірку призупинено: «Виходити в інтернет самостійно» вимкнено.",
+    "mail.state.needs_reconnect": "Поштовий сервер відхилив збережений вхід. Підключіть скриньку знову в Налаштуваннях.",
+    "mail.state.unreachable": "Остання перевірка не змогла зв’язатися з поштовим сервером. VOOL спробує знову.",
+    "mail.title": "Нова пошта",
+    "mail.unavailable": "Перевірка нової пошти зараз недоступна.",
+    "mail.not_connected": "Підключіть поштову скриньку, щоб отримувати сповіщення про нові листи.",
+    "mail.toggle.check": "Перевіряти нові листи автоматично",
+    "mail.saved.on": "Увімкнено. VOOL перевіряє вхідні кожні кілька хвилин і читає лише відправника й тему.",
+    "mail.saved.off": "Вимкнено. VOOL більше не перевіряє пошту у фоні.",
+    "mail.toggle.details": "Показувати відправника й тему в сповіщеннях",
+    "mail.saved.details_on": "Сповіщення називають відправника й тему.",
+    "mail.saved.details_off": "Сповіщення кажуть лише, скільки листів прийшло."
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

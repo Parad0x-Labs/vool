@@ -184,6 +184,42 @@ class GmailAdapter:
                 if listing.get("nextPageToken") else "")
         return EmailReadResult(True, "executed", f"{len(messages)} message(s) matched (Gmail).{note}", messages=messages)
 
+    def unread_headers(self, *, limit: int, known_refs: frozenset[str] = frozenset()):
+        """The new-mail watcher's read: the INBOX label's documented unread counter (users.labels.get),
+        the ids of unread inbox messages, and for ids not already known only the four watched headers
+        (format=metadata with metadataHeaders). Gmail adds a snippet to every metadata answer; it is
+        dropped here, never stored or shown. Nothing is modified (no label change, so nothing is read)."""
+        from urllib.parse import quote
+
+        from core.email_tools import InboxHeaders
+
+        label = self._oauth.api_read("GET", f"{self._api_base}/gmail/v1/users/me/labels/INBOX")
+        try:
+            unread = max(0, int(label.get("messagesUnread") or 0))
+        except (TypeError, ValueError):
+            unread = 0
+        listing = self._oauth.api_read(
+            "GET", f"{self._api_base}/gmail/v1/users/me/messages"
+                   f"?maxResults={min(max(int(limit), 1), _MAX_RESULT_IDS)}&q={quote('is:unread in:inbox', safe=':')}")
+        fields = "&".join(f"metadataHeaders={name}" for name in ("Message-ID", "From", "Subject", "Date"))
+        messages: list[dict[str, Any]] = []
+        for item in (listing.get("messages") or [])[:limit]:
+            ref = str(item.get("id") or "")
+            if not ref:
+                continue
+            if ref in known_refs:
+                messages.append({"ref": ref, "known": True})
+                continue
+            data = self._message(ref, f"metadata&{fields}")
+            if data is None:
+                continue
+            headers = {str(h.get("name") or "").lower(): str(h.get("value") or "")
+                       for h in (data.get("payload") or {}).get("headers") or []}
+            messages.append({"key": normalize_message_id(headers.get("message-id")), "ref": ref,
+                             "from": headers.get("from", "")[:200], "subject": headers.get("subject", "")[:300],
+                             "date": headers.get("date", "")[:100]})
+        return InboxHeaders(True, "executed", "", unread=unread, messages=messages)
+
     def _summary(self, message_id: str) -> dict[str, str] | None:
         data = self._message(message_id, "metadata")
         if data is None:

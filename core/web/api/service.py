@@ -1229,6 +1229,20 @@ def _dispatch_get(
                 json_response(500, {"ok": False, "error": "market_watch_unavailable", "reason": type(exc).__name__}), runtime
             )
         return apply_runtime_headers(json_response(200, view), runtime)
+    # New-mail alerts (core/mail_watch.py): the top mail icon's count and the Settings line. Stored state only:
+    # this read never contacts a mail server. Owner-local, like the bell's own read.
+    if normalized_path == "/api/mail/alerts":
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core import mail_watch
+
+        try:
+            view = mail_watch.status_view()
+        except Exception as exc:
+            return apply_runtime_headers(
+                json_response(500, {"ok": False, "error": "mail_watch_unavailable", "reason": type(exc).__name__}), runtime
+            )
+        return apply_runtime_headers(json_response(200, view), runtime)
     if normalized_path == "/api/calendar/alerts":
         if not is_loopback_host(client_host):
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)

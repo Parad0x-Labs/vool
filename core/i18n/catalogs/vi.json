@@ -5607,15 +5607,35 @@
     "live.home_point_local": "Chạy trên máy của bạn.",
     "live.home_point_account": "Không cần tài khoản.",
     "live.home_point_ask": "Hỏi trước khi làm.",
-    "live.home_point_forget": "Quên khi bạn bảo."
+    "live.home_point_forget": "Quên khi bạn bảo.",
+    "notif.mail_from": "Email mới từ {sender}",
+    "notif.mail_count": "Email mới: {n}",
+    "mail.icon_unknown": "Email: chưa kiểm tra",
+    "mail.icon_unread": "Email chưa đọc: {n}",
+    "mail.icon_action": "Nhấp để xem tóm tắt",
+    "mail.brief_prompt": "Tóm tắt ngắn các email chưa đọc của tôi.",
+    "mail.brief_button": "Tóm tắt",
+    "mail.state.online_access_off": "Đã tạm dừng kiểm tra: “Tự lên mạng” đang tắt.",
+    "mail.state.needs_reconnect": "Máy chủ thư đã từ chối thông tin đăng nhập đã lưu. Hãy kết nối lại hộp thư trong Cài đặt.",
+    "mail.state.unreachable": "Lần kiểm tra trước không kết nối được máy chủ thư. VOOL sẽ thử lại.",
+    "mail.title": "Email mới",
+    "mail.unavailable": "Hiện không thể kiểm tra email mới.",
+    "mail.not_connected": "Kết nối một hộp thư để nhận thông báo email mới.",
+    "mail.toggle.check": "Tự động kiểm tra email mới",
+    "mail.saved.on": "Bật. VOOL kiểm tra hộp thư đến vài phút một lần và chỉ đọc người gửi và tiêu đề.",
+    "mail.saved.off": "Tắt. VOOL không còn kiểm tra thư của bạn ở chế độ nền.",
+    "mail.toggle.details": "Hiện người gửi và tiêu đề trong thông báo",
+    "mail.saved.details_on": "Thông báo nêu người gửi và tiêu đề.",
+    "mail.saved.details_off": "Thông báo chỉ cho biết có bao nhiêu email đến."
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

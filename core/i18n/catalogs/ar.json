@@ -5607,15 +5607,35 @@
     "live.home_point_local": "يعمل على حاسوبك.",
     "live.home_point_account": "بلا حساب.",
     "live.home_point_ask": "يسأل قبل أن يتصرف.",
-    "live.home_point_forget": "ينسى حين تطلب."
+    "live.home_point_forget": "ينسى حين تطلب.",
+    "notif.mail_from": "بريد جديد من {sender}",
+    "notif.mail_count": "رسائل بريد جديدة: {n}",
+    "mail.icon_unknown": "البريد: لم يُفحص بعد",
+    "mail.icon_unread": "رسائل غير مقروءة: {n}",
+    "mail.icon_action": "انقر للحصول على ملخص",
+    "mail.brief_prompt": "أعطني ملخصًا قصيرًا لرسائلي غير المقروءة.",
+    "mail.brief_button": "لخّص لي",
+    "mail.state.online_access_off": "الفحص متوقف مؤقتًا: «الاتصال بالإنترنت تلقائيًا» مُطفأ.",
+    "mail.state.needs_reconnect": "رفض خادم البريد تسجيل الدخول المحفوظ. أعد ربط صندوق البريد من الإعدادات.",
+    "mail.state.unreachable": "لم يصل آخر فحص إلى خادم البريد. سيحاول VOOL مرة أخرى.",
+    "mail.title": "بريد جديد",
+    "mail.unavailable": "فحص البريد الجديد غير متاح الآن.",
+    "mail.not_connected": "اربط صندوق بريد لتصلك تنبيهات البريد الجديد.",
+    "mail.toggle.check": "فحص الرسائل الجديدة تلقائيًا",
+    "mail.saved.on": "مُفعّل. يفحص VOOL صندوق الوارد كل بضع دقائق ويقرأ المرسل والموضوع فقط.",
+    "mail.saved.off": "مُطفأ. لم يعد VOOL يفحص بريدك في الخلفية.",
+    "mail.toggle.details": "إظهار المرسل والموضوع في التنبيهات",
+    "mail.saved.details_on": "تذكر التنبيهات المرسل والموضوع.",
+    "mail.saved.details_off": "تذكر التنبيهات عدد الرسائل التي وصلت فقط."
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

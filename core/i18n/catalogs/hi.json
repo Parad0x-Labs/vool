@@ -5607,15 +5607,35 @@
     "live.home_point_local": "आपके कंप्यूटर पर चलता है।",
     "live.home_point_account": "कोई खाता नहीं।",
     "live.home_point_ask": "कुछ करने से पहले पूछता है।",
-    "live.home_point_forget": "आपके कहने पर भूल जाता है।"
+    "live.home_point_forget": "आपके कहने पर भूल जाता है।",
+    "notif.mail_from": "{sender} से नया ईमेल",
+    "notif.mail_count": "नए ईमेल: {n}",
+    "mail.icon_unknown": "ईमेल: अभी जाँचा नहीं गया",
+    "mail.icon_unread": "बिना पढ़े ईमेल: {n}",
+    "mail.icon_action": "सारांश के लिए क्लिक करें",
+    "mail.brief_prompt": "मेरे बिना पढ़े ईमेल का छोटा सारांश दो।",
+    "mail.brief_button": "सारांश दें",
+    "mail.state.online_access_off": "जाँच रुकी हुई है: “अपने आप ऑनलाइन जाना” बंद है।",
+    "mail.state.needs_reconnect": "मेल सर्वर ने सहेजे गए साइन-इन को अस्वीकार कर दिया। सेटिंग्स में मेलबॉक्स फिर से जोड़ें।",
+    "mail.state.unreachable": "पिछली जाँच मेल सर्वर तक नहीं पहुँच सकी। VOOL फिर कोशिश करेगा।",
+    "mail.title": "नया ईमेल",
+    "mail.unavailable": "नए ईमेल की जाँच अभी उपलब्ध नहीं है।",
+    "mail.not_connected": "नए ईमेल की सूचनाएँ पाने के लिए एक मेलबॉक्स जोड़ें।",
+    "mail.toggle.check": "नए ईमेल अपने आप जाँचें",
+    "mail.saved.on": "चालू। VOOL हर कुछ मिनट में आपका इनबॉक्स जाँचता है और केवल भेजने वाला और विषय पढ़ता है।",
+    "mail.saved.off": "बंद। VOOL अब बैकग्राउंड में आपका मेल नहीं जाँचता।",
+    "mail.toggle.details": "सूचनाओं में भेजने वाला और विषय दिखाएँ",
+    "mail.saved.details_on": "सूचनाएँ भेजने वाले और विषय का नाम बताती हैं।",
+    "mail.saved.details_off": "सूचनाएँ केवल यह बताती हैं कि कितने ईमेल आए।"
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

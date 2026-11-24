@@ -15992,6 +15992,17 @@ window.VoolPageActions = Object.freeze({
     inputEl.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   },
+  // A one-click ask from a page control (the top mail icon's "brief me"): a NEW chat, so the ask never lands in
+  // the middle of the conversation on screen or overwrites words typed there, then sent as the person's message.
+  askInNewChat: (text) => {
+    const value = String(text == null ? '' : text).trim();
+    if (!value || !inputEl) return false;
+    newChat();
+    inputEl.value = value;
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    send();
+    return true;
+  },
 });
 
 // --- Setup line ------------------------------------------------------------------------------

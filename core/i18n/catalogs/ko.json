@@ -5607,15 +5607,35 @@
     "live.home_point_local": "내 컴퓨터에서 실행됩니다.",
     "live.home_point_account": "계정이 필요 없습니다.",
     "live.home_point_ask": "실행하기 전에 묻습니다.",
-    "live.home_point_forget": "잊으라고 하면 잊습니다."
+    "live.home_point_forget": "잊으라고 하면 잊습니다.",
+    "notif.mail_from": "{sender}의 새 이메일",
+    "notif.mail_count": "새 이메일: {n}",
+    "mail.icon_unknown": "이메일: 아직 확인하지 않음",
+    "mail.icon_unread": "읽지 않은 이메일: {n}",
+    "mail.icon_action": "클릭하면 요약",
+    "mail.brief_prompt": "읽지 않은 이메일을 짧게 요약해 줘.",
+    "mail.brief_button": "요약하기",
+    "mail.state.online_access_off": "확인이 일시 중지됨: '스스로 온라인 연결'이 꺼져 있습니다.",
+    "mail.state.needs_reconnect": "메일 서버가 저장된 로그인을 거부했습니다. 설정에서 메일함을 다시 연결하세요.",
+    "mail.state.unreachable": "마지막 확인에서 메일 서버에 연결하지 못했습니다. VOOL이 다시 시도합니다.",
+    "mail.title": "새 이메일",
+    "mail.unavailable": "새 이메일 확인을 지금 사용할 수 없습니다.",
+    "mail.not_connected": "새 이메일 알림을 받으려면 메일함을 연결하세요.",
+    "mail.toggle.check": "새 이메일 자동 확인",
+    "mail.saved.on": "켜짐. VOOL이 몇 분마다 받은편지함을 확인하며 보낸 사람과 제목만 읽습니다.",
+    "mail.saved.off": "꺼짐. VOOL이 더 이상 백그라운드에서 메일을 확인하지 않습니다.",
+    "mail.toggle.details": "알림에 보낸 사람과 제목 표시",
+    "mail.saved.details_on": "알림에 보낸 사람과 제목이 표시됩니다.",
+    "mail.saved.details_off": "알림에는 도착한 이메일 수만 표시됩니다."
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

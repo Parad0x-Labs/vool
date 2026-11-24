@@ -5607,15 +5607,35 @@
     "live.home_point_local": "Läuft auf Ihrem Computer.",
     "live.home_point_account": "Kein Konto.",
     "live.home_point_ask": "Fragt, bevor es handelt.",
-    "live.home_point_forget": "Vergisst, wenn Sie es sagen."
+    "live.home_point_forget": "Vergisst, wenn Sie es sagen.",
+    "notif.mail_from": "Neue E-Mail von {sender}",
+    "notif.mail_count": "Neue E-Mails: {n}",
+    "mail.icon_unknown": "E-Mail: noch nicht geprüft",
+    "mail.icon_unread": "Ungelesene E-Mails: {n}",
+    "mail.icon_action": "Klicken für eine Zusammenfassung",
+    "mail.brief_prompt": "Gib mir eine kurze Zusammenfassung meiner ungelesenen E-Mails.",
+    "mail.brief_button": "Zusammenfassen",
+    "mail.state.online_access_off": "Die Prüfung ist pausiert: „Von selbst online gehen“ ist aus.",
+    "mail.state.needs_reconnect": "Der Mailserver hat die gespeicherte Anmeldung abgelehnt. Verbinde das Postfach in den Einstellungen neu.",
+    "mail.state.unreachable": "Die letzte Prüfung hat den Mailserver nicht erreicht. VOOL versucht es erneut.",
+    "mail.title": "Neue E-Mail",
+    "mail.unavailable": "Die Prüfung auf neue E-Mails ist gerade nicht verfügbar.",
+    "mail.not_connected": "Verbinde ein Postfach, um Hinweise auf neue E-Mails zu bekommen.",
+    "mail.toggle.check": "Neue E-Mails automatisch prüfen",
+    "mail.saved.on": "An. VOOL prüft deinen Posteingang alle paar Minuten und liest nur Absender und Betreff.",
+    "mail.saved.off": "Aus. VOOL prüft deine E-Mails nicht mehr im Hintergrund.",
+    "mail.toggle.details": "Absender und Betreff in Hinweisen zeigen",
+    "mail.saved.details_on": "Hinweise nennen Absender und Betreff.",
+    "mail.saved.details_off": "Hinweise sagen nur, wie viele E-Mails angekommen sind."
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

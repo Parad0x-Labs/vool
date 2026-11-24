@@ -5607,15 +5607,35 @@
     "live.home_point_local": "Работает на вашем компьютере.",
     "live.home_point_account": "Без учётной записи.",
     "live.home_point_ask": "Спрашивает, прежде чем действовать.",
-    "live.home_point_forget": "Забывает, когда вы скажете."
+    "live.home_point_forget": "Забывает, когда вы скажете.",
+    "notif.mail_from": "Новое письмо от {sender}",
+    "notif.mail_count": "Новые письма: {n}",
+    "mail.icon_unknown": "Почта: ещё не проверена",
+    "mail.icon_unread": "Непрочитанные письма: {n}",
+    "mail.icon_action": "Нажмите для сводки",
+    "mail.brief_prompt": "Дай краткую сводку моих непрочитанных писем.",
+    "mail.brief_button": "Сводка",
+    "mail.state.online_access_off": "Проверка приостановлена: «Выходить в интернет самостоятельно» выключено.",
+    "mail.state.needs_reconnect": "Почтовый сервер отклонил сохранённый вход. Подключите ящик заново в Настройках.",
+    "mail.state.unreachable": "Последняя проверка не смогла связаться с почтовым сервером. VOOL попробует снова.",
+    "mail.title": "Новая почта",
+    "mail.unavailable": "Проверка новой почты сейчас недоступна.",
+    "mail.not_connected": "Подключите почтовый ящик, чтобы получать уведомления о новых письмах.",
+    "mail.toggle.check": "Проверять новые письма автоматически",
+    "mail.saved.on": "Включено. VOOL проверяет входящие каждые несколько минут и читает только отправителя и тему.",
+    "mail.saved.off": "Выключено. VOOL больше не проверяет почту в фоне.",
+    "mail.toggle.details": "Показывать отправителя и тему в уведомлениях",
+    "mail.saved.details_on": "Уведомления называют отправителя и тему.",
+    "mail.saved.details_off": "Уведомления сообщают только, сколько писем пришло."
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

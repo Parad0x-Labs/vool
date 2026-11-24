@@ -18,10 +18,21 @@ def enabled_now(*, preferences=None):
     return bool(preferences["sound"] and not centre.in_quiet_hours(preferences, local_now=now.astimezone(_user_zone())))
 
 
+#: Source kinds that may carry one chime. A background run chimes for a finished task or an approval it waits on;
+#: a new-mail item is one batch of new mail and chimes once.
+AUDIBLE_KINDS = ("background_run", "new_mail")
+
+
+def audible(source_kind, payload):
+    if source_kind == "new_mail":
+        return True
+    return source_kind == "background_run" and payload.get("event_type") in {"task_completed", "task_pending_approval"}
+
+
 def claim(conn, row, *, now_iso, channel, preferences):
     """Caller holds BEGIN IMMEDIATE; one unique delivery row owns both channels."""
     payload = json.loads(row["payload_json"] or "{}")
-    if row["source_kind"] != "background_run" or payload.get("event_type") not in {"task_completed", "task_pending_approval"}:
+    if not audible(row["source_kind"], payload):
         return False
     from core.operator.notification_hub import supersede_closed_action
     if supersede_closed_action(conn, row, now_iso=now_iso):
@@ -56,7 +67,8 @@ def claim_browser(after):
         preferences = centre._load_preferences_conn(conn)
         # Native opt-in owns sound even if OS denied/suppressed it. Never bypass Focus
         # or permission denial by falling back to web audio.
-        rows = conn.execute("SELECT * FROM notification_items WHERE seq > ? AND source_kind = 'background_run' ORDER BY seq ASC LIMIT 200", (after,)).fetchall()
+        rows = conn.execute("SELECT * FROM notification_items WHERE seq > ? AND source_kind IN (?, ?) ORDER BY seq ASC LIMIT 200",
+                            (after, *AUDIBLE_KINDS)).fetchall()
         cues = []
         for row in rows:
             if json.loads(row['payload_json']).get('audio_owner') == 'native':

@@ -5607,15 +5607,35 @@
     "live.home_point_local": "あなたのコンピューターで動く。",
     "live.home_point_account": "アカウント不要。",
     "live.home_point_ask": "動く前に確認する。",
-    "live.home_point_forget": "忘れてと言えば忘れる。"
+    "live.home_point_forget": "忘れてと言えば忘れる。",
+    "notif.mail_from": "{sender} から新着メール",
+    "notif.mail_count": "新着メール: {n}",
+    "mail.icon_unknown": "メール: まだ確認していません",
+    "mail.icon_unread": "未読メール: {n}",
+    "mail.icon_action": "クリックで要約",
+    "mail.brief_prompt": "未読メールを短く要約して。",
+    "mail.brief_button": "要約する",
+    "mail.state.online_access_off": "確認は一時停止中です: 「自動でオンラインに接続」がオフです。",
+    "mail.state.needs_reconnect": "メールサーバーが保存済みのサインインを拒否しました。設定でメールボックスを再接続してください。",
+    "mail.state.unreachable": "前回の確認ではメールサーバーに接続できませんでした。VOOL が再試行します。",
+    "mail.title": "新着メール",
+    "mail.unavailable": "新着メールの確認は現在利用できません。",
+    "mail.not_connected": "新着メールの通知を受け取るにはメールボックスを接続してください。",
+    "mail.toggle.check": "新着メールを自動で確認",
+    "mail.saved.on": "オン。VOOL は数分ごとに受信トレイを確認し、差出人と件名だけを読み取ります。",
+    "mail.saved.off": "オフ。VOOL はバックグラウンドでメールを確認しなくなりました。",
+    "mail.toggle.details": "通知に差出人と件名を表示",
+    "mail.saved.details_on": "通知に差出人と件名が表示されます。",
+    "mail.saved.details_off": "通知には届いたメールの件数だけが表示されます。"
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

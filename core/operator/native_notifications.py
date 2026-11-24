@@ -47,7 +47,7 @@ UNKNOWN_CAP = 50
 STATUS_ROWS = 20
 _SQL_CHUNK = 400
 IDENTIFIER_PREFIX = "vool."
-NATIVE_KINDS = ("calendar_alert", "calendar_catch_up", "reminder", "test", "background_run")
+NATIVE_KINDS = ("calendar_alert", "calendar_catch_up", "reminder", "test", "background_run", "new_mail")
 AUTHORIZATIONS = ("not_determined", "denied", "authorized", "provisional", "ephemeral")
 SENDABLE = frozenset({"authorized", "provisional", "ephemeral"})
 SETTINGS_KEYS = ("authorization", "alert", "sound", "notification_center", "lock_screen", "previews", "alert_style")
@@ -355,7 +355,7 @@ def _rehands(conn: Any, *, now: datetime, now_iso: str, ops: list[dict[str, Any]
                 effects.append(("delivery", row["notification_id"], "failed", detail, row["identifier"]))
             continue
         # Replacing an uncertain submitted request can otherwise ding again.
-        if op.get("source_kind") == "background_run" or not sound_enabled:
+        if op.get("source_kind") in ("background_run", "new_mail") or not sound_enabled:
             op["sound"] = False
         ops.append(op)
         conn.execute(
@@ -427,7 +427,7 @@ def _immediate(conn: Any, *, now: datetime, now_iso: str, state: dict[str, Any],
         op = _submit_op(identifier=identifier, kind="immediate", deliver_at="", source_kind=source_kind, title=row["title"],
                         body=row["body"], preferences=preferences, thread=row["event_key"] or f"vool.{source_kind}",
                         notification_id=notification_id, schedule_id=row["schedule_id"])
-        if source_kind == "background_run":
+        if source_kind in ("background_run", "new_mail"):
             from core.operator.notification_audio import claim
             op["sound"] = bool(payload.get("audio_owner") == "native" and row['created_at'] >= state['audio_started_at'] and
                                claim(conn, row, now_iso=now_iso, channel="native", preferences=preferences))

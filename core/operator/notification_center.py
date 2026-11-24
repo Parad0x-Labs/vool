@@ -25,7 +25,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-SOURCE_KINDS = frozenset({"calendar_alert", "calendar_catch_up", "reminder", "test", "model_offer", "model_market", "background_run", "market_watch"})
+SOURCE_KINDS = frozenset({"calendar_alert", "calendar_catch_up", "reminder", "test", "model_offer", "model_market", "background_run", "market_watch", "new_mail"})
 CHANNELS = frozenset({"in_app", "session_log", "macos", "audio"})
 DELIVERY_STATES = frozenset({
     "recorded", "queued", "submitted", "listed", "acknowledged", "suppressed", "failed", "uncertain",
@@ -44,6 +44,12 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
     "lock_screen": "title_only",
     "native_notifications": False,
     "late_grace_minutes": 5,
+    # The new-mail watcher (core/mail_watch.py). On by default, but it checks nothing until a mailbox is
+    # connected, and it goes online only where every other background check may (the outbound switch).
+    "check_new_mail": True,
+    # Whether a new-mail alert names the sender and subject. Off: it says only how many emails arrived, and the
+    # headers are not stored in the alert at all.
+    "mail_alert_details": True,
 }
 _CLOCK_TEXT = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
@@ -505,7 +511,7 @@ def _validated_preferences(values: dict[str, Any], *, base: dict[str, Any]) -> d
                     raise ValueError(f"unknown quiet_hours field {part!r}")
                 merged[part] = part_value
             accepted[key] = merged
-        elif key in {"sound", "native_notifications"}:
+        elif key in {"sound", "native_notifications", "check_new_mail", "mail_alert_details"}:
             if not isinstance(value, bool):
                 raise ValueError(f"{key} must be true or false")
             accepted[key] = value

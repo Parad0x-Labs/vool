@@ -100,18 +100,19 @@ function mountInto(host){
   var macBox = h('div', 'vns-box');
   var prefBox = h('div', 'vns-box');
   var watchBox = h('div', 'vns-box');
+  var mailBox = h('div', 'vns-box');
   /* The long note on how macOS copies work is a helper, not a setting: folded under one short line. */
   var whyBox = h('details', 'vns-note');
   whyBox.appendChild(h('summary', null, NT('vns.why.summary', 'How VOOL and macOS alerts work together')));
   var why = h('div');
   whyBox.appendChild(why);
-  root.appendChild(status); root.appendChild(macBox); root.appendChild(prefBox); root.appendChild(watchBox); root.appendChild(whyBox);
-  var prefs = null, native = null, watches = null;
+  root.appendChild(status); root.appendChild(macBox); root.appendChild(prefBox); root.appendChild(mailBox); root.appendChild(watchBox); root.appendChild(whyBox);
+  var prefs = null, native = null, watches = null, mail = null;
   function say(text, bad){ status.textContent = text || ''; status.className = 'vns-status' + (bad ? ' vns-bad' : ''); }
   function load(){
-    return Promise.all([request('GET', '/api/notifications/preferences'), request('GET', '/api/notifications/native/status').catch(function(){return {ok:false};}), request('GET', '/api/market/watches').catch(function(){return {ok:false};})]).then(function(r){
+    return Promise.all([request('GET', '/api/notifications/preferences'), request('GET', '/api/notifications/native/status').catch(function(){return {ok:false};}), request('GET', '/api/market/watches').catch(function(){return {ok:false};}), request('GET', '/api/mail/alerts').catch(function(){return {ok:false};})]).then(function(r){
       if (!r[0].ok) { say(NT('vns.status.unavailable', 'Notification settings are unavailable right now.'), true); return; }
-      prefs = r[0].preferences; native = r[1].ok ? r[1] : {supported:false}; watches = r[2].ok ? (r[2].watches || []) : null; paint();
+      prefs = r[0].preferences; native = r[1].ok ? r[1] : {supported:false}; watches = r[2].ok ? (r[2].watches || []) : null; mail = r[3].ok ? r[3] : null; paint();
       if (status.textContent === NT('vns.status.loading', 'Loading…')) say('');   /* loaded: no "Loading…" above a drawn panel */
     }).catch(function(){ say(NT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
   }
@@ -129,7 +130,7 @@ function mountInto(host){
   }
   /* The macOS paragraph and channel belong to a Mac; elsewhere one plain line says where alerts go, instead
      of an empty bordered box and a promised test button that is not there. */
-  function paint(){ paintMac(); paintPrefs(); paintWatches(); why.textContent = native.supported === false ? '' : (native.explanation || ''); whyBox.hidden = !why.textContent; }
+  function paint(){ paintMac(); paintPrefs(); paintMail(); paintWatches(); why.textContent = native.supported === false ? '' : (native.explanation || ''); whyBox.hidden = !why.textContent; }
   function paintMac(){
     macBox.textContent = '';
     if (native.supported === false) {
@@ -218,6 +219,32 @@ function mountInto(host){
       save({late_grace_minutes: value});
     });
     prefBox.appendChild(lateRow);
+  }
+  /* New email: the watcher's two switches and what its last check proved. The switches save at once; turning the
+     check off stops every background mail read and removes the top mail icon. */
+  function paintMail(){
+    mailBox.textContent = '';
+    mailBox.appendChild(h('div', 'vns-title', NT('mail.title', 'New email')));
+    if (!mail) { mailBox.appendChild(h('div', 'vns-note', NT('mail.unavailable', 'The new-mail check is unavailable right now.'))); return; }
+    if (!mail.connected) { mailBox.appendChild(h('div', 'vns-line', NT('mail.not_connected', 'Connect a mailbox to get new-mail alerts.'))); return; }
+    mailBox.appendChild(toggle(NT('mail.toggle.check', 'Check new emails automatically'), prefs.check_new_mail, function(on){
+      save({check_new_mail: on}, on ? NT('mail.saved.on', 'On. VOOL checks your inbox every few minutes and only reads who wrote and the subject.')
+                                    : NT('mail.saved.off', 'Off. VOOL no longer checks your mail in the background.'))
+        .then(function(){ if (window.parent && window.parent.VoolNotify) window.parent.VoolNotify.refreshMail(); });
+    }));
+    mailBox.appendChild(toggle(NT('mail.toggle.details', 'Show sender and subject in alerts'), prefs.mail_alert_details, function(on){
+      save({mail_alert_details: on}, on ? NT('mail.saved.details_on', 'Alerts name the sender and the subject.')
+                                        : NT('mail.saved.details_off', 'Alerts say only how many emails arrived.'));
+    }));
+    if (!prefs.check_new_mail) return;
+    var line = '';
+    if (mail.state === 'online_access_off') line = NT('mail.state.online_access_off', 'Checking is paused: \u201cGo online on its own\u201d is off.');
+    else if (mail.state === 'needs_reconnect') line = NT('mail.state.needs_reconnect', 'The mail server refused the saved sign-in. Reconnect the mailbox in Settings.');
+    else if (mail.state === 'unreachable' || mail.state === 'error') line = NT('mail.state.unreachable', 'The last check could not reach the mail server. VOOL tries again.');
+    else if (mail.unread !== null && mail.unread !== undefined) line = NTF('mail.icon_unread', 'Unread emails: {n}', {n: mail.unread});
+    else line = NT('mail.icon_unknown', 'Email: not checked yet');
+    mailBox.appendChild(h('div', mail.state && mail.state !== 'ok' ? 'vns-line vns-bad' : 'vns-line', line));
+    if (mail.last_checked) mailBox.appendChild(h('div', 'vns-note', NTF('vmw.last_check', 'Last checked {when}', {when: new Date(mail.last_checked).toLocaleString()})));
   }
   /* The Watching card: every wallet and price watch, in words, with Pause/Resume and Remove.
      The rule is data from the server; the words are composed here so each locale says them its own way. */

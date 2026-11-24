@@ -619,6 +619,9 @@ class EmailConversation:
         daemon = rig.ServedDaemon(self.home, provider=self.provider, model=MODEL, provider_name=PROVIDER_NAME, env_extra={
             "VOOL_MODEL_LOAD_FLOOR_GB": "0", "VOOL_CREDENTIAL_STORE": "vault", "VOOL_KEY_STORAGE_MODE": "file",
             "VOOL_ALLOW_LIVE_OLLAMA_TESTS": "0",
+            # These journeys pin every provider request a chat turn makes; the background new-mail watcher's own
+            # header reads (tests/test_mail_watch.py) would interleave with them in the provider's request log.
+            "VOOL_MAIL_WATCH": "0",
             # The runtime resolves VOOL_RAW_OLLAMA_API_URL before OLLAMA_HOST: it must name the scripted
             # model too, or an inherited dead or live endpoint decides where model requests go.
             "VOOL_RAW_OLLAMA_API_URL": self.provider.base_url,

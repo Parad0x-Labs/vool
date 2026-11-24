@@ -5607,15 +5607,35 @@
     "live.home_point_local": "Sizin bilgisayarınızda çalışır.",
     "live.home_point_account": "Hesap gerekmez.",
     "live.home_point_ask": "Bir şey yapmadan önce sorar.",
-    "live.home_point_forget": "Siz söyleyince unutur."
+    "live.home_point_forget": "Siz söyleyince unutur.",
+    "notif.mail_from": "{sender} kişisinden yeni e-posta",
+    "notif.mail_count": "Yeni e-postalar: {n}",
+    "mail.icon_unknown": "E-posta: henüz kontrol edilmedi",
+    "mail.icon_unread": "Okunmamış e-postalar: {n}",
+    "mail.icon_action": "Özet için tıklayın",
+    "mail.brief_prompt": "Okunmamış e-postalarımın kısa bir özetini ver.",
+    "mail.brief_button": "Özetle",
+    "mail.state.online_access_off": "Kontrol duraklatıldı: “Kendi başına çevrimiçi olma” kapalı.",
+    "mail.state.needs_reconnect": "Posta sunucusu kayıtlı oturum açmayı reddetti. Posta kutusunu Ayarlar’dan yeniden bağlayın.",
+    "mail.state.unreachable": "Son kontrol posta sunucusuna ulaşamadı. VOOL yeniden deniyor.",
+    "mail.title": "Yeni e-posta",
+    "mail.unavailable": "Yeni e-posta kontrolü şu anda kullanılamıyor.",
+    "mail.not_connected": "Yeni e-posta uyarıları almak için bir posta kutusu bağlayın.",
+    "mail.toggle.check": "Yeni e-postaları otomatik kontrol et",
+    "mail.saved.on": "Açık. VOOL gelen kutunuzu birkaç dakikada bir kontrol eder ve yalnızca gönderen ile konuyu okur.",
+    "mail.saved.off": "Kapalı. VOOL artık postanızı arka planda kontrol etmiyor.",
+    "mail.toggle.details": "Uyarılarda gönderen ve konuyu göster",
+    "mail.saved.details_on": "Uyarılar gönderen ve konuyu belirtir.",
+    "mail.saved.details_off": "Uyarılar yalnızca kaç e-posta geldiğini söyler."
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

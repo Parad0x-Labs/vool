@@ -178,6 +178,41 @@ class GraphAdapter:
         return EmailReadResult(True, "executed",
                                f"{len(messages)} message(s) matched (Graph).{note}", messages=messages)
 
+    def unread_headers(self, *, limit: int, known_refs: frozenset[str] = frozenset()):
+        """The new-mail watcher's read: the Inbox folder's documented unreadItemCount and, for its unread
+        messages newest first, only id, internetMessageId, from, subject and receivedDateTime ($select). Graph
+        requires an $orderby property to lead the $filter, so the date bound comes first. Nothing is modified."""
+        from urllib.parse import quote
+
+        from core.email_tools import InboxHeaders
+
+        folder = self._oauth.api_read("GET", f"{self._api_base}/v1.0/me/mailFolders/inbox?$select=unreadItemCount")
+        try:
+            unread = max(0, int(folder.get("unreadItemCount") or 0))
+        except (TypeError, ValueError):
+            unread = 0
+        query = ("$select=id,internetMessageId,from,subject,receivedDateTime"
+                 f"&$top={min(max(int(limit), 1), _MAX_RESULT)}"
+                 f"&$filter={quote('receivedDateTime ge 1970-01-01T00:00:00Z and isRead eq false', safe='')}"
+                 f"&$orderby={quote('receivedDateTime desc', safe='')}")
+        listing = self._oauth.api_read("GET", f"{self._api_base}/v1.0/me/mailFolders/inbox/messages?{query}")
+        messages: list[dict[str, Any]] = []
+        for m in (listing.get("value") or [])[:limit]:
+            ref = str(m.get("id") or "")
+            if ref and ref in known_refs:
+                messages.append({"ref": ref, "known": True})
+                continue
+            key = normalize_message_id(m.get("internetMessageId"))
+            if not key:
+                headers = {str(h.get("name") or "").lower(): str(h.get("value") or "")
+                           for h in m.get("internetMessageHeaders") or []}
+                key = normalize_message_id(headers.get("message-id"))
+            messages.append({"key": key, "ref": ref,
+                             "from": _mailbox_text((m.get("from") or {}).get("emailAddress") or {})[:200],
+                             "subject": str(m.get("subject") or "")[:300],
+                             "date": str(m.get("receivedDateTime") or "")[:100]})
+        return InboxHeaders(True, "executed", "", unread=unread, messages=messages)
+
     @staticmethod
     def _summary(m: dict[str, Any]) -> dict[str, str]:
         headers = {str(h.get("name") or "").lower(): str(h.get("value") or "")

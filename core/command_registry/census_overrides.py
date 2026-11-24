@@ -152,6 +152,7 @@ _EXTERNAL: dict[str, str] = {
     "cli-vool:spend-unfreeze": "wallet spend policy (goal exclusion: wallet)",
     "cli-vool:spend-set-cap": "wallet spend policy (goal exclusion: wallet)",
     "cli-vool:spend-policy": "wallet spend policy (goal exclusion: wallet)",
+    "http:GET:/api/mail/alerts": "new-mail alerts: the top mail icon's unread count and the Settings line, stored state only (core/mail_watch.py)",
     "http:GET:/api/market/watches": "market watch feed for Settings (the chat's watch.* tools are the operator path)",
     "http:POST:/api/market/watches/pause": "market watch lane: the owner's Settings switch for one watch, same-origin only",
     "http:POST:/api/market/watches/resume": "market watch lane: the owner's Settings switch for one watch, same-origin only",

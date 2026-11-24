@@ -16,6 +16,15 @@ _NOTIFY_CSS = """
   background:var(--warn,#f0b429);color:#201500;font-size:10px;font-weight:800;
   display:grid;place-items:center;padding:0 4px}
 #vfBadge[hidden]{display:none}
+#vfMail{position:relative;background:transparent;color:var(--muted,#9aa1af);
+  border:1px solid var(--border,#262b35);border-radius:8px;padding:6px 10px;font:inherit;
+  font-size:13px;cursor:pointer;margin-right:6px}
+#vfMail:hover{color:var(--ink,#e8eaf0);border-color:var(--accent,#5eead4)}
+#vfMail[hidden]{display:none}
+#vfMailCount{position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;border-radius:8px;
+  background:var(--field,#1d2129);color:var(--ink,#e8eaf0);border:1px solid var(--border,#262b35);
+  font-size:10px;font-weight:700;display:grid;place-items:center;padding:0 4px}
+#vfMailCount[hidden]{display:none}
 #vfPop{position:fixed;z-index:1150;width:min(380px,92vw);max-height:min(560px,80vh);overflow:auto;
   background:var(--panel,#16191f);border:1px solid var(--border,#262b35);border-radius:12px;
   box-shadow:0 10px 40px rgba(0,0,0,.5)}
@@ -100,13 +109,30 @@ function routineItem(item){
   var p = item.payload || {};
   return p.kind === 'routine' && /^rt-[0-9a-f]{10}$/.test(String(p.routine_id || ''));
 }
+/* A new-mail item (core/mail_watch.py) is worded here too, from its payload: the count, and the sender and
+   subject only when the alert carries them ("Show sender and subject in alerts" in Settings). */
+function mailItem(item){ return item.source_kind === 'new_mail' && (item.payload || {}).kind === 'new_mail'; }
+function mailTitle(item){
+  var p = item.payload, n = Number(p.count) || 0, rows = Array.isArray(p.messages) ? p.messages : [];
+  if (n === 1 && rows.length && rows[0].from) return NTFF('notif.mail_from', 'New email from {sender}', { sender: rows[0].from });
+  return NTFF('notif.mail_count', 'New emails: {n}', { n: n });
+}
+function mailBody(item){
+  var p = item.payload, rows = Array.isArray(p.messages) ? p.messages : [], n = Number(p.count) || 0;
+  var text = rows.map(function(row){ return row.subject ? (row.from ? row.from + ': ' + row.subject : row.subject) : (row.from || ''); })
+    .filter(Boolean).join('; ');
+  if (text && n > rows.length) text += ' ' + NTFF('notif.missed_more', ' and {n} more', { n: n - rows.length }).trim();
+  return text;
+}
 function itemTitle(item){
+  if (mailItem(item)) return mailTitle(item);
   if (!routineItem(item)) return item.title;
   var p = item.payload;
   return p.problem ? NTFF('notif.routine_problem', '{name} could not get ready', { name: p.name })
     : NTFF('notif.routine_ready', '{name} is ready to run', { name: p.name });
 }
 function itemBody(item){
+  if (mailItem(item)) return mailBody(item);
   if (!routineItem(item)) return String(item.body || '');
   var p = item.payload;
   return p.problem ? NTF('notif.routine_problem_body', 'Open My routines to see what stopped it.')
@@ -191,6 +217,48 @@ bell.type = 'button';
 bell.title = NTF('notif.bell_title', 'Notifications \u2014 background completions and watched-model market changes');
 bell.setAttribute('aria-label', bell.title);
 bell.innerHTML = '<span class="vi" data-ico="bell" aria-hidden="true"></span><span id="vfBadge" hidden></span>';
+/* The top mail icon: shown while a mailbox is connected and "Check new emails automatically" is on, with the
+   unread count the watcher last read. Clicking it opens a new chat that asks for a brief of the mail. */
+var mailBtn = document.createElement('button');
+mailBtn.id = 'vfMail';
+mailBtn.type = 'button';
+mailBtn.hidden = true;
+mailBtn.innerHTML = '<span class="vi" data-ico="mail" aria-hidden="true"></span><span id="vfMailCount" hidden></span>';
+var mailCount = mailBtn.querySelector('#vfMailCount');
+var mailBusy = false, mailLastPoll = 0, mailCursor = null;
+var MAIL_POLL_MS = 15000;
+function paintMail(view){
+  var on = !!(view && view.ok && view.enabled && view.connected);
+  mailBtn.hidden = !on;
+  if (!on) return;
+  var n = (view.unread === null || view.unread === undefined) ? null : Number(view.unread) || 0;
+  mailCount.hidden = !n;
+  mailCount.textContent = n > 99 ? '99+' : String(n || '');
+  var label = n === null ? NTF('mail.icon_unknown', 'Email: not checked yet')
+    : NTFF('mail.icon_unread', 'Unread emails: {n}', { n: n });
+  if (view.state === 'online_access_off') label += ' \u00b7 ' + NTF('mail.state.online_access_off', 'Checking is paused: \u201cGo online on its own\u201d is off.');
+  else if (view.state === 'needs_reconnect') label += ' \u00b7 ' + NTF('mail.state.needs_reconnect', 'The mail server refused the saved sign-in. Reconnect the mailbox in Settings.');
+  else if (view.state === 'unreachable' || view.state === 'error') label += ' \u00b7 ' + NTF('mail.state.unreachable', 'The last check could not reach the mail server. VOOL tries again.');
+  label += ' \u00b7 ' + NTF('mail.icon_action', 'Click for a brief');
+  mailBtn.title = label;
+  mailBtn.setAttribute('aria-label', label);
+}
+function pollMail(force){
+  if (mailBusy) return;
+  if (!force && Date.now() - mailLastPoll < MAIL_POLL_MS) return;
+  mailBusy = true; mailLastPoll = Date.now();
+  fetch('/api/mail/alerts').then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(view){ if (view && view.ok) paintMail(view); })
+    .catch(function(){})
+    .then(function(){ mailBusy = false; });
+}
+function askMailBrief(){
+  var actions = pageActions();
+  if (!actions || typeof actions.askInNewChat !== 'function') { toast(NTF('notif.no_answer', 'VOOL did not answer; nothing was changed.')); return; }
+  pop.hidden = true; card.hidden = true;
+  actions.askInNewChat(NTF('mail.brief_prompt', 'Give me a short brief of my unread emails.'));
+}
+mailBtn.addEventListener('click', askMailBrief);
 var pop = document.createElement('div');
 pop.id = 'vfPop';
 pop.hidden = true;
@@ -291,6 +359,12 @@ function pollCentre(){
       audioCursor = Number(j.cursor) || 0;
       centre = j.items;
       centreUnread = Number(j.unread) || 0;
+      // A new-mail item that arrived since the last read refreshes the top count at once; otherwise it follows its
+      // own slower cadence.
+      var newestMail = 0;
+      centre.forEach(function(item){ if (item.source_kind === 'new_mail' && Number(item.seq) > newestMail) newestMail = Number(item.seq); });
+      pollMail(mailCursor !== null && newestMail > mailCursor);
+      mailCursor = newestMail;
       // The first read establishes observation, never plays historical unread items.
       if (previous !== null && audioCursor > previous && window.VoolNotificationAudio && window.VoolNotificationAudio.ready()) {
         return fetch('/api/notifications/audio', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({after:previous})})
@@ -485,6 +559,7 @@ function openCard(item){
       '<button type="button" class="vf-btn" data-vcard="snooze" data-min="15">' + NTF('notif.snooze_15', '15 min') + '</button>' +
       '<button type="button" class="vf-btn" data-vcard="snooze" data-min="60">' + NTF('notif.snooze_60', '1 hour') + '</button>';
   }
+  if (mailItem(item)) html += '<button type="button" class="vf-btn vf-primary" data-vcard="mailbrief">' + NTF('mail.brief_button', 'Brief me') + '</button>';
   // A routine never runs from here: this opens its list in My routines, where the person chooses Run.
   if (routineItem(item)) html += '<button type="button" class="vf-btn vf-primary" data-vcard="routine">' + NTF('notif.open_routines', 'Open My routines') + '</button>';
   if (!item.dismissed_at) html += '<button type="button" class="vf-btn" data-vcard="dismiss">' + NTF('notif.dismiss', 'Dismiss') + '</button>';
@@ -551,6 +626,7 @@ card.addEventListener('click', function(ev){
   else if (what === 'dismiss') { closeCard(); centreAction(current, 'dismiss'); }
   else if (what === 'policy-off') { savePolicy(current, []); }
   else if (what === 'chat') { closeCard(); window.openSession(current.session_id); }
+  else if (what === 'mailbrief' && mailItem(current)) { closeCard(); askMailBrief(); }
   else if (what === 'routine' && routineItem(current)) { closeCard(); window.location.href = '/routines?run=' + current.payload.routine_id; }
 });
 card.addEventListener('submit', function(ev){
@@ -592,6 +668,7 @@ function mount(){
   if (anchor && anchor.parentNode && !document.getElementById('vfBell')) {
     anchor.parentNode.insertBefore(bell, anchor);
   }
+  if (bell.parentNode && !document.getElementById('vfMail')) bell.parentNode.insertBefore(mailBtn, bell);
   var previous = null;
   try { previous = localStorage.getItem(STATE_KEY); } catch (e) {}
   if (previous) {
@@ -601,6 +678,7 @@ function mount(){
   } else pollCentre();
   setInterval(pollCentre, CENTRE_POLL_MS);
   window.addEventListener('focus', pollCentre);
+  window.addEventListener('focus', function(){ pollMail(true); });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
 else mount();
@@ -611,6 +689,7 @@ window.VoolNotify = Object.freeze({
   refresh: pollCentre,
   pending: function(){ return centre.length; },
   unread: function(){ return unreadCount(); },
+  refreshMail: function(){ pollMail(true); },
   _state: function(){ return {unread: centreUnread, section: section}; },
   _items: function(){ return centre.slice(); },
 });

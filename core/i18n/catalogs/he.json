@@ -5607,15 +5607,35 @@
     "live.home_point_local": "פועל במחשב שלך.",
     "live.home_point_account": "בלי חשבון.",
     "live.home_point_ask": "שואל לפני שהוא פועל.",
-    "live.home_point_forget": "שוכח כשמבקשים ממנו."
+    "live.home_point_forget": "שוכח כשמבקשים ממנו.",
+    "notif.mail_from": "מייל חדש מ-{sender}",
+    "notif.mail_count": "מיילים חדשים: {n}",
+    "mail.icon_unknown": "דואר: עוד לא נבדק",
+    "mail.icon_unread": "מיילים שלא נקראו: {n}",
+    "mail.icon_action": "לחצו לסיכום",
+    "mail.brief_prompt": "תן לי סיכום קצר של המיילים שלא קראתי.",
+    "mail.brief_button": "סכם לי",
+    "mail.state.online_access_off": "הבדיקה מושהית: „יציאה לאינטרנט באופן עצמאי” כבויה.",
+    "mail.state.needs_reconnect": "שרת הדואר דחה את פרטי הכניסה השמורים. חברו מחדש את תיבת הדואר בהגדרות.",
+    "mail.state.unreachable": "הבדיקה האחרונה לא הגיעה לשרת הדואר. VOOL ינסה שוב.",
+    "mail.title": "דואר חדש",
+    "mail.unavailable": "בדיקת דואר חדש לא זמינה כרגע.",
+    "mail.not_connected": "חברו תיבת דואר כדי לקבל התראות על דואר חדש.",
+    "mail.toggle.check": "לבדוק מיילים חדשים אוטומטית",
+    "mail.saved.on": "פועל. VOOL בודק את תיבת הדואר הנכנס כל כמה דקות וקורא רק מי כתב ואת הנושא.",
+    "mail.saved.off": "כבוי. VOOL כבר לא בודק את הדואר שלך ברקע.",
+    "mail.toggle.details": "להציג שולח ונושא בהתראות",
+    "mail.saved.details_on": "ההתראות מציינות את השולח והנושא.",
+    "mail.saved.details_off": "ההתראות אומרות רק כמה מיילים הגיעו."
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }

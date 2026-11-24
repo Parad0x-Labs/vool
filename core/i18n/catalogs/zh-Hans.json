@@ -5607,15 +5607,35 @@
     "live.home_point_local": "在你的电脑上运行。",
     "live.home_point_account": "无需账号。",
     "live.home_point_ask": "行动前先问你。",
-    "live.home_point_forget": "你说忘，它就忘。"
+    "live.home_point_forget": "你说忘，它就忘。",
+    "notif.mail_from": "来自 {sender} 的新邮件",
+    "notif.mail_count": "新邮件：{n}",
+    "mail.icon_unknown": "邮件：尚未检查",
+    "mail.icon_unread": "未读邮件：{n}",
+    "mail.icon_action": "点击获取摘要",
+    "mail.brief_prompt": "给我简要总结一下我的未读邮件。",
+    "mail.brief_button": "帮我总结",
+    "mail.state.online_access_off": "检查已暂停：“自行联网”已关闭。",
+    "mail.state.needs_reconnect": "邮件服务器拒绝了保存的登录信息。请在设置中重新连接邮箱。",
+    "mail.state.unreachable": "上次检查无法连接邮件服务器。VOOL 会再试。",
+    "mail.title": "新邮件",
+    "mail.unavailable": "新邮件检查暂时不可用。",
+    "mail.not_connected": "连接邮箱即可收到新邮件提醒。",
+    "mail.toggle.check": "自动检查新邮件",
+    "mail.saved.on": "已开启。VOOL 每隔几分钟检查一次收件箱，只读取发件人和主题。",
+    "mail.saved.off": "已关闭。VOOL 不再在后台检查你的邮件。",
+    "mail.toggle.details": "在提醒中显示发件人和主题",
+    "mail.saved.details_on": "提醒会显示发件人和主题。",
+    "mail.saved.details_off": "提醒只显示收到了几封邮件。"
   },
-  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
+  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
     "cross_check": "language-family agent self-check + deterministic validator",
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
-    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)"
+    "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
   }
 }
