@@ -81,6 +81,10 @@ document.documentElement.lang = WORDS.lang; document.documentElement.dir = DIREC
 document.title = WORDS.home_title;
 $('q').placeholder = WORDS.home_search; $('q').setAttribute('aria-label', WORDS.home_search);
 $('visitedTitle').textContent = WORDS.home_visited;
+// The box is ready to type in the moment the page shows. "autofocus" alone waits for the
+// engine's next paint, which a busy or covered window can put off: CI on 94b9dad5d
+// (2026-11-24) read the page with nothing focused.
+$('q').focus();
 // A welcome the first time this page is ever shown in this profile, and a greeting the
 // first time it is shown on a day, with that day's date. The day last greeted is kept in
 // this page's own storage in the profile; nothing about it is sent anywhere.

@@ -38,7 +38,7 @@ def _write(home: Path, body: str) -> None:
     run_in_home(home, WRITE.format(root=REPO, body=body))
 
 
-def _box(daemon: ServedDaemon, *, lang: str = "en", then=None) -> str:
+def _box(daemon: ServedDaemon, *, lang: str = "en", then=None, shows: tuple[str, ...] = (), hides: tuple[str, ...] = ()) -> str:
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:
@@ -51,8 +51,13 @@ def _box(daemon: ServedDaemon, *, lang: str = "en", then=None) -> str:
             if then is not None:
                 then()
                 page.evaluate("window.dispatchEvent(new Event('focus'))")
-                page.wait_for_function("(old) => { const b = document.querySelector('[data-testid=today]'); return b && b.innerText !== old; }",
-                                       arg=text, timeout=15000)
+                # Wait for the box to show the change as a whole. "Any change" let a refresh that landed
+                # between the two writes count (CI shard 4 on 94b9dad5d, 2026-11-24: the new task was
+                # shown and the finished one not yet gone).
+                page.wait_for_function(
+                    "([old, shows, hides]) => { const b = document.querySelector('[data-testid=today]'); if (!b) return false;"
+                    " const t = b.innerText; return t !== old && shows.every((w) => t.includes(w)) && !hides.some((w) => t.includes(w)); }",
+                    arg=[text, list(shows), list(hides)], timeout=15000)
                 text = page.inner_text("[data-testid=today]")
             return text
         finally:
@@ -80,7 +85,7 @@ goal_workflow.save_goal({{"goal_id": goal_workflow.new_goal_id(), "session_id": 
             first = _box(daemon, then=lambda: _write(home, '''
 pa_tasks.create_task(title="post the parcel")
 [pa_tasks.complete_task(t["task_id"]) for t in pa_tasks.list_tasks() if t["title"] == "buy oat milk"]
-'''))
+'''), shows=("post the parcel",), hides=("buy oat milk",))
             assert note in first and "post the parcel" in first and "buy oat milk" not in first, first
             assert goal in first and "1 of 2 steps" in first, first
             # The goal's worker is not this process's: it is not shown as working.

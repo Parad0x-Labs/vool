@@ -2803,6 +2803,7 @@
     },
     "machine.find_folder": {
       "arguments": [
+        "any_kind",
         "drives",
         "name"
       ],
@@ -2811,6 +2812,13 @@
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "any_kind": {
+            "description": "boolean optional",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "drives": {
             "description": "boolean optional",
             "type": [
@@ -2825,7 +2833,8 @@
         },
         "required": [
           "name",
-          "drives"
+          "drives",
+          "any_kind"
         ],
         "type": "object"
       },

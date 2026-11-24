@@ -113,6 +113,10 @@ def test_the_persons_most_visited_sites_are_on_the_start_page(browser, site):
     base, hits = site
     browser.open(base + "/timetable")
     assert _wait(lambda: asked(hits) == ["/timetable"])
+    # The person saw the page (its title is shown) before closing the browser. Stopping the moment
+    # the site was asked raced the engine's history taking the title (CI on 94b9dad5d, 2026-11-24).
+    assert _wait(lambda: any(not p.is_closed() and p.url == base + "/timetable" and browser._call(p.title()) == "Timetable"
+                             for p in browser.context_for_agent().pages))
     browser.stop()
     hits.clear()
     browser.open("")

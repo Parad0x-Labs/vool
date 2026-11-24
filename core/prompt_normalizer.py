@@ -3,6 +3,8 @@ from __future__ import annotations
 import contextlib
 import json
 import re
+import threading
+from collections import OrderedDict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -906,7 +908,7 @@ def _build_conversational_request(
     # answer: small local models can satisfy an exact shape with the wrong fact
     # when the shape request is ambiguous.  The focused guidance above carries
     # the only source the model should transform.
-    reference_now = None if focused_assistant_followup else datetime.now().astimezone()
+    reference_now = None if focused_assistant_followup else turn_reference_now(source_context, current_turn_id)
     runtime_truth = "" if reference_now is None else _runtime_turn_truth(source_context, reference_now=reference_now)
     if runtime_truth:
         turn_directives.append(runtime_truth)
@@ -1399,6 +1401,40 @@ def _build_conversational_request(
         },
         attachments=list(context_result.report.to_dict().get("external_evidence_attachments") or []),
     )
+
+
+_TURN_CLOCKS: OrderedDict[tuple[str, str], datetime] = OrderedDict()
+_TURN_CLOCKS_LOCK = threading.Lock()
+_TURN_CLOCKS_KEPT = 256
+_TURN_CLOCK_HELD_FOR = timedelta(hours=1)
+
+
+def turn_reference_now(source_context: dict[str, Any] | None, current_turn_id: str = "") -> datetime:
+    """The turn's clock: the time its first prompt was built, the same for every prompt of that turn.
+
+    Each prompt of a turn (the tool rounds, the answer after them) is built anew, and each one read the
+    clock again. The clock line sits about 830 tokens into the prompt, so the minute changing between two
+    rounds made the engine read everything after it again. Intel smoke on 94b9dad5d (2026-11-24, qwen3:8b
+    on a CPU that reads about 10 prompt tokens a second): "What is my locker number?" built its third tool
+    round at 12:05, its first at 11:57; 831 of 6,677 tokens were reused, the read took over 11 minutes and
+    the turn ran past the 15-minute limit. One turn is asked at one time, so its prompts say one time.
+    A prompt with no turn named reads the clock as before."""
+    now = datetime.now().astimezone()
+    context = source_context or {}
+    turn = str(context.get("cancel_turn_id") or context.get("turn_id") or current_turn_id or "").strip()
+    if not turn:
+        return now
+    key = (str(context.get("runtime_session_id") or context.get("session_id") or "").strip(), turn)
+    with _TURN_CLOCKS_LOCK:
+        held = _TURN_CLOCKS.get(key)
+        if held is not None and timedelta(0) <= now - held <= _TURN_CLOCK_HELD_FOR:
+            _TURN_CLOCKS.move_to_end(key)
+            return held
+        _TURN_CLOCKS[key] = now
+        _TURN_CLOCKS.move_to_end(key)
+        while len(_TURN_CLOCKS) > _TURN_CLOCKS_KEPT:
+            _TURN_CLOCKS.popitem(last=False)
+    return now
 
 
 def _runtime_clock_text(now: datetime) -> str:
