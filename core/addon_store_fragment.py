@@ -252,6 +252,20 @@ function rateControl(e){
 }
 function renderRegistry(host,query){
  hero(host,tr('registry_title','Skills and plugins from their creators'),tr('registry_intro','Automated checks cover package compatibility and known threat patterns for the listed VOOL builds. They do not guarantee that a skill is free of malicious behavior. Community skills are provided as is, without warranty. Inspect the files and use them at your own risk.'));
+ if(registryReview&&registryReview.plugin){
+  // A plugin from the Skill Codex gets the plugin review sheet a folder gets: what it is, what it reaches, its
+  // keys and every file. It can only be installed switched off; switching it on is the access sheet under Plugins.
+  const r=registryReview,info=r.metadata,p=r.plugin;const card=node('section',undefined,'addon-card');card.setAttribute('role','dialog');card.setAttribute('aria-label',tr('plugin_review','Review plugin package'));
+  card.append(node('h3',p.name),node('p',p.description),node('small',tr('codex_plugin_kind_plugin','Plugin')+' · '+info.id+' · '+info.version),node('p',fill(tr('codex_plugin_from','Published in the Skill Codex by {publisher}. VOOL checked that these are the files that were published. That does not prove they are safe.'),{publisher:p.publisher})));
+  pluginFacts(card,p);
+  {const files=(r.files||[]).filter(f=>f.type==='file');const box=node('details',undefined,'plugin-files');box.open=files.length<=40;box.append(node('summary',tr('plugin_files','Files in this package')+' ('+files.length+')'));const list=node('ul');files.forEach(f=>list.append(node('li',f.path+' · '+pluginSize(f.bytes)+(f.executable?' · '+tr('plugin_file_program','can run as a program'):''))));box.append(list);card.append(box);}
+  releaseNotes(card,info);nativeControlNotice(card,r);
+  Object.entries(r.instructions||{}).forEach(([name,body])=>{const item=node('details');item.append(node('summary',name),node('pre',body));card.append(item);});
+  card.append(node('p',tr('codex_plugin_off','It is installed switched off. To switch it on, open Plugins and review its access.'),'addon-meta'));
+  const acts=node('div',undefined,'addon-actions');
+  acts.append(button(tr('plugin_install_disabled','Install and keep disabled'),()=>action(()=>unlessStopped(r.id,async()=>{await post({action:'registry_install',id:r.id,version:r.version,review_id:r.review_id,accepted:true,enable:false});registryReview=null;tab='installed';_pluginCatalog=await(await fetch('/api/plugins')).json();data=await read();})),'addon-primary'),button(tr('cancel','Cancel'),()=>{registryReview=null;refresh();}));
+  card.append(acts);host.append(card,reportBlock(info));return;
+ }
  if(registryReview){
   const r=registryReview,info=r.metadata;
   host.append(node('h3',(info.title?info.title+' · ':'')+info.id+' · '+info.version),node('p',info.summary),registryFacts({...info,targets:r.targets}));releaseNotes(host,info);nativeControlNotice(host,r);
@@ -279,7 +293,7 @@ function renderRegistry(host,query){
  const rows=registryData.entries.filter(e=>key([e.id,e.summary,e.category,e.subcategory,catLabel(e)].join(' ')).includes(key(query)));
  if(!rows.length)host.append(node('p',tr('registry_empty','No listed versions match this exact VOOL build and search.')));
  const grid=node('div',undefined,'addon-grid');host.append(grid);
- rows.forEach((e,i)=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head'),name=node('h3',e.title||e.id);name.id='registry-skill-'+i;card.setAttribute('aria-labelledby',name.id);head.append(skillPicture(e),name);addTeamBadges(head,e);card.append(head,node('p',e.summary),node('small',(e.title?e.id+' · ':'')+catLabel(e)+' · '+e.version+' · '+e.license),registryFacts(e));
+ rows.forEach((e,i)=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head'),name=node('h3',e.title||e.id);name.id='registry-skill-'+i;card.setAttribute('aria-labelledby',name.id);head.append(skillPicture(e),name);addTeamBadges(head,e);card.append(head,node('p',e.summary),node('small',(e.kind==='plugin'?tr('codex_plugin_kind_plugin','Plugin'):tr('codex_plugin_kind_skill','Skill'))+' · '+(e.title?e.id+' · ':'')+catLabel(e)+' · '+e.version+' · '+e.license),registryFacts(e));
   ratingRow(card,e);
   releaseNotes(card,e);
   if(stoppedSkills.has(e.id)){const[kind,text]=STOPPED.get(stoppedSkills.get(e.id)),note=node('p',text(),'addon-meta '+kind);note.setAttribute('role','status');card.append(note);}

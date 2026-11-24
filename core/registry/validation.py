@@ -12,6 +12,12 @@ def manifest_authority(manifest: dict) -> dict:
 
     loaded = parse_manifest(manifest, path=Path(".codex-plugin/plugin.json"))
     if loaded.vool:
+        # A plugin from the Skill Codex is held to the same identity rule as one from a folder: no id VOOL
+        # keeps, no VOOL name, no word or mark that says someone checked it. A signature does not lift it.
+        from core.plugin_identity import identity_note
+
+        refusal, note = identity_note(manifest)
+        require(not refusal, refusal, (note.get("where", "") + ": " + note.get("fix", "")).strip(": "))
         return {
             "permissions": sorted({action for contract in loaded.contracts for action in contract.permission_actions}),
             "credential_bindings": [f"plugin.{loaded.plugin_id}.{slot}" for slot in loaded.vool["credentials"]],

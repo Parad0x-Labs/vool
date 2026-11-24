@@ -6,7 +6,10 @@
 Nothing is installed, started or sent anywhere: the folder is captured into a throwaway profile,
 its identity and its setup file are read by the same rules the Add-ons page uses, and the copy is
 removed. On a refusal it prints the sentence a person installing the plugin would read, then the
-note for the plugin's maker: the field at fault and what to write instead.
+note for the plugin's maker: the field at fault and what to write instead. An install stops at the
+first problem; this check reads on and lists every problem it can find, so one run is enough.
+With --json the first problem stays in "message", "where" and "fix", and "problems" holds all of
+them in order, each with the same three fields.
 
 Exit codes: 0 the folder would be offered for review; 1 it is refused; 2 the folder could not be read.
 """
@@ -24,8 +27,43 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
+def _every_problem(path: Path, first: dict) -> list[dict]:
+    """The install door's own refusal first, then every other problem the same rules find in the folder.
+
+    The door stops at its first refusal. The identity rules and the setup-file rules are read again here
+    in the mode that goes on after a refusal. A rule that cannot go on after an earlier fault adds nothing,
+    so the list may still grow by a problem or two once the listed ones are fixed.
+    """
+    from core import plugin_manager
+    from core.plugin_identity import identity_notes
+    from core.plugin_manifest import manifest_problems
+
+    problems, seen = [first], {(first["where"], first["fix"])}
+
+    def add(sentence: str, note: dict) -> None:
+        if not note.get("fix") or (note.get("where", ""), note["fix"]) in seen:
+            return
+        seen.add((note.get("where", ""), note["fix"]))
+        if plugin_manager.user_message(sentence)["message"] != sentence:
+            sentence = "The plugin's setup file is invalid or missing. Review it before installing."
+        problems.append({"message": plugin_manager.user_message(sentence)["message"], "where": note.get("where", ""),
+                         "fix": note["fix"]})
+
+    try:
+        manifest = json.loads((path / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return problems
+    if not isinstance(manifest, dict):
+        return problems
+    for sentence, note in identity_notes(manifest):
+        add(sentence, plugin_manager.maker_note(None, note["fix"]) | {"where": note["where"]})
+    for refusal in manifest_problems(manifest, root=path):
+        add(str(refusal), plugin_manager.maker_note(refusal))
+    return problems
+
+
 def check(folder: str) -> dict:
-    """{"ok": True, "plugin": {...}} or {"ok": False, "message": ..., "where": ..., "fix": ...}."""
+    """{"ok": True, "plugin": {...}} or {"ok": False, "message": ..., "where": ..., "fix": ..., "problems": [...]}."""
     path = Path(folder).expanduser()
     if not path.is_dir():
         return {"ok": False, "code": 2, "message": "That folder could not be read.", "where": "", "fix": "Give the plugin's folder: the one that holds .codex-plugin/plugin.json."}
@@ -41,8 +79,9 @@ def check(folder: str) -> dict:
             review = plugin_manager.handle("plugin_prepare", {"action": "plugin_prepare", "path": str(path), "update": False})
         except plugin_lifecycle.LifecycleError as exc:
             note = getattr(exc, "maker_note", None) or {}
-            return {"ok": False, "code": 1, "message": plugin_manager.user_message(str(exc))["message"],
-                    "where": note.get("where", ""), "fix": note.get("fix", "")}
+            first = {"message": plugin_manager.user_message(str(exc))["message"],
+                     "where": note.get("where", ""), "fix": note.get("fix", "")}
+            return {"ok": False, "code": 1, **first, "problems": _every_problem(path, first)}
         plugin = review["plugin"]
         with contextlib.suppress(Exception):
             plugin_manager.handle("plugin_cancel_review", {"action": "plugin_cancel_review", "review_id": review["review_id"]})
@@ -81,6 +120,11 @@ def main(argv=None) -> int:
         print("Refused: " + result["message"])
         if result["fix"]:
             print("For the plugin's maker: " + (result["where"] + ": " if result["where"] else "") + result["fix"])
+        more = result.get("problems", [])[1:]
+        if more:
+            print(f"{len(more)} more to change:")
+            for number, item in enumerate(more, 2):
+                print(f"{number}. " + (item["where"] + ": " if item["where"] else "") + item["fix"])
     return code
 
 

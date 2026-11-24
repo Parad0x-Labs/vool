@@ -187,32 +187,42 @@ _TEXT_FIX = ("Change this field. It is plain text: letters, numbers, spaces and 
 
 def identity_note(manifest: Any, *, digest: str = "") -> tuple[str, dict]:
     """(the refusal sentence, the note for the plugin's maker: which field and what to change); ("", {}) when fine."""
+    return next(iter(identity_notes(manifest, digest=digest)), ("", {}))
+
+
+def identity_notes(manifest: Any, *, digest: str = "") -> list[tuple[str, dict]]:
+    """Every identity refusal this setup file has, in the order ``identity_note`` meets them; [] when fine.
+
+    The first is the one a door refuses with. The rest are for a maker's check, so one run names
+    every field to change.
+    """
     if not isinstance(manifest, dict):
-        return "", {}   # not a manifest at all: the reader that follows says so
+        return []   # not a manifest at all: the reader that follows says so
     from core.plugin_migration import own_package, reserved_refusal
 
     block = manifest.get("vool") if isinstance(manifest.get("vool"), dict) else {}
     ids = [(where, value) for where, value in (("name", manifest.get("name")), ("vool.id", block.get("id")))
            if isinstance(value, str)]
     if any(own_package(plugin_id, digest) for _where, plugin_id in ids):
-        return "", {}
+        return []
+    found: list[tuple[str, dict]] = []
     for where, plugin_id in ids:
         refusal = reserved_refusal(plugin_id.strip(), digest)
         if refusal:
-            return refusal, {"where": where, "fix": _ID_FIX}
+            found.append((refusal, {"where": where, "fix": _ID_FIX}))
     interface = manifest.get("interface") if isinstance(manifest.get("interface"), dict) else {}
     for where, shown in (("vool.name", block.get("name")), ("vool.publisher", block.get("publisher")),
                          ("interface.displayName", interface.get("displayName"))):
         refusal = display_refusal(shown)
         if refusal:
-            return refusal, {"where": where, "fix": _TEXT_FIX}
+            found.append((refusal, {"where": where, "fix": _TEXT_FIX}))
     credentials = block.get("credentials") if isinstance(block.get("credentials"), dict) else {}
     for slot_name, slot in credentials.items():
         refusal = display_refusal(slot.get("label") if isinstance(slot, dict) else None, name=False)
         if refusal:
             where = "vool.credentials." + "".join(char for char in str(slot_name) if char.isalnum() or char in "_-")[:80] + ".label"
-            return refusal, {"where": where, "fix": _TEXT_FIX}
-    return "", {}
+            found.append((refusal, {"where": where, "fix": _TEXT_FIX}))
+    return found
 
 
 _SHOWN_LIMIT = 60
@@ -279,6 +289,7 @@ __all__ = [
     "builtin_tool_names",
     "display_refusal",
     "identity_note",
+    "identity_notes",
     "identity_refusal",
     "prompt_data",
     "reserved_id",

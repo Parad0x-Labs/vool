@@ -2405,6 +2405,10 @@
     "addons.badge_tested_help": "VOOL 팀이 바로 이 버전을 설치해 사용해 보았습니다.",
     "addons.badge_editors_choice": "에디터 추천",
     "addons.badge_editors_choice_help": "VOOL 팀이 같은 종류 중 가장 좋은 것 가운데 하나로 골랐습니다.",
+    "addons.codex_plugin_kind_plugin": "플러그인",
+    "addons.codex_plugin_kind_skill": "스킬",
+    "addons.codex_plugin_from": "{publisher} 님이 스킬 코덱스에 게시했습니다. VOOL은 이 파일이 게시된 파일과 같은지 확인했습니다. 그렇다고 안전하다는 증명은 아닙니다.",
+    "addons.codex_plugin_off": "꺼진 상태로 설치됩니다. 켜려면 플러그인을 열고 접근 권한을 검토하세요.",
     "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
     "addons.registry_inspect": "확인용으로 다운로드",
     "private.banner": "비공개 채팅: 아무것도 저장되지 않습니다",
@@ -5495,7 +5499,7 @@
     "phone.ui.no_answer_came": "답변이 오지 않았습니다. 다시 보내세요.",
     "phone.ui.ask_on_computer": "컴퓨터의 VOOL에서 허용하거나 거부하세요."
   },
-  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
+  "source_catalog_sha256": "332d36592a331557f0a3888035e7481235560889d5096e930c73792a17ad9504",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

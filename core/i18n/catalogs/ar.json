@@ -2405,6 +2405,10 @@
     "addons.badge_tested_help": "قام فريق VOOL بتثبيت هذا الإصدار نفسه واستخدامه.",
     "addons.badge_editors_choice": "اختيار المحرر",
     "addons.badge_editors_choice_help": "اختاره فريق VOOL كواحد من الأفضل في فئته.",
+    "addons.codex_plugin_kind_plugin": "إضافة",
+    "addons.codex_plugin_kind_skill": "مهارة",
+    "addons.codex_plugin_from": "نشره {publisher} في دليل المهارات. تحقق VOOL من أن هذه هي الملفات المنشورة. هذا لا يثبت أنها آمنة.",
+    "addons.codex_plugin_off": "يُثبَّت وهو متوقف. لتشغيله، افتح الملحقات وراجع صلاحياته.",
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
     "addons.registry_inspect": "تنزيل للفحص",
     "private.banner": "محادثة خاصة: لا يتم حفظ أي شيء",
@@ -5495,7 +5499,7 @@
     "phone.ui.no_answer_came": "لم تصل أي إجابة. أرسلها مرة أخرى.",
     "phone.ui.ask_on_computer": "اسمح بهذا أو ارفضه في VOOL على حاسوبك."
   },
-  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
+  "source_catalog_sha256": "332d36592a331557f0a3888035e7481235560889d5096e930c73792a17ad9504",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

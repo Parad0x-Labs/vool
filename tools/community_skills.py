@@ -1,5 +1,7 @@
 """Make, check and share a VOOL skill: write a starter, test which messages pick it, zip it, put it
-in VOOL's drafts, and prepare a package for the shared skill library. Nothing here publishes anything."""
+in VOOL's drafts, and prepare a package for the shared skill library. A plugin folder is prepared the
+same way: plugin-init writes its listing file, then lint and pack check and pack it. Nothing here
+publishes anything."""
 from __future__ import annotations
 
 import argparse
@@ -287,6 +289,47 @@ def initialize(destination: Path, info: dict, license_bytes: bytes) -> None:
     (destination / "registry.json").write_bytes(canonical(info))
 
 
+def plugin_listing(folder: Path, namespace: str, category: str, subcategory: str, summary: str = "") -> dict:
+    """The listing file (registry.json) for a plugin folder, read from the plugin's own setup file.
+
+    The listing has to agree with the setup file, so it is written from it: the package id ends in the
+    plugin's id, the title is its name, the version and licence are its own. An existing listing file is
+    never replaced.
+    """
+    folder = Path(folder)
+    target = folder / "registry.json"
+    require(folder.is_dir() and (folder / ".codex-plugin" / "plugin.json").is_file(),
+            "no plugin in " + str(folder), "Give the plugin's folder: the one that holds .codex-plugin/plugin.json.")
+    require(not target.exists(), str(target) + " already exists", "Edit that file, or remove it and run plugin-init again.")
+    # Only the fields the listing is written from are read here. lint and pack check the whole setup file and
+    # name every field to change in one run.
+    manifest = decode((folder / ".codex-plugin" / "plugin.json").read_bytes(), 1024 * 1024)
+    block = manifest.get("vool") if isinstance(manifest, dict) else None
+    require(isinstance(block, dict) and all(isinstance(value, str) and value.strip() for value in (
+        manifest.get("name"), manifest.get("version"), block.get("name"), block.get("description"), block.get("license"))),
+        "this folder holds no plugin access block",
+        "The setup file needs name and version, and a vool block with name, description and license. "
+        "examples/plugins/template has every field.")
+    plugin_id, version = manifest["name"], manifest["version"]
+    require(bool(IDENTITY.fullmatch(plugin_id)), "this plugin id cannot be a package name",
+            "A package id holds lowercase letters, digits and hyphens only, at most 64 characters. Change name and "
+            "vool.id in the setup file (and the first part of each tool name) to an id of that shape.")
+    require(bool(IDENTITY.fullmatch(namespace)) and namespace not in RESERVED_NAMESPACES, "invalid namespace",
+            "Pass --namespace with your own public name: lowercase letters, digits and hyphens.")
+    require(len(block["name"]) <= 60, "the plugin's name is too long for a listing",
+            "A listing title is at most 60 characters. Shorten vool.name in the setup file.")
+    words = " ".join(str(summary or block["description"]).split())
+    info = {"id": namespace + "/" + plugin_id, "kind": "plugin", "version": version, "title": block["name"],
+            "summary": words[:500], "category": category, "subcategory": subcategory, "license": block["license"],
+            "languages": ["any"], "source": {"upload_id": secrets.token_hex(16), "namespace": namespace}}
+    metadata(info)
+    target.write_bytes(canonical(info))
+    return {"status": "created", "listing": str(target), "id": info["id"], "version": info["version"],
+            "next": "Check it: python -m tools.community_skills lint " + str(folder) + " --scratch <an empty folder "
+                    "outside it>. Then pack it for upload: python -m tools.community_skills pack " + str(folder) +
+                    " --scratch <folder> --output <file>."}
+
+
 def separate(source: Path, *paths: Path) -> None:
     """Refuse scratch/output inside the package before anything is created there."""
     root = source.resolve()
@@ -310,10 +353,17 @@ def preflight(raw: bytes, scratch: Path) -> dict:
         findings.append(starter_finding("registry.json summary"))
     boundaries = analyze(artifact["files"])
     findings.extend(boundaries["conflicts"])
-    with execution_directory(scratch) as owned:
-        root = owned / "package"
-        materialize(raw, root)
-        findings.extend(native_format_findings(root, artifact))
+    # A plugin: the rules an install runs and that listing and setup file agree, each with the field and the fix.
+    from core.registry.checks import plugin_findings
+
+    plugin = plugin_findings(artifact)
+    findings.extend(plugin)
+    if not plugin:
+        # A setup file with a fault above cannot be loaded; its faults are already listed, each by its field.
+        with execution_directory(scratch) as owned:
+            root = owned / "package"
+            materialize(raw, root)
+            findings.extend(native_format_findings(root, artifact))
     from core.registry.requirements import undeclared_needs
 
     return {"status": "blocked" if findings else "preflight_passed", "artifact_sha256": artifact["sha256"],
@@ -341,6 +391,12 @@ def main(argv=None) -> int:
                              help="an empty folder outside the package for temporary files")
         if name == "pack":
             command.add_argument("--output", required=True, type=Path, help="the package file to write (must not exist yet)")
+    listing = commands.add_parser("plugin-init", help="write the listing file (registry.json) into a plugin folder")
+    listing.add_argument("folder", type=Path, help="the plugin folder (holding .codex-plugin/plugin.json)")
+    listing.add_argument("--namespace", required=True, help="your publisher name on the Skill Codex")
+    listing.add_argument("--category", required=True, help="a category id from the Skill Codex list, for example productivity")
+    listing.add_argument("--subcategory", required=True, help="a subcategory id of that category, for example notes-summaries")
+    listing.add_argument("--summary", default="", help="one plain sentence for the card (default: the plugin's description)")
     check = commands.add_parser("check", help="check a packed package file")
     check.add_argument("artifact", type=Path, help="the package file pack wrote")
     check.add_argument("--scratch", required=True, type=Path, help="an empty folder for temporary files")
@@ -419,6 +475,9 @@ def main(argv=None) -> int:
                 print(canonical(zip_skill(args.folder, args.output)).decode())
             except FileExistsError:
                 require(False, "that zip file already exists", "Delete it, or give another file with --output.")
+            return 0
+        if args.command == "plugin-init":
+            print(canonical(plugin_listing(args.folder, args.namespace, args.category, args.subcategory, args.summary)).decode())
             return 0
         if args.command == "stage":
             print(canonical(stage_skill(args.folder, overwrite=args.overwrite)).decode())

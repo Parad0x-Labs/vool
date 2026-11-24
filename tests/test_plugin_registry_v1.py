@@ -23,20 +23,20 @@ from tests.registry.helpers import NOW, TARGET, catalog_fixture, trust_fixture
 from tests.test_plugin_manifest_v1 import manifest
 
 
-def distribution(tmp_path, version="1.0.0"):
-    root = tmp_path / ("source-" + version)
+def distribution(tmp_path, version="1.0.0", publisher="alice"):
+    """A plugin as it is published from VOOL 0.8: under its own id, which is the name part of the package id."""
+    root = tmp_path / ("source-" + publisher + "-" + version)
     (root / ".codex-plugin").mkdir(parents=True)
-    identity = native_identity("alice/service")
     raw = manifest()
-    raw["name"] = raw["vool"]["id"] = identity
+    raw["name"] = raw["vool"]["id"] = "service"
     raw["version"] = raw["vool"]["version"] = version
     (root / ".codex-plugin/plugin.json").write_text(json.dumps(raw))
     (root / "LICENSE").write_bytes((Path(__file__).resolve().parents[1] / "examples/plugins/template/LICENSE").read_bytes())
     (root / "README.md").write_text("Choose this compatible provider for the chat requests you supply.\n")
-    info = {"id": "alice/service", "kind": "plugin", "version": version,
+    info = {"id": publisher + "/service", "kind": "plugin", "version": version, "title": raw["vool"]["name"],
             "summary": "Connect a compatible chat service", "category": "productivity", "subcategory": "notes-summaries",
             "license": "MIT", "languages": ["en"],
-            "source": {"repository": "alice/plugins", "commit": "b" * 40, "path": "service"}}
+            "source": {"repository": publisher + "/plugins", "commit": "b" * 40, "path": "service"}}
     return pack(root, info, tmp_path / "capture"), root, info
 
 
@@ -90,11 +90,12 @@ def test_signed_store_install_requires_separate_access_consent(signed_plugin):
     assert lifecycle.is_available(identity)
     manager.connect(identity, "access", secrets.token_urlsafe(32))
     assert has_credential("plugin." + identity + ".access")
-    receipt = _receipt_path(identity).read_bytes()
+    assert identity == "service"  # installed under the plugin's own id; the receipt is kept under the row's key
+    receipt = _receipt_path(native_identity("alice/service")).read_bytes()
     manager.uninstall(identity)
     assert not Path(lifecycle.record_for(identity).root).exists()
     assert not has_credential("plugin." + identity + ".access")
-    assert _receipt_path(identity).read_bytes() == receipt
+    assert _receipt_path(native_identity("alice/service")).read_bytes() == receipt
     assert install_disabled(catalog, raw)["enabled"] is False
 
 
@@ -128,8 +129,35 @@ def test_store_update_withdraws_consent_and_tampering_and_revocation_block_use(s
     assert not lifecycle.is_available(identity)
 
 
-def test_another_publisher_cannot_borrow_a_signed_native_identity(tmp_path):
-    _, source, info = distribution(tmp_path)
-    info["id"] = "mallory/service"
-    with pytest.raises(RegistryError, match="identity"):
-        pack(source, info, tmp_path / "other-publisher")
+def test_another_publishers_plugin_with_the_same_id_cannot_replace_an_installed_one(signed_plugin, tmp_path):
+    """Two makers may publish a plugin called "service". On one computer the second never takes over the first:
+    not its files, not its record and not a key saved for it."""
+    catalog, raw, _, _, policy, keys = signed_plugin
+    install_disabled(catalog, raw)
+    row = manager.inspect("service")
+    manager.enable("service", accepted=True, approval_digest=row["approval_digest"])
+    manager.connect("service", "access", secrets.token_urlsafe(32))
+    other, _, _ = distribution(tmp_path, "9.0.0", publisher="mallory")
+    assert inspect(other)["manifest"]["name"] == "service"
+    from core.registry.admission import admit
+    from core.registry.codec import digest
+    from core.registry.native import PLUGIN_ELSEWHERE
+    from tests.registry.helpers import evidence_fixture, signed
+
+    entries = []
+    for package in (raw, other):
+        entry = admit(inspect(package), policy, evidence_fixture(package, policy), now=NOW)
+        entry.update(schema="vool.registry.admission.v1", issued_at=NOW, expires=NOW + 7200)
+        entries.append(signed(entry, keys["admission"]))
+    authorization = {"schema": "vool.registry.catalog_authorization.v1", "root_version": 1, "epoch": 2, "issued_at": NOW,
+                     "expires": NOW + 7200, "entries_sha256": digest(entries), "revoked_sha256": digest([])}
+    catalog.accept(signed({"schema": "vool.registry.catalog.v1", "root_version": 1, "sequence": 2, "issued_at": NOW,
+                           "expires": NOW + 3600, "entries": entries, "revoked": [],
+                           "authorization": signed(authorization, keys["admission"])}, keys["catalog"]), now=NOW)
+    with pytest.raises(RegistryError) as refused:
+        install(catalog, other, package_id="mallory/service", version="9.0.0", target=TARGET,
+                accepted=True, enable=False, now=NOW)
+    assert str(refused.value) == PLUGIN_ELSEWHERE
+    record = lifecycle.record_for("service")
+    assert record.source == "registry:alice/service" and record.version == "1.0.0"
+    assert lifecycle.is_available("service") and has_credential("plugin.service.access")

@@ -2405,6 +2405,10 @@
     "addons.badge_tested_help": "Команда VOOL установила и использовала именно эту версию.",
     "addons.badge_editors_choice": "Выбор редакции",
     "addons.badge_editors_choice_help": "Выбрано командой VOOL как одно из лучших в своём роде.",
+    "addons.codex_plugin_kind_plugin": "Плагин",
+    "addons.codex_plugin_kind_skill": "Навык",
+    "addons.codex_plugin_from": "Опубликовано в кодексе навыков: {publisher}. VOOL проверил, что это именно опубликованные файлы. Это не доказывает, что они безопасны.",
+    "addons.codex_plugin_off": "Он устанавливается выключенным. Чтобы включить его, откройте «Плагины» и проверьте его доступ.",
     "addons.registry_empty": "Нет опубликованных версий для этой конкретной сборки VOOL и вашего поиска.",
     "addons.registry_inspect": "Скачать для просмотра",
     "private.banner": "Приватный чат: ничего не сохраняется",
@@ -5495,7 +5499,7 @@
     "phone.ui.no_answer_came": "Ответ не пришёл. Отправьте ещё раз.",
     "phone.ui.ask_on_computer": "Разрешите или отклоните это в VOOL на компьютере."
   },
-  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
+  "source_catalog_sha256": "332d36592a331557f0a3888035e7481235560889d5096e930c73792a17ad9504",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

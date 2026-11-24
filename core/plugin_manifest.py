@@ -1,6 +1,7 @@
 """Declarative plugin metadata, validated before any package can acquire authority."""
 from __future__ import annotations
 
+import contextvars
 import ipaddress
 import re
 from copy import deepcopy
@@ -50,6 +51,29 @@ class ManifestRefusal(ValueError):
 
 def _no(message: str, where: str = "", fix: str = "") -> None:
     raise ManifestRefusal(message, where=where, fix=fix)
+
+
+# Set only while a maker's check lists every problem (``manifest_problems``). An install never sets it.
+_LISTING: contextvars.ContextVar[list | None] = contextvars.ContextVar("plugin_manifest_listing", default=None)
+
+
+class _Part:
+    """One rule group. At install the first refusal ends the reading, as it always has.
+
+    While a maker's check is listing problems, a refusal is noted and the reading goes on with the
+    next group, so one run names every field to change. Only a refusal is passed over: anything
+    else still ends the reading.
+    """
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, kind, refusal, _trace) -> bool:
+        found = _LISTING.get()
+        if found is None or not isinstance(refusal, ManifestRefusal):
+            return False
+        found.append(refusal)
+        return True
 
 
 def _shown(value, limit: int = 60) -> str:
@@ -204,13 +228,14 @@ def _flags(value, where: str = "manifest"):
                 _no("Manifest field names must be strings.", where, "Write every field name as text.")
             at = f"{where}.{key}"
             normalized = re.sub(r"([a-z])([A-Z])", r"\1_\2", key).lower().replace("-", "_")
-            if normalized in {"auto_enable", "auto_start", "autostart", "owner_credentials", "owner_keys", "owner_paid_keys", "owner_model_keys"}:
-                _no("Plugins cannot start automatically or request owner credentials.", at,
-                    "Remove the field. A plugin runs only when one of its tools is called after the owner switched it on, "
-                    "and it never receives the owner's own keys; declare the plugin's own key in vool.credentials.")
-            if key.lower() in {"wallet", "payments", "signing", "approval", "caps", "budget", "receipts"}:
-                _no(NO_MONEY, at, "Remove the field. A plugin holds no wallet, signs nothing and approves nothing. For paid "
-                    "calls, list the service in vool.paid_services; VOOL pays inside limits the owner sets.")
+            with _Part():
+                if normalized in {"auto_enable", "auto_start", "autostart", "owner_credentials", "owner_keys", "owner_paid_keys", "owner_model_keys"}:
+                    _no("Plugins cannot start automatically or request owner credentials.", at,
+                        "Remove the field. A plugin runs only when one of its tools is called after the owner switched it on, "
+                        "and it never receives the owner's own keys; declare the plugin's own key in vool.credentials.")
+                if key.lower() in {"wallet", "payments", "signing", "approval", "caps", "budget", "receipts"}:
+                    _no(NO_MONEY, at, "Remove the field. A plugin holds no wallet, signs nothing and approves nothing. For paid "
+                        "calls, list the service in vool.paid_services; VOOL pays inside limits the owner sets.")
             _flags(item, at)
     elif isinstance(value, list):
         for index, item in enumerate(value):
@@ -257,138 +282,211 @@ def _in_words(error: str, raw) -> str:
 
 
 def validate_manifest(raw: dict, *, root: Path) -> dict:
+    schema = "The published schema is docs/reference/plugin-manifest.schema.json."
     errors = validate_schema(raw, MANIFEST_SCHEMA)
     if errors:
-        _no("; ".join(errors[:8]), errors[0].split(":", 1)[0],
-            "; ".join(_in_words(error.split(": ", 1)[-1], raw) for error in errors[:8]) + ". The published schema is "
-            "docs/reference/plugin-manifest.schema.json.")
+        with _Part():
+            _no("; ".join(errors[:8]), errors[0].split(":", 1)[0],
+                "; ".join(_in_words(error.split(": ", 1)[-1], raw) for error in errors[:8]) + ". " + schema)
+        # Only a maker's check comes this far: each further fault under its own field. The rules below read
+        # fields by name, so they wait until the shape is right.
+        _LISTING.get().extend(ManifestRefusal(error, where=error.split(":", 1)[0], fix=_in_words(
+            error.split(": ", 1)[-1], raw) + ". " + schema) for error in errors[1:32])
+        return {}
     _flags(raw)
-    permission_wall(raw.get("permissions", []), "permissions")
+    with _Part():
+        permission_wall(raw.get("permissions", []), "permissions")
     for index, binding in enumerate(raw.get("credential_bindings", [])):
         at = f"credential_bindings[{index}]"
-        if not isinstance(binding, str) or binding.startswith(("llm.cloud.", "wallet.", "signing.", "owner.")):
-            _no("A plugin can't hold credentials that belong to you or to another plugin.", at,
-                "Remove it. A plugin reads only its own key slots, declared in vool.credentials.")
-        if str(binding).startswith("plugin.") and not str(binding).startswith("plugin." + raw["name"] + "."):
-            _no("A plugin cannot reference another plugin's credentials.", at,
-                f"Use only names that start with plugin.{raw['name']}. (this plugin's own slots).")
+        with _Part():
+            if not isinstance(binding, str) or binding.startswith(("llm.cloud.", "wallet.", "signing.", "owner.")):
+                _no("A plugin can't hold credentials that belong to you or to another plugin.", at,
+                    "Remove it. A plugin reads only its own key slots, declared in vool.credentials.")
+            if str(binding).startswith("plugin.") and not str(binding).startswith("plugin." + raw["name"] + "."):
+                _no("A plugin cannot reference another plugin's credentials.", at,
+                    f"Use only names that start with plugin.{raw['name']}. (this plugin's own slots).")
     extension = raw.get("vool", {})
     tools = extension.get("tools", raw.get("tools", [])) or []
     listed = "vool.tools" if "tools" in extension else "tools"
     if not isinstance(tools, list) or any(not isinstance(tool, dict) for tool in tools):
-        _no("Plugin tools must be a list of tool declarations.", listed, "Write the tools as a list of objects.")
+        with _Part():
+            _no("Plugin tools must be a list of tool declarations.", listed, "Write the tools as a list of objects.")
+        return {}  # only a maker's check comes this far; the tool rules need a list to read
     for index, tool in enumerate(tools):
         at = f"{listed}[{index}]"
-        permission_wall(tool.get("permission_actions", []), at + ".permission_actions")
-        if tool.get("side_effect_class") in PAID:
-            _no(NO_MONEY, at + ".side_effect_class", f"{_shown(tool.get('side_effect_class'))} is a spending class. "
-                "Use read_only, workspace_write, network_send or network_publish.")
-        if MONEY.search(tool.get("intent", "")):
-            _no(NO_MONEY, at + ".intent", f"{_shown(tool.get('intent'))} names a money action. A tool name cannot hold "
-                f"{_MONEY_WORDS} as a word of its own.")
+        with _Part():
+            permission_wall(tool.get("permission_actions", []), at + ".permission_actions")
+        with _Part():
+            if tool.get("side_effect_class") in PAID:
+                _no(NO_MONEY, at + ".side_effect_class", f"{_shown(tool.get('side_effect_class'))} is a spending class. "
+                    "Use read_only, workspace_write, network_send or network_publish.")
+        with _Part():
+            if MONEY.search(tool.get("intent", "")):
+                _no(NO_MONEY, at + ".intent", f"{_shown(tool.get('intent'))} names a money action. A tool name cannot hold "
+                    f"{_MONEY_WORDS} as a word of its own.")
         for name in tool.get("handler", {}).get("env_allowlist", []):
-            credential_env_name(name, at + ".handler.env_allowlist")
+            with _Part():
+                credential_env_name(name, at + ".handler.env_allowlist")
     if not extension or "id" not in extension:
         return {}
-    if extension["id"] != raw["name"] or extension["version"] != raw.get("version"):
-        _no("The plugin's name and version must match its package.", "vool.id / vool.version",
-            "vool.id must equal the top-level name, and vool.version must equal the top-level version.")
-    if len(set(extension["kind"])) != len(extension["kind"]):
-        _no(SETUP, "vool.kind", "List each kind once.")
-    https_url(extension["homepage"], None, "vool.homepage")
+    with _Part():
+        if extension["id"] != raw["name"] or extension["version"] != raw.get("version"):
+            _no("The plugin's name and version must match its package.", "vool.id / vool.version",
+                "vool.id must equal the top-level name, and vool.version must equal the top-level version.")
+    with _Part():
+        if len(set(extension["kind"])) != len(extension["kind"]):
+            _no(SETUP, "vool.kind", "List each kind once.")
+    with _Part():
+        https_url(extension["homepage"], None, "vool.homepage")
     hosts = extension["network"]
-    if len(set(hosts)) != len(hosts):
-        _no(WEBSITES, "vool.network", "List each host once.")
+    with _Part():
+        if len(set(hosts)) != len(hosts):
+            _no(WEBSITES, "vool.network", "List each host once.")
     for index, host in enumerate(hosts):
-        host_name(host, f"vool.network[{index}]")
+        with _Part():
+            host_name(host, f"vool.network[{index}]")
     credentials = extension["credentials"]
     env = [row["env"] for row in credentials.values()]
-    if len(set(env)) != len(env):
-        _no("Each service key needs its own name. It was not installed.", "vool.credentials",
-            "Two key slots use the same env name. Give each slot its own.")
+    with _Part():
+        if len(set(env)) != len(env):
+            _no("Each service key needs its own name. It was not installed.", "vool.credentials",
+                "Two key slots use the same env name. Give each slot its own.")
     for slot, row in credentials.items():
-        credential_env_name(row["env"], f"vool.credentials.{slot}.env")
-        https_url(row["help_url"], None, f"vool.credentials.{slot}.help_url")
+        with _Part():
+            credential_env_name(row["env"], f"vool.credentials.{slot}.env")
+        with _Part():
+            https_url(row["help_url"], None, f"vool.credentials.{slot}.help_url")
     servers = extension.get("mcpServers", {})
-    if servers and "tools" not in extension["kind"]:
-        _no(SETUP, "vool.kind", 'vool.mcpServers is declared, so vool.kind must list "tools". Add it, or remove the servers.')
+    with _Part():
+        if servers and "tools" not in extension["kind"]:
+            _no(SETUP, "vool.kind", 'vool.mcpServers is declared, so vool.kind must list "tools". Add it, or remove the servers.')
     for name, server in servers.items():
         at = f"vool.mcpServers.{name}"
-        package_command(server["command"], root, at + ".command")
-        if any(key not in env or value != "${" + key + "}" for key, value in server.get("env", {}).items()):
-            _no(SETUP, at + ".env", 'Each entry must read NAME: "${NAME}", where NAME is the env of a slot in '
-                "vool.credentials. Nothing else is passed to a server: no fixed values and no other variables.")
-        if any("${" in arg or "\x00" in arg for arg in server.get("args", [])):
-            _no(SETUP, at + ".args", "Arguments are passed exactly as written. Take out ${...}; a key reaches the server "
-                "through its env, never through an argument.")
-    permission_wall(raw.get("permissions", []), "permissions")
+        with _Part():
+            package_command(server["command"], root, at + ".command")
+        with _Part():
+            if any(key not in env or value != "${" + key + "}" for key, value in server.get("env", {}).items()):
+                _no(SETUP, at + ".env", 'Each entry must read NAME: "${NAME}", where NAME is the env of a slot in '
+                    "vool.credentials. Nothing else is passed to a server: no fixed values and no other variables.")
+        with _Part():
+            if any("${" in arg or "\x00" in arg for arg in server.get("args", [])):
+                _no(SETUP, at + ".args", "Arguments are passed exactly as written. Take out ${...}; a key reaches the server "
+                    "through its env, never through an argument.")
+    with _Part():
+        permission_wall(raw.get("permissions", []), "permissions")
     tools = extension.get("tools", raw.get("tools", []))
-    if raw.get("tools") is not None and extension.get("tools") is not None and raw["tools"] != extension["tools"]:
-        _no(SETUP, "tools / vool.tools", "The two tool lists differ. Declare the tools once, in vool.tools.")
-    if tools and "tools" not in extension["kind"]:
-        _no(SETUP, "vool.kind", 'Tools are declared, so vool.kind must list "tools".')
+    with _Part():
+        if raw.get("tools") is not None and extension.get("tools") is not None and raw["tools"] != extension["tools"]:
+            _no(SETUP, "tools / vool.tools", "The two tool lists differ. Declare the tools once, in vool.tools.")
+    with _Part():
+        if tools and "tools" not in extension["kind"]:
+            _no(SETUP, "vool.kind", 'Tools are declared, so vool.kind must list "tools".')
     for index, tool in enumerate(tools):
         at = f"{listed}[{index}]"
-        permission_wall(tool.get("permission_actions", []), at + ".permission_actions")
-        if tool.get("side_effect_class") in PAID:
-            _no(NO_MONEY, at + ".side_effect_class", f"{_shown(tool.get('side_effect_class'))} is a spending class. "
-                "Use read_only, workspace_write, network_send or network_publish.")
+        with _Part():
+            permission_wall(tool.get("permission_actions", []), at + ".permission_actions")
+        with _Part():
+            if tool.get("side_effect_class") in PAID:
+                _no(NO_MONEY, at + ".side_effect_class", f"{_shown(tool.get('side_effect_class'))} is a spending class. "
+                    "Use read_only, workspace_write, network_send or network_publish.")
         handler = tool["handler"]
-        if not whole_match(INTENT, tool["intent"]):
-            _no(SETUP, at + ".intent", f"{_shown(tool['intent'])} is not a tool name. Write {extension['id']}.<tool>, "
-                "the tool part in lowercase letters, digits and _ (at most 64), with nothing before or after.")
-        if "tool" in handler and not whole_match(SERVER_TOOL, handler["tool"]):
-            _no(SETUP, at + ".handler.tool", f"{_shown(handler['tool'])} is not accepted as the server's tool name. "
-                "Use letters, digits, dot, _ and - only, at most 64.")
+        with _Part():
+            if not whole_match(INTENT, tool["intent"]):
+                _no(SETUP, at + ".intent", f"{_shown(tool['intent'])} is not a tool name. Write {extension['id']}.<tool>, "
+                    "the tool part in lowercase letters, digits and _ (at most 64), with nothing before or after.")
+        with _Part():
+            if "tool" in handler and not whole_match(SERVER_TOOL, handler["tool"]):
+                _no(SETUP, at + ".handler.tool", f"{_shown(handler['tool'])} is not accepted as the server's tool name. "
+                    "Use letters, digits, dot, _ and - only, at most 64.")
         if handler["kind"] == "subprocess":
-            package_command(handler.get("entry", ""), root, at + ".handler.entry")
-            if set(handler.get("env_allowlist", [])) - set(env):
-                _no(SETUP, at + ".handler.env_allowlist", "It names a variable that is not the env of a slot in "
-                    "vool.credentials. A tool receives the plugin's own keys only.")
-            if handler.get("network") and not hosts:
-                _no(WEBSITES, at + ".handler.network", "The tool asks for the internet but vool.network is empty. List "
-                    "every host it reaches there; the owner sees that list before switching the plugin on.")
+            with _Part():
+                package_command(handler.get("entry", ""), root, at + ".handler.entry")
+            with _Part():
+                if set(handler.get("env_allowlist", [])) - set(env):
+                    _no(SETUP, at + ".handler.env_allowlist", "It names a variable that is not the env of a slot in "
+                        "vool.credentials. A tool receives the plugin's own keys only.")
+            with _Part():
+                if handler.get("network") and not hosts:
+                    _no(WEBSITES, at + ".handler.network", "The tool asks for the internet but vool.network is empty. List "
+                        "every host it reaches there; the owner sees that list before switching the plugin on.")
         else:
-            if handler.get("server") not in servers or not handler.get("tool"):
-                _no(SETUP, at + ".handler", "For kind mcp, set server to a name declared in vool.mcpServers and tool to "
-                    "the name that server gives the tool.")
-            if MONEY.search(handler["tool"]):
-                _no("This plugin has a setup mistake its maker needs to fix: it may not offer money tools. It was not installed.",
-                    at + ".handler.tool", f"{_shown(handler['tool'])} names a money action ({_MONEY_WORDS}). A plugin "
-                    "offers no such tool.")
+            with _Part():
+                if handler.get("server") not in servers or not handler.get("tool"):
+                    _no(SETUP, at + ".handler", "For kind mcp, set server to a name declared in vool.mcpServers and tool to "
+                        "the name that server gives the tool.")
+                if MONEY.search(handler["tool"]):
+                    _no("This plugin has a setup mistake its maker needs to fix: it may not offer money tools. It was not installed.",
+                        at + ".handler.tool", f"{_shown(handler['tool'])} names a money action ({_MONEY_WORDS}). A plugin "
+                        "offers no such tool.")
             if "trust" in tool:
-                permission_wall(tool["trust"]["permission_actions"], at + ".trust.permission_actions")
-                if tool["trust"]["side_effect_class"] in PAID:
-                    _no(NO_MONEY, at + ".trust.side_effect_class", "A spending class is not accepted. Use read_only, "
-                        "workspace_write, network_send or network_publish.")
-    paid_services(extension, hosts)
+                with _Part():
+                    permission_wall(tool["trust"]["permission_actions"], at + ".trust.permission_actions")
+                with _Part():
+                    if tool["trust"]["side_effect_class"] in PAID:
+                        _no(NO_MONEY, at + ".trust.side_effect_class", "A spending class is not accepted. Use read_only, "
+                            "workspace_write, network_send or network_publish.")
+    with _Part():
+        paid_services(extension, hosts)
     for kind in ("model_provider", "scanner"):
         block = extension.get(kind)
-        if (kind in extension["kind"]) != (block is not None):
-            _no(f"The {kind} declaration must match the plugin kind.", f"vool.{kind}",
-                f'Declare vool.{kind} exactly when "{kind}" is in vool.kind: both or neither.')
+        with _Part():
+            if (kind in extension["kind"]) != (block is not None):
+                _no(f"The {kind} declaration must match the plugin kind.", f"vool.{kind}",
+                    f'Declare vool.{kind} exactly when "{kind}" is in vool.kind: both or neither.')
         if block is None:
             continue
-        base = https_url(block["base_url"], hosts, f"vool.{kind}.base_url")
-        if base.query:
-            _no(WEBSITES, f"vool.{kind}.base_url", "Take the ? part out of the base address.")
-        if block["credential_slot"] not in credentials:
-            _no("A service may read only its own declared credential slot.", f"vool.{kind}.credential_slot",
-                f"{_shown(block['credential_slot'])} is not a slot in vool.credentials. Name one that is.")
+        with _Part():
+            base = https_url(block["base_url"], hosts, f"vool.{kind}.base_url")
+            if base.query:
+                _no(WEBSITES, f"vool.{kind}.base_url", "Take the ? part out of the base address.")
+        with _Part():
+            if block["credential_slot"] not in credentials:
+                _no("A service may read only its own declared credential slot.", f"vool.{kind}.credential_slot",
+                    f"{_shown(block['credential_slot'])} is not a slot in vool.credentials. Name one that is.")
         for key, value in block.items():
             if key.endswith("_path"):
-                if not value.startswith("/") or value.startswith("//") or any(ch in value for ch in ("?", "#", "\\", "\x00")) or ".." in value:
-                    _no(WEBSITES, f"vool.{kind}.{key}", f"{_shown(value)} is not a plain path. Start with one /, and use "
-                        "no ?, #, backslash or ..")
+                with _Part():
+                    if not value.startswith("/") or value.startswith("//") or any(ch in value for ch in ("?", "#", "\\", "\x00")) or ".." in value:
+                        _no(WEBSITES, f"vool.{kind}.{key}", f"{_shown(value)} is not a plain path. Start with one /, and use "
+                            "no ?, #, backslash or ..")
         if kind == "model_provider":
-            if block["auth_placement"] == "path" and block.get("auth_path", "").count("{credential}") != 1:
-                _no(SETUP, "vool.model_provider.auth_path", 'With auth_placement "path", auth_path must hold {credential} '
-                    "exactly once.")
-            if block["auth_placement"] == "header" and "auth_path" in block:
-                _no(SETUP, "vool.model_provider.auth_path", 'With auth_placement "header" there is no auth_path. Remove it.')
+            with _Part():
+                if block["auth_placement"] == "path" and block.get("auth_path", "").count("{credential}") != 1:
+                    _no(SETUP, "vool.model_provider.auth_path", 'With auth_placement "path", auth_path must hold {credential} '
+                        "exactly once.")
+                if block["auth_placement"] == "header" and "auth_path" in block:
+                    _no(SETUP, "vool.model_provider.auth_path", 'With auth_placement "header" there is no auth_path. Remove it.')
             pricing = block["pricing_source"]
             if pricing != "models":
-                https_url(pricing, hosts, "vool.model_provider.pricing_source")
+                with _Part():
+                    https_url(pricing, hosts, "vool.model_provider.pricing_source")
         else:
-            json_schema_lite.assert_supported(block["response_schema"])
+            with _Part():
+                json_schema_lite.assert_supported(block["response_schema"])
     return deepcopy(extension)
+
+
+def manifest_problems(raw: dict, *, root: Path) -> list[ManifestRefusal]:
+    """Every refusal these rules have for this setup file, in the order an install would meet them.
+
+    For a maker's check (``python -m tools.plugin_check``): the first one is the refusal an install
+    gives; the rest are what the maker would meet next, one fix at a time. Nothing here installs or
+    accepts anything, and a setup file with none listed has still to pass the install door itself.
+    """
+    found: list[ManifestRefusal] = []
+    token = _LISTING.set(found)
+    try:
+        validate_manifest(raw, root=root)
+    except ManifestRefusal as refusal:
+        found.append(refusal)
+    except (ValueError, TypeError, KeyError, AttributeError):
+        pass  # a rule that could not read on after an earlier fault: what was found so far stands
+    finally:
+        _LISTING.reset(token)
+    seen, listed = set(), []
+    for refusal in found:
+        key = (refusal.where, refusal.fix, str(refusal))
+        if key not in seen:
+            seen.add(key)
+            listed.append(refusal)
+    return listed

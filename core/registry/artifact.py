@@ -53,6 +53,22 @@ def native_identity(package_id: str) -> str:
     return "registry-" + hashlib.sha256(package_id.encode("utf-8")).hexdigest()[:24]
 
 
+def holds_plugin(metadata: dict, manifest: dict) -> bool:
+    """Whether this package is a plugin with its access block: code and tools, not a skill's text."""
+    return (metadata.get("kind") == "plugin" and isinstance(manifest, dict) and isinstance(manifest.get("vool"), dict)
+            and "id" in manifest["vool"])
+
+
+def keeps_own_id(metadata: dict, manifest: dict) -> bool:
+    """Whether the package is a plugin published under its own id: the name part of the package id.
+
+    A skill, and a plugin packaged the earlier way, is named ``native_identity(package id)``. A plugin
+    published from VOOL 0.8 keeps the id its maker gave it, because its tools are named after it, and
+    the package id must end in that same id so the listing and the installed plugin cannot differ.
+    """
+    return holds_plugin(metadata, manifest) and manifest.get("name") == str(metadata.get("id", "")).split("/")[-1]
+
+
 def path_name(value: str) -> str:
     require(isinstance(value, str) and 0 < len(value) <= 512 and bool(_PATH.fullmatch(value)),
             "invalid package path")
@@ -213,8 +229,11 @@ def inspect(raw: bytes) -> dict:
     manifest = decode(content.get(".codex-plugin/plugin.json", b""), limit=1024 * 1024)
     require(isinstance(manifest, dict) and bool(IDENTITY.fullmatch(str(manifest.get("name", "")))) and
             manifest.get("version") == value["metadata"]["version"], "native manifest identity mismatch")
-    require(manifest["name"] == native_identity(value["metadata"]["id"]),
-            "native manifest identity is not bound to the package id")
+    require(manifest["name"] == native_identity(value["metadata"]["id"]) or keeps_own_id(value["metadata"], manifest),
+            "native manifest identity is not bound to the package id",
+            "For a plugin, the name part of the package id must be the plugin's own id: a plugin whose name and "
+            "vool.id are parcel-desk is published as <your name>/parcel-desk. For a skill, make the package "
+            "folder again with init, which writes this name itself.")
     dependencies = manifest.get("requires", [])
     require(isinstance(dependencies, list) and len(dependencies) <= 64 and
             all(isinstance(item, str) and bool(IDENTITY.fullmatch(item)) for item in dependencies) and

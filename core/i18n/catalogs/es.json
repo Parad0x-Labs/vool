@@ -2405,6 +2405,10 @@
     "addons.badge_tested_help": "El equipo de VOOL instaló y usó exactamente esta versión.",
     "addons.badge_editors_choice": "Selección del editor",
     "addons.badge_editors_choice_help": "Elegido por el equipo de VOOL como uno de los mejores de su tipo.",
+    "addons.codex_plugin_kind_plugin": "Complemento",
+    "addons.codex_plugin_kind_skill": "Habilidad",
+    "addons.codex_plugin_from": "Publicado en el códice de habilidades por {publisher}. VOOL comprobó que estos son los archivos publicados. Eso no demuestra que sean seguros.",
+    "addons.codex_plugin_off": "Se instala apagado. Para encenderlo, abra Complementos y revise su acceso.",
     "addons.registry_empty": "Ninguna versión publicada coincide con esta compilación exacta de VOOL y tu búsqueda.",
     "addons.registry_inspect": "Descargar para inspeccionar",
     "private.banner": "Chat privado: no se guarda nada",
@@ -5495,7 +5499,7 @@
     "phone.ui.no_answer_came": "No llegó ninguna respuesta. Envíalo otra vez.",
     "phone.ui.ask_on_computer": "Permite o deniega esto en VOOL en tu ordenador."
   },
-  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
+  "source_catalog_sha256": "332d36592a331557f0a3888035e7481235560889d5096e930c73792a17ad9504",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
