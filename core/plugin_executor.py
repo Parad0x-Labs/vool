@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -233,6 +234,40 @@ def _program_read_roots(argv: list[str]) -> tuple[Path, ...]:
     return tuple(out)
 
 
+_PYTHON_NAME = re.compile(r"python(?:3(?:\.\d+)?)?")
+
+
+def _with_own_python(argv: list[str]) -> list[str]:
+    """``argv`` with a Python script started by VOOL's own interpreter instead of its shebang line.
+
+    A package's ``#!/usr/bin/env python3`` finds whatever ``python3`` the child's PATH holds. On a Mac
+    that is /usr/bin/python3, Apple's developer-tools stub: inside the sandbox it can neither write its
+    cache nor read the developer folder and exits 71 before the script starts, and on a Mac without the
+    developer tools it only offers to install them (Mac gate on e36daa6a9: every Python plugin server
+    failed). VOOL ships a Python 3 and the sandbox already lets it read its own install, so a script
+    that asks for Python gets that one, as the isolated container gives it its pinned one.
+    """
+
+    if not argv:
+        return argv
+    program = Path(str(argv[0]))
+    if _PYTHON_NAME.fullmatch(program.name) or not program.is_file():
+        return argv
+    try:
+        with open(program, "rb") as handle:
+            first = handle.readline(256)
+    except OSError:
+        return argv
+    if not first.startswith(b"#!"):
+        return argv
+    words = first[2:].decode("utf-8", "replace").split()
+    if words and Path(words[0]).name == "env":
+        words = [word for word in words[1:] if not word.startswith("-") and "=" not in word]
+    if not words or not _PYTHON_NAME.fullmatch(Path(words[0]).name) or not sys.executable:
+        return argv
+    return [sys.executable, *[str(item) for item in argv]]
+
+
 def _kernel_confinement_prefix(
     argv: list[str],
     *,
@@ -264,6 +299,11 @@ def _kernel_confinement_prefix(
     from sandbox.job_runner import JobRunner
     from sandbox.resource_limits import ExecutionPolicy, default_read_roots
 
+    started = len(argv)
+    argv = _with_own_python(list(argv))
+    # The program the caller chose stays readable when VOOL's interpreter now runs it.
+    program_tokens = list(argv) if argument_reads else list(argv)[: 1 + len(argv) - started]
+
     roots = tuple(Path(p).resolve() for p in writable_roots if str(p))
     # READ-ONLY CONFINEMENT (the 2026-09-02 amendment's own intent): zero writable roots is a
     # VALID policy -- a child confined to write nowhere -- not "no backend". The former
@@ -280,7 +320,7 @@ def _kernel_confinement_prefix(
             writable_roots=roots,
             allow_network_egress=False,
             network_isolation_mode="auto",
-            read_roots=(*default_read_roots(), *_program_read_roots(list(argv) if argument_reads else list(argv)[:1]),
+            read_roots=(*default_read_roots(), *_program_read_roots(program_tokens),
                         anchor, *readable_roots),
         )
     )

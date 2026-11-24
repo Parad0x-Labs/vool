@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import replace
 from typing import Any
 
 _log = logging.getLogger(__name__)
@@ -656,10 +657,11 @@ def _with_blackbox_coverage(
         from core.tool_registry import tool_for_intent as _contract_for
 
         contract = _contract_for(intent)
+        source = str(getattr(contract, "source", "builtin") or "builtin") if contract is not None else "builtin"
         if (
             contract is not None
             and str(getattr(contract, "side_effect_class", "") or "") == "read_only"
-            and str(getattr(contract, "source", "builtin") or "builtin") != "builtin"
+            and source != "builtin"
         ):
             from core.blackbox.coverage.recorder import workspace_root_from_context
             from core.blackbox.coverage.scan import diff_scans, scan_workspace
@@ -668,6 +670,16 @@ def _with_blackbox_coverage(
             root = workspace_root_from_context(source_context)
             if root is not None:
                 before = scan_workspace(root, store=default_store())
+                if not before.finished and source.startswith("plugin:"):
+                    # An installed package's read-only tool starts only inside the kernel sandbox with NO
+                    # writable folder (core.plugin_tools: confinement "auto", immutable package), or not at
+                    # all, so the kernel holds the claim when the folder cannot be pictured. Mac gate on
+                    # e36daa6a9: the Desktop was held 30 s and a read-only plugin tool was refused. A folder
+                    # that can be read is still checked before and after, as below.
+                    execution = dispatch()
+                    details = dict(getattr(execution, "details", None) or {})
+                    details["read_only_held_by"] = "kernel_sandbox_no_writable_folder"
+                    return _settle_registered_budget_effect(intent, budget_effect, replace(execution, details=details))
                 if not before.finished:
                     # The folder could not be read in time (a pending permission prompt, a sleeping
                     # disk): without a before picture the read-only claim cannot be checked, so the

@@ -125,7 +125,11 @@ def test_a_builtin_read_never_waits_on_a_held_folder(seed, workspace, store_dir,
     assert result.ok and result.response_text == said, (result.status, result.response_text)
 
 
-def test_a_plugin_read_still_does_not_run_on_a_folder_it_cannot_read(workspace, store_dir, held_folder, monkeypatch):
+# Mac gate on e36daa6a9 (2026-11-24, installed app): a read-only tool from an installed package waited 30 s on a
+# Desktop scan and was refused. Such a tool starts only inside the kernel sandbox with no writable folder (or not at
+# all), so on a folder that cannot be pictured it runs and says the kernel held the claim. A connection server the
+# person set up (`mcp:`) can write its own folder, so it still does not run there.
+def test_a_package_read_runs_on_a_held_folder_with_the_kernel_holding_the_claim(workspace, store_dir, held_folder, monkeypatch):
     from core.blackbox.coverage import scan
     from core.tool_intent_executor import _with_blackbox_coverage
     from core.tool_registry import register, unregister
@@ -133,6 +137,48 @@ def test_a_plugin_read_still_does_not_run_on_a_folder_it_cannot_read(workspace, 
 
     monkeypatch.setattr(scan.ScanBounds, "__init__", _short_wait_init(scan.ScanBounds.__init__))
     register(_plugin_contract(intent="demo.reader", mutation=None, side_effect_class="read_only"))
+    ran = []
+    started = time.monotonic()
+    try:
+        result = _with_blackbox_coverage("demo.reader", {}, source_context=ctx(workspace, turn="plugin-held"),
+                                         dispatch=lambda: ran.append(True) or _executed("demo.reader", "read"))
+    finally:
+        unregister("demo.reader")
+
+    assert time.monotonic() - started < 3.0
+    assert result.ok and result.response_text == "read" and ran == [True]
+    assert result.details["read_only_held_by"] == "kernel_sandbox_no_writable_folder"
+
+
+def test_a_package_read_only_launch_has_no_writable_folder(tmp_path, monkeypatch):
+    from core import mcp_client, plugin_executor
+
+    seen = {}
+
+    def capture(argv, **kwargs):
+        seen.update(kwargs)
+        raise plugin_executor.ConfinementUnavailableError("captured")
+
+    monkeypatch.setattr(plugin_executor, "confined_argv", capture)
+    client = mcp_client.MCPStdioClient(str(tmp_path / "server"), [], cwd=str(tmp_path), name="pkg", timeout=1,
+                                       immutable_package=True, scratch_dir=str(tmp_path / "scratch"),
+                                       read_only=True)
+    with pytest.raises(mcp_client.MCPError):
+        client.start()
+    assert seen["writable_roots"] == () and seen["mode"] == "auto"
+
+
+def test_a_connection_server_read_still_does_not_run_on_a_folder_it_cannot_read(workspace, store_dir, held_folder, monkeypatch):
+    from core.blackbox.coverage import scan
+    from core.tool_intent_executor import _with_blackbox_coverage
+    from core.tool_registry import register, unregister
+    from tests.blackbox_coverage.test_plugin_mcp_proof import _plugin_contract
+
+    monkeypatch.setattr(scan.ScanBounds, "__init__", _short_wait_init(scan.ScanBounds.__init__))
+    from dataclasses import replace as _replace
+
+    register(_replace(_plugin_contract(intent="demo.reader", mutation=None, side_effect_class="read_only"),
+                      source="mcp:demo"))
     ran = []
     try:
         result = _with_blackbox_coverage("demo.reader", {}, source_context=ctx(workspace, turn="plugin-held"),
