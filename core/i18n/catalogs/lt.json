@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "Nereikia nei prisijungti, nei ko nors nustatyti. Ieškokite arba įveskite adresą ir pradėkite.",
     "live.home_morning": "Labas rytas",
     "live.home_afternoon": "Laba diena",
-    "live.home_evening": "Labas vakaras"
+    "live.home_evening": "Labas vakaras",
+    "live.home_point_memory": "Atsimena daugiau.",
+    "live.home_point_cost": "Išleidžia mažiau.",
+    "live.home_point_local": "Veikia jūsų kompiuteryje.",
+    "live.home_point_account": "Be paskyros.",
+    "live.home_point_ask": "Klausia prieš ką nors darydamas.",
+    "live.home_point_forget": "Pamiršta, kai pasakote."
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

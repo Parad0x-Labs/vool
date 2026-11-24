@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "न साइन-इन चाहिए, न कोई सेटअप। शुरू करने के लिए खोजें या कोई पता लिखें।",
     "live.home_morning": "सुप्रभात",
     "live.home_afternoon": "शुभ दोपहर",
-    "live.home_evening": "शुभ संध्या"
+    "live.home_evening": "शुभ संध्या",
+    "live.home_point_memory": "ज़्यादा याद रखता है।",
+    "live.home_point_cost": "कम खर्च करता है।",
+    "live.home_point_local": "आपके कंप्यूटर पर चलता है।",
+    "live.home_point_account": "कोई खाता नहीं।",
+    "live.home_point_ask": "कुछ करने से पहले पूछता है।",
+    "live.home_point_forget": "आपके कहने पर भूल जाता है।"
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

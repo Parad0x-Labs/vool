@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "ログインも設定も不要です。検索するか、アドレスを入力して始めましょう。",
     "live.home_morning": "おはようございます",
     "live.home_afternoon": "こんにちは",
-    "live.home_evening": "こんばんは"
+    "live.home_evening": "こんばんは",
+    "live.home_point_memory": "より多く覚える。",
+    "live.home_point_cost": "より少ない費用で。",
+    "live.home_point_local": "あなたのコンピューターで動く。",
+    "live.home_point_account": "アカウント不要。",
+    "live.home_point_ask": "動く前に確認する。",
+    "live.home_point_forget": "忘れてと言えば忘れる。"
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

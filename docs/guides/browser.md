@@ -34,6 +34,8 @@ Turning **Browser** off closes every browser window, private ones too.
 
 Press **Open in a browser window**. It is on the browser bar, on the empty page and in the menu.
 A real browser window opens, with VOOL's start page: a search box and the sites you visit most.
+Behind them is a picture of the hour: the sun by day, the moon by night as full as it is that night, and a new landscape each day.
+The picture is drawn on your computer. Nothing is fetched for it.
 
 * Sign-ins, bookmarks and history are kept between starts, in VOOL's own profile.
 * Search starts as DuckDuckGo. You can choose another search in the browser's settings.

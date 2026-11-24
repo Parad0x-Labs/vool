@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "로그인도 설정도 필요 없습니다. 검색하거나 주소를 입력해 시작하세요.",
     "live.home_morning": "좋은 아침입니다",
     "live.home_afternoon": "좋은 오후입니다",
-    "live.home_evening": "좋은 저녁입니다"
+    "live.home_evening": "좋은 저녁입니다",
+    "live.home_point_memory": "더 많이 기억합니다.",
+    "live.home_point_cost": "더 적게 씁니다.",
+    "live.home_point_local": "내 컴퓨터에서 실행됩니다.",
+    "live.home_point_account": "계정이 필요 없습니다.",
+    "live.home_point_ask": "실행하기 전에 묻습니다.",
+    "live.home_point_forget": "잊으라고 하면 잊습니다."
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "Sin iniciar sesión y sin nada que configurar. Busca o escribe una dirección para empezar.",
     "live.home_morning": "Buenos días",
     "live.home_afternoon": "Buenas tardes",
-    "live.home_evening": "Buenas noches"
+    "live.home_evening": "Buenas noches",
+    "live.home_point_memory": "Recuerda más.",
+    "live.home_point_cost": "Gasta menos.",
+    "live.home_point_local": "Funciona en tu equipo.",
+    "live.home_point_account": "Sin cuenta.",
+    "live.home_point_ask": "Pregunta antes de actuar.",
+    "live.home_point_forget": "Olvida cuando se lo pides."
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

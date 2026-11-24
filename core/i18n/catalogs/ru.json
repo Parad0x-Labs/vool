@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "Без входа в аккаунт и без настройки. Введите запрос или адрес, чтобы начать.",
     "live.home_morning": "Доброе утро",
     "live.home_afternoon": "Добрый день",
-    "live.home_evening": "Добрый вечер"
+    "live.home_evening": "Добрый вечер",
+    "live.home_point_memory": "Помнит больше.",
+    "live.home_point_cost": "Тратит меньше.",
+    "live.home_point_local": "Работает на вашем компьютере.",
+    "live.home_point_account": "Без учётной записи.",
+    "live.home_point_ask": "Спрашивает, прежде чем действовать.",
+    "live.home_point_forget": "Забывает, когда вы скажете."
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

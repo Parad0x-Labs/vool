@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "Không cần đăng nhập, không cần thiết lập gì. Hãy tìm kiếm hoặc nhập địa chỉ để bắt đầu.",
     "live.home_morning": "Chào buổi sáng",
     "live.home_afternoon": "Chào buổi chiều",
-    "live.home_evening": "Chào buổi tối"
+    "live.home_evening": "Chào buổi tối",
+    "live.home_point_memory": "Nhớ nhiều hơn.",
+    "live.home_point_cost": "Tốn ít hơn.",
+    "live.home_point_local": "Chạy trên máy của bạn.",
+    "live.home_point_account": "Không cần tài khoản.",
+    "live.home_point_ask": "Hỏi trước khi làm.",
+    "live.home_point_forget": "Quên khi bạn bảo."
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

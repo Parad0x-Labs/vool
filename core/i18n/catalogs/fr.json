@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "Pas de connexion, rien à configurer. Lancez une recherche ou saisissez une adresse pour commencer.",
     "live.home_morning": "Bonjour",
     "live.home_afternoon": "Bonjour",
-    "live.home_evening": "Bonsoir"
+    "live.home_evening": "Bonsoir",
+    "live.home_point_memory": "Retient davantage.",
+    "live.home_point_cost": "Dépense moins.",
+    "live.home_point_local": "Fonctionne sur votre machine.",
+    "live.home_point_account": "Sans compte.",
+    "live.home_point_ask": "Demande avant d’agir.",
+    "live.home_point_forget": "Oublie quand vous le dites."
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

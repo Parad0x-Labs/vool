@@ -5601,7 +5601,13 @@
     "live.home_welcome_note": "No sign-in, nothing to set up. Search or type an address to begin.",
     "live.home_morning": "Good morning",
     "live.home_afternoon": "Good afternoon",
-    "live.home_evening": "Good evening"
+    "live.home_evening": "Good evening",
+    "live.home_point_memory": "Remembers more.",
+    "live.home_point_cost": "Spends less.",
+    "live.home_point_local": "Runs on your machine.",
+    "live.home_point_account": "No account.",
+    "live.home_point_ask": "Asks before it acts.",
+    "live.home_point_forget": "Forgets when you say so."
   },
   "html_keys": [
     "bypass.modal_limits",

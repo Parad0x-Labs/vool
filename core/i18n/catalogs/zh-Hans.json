@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "无需登录，也无需任何设置。搜索或输入网址即可开始。",
     "live.home_morning": "早上好",
     "live.home_afternoon": "下午好",
-    "live.home_evening": "晚上好"
+    "live.home_evening": "晚上好",
+    "live.home_point_memory": "记得更多。",
+    "live.home_point_cost": "花得更少。",
+    "live.home_point_local": "在你的电脑上运行。",
+    "live.home_point_account": "无需账号。",
+    "live.home_point_ask": "行动前先问你。",
+    "live.home_point_forget": "你说忘，它就忘。"
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "בלי כניסה לחשבון ובלי הגדרות. חפשו או הקלידו כתובת כדי להתחיל.",
     "live.home_morning": "בוקר טוב",
     "live.home_afternoon": "צהריים טובים",
-    "live.home_evening": "ערב טוב"
+    "live.home_evening": "ערב טוב",
+    "live.home_point_memory": "זוכר יותר.",
+    "live.home_point_cost": "מוציא פחות.",
+    "live.home_point_local": "פועל במחשב שלך.",
+    "live.home_point_account": "בלי חשבון.",
+    "live.home_point_ask": "שואל לפני שהוא פועל.",
+    "live.home_point_forget": "שוכח כשמבקשים ממנו."
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

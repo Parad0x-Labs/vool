@@ -5601,9 +5601,15 @@
     "live.home_welcome_note": "Keine Anmeldung, nichts einzurichten. Suchen Sie oder geben Sie eine Adresse ein.",
     "live.home_morning": "Guten Morgen",
     "live.home_afternoon": "Guten Tag",
-    "live.home_evening": "Guten Abend"
+    "live.home_evening": "Guten Abend",
+    "live.home_point_memory": "Merkt sich mehr.",
+    "live.home_point_cost": "Kostet weniger.",
+    "live.home_point_local": "Läuft auf Ihrem Computer.",
+    "live.home_point_account": "Kein Konto.",
+    "live.home_point_ask": "Fragt, bevor es handelt.",
+    "live.home_point_forget": "Vergisst, wenn Sie es sagen."
   },
-  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
+  "source_catalog_sha256": "88c2e4f4418b3aab73c9d949c7300def161a868dd3b879060bae27677b4299fa",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
