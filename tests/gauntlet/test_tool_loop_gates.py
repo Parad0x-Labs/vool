@@ -131,7 +131,11 @@ def test_native_call_ids_do_not_hide_a_repeated_semantic_tool_call(make_agent):
     first.structured_output["_native_tool_call_id"] = "native-call-1"
     repeated = _tool_decision("workspace.list_tree", {"path": ".", "limit": 200})
     repeated.structured_output["_native_tool_call_id"] = "native-call-2"
-    agent.memory_router.resolve_tool_intent = mock.Mock(side_effect=[first, repeated])  # type: ignore[assignment]
+    # The model keeps asking for the same call: the first repeat is asked once more in the same conversation
+    # (not run again), the second ends the loop.
+    agent.memory_router.resolve_tool_intent = mock.Mock(  # type: ignore[assignment]
+        side_effect=itertools.chain([first], itertools.repeat(repeated))
+    )
     agent.memory_router.resolve = mock.Mock(  # type: ignore[assignment]
         return_value=_final_decision("Workspace tree under `.` contains `notes.txt`.")
     )
@@ -163,7 +167,7 @@ def test_native_call_ids_do_not_hide_a_repeated_semantic_tool_call(make_agent):
         )
 
     assert execute.call_count == 1
-    assert agent.memory_router.resolve_tool_intent.call_count == 2
+    assert agent.memory_router.resolve_tool_intent.call_count == 3
     assert result["mode"] == "tool_executed"
     assert "notes.txt" in result["response"]
 
