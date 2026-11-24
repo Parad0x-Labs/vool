@@ -1150,6 +1150,8 @@ def test_the_pane_offers_both_windows_in_every_language():
     for code in codes:
         page = render("c1", code)
         assert 'id="fullWindow"' in page and 'id="privateWindow"' in page
+        # The window of its own is also offered where it is seen without opening the menu.
+        assert 'id="popOut"' in page and 'id="blankWindow"' in page
         if code != "en":
             for key, source in english.items():
                 assert catalog_for(code).text("live." + key) != source, (code, key)

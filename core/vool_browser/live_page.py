@@ -72,6 +72,7 @@ _ICONS = {
     "settings": "<circle cx='8' cy='8' r='2'/><path d='M6.9 2h2.2l.4 1.6 1.2.7 1.6-.5 1.1 1.9-1.2 1.1v1.4l1.2 1.1-1.1 1.9-1.6-.5-1.2.7-.4 1.6H6.9l-.4-1.6-1.2-.7-1.6.5-1.1-1.9 1.2-1.1V7.3L2.6 6.2l1.1-1.9 1.6.5 1.2-.7z'/>",
     "wallet": "<path d='M2.5 5a1.5 1.5 0 0 1 1.5-1.5h7.5v2'/><rect x='2.5' y='5.5' width='11' height='7.5' rx='1.2'/><circle cx='10.8' cy='9.2' r='.7'/>",
     "close": "<path d='M4 4l8 8M12 4l-8 8'/>",
+    "window": "<path d='M9.5 2.5h4v4M13.5 2.5 8 8'/><path d='M11.5 9.5v2.8a1.2 1.2 0 0 1-1.2 1.2H3.7a1.2 1.2 0 0 1-1.2-1.2V5.7a1.2 1.2 0 0 1 1.2-1.2h2.8'/>",
 }
 
 
@@ -158,6 +159,7 @@ main{flex:1;display:flex;min-height:0;gap:0}
 .blank h2{font-size:17px;margin:0 0 6px;font-weight:600}
 .blank p{margin:0;color:var(--muted)}
 .blank a{color:var(--accent)}
+.blank .btn{margin-top:14px}
 .foot{display:flex;align-items:center;gap:8px;padding-top:8px;color:var(--muted);font-size:12px;min-width:0}
 .foot .ic{width:14px;height:14px}
 #note{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -194,6 +196,7 @@ main{flex:1;display:flex;min-height:0;gap:0}
   <button class="tb" id="route" type="button" aria-pressed="false" data-state="off" hidden>__I_shield__</button>
   <button class="tb" id="list" type="button" aria-pressed="false">__I_list__</button>
   <button class="tb" id="takeover" type="button">__I_hand__</button>
+  <button class="tb" id="popOut" type="button">__I_window__</button>
   <span class="menu-wrap"><button class="tb" id="moreBtn" type="button" aria-haspopup="true" aria-expanded="false">__I_more__</button>
     <div class="menu" id="menu" role="menu" hidden>
       <button id="resume" type="button" role="menuitem">__I_hand__<span></span></button>
@@ -224,7 +227,7 @@ main{flex:1;display:flex;min-height:0;gap:0}
     <div class="viewport" id="viewport">
       <div class="progress" id="progress" hidden></div>
       <div class="shot" id="shot"><img id="frame" alt="" hidden draggable="false"><div id="hot"></div></div>
-      <div class="blank" id="blank"><div class="inner"><div class="orb">__I_globe__</div><h2 id="blankTitle"></h2><p id="blankBody"></p></div></div>
+      <div class="blank" id="blank"><div class="inner"><div class="orb">__I_globe__</div><h2 id="blankTitle"></h2><p id="blankBody"></p><button class="btn" id="blankWindow" type="button" hidden></button></div></div>
     </div>
     <div class="foot">__I_shield__<span id="note"></span><span id="url"></span></div>
   </div>
@@ -238,10 +241,10 @@ let current=null, pending=null, frame='', error='', editing=null, uploadTarget='
 const TONE={ready:'ok',running:'busy',approval_required:'ask',stopped:'',refused:'bad'};
 // Static labels.
 $('title').textContent=L.browser; document.title=L.browser;
-[['back',L.back],['forward',L.forward],['reload',L.reload],['list',L.elements],['takeover',L.takeover],['moreBtn',L.more]].forEach(([id,t])=>{$(id).title=t;$(id).setAttribute('aria-label',t);});
+[['back',L.back],['forward',L.forward],['reload',L.reload],['list',L.elements],['takeover',L.takeover],['popOut',L.window],['moreBtn',L.more]].forEach(([id,t])=>{$(id).title=t;$(id).setAttribute('aria-label',t);});
 $('open').textContent=L.go; $('address').placeholder=L.address; $('address').setAttribute('aria-label',L.address);
 $('resume').lastChild.textContent=L.resume; $('download').lastChild.textContent=L.download; $('settings').lastChild.textContent=L.settings;
-$('fullWindow').lastChild.textContent=L.window; $('privateWindow').lastChild.textContent=L.private_window;
+$('fullWindow').lastChild.textContent=L.window; $('blankWindow').textContent=L.window; $('privateWindow').lastChild.textContent=L.private_window;
 $('wallet').lastChild.textContent=L.wallet; $('stop').lastChild.textContent=L.stop; $('private').textContent=L.private;
 $('approve').textContent=L.approve; $('refuse').textContent=L.refuse; $('reviewRedirect').textContent=L.open; $('handBack').textContent=L.resume;
 $('drivingText').textContent=L.driving; $('readyText').textContent=L.file_ready; $('save').textContent=L.save_file; $('sideTitle').textContent=L.elements;
@@ -301,6 +304,8 @@ function paint(j){
     const off=s==='web_off'||error===L.web_off;
     $('blankTitle').textContent=off?L.web_off:L.empty_title;
     $('blankBody').textContent=off?L.off_body:(j.closed&&j.id?L.closed_body:L.empty_body);
+    // With the Browser switched off there is no window to offer.
+    $('blankWindow').hidden=off;
   }
   fitShot();
   paintHot(j,busy||!!pending);
@@ -389,7 +394,9 @@ function closeMenu(){$('menu').hidden=true;$('moreBtn').setAttribute('aria-expan
 document.addEventListener('click',e=>{if(!$('menu').hidden&&!$('menu').contains(e.target))closeMenu();});
 $('stop').onclick=()=>{closeMenu();post('stop');};
 // The everyday browser: a real window of its own. What is typed in the address field goes with it.
-$('fullWindow').onclick=()=>{closeMenu();post('window',{action:'open',url:$('address').value.trim()});};
+// It is offered in three places: on the bar, on the empty view, and in the menu beside the private one.
+const ownWindow=()=>{closeMenu();post('window',{action:'open',url:$('address').value.trim()});};
+$('fullWindow').onclick=ownWindow; $('popOut').onclick=ownWindow; $('blankWindow').onclick=ownWindow;
 $('privateWindow').onclick=()=>{closeMenu();post('window',{action:'private',url:$('address').value.trim()});};
 $('showTab').onclick=()=>{post('window',{action:'show'});};
 $('download').onclick=()=>{closeMenu();const v=$('address').value.trim();if(v)post('propose',{op:'download',args:{url:v}});};
