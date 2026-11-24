@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import plistlib
 import shutil
 import sys
 from pathlib import Path
@@ -31,14 +32,17 @@ _FORBIDDEN_PROFILE_MARKERS = (
     "safari",
 )
 
-_MACOS_APP_CANDIDATES = (
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Chromium.app/Contents/MacOS/Chromium",
-    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-    "/Applications/Brave Browser.app/Contents/MacOS/Google Chrome",
-)
+#: Chromium-family apps on a Mac, by the name of the app bundle, in order of preference. The
+#: program inside each bundle is read from the bundle's own Info.plist (CFBundleExecutable), never
+#: typed here: a hand-written program path once pointed Brave at "Google Chrome", which Brave's
+#: bundle does not have, so VOOL never found Brave on a Mac.
+MACOS_APP_NAMES = ("Google Chrome", "Chromium", "Microsoft Edge", "Brave Browser")
 
-_LINUX_PATH_CANDIDATES = (
+#: Where a Mac keeps apps: the shared folder, then the person's own.
+MACOS_APP_FOLDERS = ("/Applications", "~/Applications")
+
+#: Chromium-family program names on Linux, looked up on PATH in this order.
+LINUX_PROGRAM_NAMES = (
     "google-chrome",
     "google-chrome-stable",
     "chromium",
@@ -254,6 +258,33 @@ def isolation_launch_flags(*, profile_dir: str) -> list[str]:
     ]
 
 
+def macos_app_program(app: Path) -> str | None:
+    """The runnable program inside a Mac app bundle, named by its Info.plist, or None."""
+
+    name = app.stem
+    try:
+        with open(app / "Contents" / "Info.plist", "rb") as handle:
+            declared = plistlib.load(handle).get("CFBundleExecutable")
+        if isinstance(declared, str) and declared.strip() and "/" not in declared:
+            name = declared.strip()
+    except (OSError, ValueError, plistlib.InvalidFileException):
+        pass
+    program = app / "Contents" / "MacOS" / name
+    return str(program) if program.is_file() and os.access(program, os.X_OK) else None
+
+
+def macos_app_programs(folders=None, names=None) -> list[str]:
+    """Every installed Chromium-family program on a Mac, in ``names`` order then folder order."""
+
+    found = []
+    for name in MACOS_APP_NAMES if names is None else names:
+        for folder in MACOS_APP_FOLDERS if folders is None else folders:
+            program = macos_app_program(Path(os.path.expanduser(folder)) / f"{name}.app")
+            if program:
+                found.append(program)
+    return found
+
+
 def find_engine_binary() -> str | None:
     """A Chromium-family browser already on this machine, or None (a legitimate
     answer: the lane then answers typed `engine_missing`, never installs)."""
@@ -264,11 +295,8 @@ def find_engine_binary() -> str | None:
             return override
         return None
     if sys.platform == "darwin":
-        for candidate in _MACOS_APP_CANDIDATES:
-            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-                return candidate
-        return None
-    for name in _LINUX_PATH_CANDIDATES:
+        return next(iter(macos_app_programs()), None)
+    for name in LINUX_PROGRAM_NAMES:
         located = shutil.which(name)
         if located:
             return located
@@ -276,11 +304,16 @@ def find_engine_binary() -> str | None:
 
 
 __all__ = [
+    "LINUX_PROGRAM_NAMES",
+    "MACOS_APP_FOLDERS",
+    "MACOS_APP_NAMES",
     "MAKER_UPDATE_HOSTS",
     "QUIET_FLAGS",
     "_FORBIDDEN_PROFILE_MARKERS",
     "find_engine_binary",
     "isolation_launch_flags",
+    "macos_app_program",
+    "macos_app_programs",
     "quiet_preferences",
     "refuse_real_profile_target",
     "start_quiet",

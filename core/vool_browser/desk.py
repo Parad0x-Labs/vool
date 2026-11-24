@@ -44,6 +44,7 @@ from .engine import (
     QUIET_FLAGS,
     UNATTENDED_UI_FLAGS,
     find_engine_binary,
+    macos_app_program,
     quiet_preferences,
     refuse_real_profile_target,
 )
@@ -88,10 +89,9 @@ def profile_dir() -> Path:
 def engine_binary() -> str | None:
     """VOOL's own engine when it has one, else a Chromium-family browser on the machine."""
     owned = active_data_dir() / "browser" / "engine"
-    names = (
-        ("Chromium.app/Contents/MacOS/Chromium",) if sys.platform == "darwin" else ("chrome", "chromium")
-    )
-    for name in names:
+    if sys.platform == "darwin":
+        return macos_app_program(owned / "Chromium.app") or find_engine_binary()
+    for name in ("chrome", "chromium"):
         candidate = owned / name
         if candidate.is_file() and os.access(candidate, os.X_OK):
             return str(candidate)

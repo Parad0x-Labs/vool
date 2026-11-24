@@ -14,7 +14,13 @@ from typing import Any
 
 from core import policy_engine
 from core.remote_fetch_policy import note_remote_fetch_attempt, remote_fetch_forbidden
-from core.vool_browser.engine import CREDENTIAL_ISOLATION_FLAGS, QUIET_FLAGS, start_quiet
+from core.vool_browser.engine import (
+    CREDENTIAL_ISOLATION_FLAGS,
+    LINUX_PROGRAM_NAMES,
+    QUIET_FLAGS,
+    macos_app_programs,
+    start_quiet,
+)
 from tools.web.browser_identity import DESKTOP_ACCEPT_LANGUAGE, DESKTOP_USER_AGENT
 
 _CAPTCHA_RE = re.compile(
@@ -72,21 +78,8 @@ def _classify_rendered_content(html_text: str, text: str) -> str:
 # The bundled build (chrome-headless-shell / Chrome for Testing) does neither. It is preferred now,
 # and the operator's browser is the last resort rather than the first choice.
 
-_MACOS_APP_CANDIDATES = (
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Chromium.app/Contents/MacOS/Chromium",
-    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-)
-
-_LINUX_PATH_CANDIDATES = (
-    "google-chrome",
-    "google-chrome-stable",
-    "chromium",
-    "chromium-browser",
-    "microsoft-edge",
-    "brave-browser",
-)
+# The operator's own browsers come from the engine's one list (core.vool_browser.engine): the Mac
+# program is read from each app bundle, so this file names no program path of its own.
 
 # Playwright's own browser downloads. The PYTHON package is absent and must stay absent, but its
 # cache directory may already hold a chromium build from some other tool -- a binary on disk is a
@@ -158,13 +151,10 @@ def find_browser_binary() -> str | None:
                 break
 
     if found is None:
-        for candidate in _MACOS_APP_CANDIDATES:
-            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-                found = candidate
-                break
+        found = next(iter(macos_app_programs()), None) if sys.platform == "darwin" else None
 
     if found is None:
-        for name in _LINUX_PATH_CANDIDATES:
+        for name in LINUX_PROGRAM_NAMES:
             resolved = shutil.which(name)
             if resolved:
                 found = resolved
