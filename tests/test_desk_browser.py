@@ -6,6 +6,9 @@ private window really leave nothing, and can anything else on the machine reach 
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import json
 import os
 import shutil
 import sqlite3
@@ -357,6 +360,45 @@ def open_tabs(browser) -> list[str]:
     return sorted(p.url for p in browser.context_for_agent().pages if not p.is_closed())
 
 
+_LOOKER = {
+    "manifest.json": json.dumps({"manifest_version": 3, "name": "Which tab is in front", "version": "1.0",
+                                 "permissions": ["tabs"], "background": {"service_worker": "looker.js"}}),
+    "looker.js": "// Asked from the test.\n",
+}
+
+
+def tab_in_front(browser) -> str:
+    """The address of the tab that is in front in the window, as the engine itself says.
+
+    A page cannot be asked: the engine handle makes every tab believe it is the one in
+    front. So the test puts a part of its own into the running engine, which holds nothing
+    but the question, and asks there. It is gone with the engine.
+    """
+
+    async def ask():
+        context = browser.context_for_agent()
+        folder = Path(tempfile.mkdtemp(prefix="vool-looker-"))
+        for name, text in _LOOKER.items():
+            (folder / name).write_text(text)
+        session = await context.browser.new_browser_cdp_session()
+        try:
+            engine_id = (await session.send("Extensions.loadUnpacked", {"path": str(folder)}))["id"]
+            for _ in range(100):
+                worker = next((w for w in context.service_workers if w.url.startswith(f"chrome-extension://{engine_id}/")), None)
+                if worker is not None:
+                    break
+                await asyncio.sleep(0.05)
+            return await worker.evaluate(
+                "() => new Promise((done) => chrome.tabs.query({active: true, lastFocusedWindow: true}, (tabs) => done(tabs.map((tab) => tab.url).join(' '))))")
+        finally:
+            with contextlib.suppress(Exception):
+                await session.send("Extensions.uninstall", {"id": engine_id})
+            await session.detach()
+            shutil.rmtree(folder, ignore_errors=True)
+
+    return browser._call(ask())
+
+
 def test_the_window_reopens_the_persons_tabs_only_when_they_chose_to_continue(browser, site):
     base, hits = site
 
@@ -404,6 +446,16 @@ def test_the_window_reopens_the_persons_tabs_only_when_they_chose_to_continue(br
 
     areas, expected = browser._call(page_areas())
     assert areas == [[expected, "scripts-on"], [expected, "scripts-on"]], (areas, expected)
+
+    # The tab they left in front is the one in front again, whichever of the two it was.
+    for left_in_front in (base + "/three", base + "/four", base + "/three"):
+        browser._call(next(p for p in browser.context_for_agent().pages if p.url == left_in_front).bring_to_front())
+        assert tab_in_front(browser) == left_in_front
+        browser.stop()
+        browser.open("")
+        assert _wait(lambda: open_tabs(browser) == [base + "/four", base + "/three"]), open_tabs(browser)
+        assert tab_in_front(browser) == left_in_front
+
     # An address asked for next opens beside them, and all three are there after one more restart.
     browser.open(base + "/five")
     assert _wait(lambda: open_tabs(browser) == [base + "/five", base + "/four", base + "/three"]), open_tabs(browser)
@@ -420,10 +472,35 @@ def test_the_window_reopens_the_persons_tabs_only_when_they_chose_to_continue(br
     assert asked() == []
 
 
+def test_the_tabs_come_back_all_the_same_when_the_engine_will_not_say_which_was_in_front(browser, site, monkeypatch):
+    from core.vool_browser import front_tab
+
+    base, _ = site
+    browser.open(base + "/one")
+    browser.open(base + "/two")
+    choose_on_start_up(browser, 1)
+    browser.stop()
+    # The engine refuses the part that would ask it: what it is given is not one.
+    monkeypatch.setitem(front_tab._FILES, "manifest.json", "not a manifest")
+    asked: list[bool] = []
+    real = front_tab.bring_last_used
+
+    async def tried(window):
+        asked.append(await real(window))
+        return asked[-1]
+
+    monkeypatch.setattr(front_tab, "bring_last_used", tried)
+    browser.open("")
+    assert asked == [False]
+    assert _wait(lambda: open_tabs(browser) == [base + "/one", base + "/two"]), open_tabs(browser)
+    # Nothing of the refused part is left behind in the engine's working folder.
+    assert not (browser._main.tmp / "front").exists()
+
+
 def test_tabs_reopened_on_the_private_web_route_carry_no_start_up_notice(browser, files_site, socks, monkeypatch):
     """With Private web on, the engine is started with the options that keep name lookups
-    on the route, and it shows a notice bar about them on the tab it starts with. That
-    tab must be VOOL's start-up tab, which is closed, and never one of the person's."""
+    on the route, and it pins a notice bar about them to a tab of the window it starts
+    with. It is started with no window, so that tab is never one of the person's."""
     from core import private_web
 
     port, _ = files_site
@@ -460,6 +537,15 @@ def test_the_window_starts_on_the_pages_the_person_chose(browser, site):
     assert _wait(lambda: {"/mail", "/news"} <= {path for path, _ in hits})
     assert open_tabs(browser) == [base + "/mail", base + "/news"]
     assert not any(path == "/somewhere" for path, _ in hits)
+    # The first of their pages is the one in front, as the engine itself would have it.
+    assert tab_in_front(browser) == base + "/mail"
+
+    # "Continue where you left off and open a specific set of pages": both come.
+    browser.open(base + "/reading")
+    choose_on_start_up(browser, 6, (base + "/mail",))
+    browser.stop()
+    browser.open("")
+    assert _wait(lambda: open_tabs(browser) == sorted([base + "/mail", base + "/news", base + "/reading", base + "/mail"])), open_tabs(browser)
 
 
 def test_the_engine_keeps_saved_sign_ins_out_of_plain_stores_and_opens_no_control_port(browser, site):

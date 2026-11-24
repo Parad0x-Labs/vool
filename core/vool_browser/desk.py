@@ -112,30 +112,44 @@ STARTING_SEARCH: dict[str, str] = {
 #: Where the window starts when no address was asked for: the new tab page, which is
 #: VOOL's start page in the lasting window and the engine's own page in a private one.
 HOME = "chrome://newtab/"
-#: The address the engine is started on. Its tab carries the engine's start-up notices and
-#: is closed at once; the marker tells it from an empty tab the engine reopened for the person.
-START_TAB = "about:blank#vool-start"
+#: The engine is started without a window. It pins its start-up notices to the tabs of the
+#: window it starts with, and one of them names the launch options that keep name lookups
+#: on the Private web route and the engine's sign-in service away. When the person chose to
+#: continue where they left off, that window holds their own tabs. An engine that starts
+#: with no window has no tab to pin a notice on; its first window is made once site
+#: protection, the start page and the person's plugins are in force.
+NO_WINDOW_YET = "--no-startup-window"
+#: How long the engine is given to bring the person's tabs back into its first window, and
+#: how long none may be added before they count as all there.
+_REOPEN_WAIT = 4.0
+_REOPEN_QUIET = 0.5
 _NEW_TAB = ("chrome://newtab", "chrome://new-tab-page")
 
 
-def reopens_tabs(profile: Path) -> bool:
-    """Whether the engine will reopen tabs of the person's at its start: they chose
-    "Continue where you left off" or pages of their own under "On start-up" in its settings.
+def on_start_up(profile: Path) -> tuple[bool, list[str]]:
+    """What the person chose under "On start-up" in the engine's settings: whether it
+    continues where they left off, and the pages of their own it starts on.
 
     The engine keeps that choice in one of two files, depending on the system; where the
     guarded one holds it, that is the one the engine goes by.
     """
+    choice: Any = None
+    pages: Any = None
     for name in ("Secure Preferences", "Preferences"):
         try:
             kept = json.loads((profile / "Default" / name).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         session = kept.get("session") if isinstance(kept, dict) else None
-        choice = session.get("restore_on_startup") if isinstance(session, dict) else None
-        if choice is not None:
-            # 5 is the new tab page; every other choice reopens something.
-            return choice != 5
-    return False
+        if not isinstance(session, dict):
+            continue
+        if choice is None:
+            choice = session.get("restore_on_startup")
+        if pages is None:
+            pages = session.get("startup_urls")
+    # 1 continues, 4 starts on their pages, 6 does both; 5, the new tab page, is how it comes.
+    theirs = [str(url) for url in pages if isinstance(url, str) and url] if isinstance(pages, list) else []
+    return choice in (1, 6), theirs if choice in (4, 6) else []
 
 
 def default_preferences() -> dict[str, Any]:
@@ -285,6 +299,8 @@ class _Window:
         self.home_id = ""
         # The empty tab VOOL made at this start, until the person or an address uses it.
         self.fresh: Any = None
+        # True from the start until the window is first asked to show something.
+        self.just_started = False
 
     async def start(self) -> None:
         from playwright.async_api import async_playwright
@@ -299,7 +315,7 @@ class _Window:
         self.route = _route_flags()
         self.profile.mkdir(parents=True, exist_ok=True, mode=0o700)
         await seed_profile(self.profile)
-        reopens = reopens_tabs(self.profile)
+        continues, their_pages = on_start_up(self.profile)
         with contextlib.suppress(OSError):
             downloads_dir().mkdir(parents=True, exist_ok=True)
         # Chromium's sockets need a short path; see live.py for the Linux launch failure.
@@ -312,7 +328,7 @@ class _Window:
                 # It must name the profile itself: with the handle's defaults off, an
                 # engine given no profile would open the person's own browser profile.
                 args=[f"--user-data-dir={self.profile}", *flags, *extra_engine_flags,
-                      "--remote-debugging-pipe", START_TAB], ignore_default_args=True,
+                      "--remote-debugging-pipe", NO_WINDOW_YET], ignore_default_args=True,
                 chromium_sandbox=True, timeout=ENGINE_START_TIMEOUT * 1000,
                 env=child_env(TMPDIR=str(self.tmp)), no_viewport=True, accept_downloads=True,
             )
@@ -320,22 +336,17 @@ class _Window:
             await self.stop()
             raise DeskFault("engine_failed") from None
         self.context.on("close", lambda _ctx: self.closed.set())
-        # The engine handle would otherwise catch every download into a hidden folder
-        # under a made-up name. Downloads here belong to the person: the browser saves
-        # them itself, under their real names, in the downloads folder.
         try:
-            pages = self.context.pages or [await self.context.new_page()]
-            session = await self.context.new_cdp_session(pages[0])
+            # The engine handle would otherwise catch every download into a hidden folder
+            # under a made-up name. Downloads here belong to the person: the browser saves
+            # them itself, under their real names, in the downloads folder.
+            session = await self.context.browser.new_browser_cdp_session()
             await session.send("Browser.setDownloadBehavior", {"behavior": "default"})
             await session.detach()
-            # The engine pins its start-up notices to the tab it starts with. One of them
-            # warns about launch options, and names the very ones that keep name lookups
-            # on the Private web route and the engine's sign-in service away. It also
-            # starts that tab on a load of its own, which can cut off the first address
-            # opened in it. So the person's tabs are fresh ones, and the start-up tab is
-            # closed as soon as one exists. Before the person has a tab, the lists of
-            # harmful sites are put in force. A protection that will not load does not
-            # keep the browser from opening; the window's state says it is not on.
+            # No window exists yet, so no page has loaded. The lists of harmful sites are
+            # put in force first: every tab, a reopened one too, loads under today's lists.
+            # A protection that will not load does not keep the browser from opening; the
+            # window's state says it is not on.
             with contextlib.suppress(Exception):
                 from . import guard
 
@@ -346,30 +357,43 @@ class _Window:
                     from . import home
 
                     await home.apply(self)
+                # A plugin that will not load does not keep the browser from opening.
+                with contextlib.suppress(Exception):
+                    from . import extensions
+
+                    await extensions.apply(self)
+            # The first window. When the person chose to continue where they left off, the
+            # engine brings their tabs back into it by itself.
             self.fresh = await self.context.new_page()
-            if reopens:
-                # The engine has brought the person's tabs back, each already showing its
-                # address. Only tabs that lead nowhere go: the one the engine was started
-                # on, where it made one, and an empty or new tab page of its own.
-                closing = [page for page in self.context.pages
-                           if page is not self.fresh and (page.url in ("", "about:blank", START_TAB) or self._new_tab(page))]
-            else:
-                # Nothing of the person's is open yet: every tab the engine started with goes.
-                closing = [page for page in self.context.pages if page is not self.fresh]
-            for page in closing:
-                if not page.is_closed():
-                    await page.close()
+            if continues:
+                await self._reopened_tabs()
+            if continues and not their_pages:
+                # The engine leaves the empty tab in front. The tab the person used last
+                # goes in front, as it was when they closed the browser.
+                with contextlib.suppress(Exception):
+                    from . import front_tab
+
+                    await front_tab.bring_last_used(self)
+            # Pages of their own to start on: the engine opens those only in a window it
+            # starts with, so VOOL opens them, the first in the tab just made and in front.
+            first_of_theirs: Any = None
+            for url in their_pages:
+                page = self.fresh or await self.context.new_page()
+                self.fresh = None
+                first_of_theirs = first_of_theirs or page
+                with contextlib.suppress(Exception):
+                    await page.goto(url, wait_until="commit")
+            if first_of_theirs is not None:
+                with contextlib.suppress(Exception):
+                    await first_of_theirs.bring_to_front()
+            if self.fresh is not None and [page for page in self.context.pages if not page.is_closed() and page is not self.fresh]:
+                # With their tabs back, the empty tab VOOL made is not needed.
+                await self.fresh.close()
+                self.fresh = None
         except Exception:
             await self.stop()
             raise DeskFault("engine_failed") from None
-        if not self.private:
-            # A plugin that will not load does not keep the browser from opening.
-            with contextlib.suppress(Exception):
-                from . import extensions
-
-                await extensions.apply(self)
-        with contextlib.suppress(Exception):
-            await self._settle_reopened_tabs()
+        self.just_started = True
         if self.private:
             # On macOS the engine keeps running after its last window is closed. A
             # private window with no tab left is over: it is stopped and removed then,
@@ -381,31 +405,20 @@ class _Window:
             for page in self.context.pages:
                 watch(page)
 
-    async def _settle_reopened_tabs(self) -> None:
-        """The tabs the engine reopened by itself, when the person chose to continue where
-        they left off or to start on pages of their own.
-
-        The engine reopens them the moment it starts, under the site lists the browser held
-        when it was last open. Today's lists are in force by now: a reopened tab on a site
-        they name is loaded again, which puts the warning in its place. With their tabs
-        back, the empty tab VOOL made is not needed. A new tab page the engine opened for
-        its own start goes the way of the start-up tab: the person's tabs are fresh ones.
-        """
-        from . import site_lists
-
-        theirs = []
-        for page in [p for p in self.context.pages if not p.is_closed() and p is not self.fresh]:
-            if self._new_tab(page) and self.fresh is not None and not self.fresh.is_closed():
-                await page.close()
-            else:
-                theirs.append(page)
-        for page in theirs:
-            if site_lists.listed_url(page.url):
-                with contextlib.suppress(Exception):
-                    await page.reload(wait_until="commit")
-        if theirs and self.fresh is not None and not self.fresh.is_closed() and self.fresh.url == "about:blank":
-            await self.fresh.close()
-            self.fresh = None
+    async def _reopened_tabs(self) -> None:
+        """Wait for the tabs the engine brings back into its first window. They are all
+        there once some have come and none was added for a moment; an engine with nothing
+        to bring back is not waited for beyond a few seconds."""
+        loop = asyncio.get_running_loop()
+        end = loop.time() + _REOPEN_WAIT
+        count, since = 0, loop.time()
+        while loop.time() < end:
+            now = len([page for page in self.context.pages if not page.is_closed() and page is not self.fresh])
+            if now != count:
+                count, since = now, loop.time()
+            elif count and loop.time() - since >= _REOPEN_QUIET:
+                return
+            await asyncio.sleep(0.05)
 
     def _unused_tab(self) -> Any:
         """A tab of the person's that an address may take: still on the new tab page, or
@@ -437,10 +450,14 @@ class _Window:
         pages = [p for p in self.context.pages if not p.is_closed() and p not in self.reserved]
         blank = self._unused_tab()
         showing = [p for p in pages if not (p is self.fresh and p.url == "about:blank")]
+        just_started, self.just_started = self.just_started, False
         if not url and showing:
-            # No address asked for and the window already shows something: it comes forward.
-            with contextlib.suppress(Exception):
-                await showing[-1].bring_to_front()
+            # No address asked for and the window already shows something. A window that
+            # has just started is in front already, on the tab the person left in front or
+            # the first of the pages they start on. An older one comes forward.
+            if not just_started:
+                with contextlib.suppress(Exception):
+                    await showing[-1].bring_to_front()
             return
         page = blank or await self.context.new_page()
         for _ in range(3):

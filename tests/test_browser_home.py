@@ -130,6 +130,33 @@ def test_the_persons_most_visited_sites_are_on_the_start_page(browser, site):
     assert has_icon and hits == []
 
 
+def test_the_list_is_up_to_date_in_a_new_tab_puts_the_most_visited_site_first_and_shows_no_search_words(browser, site):
+    base, hits = site
+    other = base.replace("127.0.0.1", "localhost")
+    # One visit to one site; then on another site a page opened twice and a search opened three times.
+    browser.open(other + "/news")
+    for _ in range(2):
+        browser.open(base + "/timetable")
+    for _ in range(3):
+        browser.open(base + "/find?q=something-private")
+    assert _wait(lambda: len([path for path, _ in hits if path.startswith("/find")]) == 3)
+
+    async def shown():
+        # A new tab, in the same run of the browser: no restart is needed for the list to be right.
+        page = await browser.context_for_agent().new_page()
+        await page.goto(desk_module.HOME)
+        await page.wait_for_selector("#sites a")
+        links = await page.evaluate("[...document.querySelectorAll('#sites a')].map((a) => a.href)")
+        text = await page.inner_text("#sites")
+        await page.close()
+        return links, text
+
+    links, text = browser._call(shown())
+    # The site with five visits comes first, and its link is the page opened most that carries no question part.
+    assert links == [base + "/timetable", other + "/news"], links
+    assert "private" not in text and "find" not in text
+
+
 def test_the_start_page_is_written_afresh_at_every_start_and_in_the_language_vool_was_last_seen_in(browser, site):
     browser.open("")
     folder = next(start._root().iterdir())
@@ -178,7 +205,7 @@ def test_a_start_page_that_cannot_be_written_does_not_keep_the_browser_from_open
 def test_the_start_page_can_reach_nothing_but_the_engines_own_lists(home):
     files = start._files("en")
     manifest = json.loads(files["manifest.json"])
-    assert manifest["permissions"] == ["topSites", "search", "favicon"]
+    assert manifest["permissions"] == ["history", "search", "favicon"]
     for reach in ("host_permissions", "optional_permissions", "optional_host_permissions", "content_scripts",
                   "background", "externally_connectable", "web_accessible_resources"):
         assert reach not in manifest, reach

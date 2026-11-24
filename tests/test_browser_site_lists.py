@@ -356,9 +356,10 @@ def test_a_listed_site_is_stopped_with_a_warning_and_the_person_can_open_it_with
 
 
 def test_a_tab_reopened_at_the_start_is_held_to_todays_lists(browser, release, sites):
-    """The person continues where they left off. The engine reopens yesterday's tabs the
-    moment it starts, under the lists the browser held yesterday. One of the tabs is on a
-    site that was added overnight: once the start is over, that tab shows the warning."""
+    """The person continues where they left off, and one of yesterday's tabs is on a site
+    that was added to the lists overnight. The engine reopens tabs in its first window,
+    which VOOL makes only once today's lists are in force: that tab shows the warning and
+    the site is never asked."""
     from tests.test_desk_browser import choose_on_start_up
 
     port, hits = sites
@@ -373,21 +374,24 @@ def test_a_tab_reopened_at_the_start_is_held_to_todays_lists(browser, release, s
 
     release.publish(2, [LISTED])
     assert site_lists.refresh(force=True) == "updated"
+    hits.clear()
     browser.open("")
     assert _wait(lambda: tab_at(browser, "/blocked.html") is not None), [page.url for page in tabs(browser)]
     assert sorted(page.url.split("#")[-1] for page in tabs(browser)) == sorted(
         [f"http://{ALSO}:{port}/page-kept", f"http://{LISTED}:{port}/page-yesterday"]
     )
     assert not [page.url for page in tabs(browser) if page.url.startswith(f"http://{LISTED}")]
+    # Today's lists were in force before the engine had a window to reopen a tab in. Once
+    # the other tab is back (the engine shows it from its own copy and asks its site only
+    # for the icon), the listed site has been asked for nothing at all.
+    assert _wait(lambda: any(hit[0] == ALSO for hit in hits)), hits
+    assert [hit for hit in hits if hit[0] == LISTED] == []
 
 
 def test_a_site_the_person_chose_to_open_yesterday_is_stopped_again_in_its_reopened_tab(browser, release, sites):
     """"Open it anyway" lasts until the browser is closed: the tab the engine reopens at the
-    next start is put back on the warning.
-
-    KNOWN LIMIT, kept visible here: the engine reopens the tab before any list is in force,
-    so for about a second the page is there again (from the engine's own copy when it has
-    one) before the warning replaces it. What this start asked the site for is printed."""
+    next start shows the warning again, and the site is asked for nothing: the lists are in
+    force before the engine has a window to reopen the tab in."""
     from tests.test_desk_browser import choose_on_start_up
 
     port, hits = sites
@@ -410,7 +414,7 @@ def test_a_site_the_person_chose_to_open_yesterday_is_stopped_again_in_its_reope
     browser.open("")
     assert _wait(lambda: tab_at(browser, "/blocked.html") is not None), [page.url for page in tabs(browser)]
     assert [page.url.split("#")[-1] for page in tabs(browser)] == [f"http://{LISTED}:{port}/page-chosen"]
-    print("asked of the listed site while its tab was reopened:", [hit for hit in hits if hit[0] == LISTED])
+    assert [hit for hit in hits if hit[0] == LISTED] == []
 
 
 def test_a_list_as_long_as_the_public_ones_is_enforced_from_the_first_page(browser, release, sites):

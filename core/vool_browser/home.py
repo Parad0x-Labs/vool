@@ -25,7 +25,7 @@ from typing import Any
 from core.runtime_paths import active_data_dir
 
 #: Raised whenever the files below change, so an older copy is never loaded.
-FORMAT = 1
+FORMAT = 2
 PAGE = "home.html"
 
 _WORDS = ("home_name", "home_title", "home_search", "home_visited")
@@ -91,11 +91,25 @@ $('search').addEventListener('submit', (event) => {
   // Words go to the engine, which searches with the search the person chose in its settings.
   if (to) location.assign(to); else chrome.search.query({text, disposition: 'CURRENT_TAB'});
 });
-// With nothing visited yet the engine fills its list with its maker's extension store.
-// That is not a place the person went, so it is not shown as one.
-const ENGINE_STORE = /^https:\\/\\/(chrome\\.google\\.com\\/webstore|chromewebstore\\.google\\.com)(\\/|\\?|$)/;
-chrome.topSites.get((sites) => {
-  const shown = (sites || []).filter((site) => /^https?:\\/\\//.test(site.url) && !ENGINE_STORE.test(site.url)).slice(0, 8);
+// The sites the person went to most in the last three months, read from the engine's
+// history each time this page opens. The engine also keeps a ready-made list of top
+// sites, but it brings that one up to date on a timer of its own: a site visited before
+// the last quit could be missing from it after a start. One entry per site, the site
+// with the most visits first. Its link is the page of that site the person opened most;
+// a page address with a question part is never the one linked, so no search words show.
+chrome.history.search({text: '', startTime: Date.now() - 90 * 864e5, maxResults: 2000}, (pages) => {
+  const sites = new Map();
+  for (const page of pages || []) {
+    let at;
+    try { at = new URL(page.url); } catch (e) { continue; }
+    if (at.protocol !== 'http:' && at.protocol !== 'https:') continue;
+    const site = sites.get(at.host) || {visits: 0, last: 0, url: at.origin + '/', title: '', most: -1};
+    const visits = page.visitCount || 0;
+    site.visits += visits; site.last = Math.max(site.last, page.lastVisitTime || 0);
+    if (!at.search && visits > site.most) { site.most = visits; site.url = page.url; site.title = page.title || ''; }
+    sites.set(at.host, site);
+  }
+  const shown = [...sites.values()].sort((a, b) => b.visits - a.visits || b.last - a.last).slice(0, 8);
   for (const site of shown) {
     const link = document.createElement('a'), icon = new Image(), name = document.createElement('span'), host = document.createElement('small');
     link.href = site.url;
@@ -127,9 +141,9 @@ def _files(locale: str) -> dict[str, str]:
     manifest = {
         "manifest_version": 3, "name": words["home_name"], "version": f"{FORMAT}.0",
         "chrome_url_overrides": {"newtab": PAGE},
-        # The engine's own list of most visited sites, its search, and the icons it already
-        # holds. No access to any site, no page script, no background part.
-        "permissions": ["topSites", "search", "favicon"],
+        # The engine's own history, its search, and the icons it already holds. No access
+        # to any site, no page script, no background part.
+        "permissions": ["history", "search", "favicon"],
     }
     script = lambda value: json.dumps(value, ensure_ascii=False).replace("<", "\\u003c")  # noqa: E731
     return {
