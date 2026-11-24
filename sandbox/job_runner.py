@@ -259,9 +259,15 @@ def _private_read_roots() -> tuple[Path, ...]:
     external disk) is re-allowed by the named-root layers on both backends: Seatbelt's
     last-match-wins allow clause follows the deny, and bwrap's --ro-bind/--bind restores the
     named path after the private tmpfs.
+
+    `/Users` is every account on a Mac and the folder they all share. The operator's own home was
+    always private; the shared folder and the other accounts were readable (measured on macOS
+    26.5.1, 2026-11-23: a confined child read a file in the shared folder there). A named root under
+    `/Users`, the operator's workspace or interpreter among them, is re-allowed as before.
     """
     candidates = (
         Path.home(), Path(tempfile.gettempdir()), Path("/tmp"), Path("/var/tmp"), Path("/Volumes"),
+        Path("/Users"),
     )
     return tuple(dict.fromkeys(path.resolve() for path in candidates
                                if path.is_dir() and path.resolve() != Path(path.anchor)))

@@ -14385,6 +14385,10 @@ function renderPlugins(d, query) {
     const cat = document.createElement('span'); cat.className = 'p-cat'; cat.textContent = _pluginCardText(pl, 'category');
     h.appendChild(cat); card.appendChild(h);
     if (pl.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = _pluginCardText(pl, 'description'); card.appendChild(de); }
+    // The team badges VOOL verified for this exact package, and for an add-on from the Skill Codex its Rate
+    // button and the team's notice. The store fragment draws them, the same way as on its own cards.
+    if (globalThis.VoolAddons && globalThis.VoolAddons.teamBadges) globalThis.VoolAddons.teamBadges(pl).forEach((chip) => h.appendChild(chip));
+    if (globalThis.VoolAddons && globalThis.VoolAddons.installedExtras) card.appendChild(globalThis.VoolAddons.installedExtras(pl.registry, shownName));
     const act = document.createElement('div'); act.className = 'p-actions';
     const off = pl.enabled === false;
     const nSk = (pl.skills || []).length;
@@ -14470,7 +14474,7 @@ function renderSkills(d, query) {
   let skills = [];
   // `summary` is the line written for people; `description` is written for skill picking and can
   // read as instructions, so it is only the fallback for a skill whose author wrote no summary.
-  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, title: _skillTitle(s.name), description: s.summary || s.description, plugin: _pluginCardText(pl, 'name') || pl.id, pluginEnglish: pl.name || '', first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug, enabled: s.enabled })));
+  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, title: _skillTitle(s.name), description: s.summary || s.description, plugin: _pluginCardText(pl, 'name') || pl.id, pluginEnglish: pl.name || '', first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug, enabled: s.enabled, registry: pl.registry })));
   if (q) skills = skills.filter((s) => ((s.name || '') + ' ' + (s.title || '') + ' ' + (s.description || '') + ' ' + (s.plugin || '') + ' ' + (s.pluginEnglish || '')).toLowerCase().indexOf(q) !== -1);
   skills.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
   const head = document.createElement('div'); head.className = 'plugins-empty'; head.style.marginBottom = '12px';
@@ -14490,6 +14494,7 @@ function renderSkills(d, query) {
     if (s.first_party) h.appendChild(_firstPartyBadge());
     card.appendChild(h);
     if (s.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = s.description; card.appendChild(de); }
+    if (globalThis.VoolAddons && globalThis.VoolAddons.installedExtras) card.appendChild(globalThis.VoolAddons.installedExtras(s.registry, s.title || s.name));
     // Each skill turns on and off on its own, through the one disable store the skill picker
     // reads (POST /api/skills/enable), with the same status line and button as a plugin card.
     if (typeof s.enabled === 'boolean') {

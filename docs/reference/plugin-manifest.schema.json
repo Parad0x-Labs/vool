@@ -78,7 +78,8 @@
                   "intent": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 500
+                    "maxLength": 145,
+                    "pattern": "^[a-z][a-z0-9_-]{0,79}\\.[a-z0-9_]{1,64}$"
                   },
                   "description": {
                     "type": "string",
@@ -130,7 +131,8 @@
                       "tool": {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 500
+                        "maxLength": 64,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"
                       }
                     },
                     "required": [

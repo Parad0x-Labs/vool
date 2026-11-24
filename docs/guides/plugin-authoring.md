@@ -22,7 +22,9 @@ description, public HTTPS homepage and licence.
 | `scanner` | HTTPS base URL, test/scan paths, input template and validated response mapping. |
 | `browser` | `extension`: the folder inside the package that holds a standard browser extension. |
 
-Tool intents belong to the package namespace. Subprocess handlers use the existing JSON
+Tool intents belong to the package namespace and have one shape: `PLUGIN-ID.TOOL` (the plugin's id, a dot, the tool's name), the tool part in
+lowercase letters, digits and `_` (for example `parcel-desk.lookup`). An MCP tool's own name uses
+letters, digits, `.`, `_` and `-`. Subprocess handlers use the existing JSON
 stdio protocol. Each MCP tool names its bundled server and explicitly pins its effect class
 and permission actions; unpinned tools have no trusted execution path. Commands stay inside
 the package. Runtime fetchers such as `npx` and `uvx` are refused.
@@ -41,6 +43,14 @@ on unless set to `0`, and older packages without the `vool` block follow only th
 Model provider and scanner plugins work either way. The ids `vool-plugin-usepod` and
 `vool-plugin-eyebrow` are reserved for the retired UsePod and Eyebrow services, and VOOL
 offers no plugin for either; another package that claims one of them is refused.
+
+Other ids VOOL keeps for itself are refused the same way: the id of any pack shipped inside VOOL
+(such as `vool-database`), any id that starts with `vool` or `parad0x`, and any name VOOL's own
+tools start with (`email`, `skill`, `workspace`, `memory` and the rest). The name, the publisher and
+each key label are plain text: letters, numbers, spaces and a few marks. They may not carry VOOL's
+name, a word or mark that says the plugin was checked or chosen (Official, Verified, Tested by,
+Editor's Choice, a tick, a star), hidden characters, look-alike letters or a link. The refusal
+names which of the three it is. Put your own name in `publisher`; the template ships "Your name".
 
 Install through the Plugins section, review the entire distribution, then install disabled.
 Connect your own key in its card and accept the separate access sheet to enable it. Saving
@@ -160,10 +170,9 @@ its exact command. The template demonstrates that exchange. Metadata alone does 
 native providers or scanners to other hosts. Installation inside Claude Code and Codex
 requires testing in those applications.
 
-For the existing registry, supply `registry.json` with `kind: plugin` and your publisher/package
-identity. Set package `name`, `vool.id` and tool namespaces to
-`core.registry.artifact.native_identity(package_id)` before packing. Run
-`python -m tools.community_skills pack` with scratch and output outside the distribution.
-The registry performs complete deterministic and independent review; its existing signing
-authority binds the full distribution digest. Local validation is not admission. A store
-review never enables the plugin or grants runtime permissions.
+Share a plugin as its folder, or as a folder in a public GitHub repository at an exact commit
+(Add-ons, Plugins, "Review from GitHub": repository, the full 40-character commit, the folder).
+From VOOL 0.8 a plugin can also be published in the Skill Codex (section "Publishing a plugin" in `docs/registry/AUTHOR-GUIDE.md`). Check a folder before you share it
+with `python -m tools.plugin_check FOLDER` (add `--json` for a tool or an agent): it prints the
+sentence a person installing would read and, for the maker, every field at fault and what to write
+instead. The guides for makers are in [docs/creators](../creators/README.md).

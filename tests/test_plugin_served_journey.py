@@ -196,7 +196,7 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         page.screenshot(path=str(tmp_path / "provider-chat.png"), full_page=True)
 
         plugins_page(page, daemon)
-        card = install_folder(page, ROOT / "examples/plugins/template", "vool-plugin-template")
+        card = install_folder(page, ROOT / "examples/plugins/template", "text-digest-example")
         accept_access(page, card)
         # Plugin tools ship on in 0.8: with no choice saved, chats may use an enabled plugin's
         # tools. The owner's switch still turns them off, and on again.
@@ -219,7 +219,7 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
                 text for index in range(4096)
                 if "0" not in hashlib.sha256((text := f"{seed}:{index}").encode()).hexdigest()
             )
-        prompt = "Use the vool-plugin-template.sha256 tool to compute the text digest.\n" + json.dumps({"tool": "vool-plugin-template.sha256", "text": supplied})
+        prompt = "Use the text-digest-example.sha256 tool to compute the text digest.\n" + json.dumps({"tool": "text-digest-example.sha256", "text": supplied})
         digest = hashlib.sha256(supplied.encode()).digest().hex(":")
         assert bytes.fromhex(digest.replace(":", "")) == hashlib.sha256(supplied.encode()).digest()
         send_chat(page, prompt, digest, artifact=tmp_path / "tool-chat.ndjson")
@@ -231,7 +231,7 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         assert https_service["access"] not in daemon.log.read_text(errors="replace")
 
         plugins_page(page, daemon)
-        card = page.locator('[data-plugin-id="vool-plugin-template"]')
+        card = page.locator('[data-plugin-id="text-digest-example"]')
         card.get_by_role("button", name="Disable", exact=True).click()
         card.get_by_text("Disabled", exact=True).wait_for()
         page.goto(daemon.origin + "/chat", wait_until="domcontentloaded")
@@ -243,15 +243,15 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         assert not [row for row in after if row.get("event") == "inference"]
         assert digest not in disabled.decode("utf-8", errors="replace")
         plugins_page(page, daemon)
-        card = page.locator('[data-plugin-id="vool-plugin-template"]')
+        card = page.locator('[data-plugin-id="text-digest-example"]')
         card.get_by_role("button", name="Uninstall", exact=True).click()
         review = page.get_by_role("dialog", name="Uninstall plugin")
         assert review.get_by_role("checkbox", name="Also remove saved keys").is_checked()
         review.get_by_role("button", name="Uninstall", exact=True).click()
         review.wait_for(state="detached")
-        assert not page.locator('[data-plugin-id="vool-plugin-template"]').count()
-        assert not (daemon.home / "addons/plugins/vool-plugin-template").exists()
-        assert not (daemon.home / "plugin-scratch/vool-plugin-template").exists()
+        assert not page.locator('[data-plugin-id="text-digest-example"]').count()
+        assert not (daemon.home / "addons/plugins/text-digest-example").exists()
+        assert not (daemon.home / "plugin-scratch/text-digest-example").exists()
     finally:
         page.screenshot(path=str(tmp_path / "final-page.png"), full_page=True)
         browser.close()

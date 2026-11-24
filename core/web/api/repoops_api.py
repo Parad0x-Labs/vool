@@ -153,6 +153,10 @@ def plugin_lifecycle_action(*, action: str, plugin_id: str) -> dict[str, Any]:
     root = dict(discovered_plugin_sources()).get(pid)
     if root is None and name in {"install", "verify", "update"}:
         return {"ok": False, "action": name, "plugin_id": pid, "error": "plugin is absent from the catalog"}
+    if root is not None and name in {"install", "verify", "update", "enable"}:
+        refusal = _identity_refusal(root)
+        if refusal:
+            return {"ok": False, "action": name, "plugin_id": pid, "error": refusal}
     try:
         if name == "install":
             record = plugin_lifecycle.install(pid, root=root, source="operator")
@@ -187,6 +191,26 @@ def plugin_lifecycle_action(*, action: str, plugin_id: str) -> dict[str, Any]:
         **({"register_error": register_error} if register_error else {}),
         "evidence": record.evidence[-1] if record.evidence else {},
     }
+
+
+def _identity_refusal(root: Path | str) -> str:
+    """Why a pack from outside may not be brought in under the identity it claims; "" when it may.
+
+    The same rule the Add-ons page applies to a folder. A pack VOOL ships is VOOL's own by where it
+    is loaded from, so it is not asked. A setup file that cannot be read is refused: nothing is
+    brought in unseen.
+    """
+    from core.plugin_catalog import bundled_plugin_dirs
+    from core.plugin_identity import identity_refusal
+
+    try:
+        folder = Path(root).resolve()
+        if folder in {pack.resolve() for pack in bundled_plugin_dirs()}:
+            return ""
+        manifest = json.loads((folder / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "This plugin's setup file is missing or broken. Review the package again."
+    return identity_refusal(manifest)
 
 
 def _reregister_pack(pid: str, root: Path | str | None) -> tuple[bool, str]:

@@ -1366,10 +1366,16 @@ def _plugin_ask_prompt(message: str, previous: str, plugins: list[str]) -> str:
     deliberately about other tools and in several languages: a person asks in their own words and their own language,
     and a plugin is often added for exactly that language. More than one can be asked for in one message.
 
+    Each choice is written between double quotes as data (`core.plugin_identity.prompt_data`): a maker's description
+    that carried a quote, a brace or a line break could end its own choice and add a worked example of its own to the
+    question. VOOL's own choices hold none of those characters and reach the judge word for word.
+
     "None of them" is a choice of its own, numbered 0 and listed first. Without it a small model reading a message no
     tool fits tended to name the first tool: "kiek bus 23 kart 4?" (23 times 4) was judged as the first built-in,
     Reminders, on qwen3:8b (memory-faults run on b43e6aced, 2026-11-22), and the person got an approval card to set a
     reminder instead of 92. The tools keep their numbers from 1."""
+    from core.plugin_identity import prompt_data
+
     flat = lambda text, n: " ".join(str(text or "").split())[:n]  # noqa: E731
     chars = _PLUGIN_ASK_CHARS if len(plugins) <= _PLUGIN_ASK_FULL_CHOICES else _PLUGIN_ASK_BRIEF_CHARS
     none = '0. "None of them: the message asks for no tool below."'
@@ -1403,7 +1409,7 @@ def _plugin_ask_prompt(message: str, previous: str, plugins: list[str]) -> str:
         f'Tools: {none} 1. "Alarm clock: rings at a time the person sets." 2. "Flight board: shows the live status of '
         'a flight by its flight number." Message: "what should I pack for a long flight?" -> {"answer": [0]}',
         "",
-        f"Tools: {none} " + " ".join(f'{number}. "{flat(plugin, chars)}"' for number, plugin in enumerate(plugins, 1)),
+        f"Tools: {none} " + " ".join(f'{number}. "{prompt_data(plugin, chars)}"' for number, plugin in enumerate(plugins, 1)),
     ]
     if str(previous or "").strip():
         lines.append(f'Previous message: "{flat(previous, 240)}"')

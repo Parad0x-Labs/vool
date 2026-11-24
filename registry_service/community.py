@@ -1,4 +1,4 @@
-"""Comments from people who downloaded a skill, with server-side moderation.
+"""Comments from people who rated a skill they installed, with server-side moderation.
 
 The website never decides what is published. Refused text is not stored; held
 comments stay invisible to everyone but their author until an operator acts.
@@ -9,10 +9,17 @@ import secrets
 
 from core.registry.codec import require
 from registry_service.moderation import review
+from registry_service.store import carried, identity_keys
 
+# Comments per account per 24 hours, refused ones included, so nobody floods a skill's page.
 COMMENTS_PER_DAY = 5
+# Reports from this many different people hide a comment until an operator looks.
 REPORTS_TO_HOLD = 3
+# A comment from an account younger than this waits for an operator, however harmless it reads.
 NEW_ACCOUNT_SECONDS = 86400
+# A report counts toward an automatic pause or hold only from an account at least this old, so a handful
+# of accounts made this week cannot take a skill or a comment away from everyone.
+REPORT_ACCOUNT_AGE = 14 * 86400
 
 
 def _published(db, package_id: object) -> str:
@@ -21,9 +28,38 @@ def _published(db, package_id: object) -> str:
     return package_id
 
 
-def record_download(store, account: str, package_id: str, *, now: int) -> None:
-    with store.connection() as db:
-        db.execute("INSERT OR IGNORE INTO account_downloads VALUES (?,?,?)", (account, package_id, now))
+def report_counts(db, account: str, package_id: str, *, now: int) -> bool:
+    """Whether a report this account sent at `now` counts toward an automatic pause or hold.
+
+    Every rule about who counts is here, for skill reports and comment reports alike. A rule about the
+    skill itself (only people who got it, say) belongs here too; `package_id` is passed for that.
+    """
+    row = db.execute("SELECT created FROM accounts WHERE id=?", (account,)).fetchone()
+    if not row or row[0] > now - REPORT_ACCOUNT_AGE:
+        return False
+    return not db.execute("SELECT 1 FROM muted_accounts WHERE account=? UNION SELECT 1 FROM banned_accounts WHERE account=?",
+                          (account, account)).fetchone()
+
+
+def people(reporters) -> int:
+    """How many different people sent these reports, given each report's sign-in hashes.
+
+    Reports that share a sign-in are one person: an account with two sign-ins, or someone who deleted
+    their account and came back. A report tied to no sign-in is nobody who can be told apart, so it adds none.
+    """
+    groups: list[set[str]] = []
+    for keys in reporters:
+        merged = set(keys)
+        if not merged:
+            continue
+        apart = []
+        for group in groups:
+            if group & merged:
+                merged |= group
+            else:
+                apart.append(group)
+        groups = [*apart, merged]
+    return len(groups)
 
 
 def comments(store, package_id: object, viewer: str | None = None) -> dict:
@@ -53,8 +89,12 @@ def _eligibility(db, account: str, package_id: str) -> tuple[str, str] | None:
         return "no_public_name", "choose a public name on your profile before commenting"
     if db.execute("SELECT 1 FROM muted_accounts WHERE account=?", (account,)).fetchone():
         return "muted", "commenting is turned off for this account"
-    if not db.execute("SELECT 1 FROM account_downloads WHERE account=? AND package_id=?", (account, package_id)).fetchone():
-        return "not_downloaded", "download this skill while signed in before commenting"
+    if db.execute("SELECT 1 FROM banned_accounts WHERE account=?", (account,)).fetchone():
+        return "muted", "commenting is turned off for this account"
+    # No list of who downloaded what is kept. A rating is the one thing that says a person got the add-on:
+    # it took an install pass, and the person chose to publish it.
+    if not db.execute("SELECT 1 FROM ratings WHERE account=? AND package_id=?", (account, package_id)).fetchone():
+        return "not_rated", "rate this add-on from VOOL before commenting"
     return None
 
 
@@ -65,7 +105,8 @@ def post_comment(store, account: str, package_id: object, body: object, *, now: 
         refusal = _eligibility(db, account, package_id)
         require(refusal is None, refusal[1] if refusal else "")
         count = db.execute("SELECT count(*) FROM comments WHERE account=? AND created>?", (account, now - 86400)).fetchone()[0]
-        require(count < COMMENTS_PER_DAY, "daily comment limit reached")
+        # Comments of an account this person deleted in the last day still count.
+        require(count + carried(db, account, "comments", since=now - 86400) < COMMENTS_PER_DAY, "daily comment limit reached")
         state, reason = review(body)
         identifier = secrets.token_hex(16)
         if state == "refused":
@@ -83,12 +124,14 @@ def report_comment(store, account: str, identifier: object, *, now: int) -> dict
     require(isinstance(identifier, str) and len(identifier) == 32, "invalid comment id")
     with store.connection() as db:
         db.execute("BEGIN IMMEDIATE")
-        row = db.execute("SELECT account, state FROM comments WHERE id=?", (identifier,)).fetchone()
+        row = db.execute("SELECT account, state, package_id FROM comments WHERE id=?", (identifier,)).fetchone()
         require(row and row["state"] == "published", "comment not found")
         require(row["account"] != account, "you cannot report your own comment")
         db.execute("INSERT OR IGNORE INTO comment_reports VALUES (?,?,?)", (identifier, account, now))
-        reports = db.execute("SELECT count(*) FROM comment_reports WHERE comment=?", (identifier,)).fetchone()[0]
-        if reports >= REPORTS_TO_HOLD:
+        # Every report is kept for the operator; only different people with accounts old enough hide the comment.
+        sent = db.execute("SELECT account, created FROM comment_reports WHERE comment=?", (identifier,)).fetchall()
+        counting = [identity_keys(db, who) for who, at in sent if report_counts(db, who, row["package_id"], now=at)]
+        if people(counting) >= REPORTS_TO_HOLD:
             db.execute("UPDATE comments SET state='held' WHERE id=?", (identifier,))
     return {"status": "reported"}
 

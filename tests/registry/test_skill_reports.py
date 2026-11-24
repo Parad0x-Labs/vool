@@ -1,5 +1,6 @@
 """Reporting a skill: a signed-in person's reason and note, three safety reports pause downloads, operators decide."""
 import contextlib
+import functools
 import json
 import socket
 import threading
@@ -13,8 +14,12 @@ from starlette.testclient import TestClient
 from core.registry.codec import DOWNLOADS_PAUSED, RegistryError
 from registry_service import cli, community, reports
 from registry_service.api import PREFIX
-from tests.registry.helpers import NOW, TARGET
-from tests.registry.test_skill_codex import DAY, ORIGIN, account, mutation, service
+from tests.registry.helpers import NOW, TARGET, rated
+from tests.registry.test_skill_codex import DAY, ORIGIN, mutation, service
+from tests.registry.test_skill_codex import account as signed_in
+
+# A report counts toward a pause only from an account at least two weeks old, so the people here are older.
+account = functools.partial(signed_in, created=NOW - 30 * DAY)
 
 SKILLS = [("alice/notes", {}, NOW - 100), ("bob/plain", {}, NOW - 100)]
 # A valid 12-word recovery phrase.
@@ -162,11 +167,11 @@ def test_new_muted_repeating_and_non_safety_reports_are_heard_but_cannot_pause_a
                         (counting[0], "scam"), (counting[1], "stolen")):
         assert file(store, who, reason) == {"status": "received"}
     file(store, other, "other", note="The summary calls people names.")
-    assert reports.paused(store) == frozenset()  # seven reports, two of them counting
+    assert reports.paused(store, now=NOW) == frozenset()  # seven reports, two of them counting
     [package] = reports.open_reports(store)
     assert [item["counted"] for item in package["reports"]] == [False, False, False, False, True, True, False]
     file(store, counting[2], "harmful")
-    assert reports.paused(store) == frozenset({"alice/notes"})
+    assert reports.paused(store, now=NOW) == frozenset({"alice/notes"})
     with pytest.raises(RegistryError, match="not published"):
         file(store, fresh, package_id="alice/missing")
     catalog.close()
@@ -180,7 +185,7 @@ def test_the_same_accounts_cannot_pause_a_skill_again_after_an_operator_looked(t
     reports.close(store, "alice/notes")
     for who in readers[:3]:
         file(store, who)  # heard again, so a real new problem still reaches the operator
-    assert reports.paused(store) == frozenset()
+    assert reports.paused(store, now=NOW) == frozenset()
     assert [item["counted"] for item in reports.open_reports(store)[0]["reports"]] == [False] * 3
     file(store, readers[3])  # someone new does count
     assert reports.open_reports(store)[0]["reports"][-1]["counted"] is True
@@ -190,7 +195,7 @@ def test_the_same_accounts_cannot_pause_a_skill_again_after_an_operator_looked(t
 def test_operators_mute_the_account_behind_a_report_without_learning_who_it_is(tmp_path):
     store, catalog, *_ = service(tmp_path, SKILLS)
     readers = [account(store, str(10 + index), f"reader{index}")[0] for index in range(3)]
-    community.record_download(store, readers[0], "bob/plain", now=NOW)
+    rated(store, readers[0], "bob/plain", now=NOW)
     assert community.post_comment(store, readers[0], "bob/plain", "Clear and short", now=NOW)["state"] == "published"
     file(store, readers[0])
     file(store, readers[0], "broken", package_id="bob/plain")
@@ -203,7 +208,7 @@ def test_operators_mute_the_account_behind_a_report_without_learning_who_it_is(t
     assert [item["counted"] for item in reports.open_reports(store)[0]["reports"]] == [False, True]
     assert community.comments(store, "bob/plain")["comments"] == []  # muted means muted everywhere
     file(store, readers[2])
-    assert reports.paused(store) == frozenset()  # the muted report no longer helps reach three
+    assert reports.paused(store, now=NOW) == frozenset()  # the muted report no longer helps reach three
     with pytest.raises(RegistryError, match="report not found"):
         reports.mute_reporter(store, "f" * 32, now=NOW)
     catalog.close()
@@ -215,10 +220,12 @@ def test_a_pause_never_drops_out_of_the_operators_list(tmp_path):
     for who in readers:
         file(store, who)
     for who in readers:
-        store.delete_account(who)  # their reports go with them, the pause stays
-    assert reports.open_reports(store) == [{"package_id": "alice/notes", "paused": "reports", "reports": []}]
+        store.delete_account(who, now=NOW)  # the pause stays, and so do the reports that caused it
+    [listed] = reports.open_reports(store, now=NOW)
+    assert (listed["package_id"], listed["paused"], listed["counting"]) == ("alice/notes", "reports", 3)
+    assert [(item["reason"], item["note"], item["account_deleted"]) for item in listed["reports"]] == [("scam", "", True)] * 3
     reports.pause(store, "bob/plain", now=NOW)
-    assert [(item["package_id"], item["paused"]) for item in reports.open_reports(store)] == [
+    assert [(item["package_id"], item["paused"]) for item in reports.open_reports(store, now=NOW)] == [
         ("alice/notes", "reports"), ("bob/plain", "operator")]
     catalog.close()
 
@@ -365,7 +372,7 @@ def test_operators_read_reports_then_close_them_or_keep_the_skill_paused(tmp_pat
     with TestClient(app, base_url=ORIGIN) as client:
         assert ticket(client).json() == {"error": DOWNLOADS_PAUSED}
     assert operator(config, "skill-resume", "alice/notes") == 0  # ending an operator's pause is its own step
-    assert reports.paused(store) == frozenset()
+    assert reports.paused(store, now=NOW) == frozenset()
 
     # Muting by report id, the only handle an operator has.
     report_id = reports.open_reports(store)[0]["reports"][0]["id"]
@@ -382,13 +389,16 @@ def test_operators_read_reports_then_close_them_or_keep_the_skill_paused(tmp_pat
     catalog.close()
 
 
-def test_deleting_an_account_deletes_its_reports(tmp_path):
+def test_deleting_an_account_deletes_what_it_typed_and_keeps_the_report_as_a_count(tmp_path):
     store, catalog, *_ = service(tmp_path, SKILLS)
     reader = account(store, "10", None)[0]
     file(store, reader, note="Looks fake.")
-    store.delete_account(reader)
+    store.delete_account(reader, now=NOW)
     with store.connection() as db:
-        assert db.execute("SELECT count(*) FROM skill_reports").fetchone()[0] == 0
+        # The account and the note are gone; the reason and the count stay, so a pause can always be traced.
+        assert [tuple(row) for row in db.execute("SELECT account, note, reason, counted, state FROM skill_reports")] == [
+            (None, "", "scam", 1, "open")]
+    assert b"Looks fake." not in store.path.read_bytes()
     catalog.close()
 
 

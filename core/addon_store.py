@@ -255,6 +255,16 @@ def local_report_saved(identifier: str) -> dict:
     return {"ok": True, "state": "current", "local_check": {"checked_at": record["checked_at"], **saved}}
 
 
+def _recall_status() -> dict | None:
+    """The owner's saved daily-check choice for the Add-ons page; None when it cannot be read, and the switch stays locked."""
+    try:
+        from core.registry import recall
+
+        return recall.status()
+    except Exception:
+        return None
+
+
 def catalog() -> dict:
     from core.plugin_catalog import _disabled_ids
     from core.plugin_lifecycle import record_for
@@ -304,9 +314,37 @@ def catalog() -> dict:
     from core.plugin_migration import notices
     from core.plugin_tools import plugin_tools_on
 
-    return {"entries": rows, "reviews": pending, "plugins": inventory(), "plugin_notices": notices(),
-            "scanners": scanners(), "plugin_tools_enabled": plugin_tools_on(),
+    plugins = inventory()
+    _team_badges(rows, plugins)
+    return {"entries": rows, "reviews": pending, "plugins": plugins, "plugin_notices": notices(),
+            "scanners": scanners(), "plugin_tools_enabled": plugin_tools_on(), "registry_recall": _recall_status(),
             "supported": "Skills and explicitly reviewed plugins."}
+
+
+def _team_badges(rows: list[dict], plugins: list[dict]) -> None:
+    """Set "Tested by VOOL" and "Editor's Choice" from the signed badge document VOOL verified, and from nothing else.
+
+    A row read from disk never brings a badge of its own: whatever it carries is dropped first. A bundled
+    skill matches by the checksum of its SKILL.md, a plugin by the checksum of its files as they are now.
+    """
+    from core.plugin_catalog import package_badges
+    from core.registry.badges import badges_for
+    from core.registry.client import local_badges
+
+    index = local_badges()
+    for row in rows:
+        row["badges"] = badges_for(index, "skill-file", row.get("sha256"), kind="skill", package_id=row.get("id"))
+    for row in plugins:
+        # A plugin whose files changed since its review carries a reason, and no badge.
+        row["badges"] = [] if row.get("reason") else package_badges(str(row.get("id") or ""), index=index)
+    from core import plugin_lifecycle
+    from core.registry.client import installed_facts
+
+    for row in plugins:
+        # An installed plugin from the Skill Codex: whether it can be rated, and the team's notice if there is one.
+        record = plugin_lifecycle.record_for(str(row.get("id") or ""))
+        if record is not None and str(record.source).startswith("registry:"):
+            row["registry"] = installed_facts(str(record.source)[len("registry:"):])
 
 
 def security_action(action: str, value: str = "") -> dict:
@@ -615,6 +653,14 @@ def install_review(review_id: str, *, accepted: bool, risk_override: bool = Fals
         safe_skill_name = _safe_component(entry["skill_name"], _COMPONENT_ID,
                                           "addon_changed", "The reviewed skill name is not usable.")
         plugin_id = PREFIX + safe_entry_id
+        if not is_own(entry):
+            # A skill from another maker is shown under the name and maker its page gave. Both are held to the
+            # rule a plugin's are: no VOOL name, no word or mark that says someone checked or chose it.
+            from core.plugin_identity import identity_refusal
+
+            refusal = identity_refusal({"name": plugin_id, "vool": {"name": entry["name"], "publisher": entry["publisher"]}})
+            if refusal:
+                raise AddonError("addon_identity_refused", refusal)
         target = configured_plugins_root() / "plugins" / plugin_id
         if target.exists():
             raise AddonError("addon_already_installed", "This add-on is already present. Existing files were preserved.")

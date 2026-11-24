@@ -701,6 +701,7 @@ def import_package(
             "preview_markdown": verdict.get("preview_markdown") or "",
             "allowed_tools": list(verdict.get("allowed_tools") or []),
             "frontmatter_keys": list(verdict.get("frontmatter_keys") or []),
+            "not_used": list(verdict.get("not_used") or []),
             "staged": True,
         }
 

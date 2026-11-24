@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from core.plugin_package import capture_package, execution_directory
-from core.registry.artifact import inspect, materialize
+from core.registry.artifact import holds_plugin, inspect, keeps_own_id, materialize, native_identity
 from core.registry.codec import (
     FAILED_SAFETY_CHECKS,
     NEWER_VERSION_REQUIRED,
@@ -62,7 +62,9 @@ def runtime_allowed(record) -> bool:
     if not str(record.source).startswith("registry:"):
         return True
     try:
-        receipt = decode(_receipt_path(record.plugin_id).read_bytes(), 65536)
+        # The receipt is kept under the row's own key, which names the package the copy came from. For a
+        # skill that is also the installed name; a plugin is installed under its own id.
+        receipt = decode(_receipt_path(native_identity(str(record.source)[len("registry:"):])).read_bytes(), 65536)
         state = home() / "config" / STATE_NAME
         db = sqlite3.connect(state.as_uri() + "?mode=ro", uri=True)
         try:
@@ -200,7 +202,8 @@ def _installed_admission(catalog, receipt, record, package_id: str, now: int) ->
         verify(envelope, root, "root")
         prior = verify(receipt["admission"], root, "admission")
         validate_entry(prior, root, receipt["accepted_at"])
-        require(prior["metadata"]["id"] == package_id and prior["plugin_id"] == record.plugin_id and
+        require(prior["metadata"]["id"] == package_id and prior["plugin_id"] == native_identity(package_id) and
+                record.source == "registry:" + package_id and
                 prior["metadata"]["version"] == record.version and
                 prior["native_digest"] == record.verified_digest and
                 prior["dependencies"] == record.verified_dependencies, "installed receipt and record differ")
@@ -231,15 +234,16 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     require(not analyze(artifact["files"])["conflicts"], "instructions cannot override VOOL native controls")
     require(artifact["sha256"] == entry["artifact_sha256"] and len(raw) == entry["artifact_length"] and
             artifact["native_digest"] == entry["native_digest"] and artifact["metadata"] == entry["metadata"] and
-            artifact["manifest"]["name"] == entry["plugin_id"], "download differs from signed admission")
+            (artifact["manifest"]["name"] == entry["plugin_id"] or keeps_own_id(artifact["metadata"], artifact["manifest"])),
+            "download differs from signed admission")
     plugin_id = entry["plugin_id"]
-    from core.registry.artifact import native_identity
-
     require(plugin_id == native_identity(package_id), "native plugin identity is not bound to the package id")
     # Only the application-owned state path may authorize the runtime predicate.
     require(Path(catalog.db.execute("PRAGMA database_list").fetchone()[2]).resolve() ==
             (home() / "config" / STATE_NAME).resolve(), "client trust state belongs to another runtime")
     refused = unsafe(artifact, raw)  # before the locks: the checks take a moment and need none of them
+    if holds_plugin(artifact["metadata"], artifact["manifest"]):
+        return _install_plugin(catalog, raw, artifact, entry, refused=refused, authority=authority, now=now)
     root = plugin_catalog.configured_plugins_root()
     destination = root / "plugins" / plugin_id
     with _INSTALL_LOCK, plugin_lifecycle._lock, _filesystem_lock(root) as scratch, execution_directory(scratch) as owned:
@@ -324,6 +328,92 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             raise
 
 
+PLUGIN_ELSEWHERE = ("A plugin with this id is already installed from somewhere else. Uninstall it under Plugins "
+                    "first, then install this one.")
+
+
+def _install_plugin(catalog, raw: bytes, artifact: dict, entry: dict, *, refused: bool, authority: dict, now: int) -> dict:
+    """A plugin from the Skill Codex goes in through the plugin door, like one from a folder.
+
+    The signed list says these are the bytes that were published and checked. It does not replace the
+    door: the same capture, the same identity and setup-file rules, the same record, and the plugin
+    stays off until its owner reviews its access and switches it on. What the Skill Codex adds is kept
+    beside it: the install receipt, which lets a removal by the team reach this copy.
+    """
+    from core import plugin_catalog, plugin_lifecycle, plugin_manager
+    from core.plugin_package import PackageError
+    from core.plugin_tools import PluginManifestError
+    from core.registry.validation import native_format_findings
+
+    package_id, version = entry["metadata"]["id"], entry["metadata"]["version"]
+    plugin_id, source = artifact["manifest"]["name"], "registry:" + entry["metadata"]["id"]
+    receipt_path = _receipt_path(entry["plugin_id"])
+    root = plugin_catalog.configured_plugins_root()
+    with _INSTALL_LOCK, _filesystem_lock(root) as scratch, execution_directory(scratch) as owned:
+        snapshot = owned / "package"
+        materialize(raw, snapshot)
+        findings = native_format_findings(snapshot, artifact)
+        require(not findings, "native skill validation failed: " + "; ".join(
+            item["path"] + ": " + item["reason"] for item in findings))
+        require(not refused, FAILED_SAFETY_CHECKS)
+        require(not entry["dependencies"], "approved dependency closure is not installed and available")
+        previous = plugin_lifecycle.record_for(plugin_id)
+        active = bool(previous and previous.stage != plugin_lifecycle.STAGE_UNINSTALLED)
+        try:
+            old_receipt = decode(receipt_path.read_bytes(), 65536) if receipt_path.exists() else None
+        except (OSError, RegistryError):
+            raise RegistryError("installed registry receipt could not be read; existing installation was kept") from None
+        if active:
+            require(previous.source == source and bool(old_receipt), PLUGIN_ELSEWHERE)
+            prior = _installed_admission(catalog, old_receipt, previous, package_id, now)
+            require(version_key(version) > version_key(prior["metadata"]["version"]), NEWER_VERSION_REQUIRED)
+        review_id = ""
+        try:
+            review = plugin_manager.prepare_local(str(snapshot), update=active, source=source)
+            review_id = review["review_id"]
+            require(review["digest"] == entry["native_digest"], "download differs from signed admission")
+            result = plugin_manager.install(review_id, accepted=True, digest=review["digest"])
+        except (plugin_lifecycle.LifecycleError, PackageError, PluginManifestError) as exc:
+            if review_id:
+                plugin_manager.cancel_review(review_id)
+            note = getattr(exc, "maker_note", None) or plugin_manager.maker_note(exc)
+            refusal = RegistryError(str(exc) if isinstance(exc, plugin_lifecycle.LifecycleError) else
+                                    "The plugin's setup file is invalid or missing. Review it before installing.")
+            refusal.fix = (note.get("where", "") + ": " + note.get("fix", "")).strip(": ") if note else ""
+            raise refusal from None
+        except RegistryError:
+            if review_id:
+                plugin_manager.cancel_review(review_id)
+            raise
+        try:
+            envelope = next(envelope for envelope in catalog.current["entries"] if envelope["signed"] == entry)
+            _write(receipt_path, {"schema": "vool.registry.install.v1", "admission": envelope,
+                                  "accepted_at": now, "root_version": catalog.root["version"]})
+        except Exception:
+            # Without its receipt the copy could not be reached by a removal, so it does not stay.
+            if not active:
+                plugin_manager.uninstall(plugin_id)
+            raise
+        plugin_catalog.invalidate_storage_listing()
+        return {"status": "installed", "id": package_id, "version": version, "plugin_id": plugin_id,
+                "enabled": False, "native_digest": result["plugin"]["package_digest"], "keys_removed": result["keys_removed"],
+                **authority, "note": "Runtime permission checks still apply."}
+
+
+def _plugin_sheet(raw: bytes, artifact: dict) -> dict:
+    """What the review sheet shows for a plugin: the same facts the folder door shows, read from these bytes."""
+    from core import plugin_manager
+    from core.plugin_tools import load_manifest
+
+    with tempfile.TemporaryDirectory(prefix="vool-registry-sheet-") as scratch:
+        folder = Path(scratch) / "package"
+        materialize(raw, folder)
+        sheet = plugin_manager.summary(load_manifest(folder / ".codex-plugin" / "plugin.json"))
+    # The maker shown is the name the package was published under. What the setup file says is not shown as one.
+    sheet["publisher"] = artifact["metadata"]["id"].split("/")[0]
+    return sheet
+
+
 def preview(catalog, raw: bytes, *, package_id: str, version: str, target: dict, now: int) -> dict:
     from core.registry.validation import manifest_authority
 
@@ -335,10 +425,14 @@ def preview(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     boundaries["native_control_overlaps"] = notices(
         set(entry["native_rule_review"]["overlaps"]) | {item["control"] for item in boundaries["native_control_overlaps"]})
     require(value["sha256"] == entry["artifact_sha256"] and len(raw) == entry["artifact_length"], "preview input differs from admission")
+    authority = manifest_authority(value["manifest"])  # first: a plugin posing as VOOL's is told so in its own words
     require(not unsafe(value, raw), FAILED_SAFETY_CHECKS)
-    return {"id": package_id, "version": version, "sha256": value["sha256"], "metadata": value["metadata"], **boundaries,
-            **manifest_authority(value["manifest"]), "dependencies": entry["dependencies"], "targets": entry["targets"],
-            "instructions": {name: data.decode("utf-8") for name, data in value["files"].items() if name.endswith("/SKILL.md")},
-            "files": [{key: val for key, val in item.items() if key != "content"} for item in value["entries"]],
-            "reviewed": True, "installed": False, "enabled": False,
-            "separate_enable_consent": bool(value["manifest"].get("vool", {}).get("id"))}
+    result = {"id": package_id, "version": version, "sha256": value["sha256"], "metadata": value["metadata"], **boundaries,
+              **authority, "dependencies": entry["dependencies"], "targets": entry["targets"],
+              "instructions": {name: data.decode("utf-8") for name, data in value["files"].items() if name.endswith("/SKILL.md")},
+              "files": [{key: val for key, val in item.items() if key != "content"} for item in value["entries"]],
+              "reviewed": True, "installed": False, "enabled": False,
+              "separate_enable_consent": bool(value["manifest"].get("vool", {}).get("id"))}
+    if holds_plugin(value["metadata"], value["manifest"]):
+        result["plugin"] = _plugin_sheet(raw, value)
+    return result

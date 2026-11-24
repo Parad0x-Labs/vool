@@ -1,9 +1,9 @@
 {
-  "name": "vool-plugin-template",
+  "name": "text-digest-example",
   "version": "1.0.0",
   "description": "Compute the SHA-256 digest of supplied text through a bundled local connection server.",
   "vool": {
-    "id": "vool-plugin-template",
+    "id": "text-digest-example",
     "name": "Text digest example",
     "description": "Compute the SHA-256 digest of supplied text through a bundled local connection server.",
     "homepage": "https://github.com/Parad0x-Labs/vool",
@@ -21,7 +21,7 @@
     },
     "tools": [
       {
-        "intent": "vool-plugin-template.sha256",
+        "intent": "text-digest-example.sha256",
         "description": "Compute the SHA-256 fingerprint as colon-separated hexadecimal bytes and the UTF-8 byte length of the supplied text.",
         "input_schema": {
           "type": "object",
@@ -51,7 +51,7 @@
       }
     ],
     "version": "1.0.0",
-    "publisher": "VOOL",
+    "publisher": "Your name",
     "license": "MIT"
   }
 }

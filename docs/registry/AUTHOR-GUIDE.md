@@ -248,8 +248,89 @@ Packages claiming GitHub source use the import route instead of this automatic u
 Automatic skills contain instructions and optional PNG pictures, with no executable files,
 scripts, manifest tools/permissions, credential bindings or `vool` section. They cannot instruct
 software installation, terminal commands, secret entry, wallet transfers or overrides of native
-rules. Write advice in plain words; quoted dangerous commands are still checked. The legacy plugin
-protocol is broader and does not make those packages eligible for automatic skill admission.
+rules. Write advice in plain words; quoted dangerous commands are still checked. A plugin is a
+different kind of package with rules of its own: see the next section.
+
+## Publishing a plugin
+
+From VOOL 0.8 anyone publishes a plugin in the Skill Codex the way they publish a skill. A plugin
+is a folder with `.codex-plugin/plugin.json` (the setup file, with its `vool` access block), its
+programs and an MIT `LICENSE`. Publishing changes nothing about what protects the person who
+installs it: the same setup-file and identity rules run at upload, at signing and again on their
+computer, and the plugin is installed switched off.
+
+```text
+vool-community plugin-init my-plugin --namespace your-namespace --category productivity --subcategory notes-summaries
+vool-community lint my-plugin --scratch sdk-scratch
+vool-community pack my-plugin --scratch sdk-scratch --output my-plugin.vool.json
+```
+
+`plugin-init` writes `registry.json` into the plugin folder from the setup file, so the listing and
+the plugin agree from the start; it never replaces an existing `registry.json`. `--summary` sets
+the card's one sentence (default: the plugin's `vool.description`). `lint` and `pack` give the same
+JSON answer and exit codes as for a skill. Upload the packed file with
+`X-Vool-Agreement: mit-own-work-v1`, exactly as an uploaded skill package.
+
+What the checks hold a plugin package to, at `lint`, at upload and at signing:
+
+- It holds exactly one plugin: one `.codex-plugin/plugin.json` with a `vool` block, and no second one in a subfolder.
+- The setup file passes every rule an install runs (`core/plugin_manifest.py`): exact website host names with no wildcard, the plugin's own key slots only, programs inside the folder, no money, wallet or approval authority, nothing that starts by itself.
+- The identity rules an install runs: no id VOOL keeps (the ids of the packs VOOL ships, ids starting with `vool` or `parad0x`, the names VOOL's own tools start with), no VOOL or Skill Codex name, no word or mark that says it was checked or chosen (Official, Verified, "Editor's Choice", a tick, a star) in the name, the maker's name or a key label.
+- The same words are refused in every text the maker wrote that VOOL shows: both descriptions, each tool description, each key label and the `interface` fields.
+- Listing and setup file agree. The name part of the package id is the plugin's id (`name` and `vool.id`): a plugin `parcel-desk` is published as `your-namespace/parcel-desk`. `title` equals `vool.name` letter for letter (at most 60 characters). `license` and `vool.license` are both `MIT`. `version` equals the setup file's version.
+- A package id holds lowercase letters, digits and hyphens, so a plugin id with `_`, or longer than 64 characters, has to be changed before it can be published.
+- Every file is plain text (programs as source text), and gets the secret, instruction and VOOL-rule checks a skill's files get. A `SKILL.md` inside the plugin is held to a skill's full rules.
+- `requires` is empty.
+
+A refused plugin tells its maker what to change. Each such finding carries two more fields than a
+skill's: `where`, the field at fault (`vool.network[0]`, `vool.name`, `registry.json title`), and
+`fix`, what to write instead. One run lists every problem the rules can find, not only the first.
+`python -m tools.plugin_check FOLDER` gives the same list for the setup file alone, before there
+is a listing.
+
+The maker shown on a card and on the review sheet is always the publisher name the package was
+published under. `vool.publisher` in the setup file is not shown as the maker of a published plugin.
+
+In VOOL a plugin row carries the label Plugin. **Download for inspection** opens the plugin review
+sheet: what it is, the websites it reaches, the keys it asks for and every file, with programs
+marked. The only install choice is **Install and keep disabled**. Switching it on is the separate
+access sheet under Plugins, as for a plugin from a folder. A copy from the Skill Codex and a copy
+from a folder or GitHub never replace each other; uninstall one to install the other. An update is a
+higher version of the same package, and switches the plugin off again until its access is reviewed.
+
+VOOL builds before 0.8 keep listing skills from the same signed list. They show a plugin row but
+cannot install it: their package reader refuses a plugin published under its own id.
+
+## Optional listing block: long description, links, compatibility
+
+A package may carry a `listing` block in its `registry.json`, for a skill and for a plugin alike. Add it after
+`init` or `plugin-init`; neither writes one. `lint`, `pack` and `check` read it and refuse what an upload would
+refuse, each time with the field and the fix.
+
+```json
+"listing": {
+  "description": "# Meeting notes\n\nTurns the notes of a meeting into **decisions**, *owners* and dates...",
+  "links": {"homepage": "https://example.org/notes", "support": "https://example.org/help", "docs": "https://example.org/guide"},
+  "compatibility": {"min_vool": "0.8.0", "platforms": ["macos-arm64", "linux-x86_64"]}
+}
+```
+
+- `description`: 80 to 6000 characters. Paragraphs, headings `#` to `###`, lists (`-`, `*` or `1.`), `**bold**`,
+  `*italic*`, `` `code` `` and code blocks between lines of three backticks. HTML, pictures and tables are refused;
+  `<` and `>` may appear only inside code. A link written as `[text](address)` is shown as those characters, not as
+  a link: put addresses under `links`. The description gets the same text rules as SKILL.md, read with the Markdown
+  marks gone, so a word such as a badge name cannot be hidden by putting stars inside it. Ticks, medals, shields
+  and stars are refused.
+- `links`: `homepage`, `support`, `docs`, each one https address of at most 200 characters with no user name or
+  password. They are shown as text and open only when a person presses them. For a plugin, `homepage` must equal
+  `vool.homepage` in the setup file.
+- `compatibility`: `min_vool` and `max_vool` as three numbers such as `0.8.0` (leave `max_vool` out unless a newer
+  VOOL is known not to work), and `platforms` from `macos-arm64`, `macos-x86_64`, `linux-x86_64`, `windows-x86_64`.
+  This is what you say; the builds the Skill Codex checked are shown beside it.
+- With a `listing` block, `summary` is the card's one line: 20 to 140 characters, no `<` or `>`.
+
+The block stays in the package's own file, under the package checksum. It is not part of the signed row, so a new
+version is how you change it.
 
 ## Optional picture and banner
 
@@ -273,7 +354,7 @@ With GitHub import, name the pictures by their path inside the imported folder.
 
 ## When someone reports your skill
 
-People can report a skill on the website as a scam, harmful, copied, a misleading picture, broken or something else. Reports are private, and nobody sees how many a skill has or who sent them. When three accounts older than a day report a skill as a scam, harmful or copied, its downloads pause until a person on our side looks. People who try to download it meanwhile see that downloads are paused. A pause is not a verdict: if the reports don't hold up, downloads continue and the notes are deleted; if they do, that version is removed from the next signed catalog. You cannot report your own skill.
+People can report a skill on the website as a scam, harmful, copied, a misleading picture, broken or something else. Reports are private, and nobody sees how many a skill has or who sent them. When three different people, each with an account at least 14 days old, report a skill as a scam, harmful or copied, its downloads pause for up to 48 hours, or longer when the team confirms the pause, until a person on our side looks. People who try to download it meanwhile see that downloads are paused. A pause is not a verdict: if the reports don't hold up, downloads continue and the notes are deleted; if they do, that version is removed from the next signed catalog. You cannot report your own skill.
 
 ## Private states, failed review and public consent
 

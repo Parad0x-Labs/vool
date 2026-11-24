@@ -69,7 +69,8 @@ def load_service(config: dict, *, now: int):
 
 
 MODERATION = ("comments-held", "comment-publish", "comment-remove", "mute", "unmute", "pictures-pending",
-              "reports-open", "reports-close", "skill-pause", "skill-resume", "reporter-mute")
+              "reports-open", "reports-close", "skill-pause", "skill-resume", "reporter-mute",
+              "ratings-held", "appeals-open", "appeal-close")
 
 
 def moderate(args) -> int:
@@ -99,7 +100,8 @@ def moderate(args) -> int:
                         handle.write(store.picture(sha256)[1])
             print(json.dumps(pending, indent=2))
         elif args.command == "reports-open":
-            print(json.dumps(reports.open_reports(store), indent=2))
+            # The time decides which pauses from reports alone have already ended.
+            print(json.dumps(reports.open_reports(store, now=int(time.time())), indent=2))
         elif args.command == "reports-close":
             reports.close(store, args.target)
             print("Done.")
@@ -112,6 +114,20 @@ def moderate(args) -> int:
         elif args.command == "reporter-mute":
             reports.mute_reporter(store, args.target, now=int(time.time()))
             print("Done.")
+        elif args.command == "ratings-held":
+            # Read only: a rating is published, removed or restored by a signed team step, never from here.
+            from registry_service import ratings
+
+            print(json.dumps(ratings.held(store), indent=2))
+        elif args.command == "appeals-open":
+            from registry_service import ratings
+
+            print(json.dumps(ratings.appeals_open(store), indent=2))
+        elif args.command == "appeal-close":
+            from registry_service import ratings
+
+            ratings.appeal_close(store, args.target, args.outcome)
+            print("Done. The person reads the answer on their account page. To undo the step itself, use a team step.")
         elif args.command == "comments-held":
             print(json.dumps(community.held(store), indent=2))
         elif args.command in {"comment-publish", "comment-remove"}:
@@ -131,6 +147,8 @@ def team_upload(args) -> int:
 
     The member must have signed in to the website once with that GitHub account, and the signing Mac's
     marks must list them in the package's team. Each package gets the same checks and quota as an upload.
+    The signer signs nothing under a team's name by itself, so each upload that now waits is followed by
+    the hand step that names its exact bytes, in both forms: the team-steps.txt line and the Mac command.
     """
     import json
 
@@ -165,6 +183,11 @@ def team_upload(args) -> int:
                 line["findings"] = result["findings"]
                 failed += 1
             print(json.dumps(line, sort_keys=True))
+            if result["state"] == "checking" and result["consent"]:
+                print("  It waits for a team member's step. On GitHub, add this line to team-steps.txt:\n"
+                      f"    team-admit {result['package_id']} {result['sha256']}\n"
+                      "  or, with the signing Mac:\n"
+                      f"    python -m registry_service.mac_authority team-admit {result['package_id']}@{result['sha256']} --dir DIR")
         except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
             failed += 1
             reason = str(exc) if isinstance(exc, RegistryError) else type(exc).__name__
@@ -217,6 +240,7 @@ def main(argv=None) -> int:
     parser.add_argument("--port", type=int, default=8791)
     parser.add_argument("--target", default="", help="comment id, report id, account namespace or skill id (publisher/name) "
                         "for moderation commands; for pictures-pending, a new folder to write the waiting pictures into")
+    parser.add_argument("--outcome", default="", help="for appeal-close: upheld or rejected (--target is the appeal id)")
     parser.add_argument("--github-id", default="", help="for team-upload, the team member's GitHub account id")
     parser.add_argument("--packages", nargs="+", type=Path, default=[], help="for team-upload, the skill package files to upload")
     args = parser.parse_args(argv)

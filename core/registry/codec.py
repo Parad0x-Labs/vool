@@ -28,7 +28,13 @@ NEWER_VERSION_REQUIRED = "Choose a higher version number to update this skill."
 
 
 class RegistryError(ValueError):
-    """Untrusted registry input or incomplete evidence was refused."""
+    """Untrusted registry input or incomplete evidence was refused.
+
+    ``fix`` is for the author, where the rule knows it: what to write instead. The message itself
+    stays a short stable phrase, because pages and tools match on it.
+    """
+
+    fix = ""
 
 
 def canonical(value) -> bytes:
@@ -76,6 +82,8 @@ def unbase64(value: str) -> bytes:
         raise RegistryError("invalid base64 data") from None
 
 
-def require(condition: bool, message: str) -> None:
+def require(condition: bool, message: str, fix: str = "") -> None:
     if not condition:
-        raise RegistryError(message)
+        error = RegistryError(message)
+        error.fix = fix
+        raise error

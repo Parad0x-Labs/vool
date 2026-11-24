@@ -6,13 +6,14 @@ names the file and line and says what to change; a secret is never quoted back.
 """
 from __future__ import annotations
 
+import functools
 import json
 import re
 import unicodedata
 from pathlib import Path
 
 from core.registry.artifact import REVIEW_METADATA, metadata_text, review_files
-from core.registry.codec import RegistryError, canonical, digest
+from core.registry.codec import RegistryError, canonical, digest, require
 
 SUITE = "skill-codex-checks"
 SUITE_MAJOR = 1
@@ -66,7 +67,52 @@ _RESERVED = re.compile(r"\b(?:verified|official|certified|endorsed|tested by|par
 _ENDORSED = re.compile(r"\b(?:verified|approved|certified|endorsed|tested|checked|reviewed)\s+by\s+(?:vool|the skill codex|"
                        r"parad0x|paradox)\b|\b(?:official|verified)\s+(?:vool|skill codex)\b|\bparad0x\s+labs\b|"
                        r"\bvool[- ]team\b", re.IGNORECASE)
+# The same words written to slip past the two rules above ("0fficial", "Ｏｆｆｉｃｉａｌ", "Tested  by VOOL",
+# "Editors' Choice", a check mark): read on folded text, with digits and signs that stand in for letters
+# made letters, apostrophes dropped and every run of spaces, hyphens, dots and underscores made one space.
+_STAND_INS = str.maketrans({"0": "o", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s", "|": "l"})
+_APOSTROPHES = re.compile("['\u2018\u2019\u02bc`\u00b4]")
+_SPACERS = re.compile(r"[\s\-_./\\]+")
+_VOUCHERS = r"(?:the )?(?:vool|skill codex|paradox|editors?|staff)"
+# A claim that someone vouched for the skill. Refused in a name, a summary, a description and the skill's files.
+_CLAIM = re.compile(
+    r"\beditors? ?(?:choice|pick)s?\b|\bstaff ?(?:pick|choice)s?\b|"
+    r"\b(?:tested|verified|checked|reviewed|approved|recommended|trusted|certified|endorsed|picked|chosen|featured|"
+    r"made|built|backed|powered) by " + _VOUCHERS + r"\b|"
+    r"\b(?:official|verified|certified|trusted|recommended|approved|tested) (?:vool|skill codex)\b|"
+    r"\bvool(?:s)? (?:official|verified|certified|recommended|approved|trusted|tested|pick|choice|staff|team|labs)\b|"
+    r"\b(?:by|from) (?:the )?(?:vool team|vool labs|paradox ?labs|skill codex team)\b|\bby vool\b|\bparadox ?labs\b")
+# Words that vouch by themselves in the short text a card shows: a name, a summary, a description.
+_VOUCH_WORDS = re.compile(r"\b(?:verified|official|officially|certified|endorsed)\b|\btested by\b|\bsafe to use\b|"
+                          r"\bsecurity checked\b")
+# A name is the card's heading: there even "Featured" or the product's own name reads as VOOL speaking.
+_NAME_WORDS = re.compile(r"vool|\bv o o l\b|skill ?codex|\bparadox\b(?= ?(?:lab|team|official|$))|"
+                         r"\b(?:featured|highlighted|recommended|trusted|approved|audit(?:ed))\b")
+# The catalog sentences that are the two team badges themselves, and the older pick label. Read from the
+# language files when a check runs, so a label in any language VOOL ships is refused in an author's text.
+_BADGE_LABEL_KEYS = ("addons.badge_tested", "addons.badge_editors_choice", "addons.registry_editors_pick")
+# Publisher names a card reader would take for someone else: makers of AI models, wallets and payment
+# services, and the big platforms. Their own skills can be listed by a team step once they ask; nobody
+# else gets the name, with or without an ending such as "-official" or "-team".
+_BORROWED_NAMES = ("anthropic", "claude", "openai", "chatgpt", "google", "gemini", "deepmind", "microsoft", "copilot",
+                   "apple", "amazon", "aws", "meta", "github", "mistral", "ollama", "huggingface", "nvidia",
+                   "solana", "phantom", "metamask", "ledger", "trezor", "coinbase", "binance", "kraken",
+                   "stripe", "paypal", "visa", "mastercard", "revolut", "wise")
+_NAME_ENDINGS = frozenset({"", "ai", "app", "hq", "inc", "labs", "lab", "dev", "team", "official", "support", "security",
+                           "wallet", "pay", "skills", "skill", "plugins", "plugin"})
+# Publisher names that read as a role on the Skill Codex itself.
+_ROLE_NAMES = frozenset({"admin", "administrator", "moderator", "mod", "staff", "team", "support", "security", "system",
+                         "editor", "editors", "codex", "skills", "plugins", "community", "everyone", "anonymous"})
+# Marks that read as a badge in a name. A sentence may carry one ("done ✓"); a card's heading may not.
+_BADGE_MARKS = re.compile("[\u2713\u2714\u2705\u2611\U0001f5f8\u2605\u2606\u2b50\U0001f31f\U0001f3c5"
+                          "\U0001f396\U0001f3c6\U0001f947\U0001f6e1\U0001f530\U0001f4af\u2122\u00ae]")
 _SHELL = r"(?:/(?:usr/)?(?:local/)?bin/)?(?:env\s+)?(?:ba|z|da|k|fi)?sh"
+# What nobody needs to hand a skill, and the words that say whose it is.
+_SECRET_THING = (r"(?:(?:recovery|seed|secret|backup|wallet)\s+(?:phrase|words|key)|mnemonic|private\s+keys?|keystore|"
+                 r"wallet\s+file|password|passcode|passphrase|api\s+keys?|access\s+tokens?|session\s+(?:token|cookie)s?|"
+                 r"2fa\s+codes?|one-time\s+codes?|verification\s+codes?|security\s+codes?|pin\s+(?:code|number)s?|ssh\s+keys?)")
+_THEIRS = r"(?:their|your|his|her|(?:user|person|owner|customer)(?:'s|\u2019s))"
+_WHOSE = r"(?:the|a|an|all|any|both|each|every|full|whole|complete|\d{1,2}|twelve|twenty-four|" + _THEIRS + r")"
 # Rules run on folded text: NFKC, invisible marks and combining marks taken out, look-alike letters made Latin, and
 # every line joined with a space, so nothing hides behind a line break, a continuation or a different alphabet.
 _RULES = (
@@ -99,11 +145,16 @@ _RULES = (
         r"pastebin\.com|paste\.ee|hastebin\.com|glot\.io|rentry\.co|ghostbin\.\w+)/", re.IGNORECASE),
         "Skills can't use short links, raw addresses or paste sites. Link to the real page, or take the link out."),
     ("secret-ask", re.compile(
-        r"\b(?:send|paste|enter|share|provide|type(?!\s+of\b)|give|upload|reveal|tell|input|submit|copy|dm)\b[^.!?\n]{0,60}?"
-        r"\b(?:(?:recovery|seed|secret|backup|wallet)\s+(?:phrase|words|key)|mnemonic|private\s+keys?|keystore|"
-        r"wallet\s+file|password|passcode|passphrase|api\s+keys?|access\s+tokens?|session\s+(?:token|cookie)s?|"
-        r"2fa\s+codes?|one-time\s+codes?|verification\s+codes?|security\s+codes?|pin\s+(?:code|number)s?|ssh\s+keys?)",
-        re.IGNORECASE),
+        r"(?:\b(?:send|paste|enter|share|provide|type(?!\s+of\b)|give|upload|reveal|tell|input|submit|copy|dm)\b[^.!?\n]{0,60}?|"
+        # "Ask the user for their recovery phrase": the ask and its "for" in one sentence, not past a "then".
+        r"\b(?:ask|prompt)\b[^.!?\n]{0,40}?\bfor\b(?:(?!\bthen\b)[^.!?\n;:]){0,50}?|"
+        # "Request the 12 recovery words", "read out their seed phrase": the thing right after the verb.
+        r"\b(?:request|collect|obtain|gather|capture|record|read\s+out|write\s+down|note\s+down|take\s+down)\s+"
+        r"(?:" + _WHOSE + r"\s+){0,3}?(?:\w+\s+)?|"
+        # "This skill needs your password": a plainer verb counts only with the person named as the owner.
+        r"\b(?:needs?|wants?|requires?)\s+(?:the\s+)?" + _THEIRS + r"\s+(?:\w+\s+){0,2}?|"
+        r"\bwhat(?:'s|\s+is|\s+are)\s+(?:the\s+)?" + _THEIRS + r"\s+(?:\w+\s+){0,2}?)"
+        r"\b" + _SECRET_THING, re.IGNORECASE),
         "Skills can't ask for recovery phrases, keys, passwords or codes. Take that out."),
     ("wallet", re.compile(r"\b0x[0-9a-fA-F]{40}\b|\b(?:bc1|tb1)[02-9ac-hj-np-z]{11,71}\b|"
                           r"(?<![A-Za-z0-9/])(?=[1-9A-HJ-NP-Za-km-z]*\d)(?=[1-9A-HJ-NP-Za-km-z]*[A-HJ-NP-Z])"
@@ -136,14 +187,17 @@ _RULES = (
     ("letters", re.compile(r"(?<!\w)(?=\w*[A-Za-z])(?=\w*[Ͱ-ϿЀ-ԯ])\w+"),
      "This word mixes letters from different alphabets, which can hide what it says. Retype it in one alphabet."),
 )
-#: Extra rules for a skill coming INTO VOOL (a zip, a chat import, GitHub or Browse, a draft, an install).
-#: They catch what the shared Skill Codex rules above let through and red teams wrote anyway: a claim that
-#: the person already agreed, a line dressed as VOOL's own source line or a new set of rules, a picture
-#: or link that carries the person's words out in its address, a request for card or cash-machine
-#: numbers, and a link that looks like a sign-in page. A published skill is checked by the Skill Codex
-#: rules; the skill_text_findings caller adds these.
+#: More rules for every skill, whichever way it comes: published to the Skill Codex, or a zip, a chat
+#: import, GitHub or Browse, a draft, an install. They catch what the rules above let through: a claim
+#: that the person already agreed, a line dressed as VOOL's own source line or a new set of rules, a
+#: picture or link that carries the person's words out in its address, a request for card or
+#: cash-machine numbers, and a link that looks like a sign-in page. A published skill is never held to
+#: fewer rules than one a friend sends as a file. Plugin packages hold source code, where a picture tag
+#: or a link with a query is ordinary, so they are read by the rules above only.
 _ASK_FOR = r"\b(?:ask|request)\b(?:\s+\S+){0,4}?\s+for\s+(?:\S+\s+){0,6}?"
 _COLLECT = r"\b(?:collect|obtain|take\s+down|write\s+down|note\s+down|record|get)\s+(?:\S+\s+){0,4}?"
+_TO_TYPE = (r"\b(?:ask|tell|have|get|instruct|prompt)\b(?:\s+\S+){0,4}?\s+to\s+(?:type|enter|give|send|share|provide|"
+            r"read\s+out|write|paste|say)\s+(?:\S+\s+){0,6}?")
 _CARD_THING = (r"(?:(?:the|their|your|his|her)\s+)?(?:(?:bank|credit|debit|payment)\s+)?card(?:'s)?\s+"
                r"(?:number|numbers|details|expiry|expiration|cvv|cvc|security\s+code)\b|"
                r"long\s+number\s+on\s+the\s+(?:front|back)\b|\bcvv\b|\bcvc\b|"
@@ -161,7 +215,10 @@ _IMPORT_RULES = (
         re.IGNORECASE),
      "Skills can't say the person already agreed or that asking can be skipped. Take that out."),
     ("voice", re.compile(
-        r"\(\s*source\s*:|\bblock\s+[0-9a-f]{12}\b|"
+        # VOOL's own source line ends "; block <tag>" and names VOOL or how far the text is trusted. A plain
+        # citation, "(source: the page the tool returned)", is how VOOL's own answers cite and is no forgery.
+        r"\(\s*source\s*:[^()\n]{0,200}?(?:;\s*block\b|\b(?:vool|built-?in|(?:un)?trusted|skill\s+codex|third-party\s+text|"
+        r"person's\s+own)\b)|\bblock\s+[0-9a-f]{12}\b|"
         r"\b(?:end|start)\s+of\s+(?:the\s+)?(?:guidance|instructions|rules)\b|"
         r"\b(?:new|updated)\s+(?:guidance|instructions|rules)\s+from\b|"
         r"\b(?:note|message|update|notice|guidance|instructions?)\s+from\s+(?:the\s+)?vool\b|"
@@ -176,7 +233,7 @@ _IMPORT_RULES = (
         r"\b(?:add|append|put|include|attach|encode|insert)\b[^.!?\n]{0,60}?\b(?:to|in|into|onto|at\s+the\s+end\s+of)\s+"
         r"(?:the|this|that|a|each)\s+(?:link|url|web\s+address|address\s+bar|query)", re.IGNORECASE),
      "Skills can't show pictures from web addresses or put the person's words into a link. Take that out."),
-    ("card-ask", re.compile(r"(?:" + _ASK_FOR + "|" + _COLLECT + r")(?:" + _CARD_THING + ")", re.IGNORECASE),
+    ("card-ask", re.compile(r"(?:" + _ASK_FOR + "|" + _COLLECT + "|" + _TO_TYPE + r")(?:" + _CARD_THING + ")", re.IGNORECASE),
      "Skills can't ask for card numbers, expiry dates, PINs or passwords. Take that sentence out."),
     ("phishing", re.compile(
         r"\[[^\]\n]{0,80}\b(?:verify|confirm|log\s*in|login|sign\s*in|unlock|reset|update|secure|restore)\b"
@@ -192,6 +249,75 @@ _LOOKALIKE = str.maketrans({
     "І": "I", "Ј": "J", "Ѕ": "S", "Ү": "Y", "α": "a", "ο": "o", "ρ": "p", "ν": "v", "ι": "i", "κ": "k", "τ": "t",
     "υ": "u", "ϲ": "c", "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N",
     "Ο": "O", "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X"})
+
+
+def borrowed_publisher(name: str) -> str | None:
+    """The well-known name or role this publisher name passes itself off as, or None. Read on folded text."""
+    for form in _card_forms(name):
+        squeezed = form.replace(" ", "")
+        if squeezed in _ROLE_NAMES:
+            return squeezed
+        for brand in _BORROWED_NAMES:
+            if squeezed.startswith(brand) and squeezed[len(brand):] in _NAME_ENDINGS:
+                return brand
+    return None
+
+
+def _card_forms(value: str) -> tuple[str, ...]:
+    """The value as a person reads it at a glance: folded, lower case, stand-in signs read as letters."""
+    folded = _SPACERS.sub(" ", _APOSTROPHES.sub("", _fold(value)[1].casefold())).strip().translate(_STAND_INS)
+    return tuple(dict.fromkeys((folded.replace("1", "l"), folded.replace("1", "i"))))
+
+
+def _squeezed(form: str) -> str:
+    """Without spaces, and with the Turkish dotless and dotted i read as i, so capitals hide nothing."""
+    return form.replace(" ", "").replace("\u0131", "i").replace("\u0307", "")
+
+
+@functools.lru_cache(maxsize=1)
+def _badge_labels() -> tuple[tuple[str, str], ...]:
+    """(label as shown, label as a claim is read) for each badge label in each shipped language."""
+    from core.i18n.catalog import CATALOGS_DIR
+
+    found = {}
+    for path in sorted(CATALOGS_DIR.glob("*.json")):
+        messages = json.loads(path.read_text(encoding="utf-8")).get("messages", {})
+        for key in _BADGE_LABEL_KEYS:
+            label = messages.get(key)
+            if isinstance(label, str) and label.strip():
+                for form in _card_forms(label):
+                    found.setdefault(_squeezed(form), label)
+    # A label VOOL cannot read is a release fault, never a reason to let a look-alike through.
+    require(len(found) >= 2, "the badge labels could not be read")
+    return tuple((label, squeezed) for squeezed, label in found.items() if squeezed)
+
+
+def badge_label(value: str) -> str | None:
+    """The badge label this text carries, in whichever language, or None. Spaces and letter case do not hide it."""
+    squeezed = [_squeezed(form) for form in _card_forms(value)]
+    for label, wanted in _badge_labels():
+        if any(wanted in form for form in squeezed):
+            return label
+    return None
+
+
+def _vouching(value: str, *, name: bool = False, card: bool = False) -> str | None:
+    """The words in this value that read as VOOL or the Skill Codex vouching for the skill, or None.
+
+    `card` is for the short text a listing shows (summary, description); `name` for a title or an id.
+    """
+    mark = _BADGE_MARKS.search(unicodedata.normalize("NFKC", value))
+    if mark and name:
+        return mark.group(0)
+    if name and re.search(r"parad0x", _fold(value)[1], re.IGNORECASE):
+        return "Parad0x"
+    patterns = (_CLAIM, *((_VOUCH_WORDS,) if name or card else ()), *((_NAME_WORDS,) if name else ()))
+    for form in _card_forms(value):
+        for pattern in patterns:
+            match = pattern.search(form)
+            if match:
+                return match.group(0).strip()
+    return badge_label(value)
 
 
 def _finding(check: str, path: str, reason: str, *, line: int | None = None, quote: str | None = None,
@@ -250,23 +376,174 @@ def _hidden_char(text: str) -> int | None:
                  char not in _ALLOWED_MARKS and not (index == 0 and char == "\ufeff")), None)
 
 
-def _code(artifact: dict) -> list[dict]:
+_PLUGIN_FILE = ".codex-plugin/plugin.json"
+#: Said for a plugin whose listing and setup file do not say the same thing.
+PLUGIN_MISMATCH = "This plugin's listing and its setup file don't say the same thing. Make them agree, then upload it again."
+PLUGIN_ONE = "A package holds exactly one plugin, with its access block. Change the package, then upload it again."
+PLUGIN_WORDS = "This plugin's own text says it was checked or chosen. Only the Skill Codex can mark a plugin that way."
+
+
+def _plugin_finding(path: str, reason: str, where: str, fix: str, *, rule: str = "plugin") -> dict:
+    """One problem with a plugin package: the sentence, the field at fault and what to write instead."""
+    flat = lambda text, limit: " ".join(str(text).split())[:limit]  # noqa: E731
+    return dict(_finding("code", path, reason, rule=rule), where=flat(where, 160), fix=flat(fix, 900))
+
+
+def _author_fields(manifest: dict) -> list[tuple[str, str, bool | None]]:
+    """(field, text, shown as a name / on a card / None for running text) for everything a plugin's maker wrote."""
+    block = manifest.get("vool") if isinstance(manifest.get("vool"), dict) else {}
+    interface = manifest.get("interface") if isinstance(manifest.get("interface"), dict) else {}
+    author = manifest.get("author") if isinstance(manifest.get("author"), dict) else {}
+    fields = [("description", manifest.get("description"), False), ("vool.name", block.get("name"), True),
+              ("vool.publisher", block.get("publisher"), True), ("vool.description", block.get("description"), False),
+              ("author.name", author.get("name"), True)]
+    fields += [("interface." + str(key)[:40], value, key == "displayName") for key, value in interface.items()]
+    tools = block.get("tools") if isinstance(block.get("tools"), list) else []
+    # A tool's description is read by the model and listed on the sheet, not shown as a card: None marks it as
+    # running text, where "official rate" is fine and only a claim such as "verified by VOOL" is refused.
+    fields += [(f"vool.tools[{index}].description", tool.get("description"), None)
+               for index, tool in enumerate(tools) if isinstance(tool, dict)]
+    slots = block.get("credentials") if isinstance(block.get("credentials"), dict) else {}
+    fields += [("vool.credentials." + "".join(char for char in str(slot) if char.isalnum() or char in "_-")[:80] + ".label",
+                row.get("label"), False) for slot, row in slots.items() if isinstance(row, dict)]
+    return [(where, text, name) for where, text, name in fields if isinstance(text, str) and text.strip()]
+
+
+def _plugin(artifact: dict, *, official: bool) -> list[dict]:
+    """The rules for a plugin package: the ones an install runs, and that listing and setup file agree.
+
+    A plugin is someone else's code, so nothing here is lighter than the Add-ons page's own door: the same
+    setup-file rules (``core.plugin_manifest``) and the same identity rules (``core.plugin_identity``). Every
+    finding names the field and the fix, and one run lists every problem these rules can find.
+    """
+    from core.plugin_identity import identity_notes
+    from core.plugin_manifest import manifest_problems
+    from core.plugin_tools import PluginManifestError, parse_manifest
+    from core.registry.artifact import holds_plugin
+
+    info, manifest, findings = artifact["metadata"], artifact["manifest"], []
+    others = sorted(name for name in artifact["files"] if name != _PLUGIN_FILE and name.endswith("/" + _PLUGIN_FILE))
+    for name in others:
+        findings.append(_plugin_finding(name, PLUGIN_ONE, name, "This is a second plugin inside the package. Take it out, "
+                                        "or publish it as a package of its own."))
+    if not holds_plugin(info, manifest):
+        findings.append(_plugin_finding(_PLUGIN_FILE, PLUGIN_ONE, "vool", "Add the vool block to the setup file: id, version, "
+                                        "name, publisher, description, homepage, license, kind, network and credentials. "
+                                        "The template in examples/plugins/template has every field."))
+        return findings
+    block, seen = manifest["vool"], set()
+
+    def add(reason: str, where: str, fix: str, *, path: str = _PLUGIN_FILE, rule: str = "plugin") -> None:
+        if fix and (where, fix) not in seen:
+            seen.add((where, fix))
+            findings.append(_plugin_finding(path, reason, where, fix, rule=rule))
+
+    for reason, note in identity_notes(manifest):
+        add(reason, note["where"], note["fix"])
+    for refusal in manifest_problems(manifest, root=Path(".")):
+        add(str(refusal), refusal.where, refusal.fix or str(refusal))
+    if not findings:
+        # What the install door itself still refuses (a tool named like one of VOOL's own, a runtime version).
+        try:
+            parse_manifest(manifest, path=Path(_PLUGIN_FILE))
+        except (PluginManifestError, ValueError, TypeError, KeyError) as exc:
+            add(str(exc), str(getattr(exc, "where", "") or ""), str(getattr(exc, "fix", "") or exc))
+    # The listing and the setup file say the same thing, so a card can't show one plugin and install another.
+    plugin_id, (publisher, name) = str(manifest.get("name")), str(info["id"]).split("/")
+    if plugin_id != name or block.get("id") != name:
+        add(PLUGIN_MISMATCH, "registry.json id", f"The name part of the package id must be the plugin's id. The setup file "
+            f"says the id is '{plugin_id[:80]}', so publish it as {publisher}/<that id>, or change name and vool.id in the "
+            f"setup file (and the first part of each tool name) to '{name}'. A package id holds lowercase letters, "
+            "digits and hyphens only.", path="registry.json")
+    shown = block.get("name")
+    if info.get("title") != shown:
+        add(PLUGIN_MISMATCH, "registry.json title", "Set \"title\" in registry.json to the plugin's vool.name, letter for "
+            "letter. A title is at most 60 characters, so a longer vool.name has to be shortened first.",
+            path="registry.json")
+    if info.get("license") != block.get("license"):
+        add(PLUGIN_MISMATCH, "vool.license", "Set vool.license in the setup file to the licence registry.json names: MIT.")
+    if not official:
+        for where, text, as_name in _author_fields(manifest):
+            match = _RESERVED.search(text) if as_name is not None else None
+            said = match.group(0) if match else _vouching(text, name=bool(as_name), card=as_name is not None)
+            if said:
+                add(PLUGIN_WORDS, where, f"Take \"{' '.join(said.split())[:60]}\" out of this field.", rule="reserved-name")
+    return findings
+
+
+def plugin_findings(artifact: dict, *, official: bool = False) -> list[dict]:
+    """The plugin rules for an inspected package, for the author's own check before upload; [] for a skill."""
+    return _plugin(artifact, official=official) if artifact["metadata"]["kind"] == "plugin" else []
+
+
+LISTING_WORDS = "The listing's own text says it was checked or chosen. Only the Skill Codex can mark an add-on that way."
+LISTING_TEXT = "The description holds something a listing can't carry."
+
+
+def listing_findings(artifact: dict, *, official: bool = False) -> list[dict]:
+    """The rules for the listing block in a package's registry.json; [] for a package without one.
+
+    The shape first (description, links, compatibility), each problem with its field and its fix. Then the
+    description is read the way a page shows it, with the Markdown marks gone, by every rule a skill's own
+    text gets: a claim, a secret ask or a forged line split by stars or backticks is still that claim.
+    """
+    from core.registry import listing
+
+    present, value = listing.block(artifact["files"])
+    if not present:
+        return []
+    flat = lambda text, limit: " ".join(str(text).split())[:limit]  # noqa: E731
+
+    def finding(reason: str, where: str, fix: str, *, rule: str = "listing") -> dict:
+        return dict(_finding("quality", listing.FILE, reason, rule=rule), where=flat(where, 160), fix=flat(fix, 900))
+
+    findings = [finding(str(problem), problem.where, problem.fix) for problem in listing.problems(value)]
+    short = listing.tagline_problem(artifact["metadata"].get("summary"))
+    if short:
+        findings.append(finding(str(short), short.where, short.fix))
+    if artifact["metadata"]["kind"] == "plugin" and isinstance(value, dict) and isinstance(value.get("links"), dict):
+        block = artifact["manifest"].get("vool") if isinstance(artifact["manifest"].get("vool"), dict) else {}
+        if "homepage" in value["links"] and block.get("homepage") and value["links"]["homepage"] != block["homepage"]:
+            findings.append(finding(PLUGIN_MISMATCH, "listing.links.homepage", "Set listing.links.homepage to the "
+                                    "plugin's vool.homepage, letter for letter, or leave it out."))
+    if not isinstance(value, dict) or not isinstance(value.get("description"), str):
+        return findings
+    where = "listing.description"
+    lines = listing.plain_lines(listing.parse(value["description"]))
+    for item in skill_text_findings("\n".join(lines)):
+        quote = lines[item["line"] - 1] if item.get("line") and item["line"] <= len(lines) and item.get("quote") else ""
+        fix = SKILL_FIXES.get(str(item.get("rule") or ""), str(item["reason"])).replace("VOOL skills", "A listing")
+        findings.append(dict(finding(LISTING_TEXT, where, (f"\"{flat(quote, 80)}\": " if quote else "") + fix,
+                                     rule=str(item.get("rule") or "listing"))))
+    if not official:
+        said = None
+        for index, line in enumerate(lines):
+            mark = _BADGE_MARKS.search(unicodedata.normalize("NFKC", line))
+            match = _ENDORSED.search(line)
+            said = (mark.group(0) if mark else match.group(0) if match else _vouching(line) or
+                    (_vouching(line + " " + lines[index + 1]) if index + 1 < len(lines) else None))
+            if said:
+                break
+        if not said:
+            # A heading reads as the page speaking, like a name does.
+            for part in listing.parse(value["description"])["blocks"]:
+                if part["type"] == "heading":
+                    said = said or _vouching("".join(span["text"] for span in part["spans"]), card=True)
+        if said:
+            findings.append(finding(LISTING_WORDS, where, f"Take \"{flat(said, 60)}\" out of the description. Ticks, "
+                                    "medals, shields and stars are kept for the Skill Codex's own badges too.",
+                                    rule="endorsed"))
+    return findings
+
+
+def _code(artifact: dict, *, official: bool = False) -> list[dict]:
     from core.skill_package import _RUNNABLE_MANIFEST_KEYS, _looks_runnable
 
     manifest = artifact["manifest"]
-    if artifact["metadata"]["kind"] == "plugin" and isinstance(manifest.get("vool"), dict) and "id" in manifest["vool"]:
-        from core.plugin_tools import PluginManifestError, parse_manifest
-
-        try:
-            plugin = parse_manifest(manifest, path=Path(".codex-plugin/plugin.json"))
-            if not plugin.vool:
-                raise ValueError("A store plugin needs the current access declarations.")
-        except (PluginManifestError, ValueError, TypeError, KeyError) as exc:
-            return [_finding("code", ".codex-plugin/plugin.json", str(exc))]
-        # Executable source belongs to a plugin's complete reviewed distribution.
-        # _texts still refuses binary/hidden content; all source proceeds through
-        # the same secret, instruction, native-boundary and independent reviews.
-        return []
+    if artifact["metadata"]["kind"] == "plugin":
+        # Program files belong to a plugin's complete reviewed package. _texts still refuses binary and hidden
+        # content, and every file goes through the secret, instruction, native-rule and independent reviews.
+        return _plugin(artifact, official=official)
 
     findings = []
     pictures = _picture_paths(artifact)
@@ -299,8 +576,6 @@ def _code(artifact: dict) -> list[dict]:
         if manifest.get(field):
             findings.append(_finding("code", ".codex-plugin/plugin.json", "The manifest asks for " +
                                      field.replace("_", " ") + ". Skills can't ask for access; take it out."))
-    if artifact["metadata"]["kind"] != "skill":
-        findings.append(_finding("code", "registry.json", "Only skills can be published to the Skill Codex."))
     return findings
 
 
@@ -486,16 +761,43 @@ def _license(artifact: dict) -> list[dict]:
     return []
 
 
+def _header_block(text: str) -> str:
+    """The name and description lines at the top of a SKILL.md, which a listing shows; empty when there are none."""
+    if not text.startswith("---"):
+        return ""
+    end = text.find("\n---", 3)
+    return text[3:end] if end > 0 else ""
+
+
 def _quality(artifact: dict, texts: dict[str, str], *, official: bool) -> list[dict]:
     info, findings = artifact["metadata"], []
+    shown = set()  # what a card already answered for, so one claim is one finding
     if not official:
+        borrowed = borrowed_publisher(str(info.get("id") or "").split("/")[0])
+        if borrowed:
+            findings.append(_finding("quality", "registry.json", f"The publisher name reads as \"{borrowed}\", which is "
+                                     "someone else's name or a role on the Skill Codex. Publish under your own name.",
+                                     quote=str(info.get("id") or ""), rule="reserved-name"))
         for field in ("id", "title", "summary"):
             value = str(info.get(field) or "")
+            shown.add(value)
             match = _RESERVED.search(value.replace("-", " ") if field == "id" else value)
-            if match:
-                findings.append(_finding("quality", "registry.json", f"The {field} says \"{match.group(0)}\". Only the "
+            said = match.group(0) if match else _vouching(value, name=field != "summary", card=True)
+            if said:
+                findings.append(_finding("quality", "registry.json", f"The {field} says \"{said}\". Only the "
                                          "Skill Codex can mark a skill that way; take the word out.", quote=value,
                                          rule="reserved-summary" if field == "summary" else "reserved-name"))
+        # The manifest's own name and description are shown on the installed card.
+        manifest = artifact["manifest"]
+        interface = manifest.get("interface") if isinstance(manifest.get("interface"), dict) else {}
+        for label, value, name in (("name", interface.get("displayName"), True), ("description", manifest.get("description"), False)):
+            value = str(value or "")
+            said = None if value in shown else _vouching(value, name=name, card=True)
+            if said:
+                shown.add(value)
+                findings.append(_finding("quality", ".codex-plugin/plugin.json", f"The {label} says \"{said}\". Only "
+                                         "the Skill Codex can mark a skill that way; take the word out.", quote=value,
+                                         rule="reserved-name" if name else "reserved-summary"))
     if len(info["summary"].strip()) < 10:
         findings.append(_finding("quality", "registry.json", "Write a summary that says what the skill does.", rule="summary"))
     for name, text in texts.items():
@@ -513,6 +815,23 @@ def _quality(artifact: dict, texts: dict[str, str], *, official: bool) -> list[d
                                              "mark a skill that way; take the word out.",
                                              line=_line(text, match.start()), quote=_quote(text, match.start(), match.end()),
                                              rule="endorsed"))
+                    continue
+                if name.endswith(".json"):
+                    continue  # its shown fields are read above; the raw rule has read the rest
+                # The same claim behind other letters, spacing or a line break; and the header a listing shows.
+                lines = text.splitlines()
+                header = len(_header_block(text).splitlines()) if name.endswith("/SKILL.md") else 0
+                for index, line in enumerate(lines):
+                    in_header = 0 < index <= header and line.split(":", 1)[0].strip().lower() in ("name", "description")
+                    value = line.split(":", 1)[1] if in_header else line
+                    said = None if value.strip().strip("\"'") in shown else _vouching(value, card=in_header)
+                    if not said and not in_header and index + 1 < len(lines) and not _vouching(lines[index + 1]):
+                        said = _vouching(line + " " + lines[index + 1])  # a claim broken over two lines
+                    if said:
+                        findings.append(_finding("quality", name, f"It says \"{said}\". Only the Skill Codex can mark a "
+                                                 "skill that way; take the word out.", line=index + 1,
+                                                 quote=" ".join(line.split()), rule="endorsed"))
+                        break
     return findings
 
 
@@ -532,7 +851,7 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     findings = {name: [] for name in DETERMINISTIC}
     for item in text_findings:
         findings[item["check"]].append(item)
-    findings["code"] += _code(artifact)
+    findings["code"] += _code(artifact, official=official)
     if sum(len(text) for text in texts.values()) > MAX_TEXT:
         # Nothing this long can be read in full, so nothing else is worth running on it.
         findings["quality"].append(_finding("quality", "package", "This skill is too long to check. Keep all its "
@@ -542,9 +861,15 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     metadata_words = "\n".join(_strings(json.loads(metadata_text(artifact, checksums=False))))
     secrets, secret_lines = _secrets({**texts, REVIEW_METADATA: metadata_words})
     findings["secrets"] += secrets
-    findings["instructions-primary"] += _instructions(texts, secret_lines)
+    rules = _RULES + _IMPORT_RULES if artifact["metadata"]["kind"] == "skill" else _RULES
+    findings["instructions-primary"] += _instructions(texts, secret_lines, rules)
+    if artifact["metadata"]["kind"] != "skill":
+        # A skill file inside a plugin is read by VOOL like any skill, so it gets a skill's full rules.
+        findings["instructions-primary"] += _instructions(
+            {name: text for name, text in texts.items() if name.endswith("SKILL.md")}, secret_lines, _IMPORT_RULES)
     findings["license"] += _license(artifact)
     findings["quality"] += _quality(artifact, texts, official=official)
+    findings["quality"] += listing_findings(artifact, official=official)
     if artifact["manifest"].get("requires"):
         findings["dependencies"].append(_finding("dependencies", ".codex-plugin/plugin.json",
                                                  "Skill Codex skills can't depend on other packages yet. Empty the requires list."))
@@ -575,7 +900,7 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
         "source": {"publication": publication, "artifact_sha256": artifact["sha256"]},
         "archive": {"files": len(artifact["files"]), "bytes": artifact["raw_length"]},
         "secrets": {}, "code": {}, "license": {"license": "MIT"}, "quality": {},
-        "instructions-primary": {"rules": [rule for rule, _, _ in _RULES]},
+        "instructions-primary": {"rules": [rule for rule, _, _ in rules]},
         "dependencies": {"pins": {}},
         "native-boundaries": {"obeys_native_rules": True, "conflicts": [],
                               "overlaps": sorted({item["control"] for item in boundaries["native_control_overlaps"]})},

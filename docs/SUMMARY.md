@@ -45,6 +45,22 @@
 * [X integration](guides/x-integration.md)
 * [See what leaves your computer](guides/what-leaves-your-computer.md)
 
+## Make skills and plugins
+
+* [Start here](creators/README.md)
+* [Make a skill](creators/make-a-skill.md)
+* [Make a plugin](creators/make-a-plugin.md)
+* [Rules and why](creators/rules-and-why.md)
+* [Publish](creators/publish.md)
+* [Questions and answers](creators/faq.md)
+* [For AI agents: start here](creators/agents/README.md)
+* [For AI agents: make a skill](creators/agents/skill.md)
+* [For AI agents: make a plugin](creators/agents/plugin.md)
+* [For AI agents: errors and fixes](creators/agents/errors.md)
+* [Plugin mistakes and fixes](creators/reference/plugin-refusals.md)
+* [Skill rule codes](creators/reference/skill-rules.md)
+* [Names VOOL keeps](creators/reference/names-kept-back.md)
+
 ## Reference
 
 * [Configuration](reference/configuration.md)

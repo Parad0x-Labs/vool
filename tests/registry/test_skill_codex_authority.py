@@ -451,6 +451,11 @@ def test_team_members_publish_under_the_team_name_and_nobody_else_can(world):
     who = world.store.identity("github", "777", now=NOW)
     with pytest.raises(RegistryError, match="reserved"):
         world.store.profile(who, {"namespace": "vool-team", "bio": "", "handles": {}})
+    # Being queued under the team's name is not enough: each upload waits for the hand step naming its bytes.
+    waiting = world.mac.run_once()
+    assert waiting["admitted"] == [] and len(waiting["team_step_needed"]) == 2
+    for named in waiting["team_step_needed"]:
+        world.mac.act("team-admit", named)
     assert world.mac.run_once()["admitted"] == ["vool-team/helper 1.0.0", "vool-team/other 1.0.0"]
     assert world.http.get(PREFIX + "/profiles/vool-team").json()["origin"] == "official"
 
@@ -586,6 +591,8 @@ def test_one_version_number_never_names_two_skills(world, monkeypatch):
     assert raced[0]["state"] == second["state"] == "checking" and raced[0]["sha256"] != second["sha256"]
     world.store.consent(kas, raced[0]["id"], raced[0]["sha256"], public=True)
 
+    for named in world.mac.run_once()["team_step_needed"]:  # team uploads wait for the hand step naming their bytes
+        world.mac.act("team-admit", named)
     report = world.mac.run_once()
     assert report["admitted"] == ["vool-team/helper 1.0.0", "vool-team/notes 1.0.0"]
     assert report["refused"] == ["vool-team/notes 1.0.0"] and report["errors"] == []
@@ -598,6 +605,7 @@ def test_one_version_number_never_names_two_skills(world, monkeypatch):
 
     # The list keeps going for everyone after the clash.
     draft(world, sls_token, sls_csrf, "vool-team/agenda")
+    world.mac.act("team-admit", world.mac.run_once()["team_step_needed"][0])
     assert world.mac.run_once()["admitted"] == ["vool-team/agenda 1.0.0"] and "vool-team/agenda" in rows(world)
 
 

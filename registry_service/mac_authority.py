@@ -5,12 +5,15 @@
     python -m registry_service.mac_authority mark|unmark|highlight|unhighlight|remove PUBLISHER/NAME --dir DIR
     python -m registry_service.mac_authority suspend|unsuspend NAME --dir DIR
     python -m registry_service.mac_authority team NAME --github-id ID [--github-id ID ...] --dir DIR
+    python -m registry_service.mac_authority team-admit PUBLISHER/NAME@CHECKSUM --dir DIR
     python -m registry_service.mac_authority targets --file FILE --dir DIR
     python -m registry_service.mac_authority status --dir DIR
 
 `run` takes uploads waiting on the server, runs every check itself on the exact bytes and signs
-only what passes. Hand actions (the "Tested by Parad0x Labs" mark, the Highlighted spot, removing
-a skill, suspending a creator, team members) each need a code from the owner's authenticator app.
+only what passes. An upload under a team's name is the exception: it waits until `team-admit` names
+its exact bytes, so the unattended run alone never signs anything as the team's. Hand actions (the
+"Tested by Parad0x Labs" mark, the Highlighted spot, removing a skill, suspending a creator, team
+members, admitting a team upload) each need a code from the owner's authenticator app.
 That code stops anyone without the owner's phone from using these commands; it cannot protect a
 Mac that someone has fully taken over, because the keys live here too.
 """
@@ -46,6 +49,7 @@ from cryptography.hazmat.primitives.serialization import (
 
 from core.registry import checks
 from core.registry.admission import validate_policy
+from core.registry.artifact import inspect
 from core.registry.codec import HEX, IDENTITY, VERSION, RegistryError, canonical, decode, digest, require, version_key
 from core.registry.publisher import add_signature, admission, authorize_catalog
 from core.registry.trust import AUTHORIZATION_SECONDS, root_document, verify
@@ -63,6 +67,8 @@ REVIEW_ATTEMPTS = 3
 REVIEWS_PER_CREATOR = 30
 _FINDING_KEYS = {"check": 64, "path": 300, "reason": 600, "quote": 120, "rule": 64}
 STEP = 30
+# Said when a queue row and the package it carries disagree. It names no upload: the GitHub signer's log is public.
+RENAMED = "the service named an upload differently than its package does"
 
 
 class RunStopped(Exception):
@@ -250,6 +256,9 @@ class Authority:
                 require(isinstance(answer, dict) and type(answer.get("sequence")) is int and
                         answer == {"sequence": value["signed"]["sequence"]},
                         "the service returned an invalid marks acknowledgement")
+            elif path == "/authority/badges":
+                require(answer == {"sequence": value["badges"]["signed"]["sequence"]},
+                        "the service returned an invalid badges acknowledgement")
             elif path == "/authority/catalog":
                 published = {entry["signed"]["metadata"]["id"] + "@" + entry["signed"]["metadata"]["version"]
                              for entry in value["entries"]}
@@ -463,12 +472,63 @@ class Authority:
         for item in queue["submissions"]:
             raw = self.call("GET", "/authority/submissions/" + item["id"], raw=True)
             require(hashlib.sha256(raw).hexdigest() == item["sha256"], "the server sent different bytes")
+            # The queue's name for these bytes is only the service's word. A row that disagrees with the
+            # package is the service's fault, never the creator's, so the batch waits like any other broken read.
+            require(self._own_name(raw) in (None, (item["package_id"], item["version"])), RENAMED)
             prepared.append((item, raw))
         return prepared
+
+    def _own_name(self, raw: bytes) -> tuple[str, str] | None:
+        """The id and version the package itself carries, or None when it can't be read (the checks then say why)."""
+        try:
+            info = inspect(raw)["metadata"]
+            return info["id"], info["version"]
+        except Exception as exc:
+            if isinstance(exc, (OSError, MemoryError)):
+                raise  # a device failure, not the package's content
+            return None
+
+    def _team_admitted(self, named: str) -> bool:
+        """Whether a team member's hand step named exactly these bytes, as publisher/name@checksum."""
+        return named in self.state.get("team_admits", [])
+
+    # ---- the two team badges ----
+
+    def _badge_folder(self) -> Path:
+        return self.dir / "badges"
+
+    def relay_badges(self) -> dict | None:
+        """Pass on the badge document two appointed people signed, with a fresh "still current" stamp.
+
+        This signer holds no badge key. Its admission key signs only the stamp, which names the exact
+        document and lasts a week; the service and every app check the two people's signatures themselves.
+        """
+        from core.registry import badges
+
+        folder = self._badge_folder()
+        if not (folder / badges.SHIPPED[0]).is_file():
+            return None
+        try:
+            document = decode((folder / badges.SHIPPED[0]).read_bytes(), badges.MAX_BYTES)
+            issuer_list = decode((folder / badges.SHIPPED[1]).read_bytes(), 65536)
+        except OSError:
+            raise RegistryError("badges/badge-issuers.json is missing beside badges/badges.json") from None
+        issuer = badges.issuers(issuer_list, self.root, now=self.now())
+        signed = badges.verify_document(document, issuer, now=self.now())
+        stamp = add_signature(badges.new_stamp(signed, now=self.now()), self.admission_key)
+        self.call("POST", "/authority/badges", {"issuers": issuer_list, "badges": document, "stamp": stamp})
+        return {"sequence": signed["sequence"], "badges": len(signed["badges"])}
 
     @_exclusive
     def run_once(self, *, queue: dict | None = None, prepared: list | None = None, held: str | None = None) -> dict:
         report = {"admitted": [], "refused": [], "waiting": [], "errors": []}
+        try:
+            relayed = self.relay_badges()
+            if relayed:
+                report["badges"] = relayed
+        except RegistryError as exc:
+            # Badges that do not verify, or that the service refuses, wait; uploads and the signed list go on.
+            report["badge_problem"] = str(exc)
         self._review_stop = None
         self._batch_admissions = []
         if queue is None:
@@ -483,8 +543,17 @@ class Authority:
         for item, raw in prepared:
             if item["sha256"] in self.state.get("pending", {}):
                 continue  # the saved decision is retried by _deliver, without another check
-            publisher = item["package_id"].split("/")[0]
-            result = self.check(raw, official=publisher in self.state["marks"]["teams"])
+            # Whose skill this is comes from the package's own id, never from the queue row the service wrote.
+            own = self._own_name(raw)
+            official = own is not None and own[0].split("/")[0] in self.state["marks"]["teams"]
+            named = own[0] + "@" + hashlib.sha256(raw).hexdigest() if own else ""
+            if official and not self._team_admitted(named):
+                # Being queued proves nothing about who uploaded. A team's name is only signed after a team
+                # member's hand step named these exact bytes; until then it waits, unchecked and unpaid.
+                report.setdefault("team_step_needed", []).append(named)
+                checked.append((item, raw, {}))
+                continue
+            result = self.check(raw, official=official)
             self.review_checkpoint()  # keep review costs before attempting another upload
             checked.append((item, raw, result))
             if "admission" in result:
@@ -563,10 +632,12 @@ class Authority:
         self.state["totp_last"] = counter
         self.save()
 
-    def _marks(self) -> dict:
+    def _marks(self, operations: list | None = None) -> dict:
         marks = self.state["marks"]
         value = marks_document({"schema": MARKS_SCHEMA, "sequence": marks["sequence"] + 1, "issued_at": self.now(),
-                                **{key: marks[key] for key in ("tested", "highlighted", "suspended", "teams")}},
+                                **{key: marks[key] for key in ("tested", "highlighted", "suspended", "teams")},
+                                **{key: marks[key] for key in ("delisted", "withdrawals") if key in marks},
+                                **({"operations": operations} if operations else {})},
                                now=self.now())
         self.call("POST", "/authority/marks", add_signature({"signed": value, "signatures": []}, self.admission_key))
         marks["sequence"] = value["sequence"]
@@ -583,9 +654,32 @@ class Authority:
         return max(versions, key=lambda entry: version_key(entry["metadata"]["version"]))["artifact_sha256"]
 
     @_exclusive
-    def act(self, action: str, target: str, *, members: list[str] | None = None) -> str:
+    def act(self, action: str, target: str, *, members: list[str] | None = None, reason: str = "") -> str:
         marks = self.state["marks"]
-        if action in {"mark", "unmark", "highlight", "unhighlight", "remove"}:
+        if action == "step":
+            # One step about ratings or an account, written as its line in the team's steps file.
+            from registry_service.ratings import FORMS, step_from_words
+
+            words = target.split()
+            require(bool(words) and words[0] in FORMS, "this is not a rating step; use one of: " + ", ".join(sorted(FORMS)))
+            self._marks([step_from_words(words[0], words[1:])])
+            return "Done."
+        if action in {"delist", "remove"} and (reason or action == "delist"):
+            from registry_service.ratings import reason_code
+
+            reason_code(reason)
+        if action == "team-admit":
+            # Kept on this Mac only: it lets the next run check and sign these bytes, and changes no mark.
+            name, _, sha = target.partition("@")
+            parts = name.split("/")
+            require(len(parts) == 2 and all(IDENTITY.fullmatch(part) for part in parts) and bool(HEX.fullmatch(sha)),
+                    "name the upload as publisher/name@checksum")
+            require(parts[0] in marks["teams"], "that publisher is not a team")
+            require(target not in self.state.get("team_admits", []), "already done")
+            self.state["team_admits"] = sorted([*self.state.get("team_admits", []), target])
+            self.save()
+            return "Done. The next run checks these bytes and signs them if they pass."
+        if action in {"mark", "unmark", "highlight", "unhighlight", "remove", "delist", "relist"}:
             parts = target.split("/")
             require(len(parts) == 2 and all(IDENTITY.fullmatch(part) for part in parts), "name the skill as publisher/name")
         else:
@@ -613,9 +707,21 @@ class Authority:
         elif action == "team":
             require(members and all(member.isdigit() for member in members), "give each member's GitHub account number")
             marks["teams"] = {**marks["teams"], target: sorted(set(members))}
+        elif action == "delist":
+            # Off the list; installed copies keep working, and nothing is revoked.
+            require(self._listed(target), "that skill is not in the Skill Codex")
+            require(all(item["id"] != target for item in marks.get("delisted", [])), "already done")
+            marks["delisted"] = sorted([*marks.get("delisted", []), {"id": target, "reason": reason}], key=lambda item: item["id"])
+        elif action == "relist":
+            kept = [item for item in marks.get("delisted", []) if item["id"] != target]
+            require(len(kept) < len(marks.get("delisted", [])), "nothing to undo")
+            marks["delisted"] = kept
         elif action == "remove":
             removed = [envelope for envelope in self.state["entries"] if envelope["signed"]["metadata"]["id"] == target]
             require(removed, "that skill is not in the Skill Codex")
+            if reason:
+                marks["withdrawals"] = sorted([*(item for item in marks.get("withdrawals", []) if item["id"] != target),
+                                               {"id": target, "reason": reason}], key=lambda item: item["id"])
             self.state["entries"] = [envelope for envelope in self.state["entries"] if envelope not in removed]
             self.state["revoked"] = sorted(set(self.state["revoked"]) | {item["signed"]["artifact_sha256"] for item in removed})
             for field in ("tested", "highlighted"):
@@ -678,7 +784,8 @@ def unlock_root(directory: Path, passphrase: str) -> Ed25519PrivateKey:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Skill Codex signing authority (runs on the owner's Mac)")
     parser.add_argument("command", choices=["setup", "run", "status", "targets", "mark", "unmark", "highlight",
-                                            "unhighlight", "remove", "suspend", "unsuspend", "team"])
+                                            "unhighlight", "remove", "suspend", "unsuspend", "team", "team-admit",
+                                            "delist", "relist", "step"])
     parser.add_argument("target", nargs="?", default="")
     parser.add_argument("--dir", required=True, type=Path)
     parser.add_argument("--server", default="")
@@ -689,6 +796,7 @@ def main(argv=None) -> int:
     parser.add_argument("--model", default="")
     parser.add_argument("--cap", type=float, default=20.0)
     parser.add_argument("--github-id", action="append", default=[])
+    parser.add_argument("--reason", default="", help="for delist, remove and nothing else: a reason code from the fixed list")
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--every", type=int, default=300)
     args = parser.parse_args(argv)
@@ -733,7 +841,7 @@ def main(argv=None) -> int:
         if args.command == "targets":
             print(authority.set_targets(json.loads(args.file.read_text())))
         else:
-            print(authority.act(args.command, args.target, members=args.github_id))
+            print(authority.act(args.command, args.target, members=args.github_id, reason=args.reason))
         return 0
     except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
         print("Refused: " + (str(exc) if isinstance(exc, RegistryError) else type(exc).__name__))

@@ -26,12 +26,13 @@ def render_addon_store_fragment() -> str:
 .addon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .addon-card{border:1px solid var(--border,#38414b);border-radius:6px;padding:20px;background:var(--panel,#171b22);min-width:0;display:flex;flex-direction:column;gap:12px}
 .addon-card:hover{border-color:var(--muted)}.addon-card h3{margin:0;font-size:16px;letter-spacing:-.2px}.addon-card p{margin:0;line-height:1.55;font-size:13px;color:var(--muted)}
-.addon-card-head{display:flex;align-items:center;gap:13px}.addon-icon{width:52px;height:52px;flex:none;display:grid;place-items:center;border-radius:6px;background:#303d4b;color:#dce6f2;font-size:22px;font-weight:650;letter-spacing:-1px}
+.addon-card-head{display:flex;align-items:center;gap:13px}.team-badge-row{display:inline-flex;flex-wrap:wrap;gap:6px;margin-left:auto}vool-badge.vool-team-badge{display:inline-flex;align-items:center;flex:none;padding:3px 9px;border:1px solid var(--accent);border-radius:999px;color:var(--accent);font-size:11px;font-weight:650;line-height:1.4;white-space:nowrap;cursor:help}.addon-card-head.with-team-badges,.plugin-title-row{flex-wrap:wrap}.plugin-title-row{display:flex;align-items:center;gap:10px}.addon-icon{width:52px;height:52px;flex:none;display:grid;place-items:center;border-radius:6px;background:#303d4b;color:#dce6f2;font-size:22px;font-weight:650;letter-spacing:-1px}
 .skill-report{margin-top:16px}.skill-report p{margin:0}.skill-report a,.skill-report-row a{color:var(--muted);text-underline-offset:2px}.skill-report-row{display:flex;justify-content:flex-end;margin-top:-4px;font-size:11px}.skill-report-row a{text-decoration:none}.skill-report-row a:hover,.skill-report-row a:focus-visible{text-decoration:underline}.skill-paused,.skill-unsafe{margin:0;padding:9px 12px;border:1px solid var(--border,#38414b);border-radius:6px}
 .skill-publish-row{display:flex;justify-content:flex-end;margin-top:4px}.skill-publish-btn,.skill-publish-quiet{background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;text-underline-offset:2px}.skill-publish-btn{padding:6px 0;min-height:28px}.skill-publish-btn:hover,.skill-publish-btn:focus-visible,.skill-publish-quiet{text-decoration:underline}.skill-publish-quiet{font-size:12px}.skill-publish .addon-actions .skill-publish-quiet{text-decoration:none}.skill-publish h4:focus{outline:none}.skill-publish h4:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .skill-publish{margin-top:12px;padding:14px 16px;border:1px solid var(--border,#38414b);border-radius:6px;font-size:13px;line-height:1.55}.skill-publish h4{margin:0 0 8px;font-size:13px}.skill-publish p{margin:8px 0}.skill-publish ul{margin:6px 0 10px;padding-inline-start:18px}.skill-publish li{margin:4px 0}.skill-publish li small{display:block;color:var(--muted);font-size:11px;overflow-wrap:anywhere}.skill-publish-quote{display:block;margin-top:4px;padding:4px 6px;border:1px solid var(--border,#38414b);border-radius:4px;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}.skill-publish li,.skill-publish-quote,.skill-publish-text{unicode-bidi:plaintext;text-align:start}.skill-publish .addon-facts{margin:6px 0 10px}.skill-publish .addon-actions{margin:12px 0 0}
 .skill-publish-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font-size:11px;margin:10px 0;padding:10px;border:1px solid var(--border,#38414b);border-radius:4px;background:var(--bg,#101319)}#pluginsBody a.skill-publish-open{display:inline-block;padding:9px 13px;border-radius:4px;text-decoration:none;font-size:12px}#pluginsBody a.skill-publish-open:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .addon-icon.skill-pic{position:relative;overflow:hidden;background:var(--field,#1d2129);color:var(--muted)}.addon-icon.skill-pic::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px var(--border,#38414b);pointer-events:none}.addon-icon.skill-pic img{width:100%;height:100%;object-fit:cover;display:block;animation:skill-pic-in .2s ease-out}@keyframes skill-pic-in{from{opacity:0}}@media (prefers-reduced-motion:reduce){.addon-icon.skill-pic img{animation:none}}.addon-icon.skill-missing svg{width:50%;height:50%;opacity:.7}.addon-card-head h3{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}.addon-icon.design{background:#483a33;color:#f4d5bf}.addon-icon.security{background:#353d35;color:#d0dfbe}.addon-card-head small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+.registry-figures{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}.registry-figure{display:inline-flex;align-items:center;gap:5px}.registry-figure svg{width:13px;height:13px;flex:none}.registry-rating{color:var(--ink)}.registry-moderation{margin:0}.registry-rate{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
 .addon-card-footer{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px;font-size:11px;color:var(--muted)}
 .addon-state{font-size:11px;color:var(--muted)}.addon-state.good{color:var(--accent,#48d6be)}
 .addon-risk-note{font-size:12px;line-height:1.6;padding:12px;border:1px solid #76563d}.addon-risk-note button{margin:0 0 0 10px}.addon-override{padding-top:16px;border-top:1px solid var(--border)}.addon-override summary{font-weight:650;color:var(--ink)}.addon-override label{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--ink);margin:18px 0}.addon-override input{margin-top:4px;flex:none}.addon-override .addon-risk-button{border-color:#9d7043;color:var(--warning,#ffbd67)}
@@ -50,14 +51,38 @@ def render_addon_store_fragment() -> str:
 .addon-pending{border:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;border-radius:4px;font-size:13px}.addon-pending small{display:block;color:var(--muted);margin-top:5px}
 #pluginsBody button:disabled{opacity:.45;cursor:default}#pluginsBody button:focus-visible,#addonNav button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .addon-collections{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:22px}.addon-collections button{border:1px solid var(--border);background:var(--panel);color:inherit;padding:15px 10px;text-align:left;border-radius:5px;cursor:pointer}.addon-collections strong{display:block;font-size:13px}.addon-collections small{display:block;color:var(--muted);font-size:11px;margin-top:7px}.addon-collections button[aria-pressed=true]{border-color:var(--muted);background:rgba(127,127,127,.12)}.addon-library-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.addon-library-grid>.plugins-empty{grid-column:1 / -1}.addon-library-grid .plugin-card{margin:0;border-radius:6px;padding:18px}.addon-library-grid .p-head{flex-wrap:wrap}.addon-library-grid .p-desc{line-height:1.6}.addon-library-grid .p-ver{display:none}
+#pluginsOverlay{--vl-surface:var(--panel,#1b1b1e);--vl-surface-2:var(--field,#232326);--vl-ink:var(--ink,var(--fg,#e6e2dc));--vl-ink-2:var(--muted,#aaa5a0);--vl-line:var(--border,#39393f);--vl-focus:var(--accent,#c3b8a8);--vl-choice-ink:#e2c58f;--vl-choice-bg:#2a2620;--vl-choice-line:#5a4a2c;--vl-tested-ink:#9cc7a9;--vl-tested-bg:#1e2621;--vl-tested-line:#3d5a45;--vl-star:#d9b45a;--vl-star-off:#4a4a50;--vl-bar:#d9b45a;--vl-bar-track:#2b2b30;--vl-t-xs:11px;--vl-t-sm:12px;--vl-t-md:13px;--vl-t-base:14px;--vl-t-lg:16px;--vl-t-2xl:26px;--vl-lh:1.55;--vl-w-strong:620;--vl-r-chip:999px;--vl-r-sm:6px;--vl-r-tile:12px;--vl-s1:4px;--vl-s2:8px;--vl-s3:12px;--vl-s4:16px;--vl-s5:24px;--vl-tile-card:56px;--vl-tile-detail:72px;--vl-badge-h:22px;--vl-badge-h-lg:28px}
+:root[data-theme="light"] #pluginsOverlay{--vl-choice-ink:#7a5a12;--vl-choice-bg:#f6efe0;--vl-choice-line:#e2cf9f;--vl-tested-ink:#1f6a3a;--vl-tested-bg:#e8f1ea;--vl-tested-line:#b9d4c0;--vl-star:#8a6410;--vl-star-off:#cdc7be;--vl-bar:#8a6410;--vl-bar-track:#ece9e4}
+@media (prefers-color-scheme: light){:root[data-theme="system"] #pluginsOverlay{--vl-choice-ink:#7a5a12;--vl-choice-bg:#f6efe0;--vl-choice-line:#e2cf9f;--vl-tested-ink:#1f6a3a;--vl-tested-bg:#e8f1ea;--vl-tested-line:#b9d4c0;--vl-star:#8a6410;--vl-star-off:#cdc7be;--vl-bar:#8a6410;--vl-bar-track:#ece9e4}}
+#pluginsOverlay vool-badge.vool-team-badge{height:var(--vl-badge-h);padding:0 9px;box-sizing:border-box;border-radius:var(--vl-r-chip);font-size:var(--vl-t-xs);font-weight:var(--vl-w-strong);line-height:1}
+#pluginsOverlay vool-badge.vool-team-badge[data-badge=editors_choice]{color:var(--vl-choice-ink);background:var(--vl-choice-bg);border-color:var(--vl-choice-line)}
+#pluginsOverlay vool-badge.vool-team-badge[data-badge=tested]{color:var(--vl-tested-ink);background:var(--vl-tested-bg);border-color:var(--vl-tested-line)}
+.vl-detail vool-badge.vool-team-badge{height:var(--vl-badge-h-lg);font-size:var(--vl-t-md);padding:0 12px}
+@media (forced-colors:active){#pluginsOverlay vool-badge.vool-team-badge{border-color:CanvasText;color:CanvasText;background:Canvas}}
+.vl-card-top{display:grid;grid-template-columns:var(--vl-tile-card) minmax(0,1fr);gap:var(--vl-s3) var(--vl-s4);align-items:start}.vl-card-top .addon-icon{width:var(--vl-tile-card);height:var(--vl-tile-card);border-radius:var(--vl-r-tile)}
+.vl-card-main{min-width:0;display:flex;flex-direction:column;gap:6px}.vl-card-main h3{font-size:var(--vl-t-lg);margin:0;overflow-wrap:anywhere}.vl-card-main .team-badge-row{margin-left:0}
+.addon-card small.vl-byline,.vl-byline{display:block;font-size:var(--vl-t-sm);color:var(--vl-ink-2);margin:0;overflow-wrap:anywhere}
+.addon-card p.vl-tagline{font-size:var(--vl-t-md);line-height:var(--vl-lh);color:var(--vl-ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.vl-card-meta{display:flex;flex-wrap:wrap;gap:6px var(--vl-s3);font-size:var(--vl-t-sm);color:var(--vl-ink-2)}.vl-card-meta p{margin:0}
+.vl-notice{margin:0;padding:9px 12px;border:1px solid var(--vl-line);border-radius:var(--vl-r-sm);font-size:var(--vl-t-sm);line-height:var(--vl-lh);color:var(--vl-ink)}
+.vl-detail{max-width:720px;color:var(--vl-ink)}.vl-detail-head{display:grid;grid-template-columns:var(--vl-tile-detail) minmax(0,1fr);gap:var(--vl-s4);align-items:start}.vl-detail-head .addon-icon{width:var(--vl-tile-detail);height:var(--vl-tile-detail);border-radius:var(--vl-r-tile)}
+.vl-detail-head h2{font-size:var(--vl-t-2xl);letter-spacing:-.5px;margin:0 0 4px;overflow-wrap:anywhere}.vl-detail-head p{margin:0 0 6px;font-size:var(--vl-t-base);line-height:var(--vl-lh);color:var(--vl-ink-2);overflow-wrap:anywhere}.vl-detail-head .team-badge-row{margin:6px 0 0}
+.vl-detail>section{padding:var(--vl-s4) 0;border-top:1px solid var(--vl-line)}.vl-detail>section>h3{font-size:var(--vl-t-base);margin:0 0 var(--vl-s3)}.vl-detail h4{font-size:var(--vl-t-sm);color:var(--vl-ink-2);margin:var(--vl-s3) 0 var(--vl-s1);font-weight:var(--vl-w-strong)}
+.vl-detail ul,.vl-detail ol{margin:var(--vl-s1) 0;padding-inline-start:20px;font-size:var(--vl-t-md);line-height:var(--vl-lh)}.vl-detail p{font-size:var(--vl-t-md);line-height:var(--vl-lh);margin:var(--vl-s1) 0;overflow-wrap:anywhere}
+.vl-description{unicode-bidi:plaintext}.vl-description h3,.vl-description h4,.vl-description h5{font-size:var(--vl-t-base);color:var(--vl-ink);margin:var(--vl-s3) 0 var(--vl-s1);font-weight:var(--vl-w-strong)}.vl-description p,.vl-description li{font-size:var(--vl-t-base);line-height:1.65;overflow-wrap:anywhere}.vl-description code,.vl-description pre{font-size:var(--vl-t-sm);background:var(--vl-surface-2);border-radius:4px}.vl-description code{padding:1px 4px}.vl-description pre{padding:10px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto}
+.vl-links{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px var(--vl-s3);align-items:baseline;font-size:var(--vl-t-md)}.vl-links span{color:var(--vl-ink-2)}.vl-links code{overflow-wrap:anywhere;font-size:var(--vl-t-sm)}
+.vl-stars{display:inline-flex;gap:1px;color:var(--vl-star)}.vl-stars svg{width:12px;height:12px}.vl-stars .off{color:var(--vl-star-off)}
+.vl-histo{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px;align-items:center;font-size:var(--vl-t-sm);color:var(--vl-ink-2);max-width:360px;margin:var(--vl-s3) 0}.vl-histo .bar{height:6px;border-radius:3px;background:var(--vl-bar-track);overflow:hidden}.vl-histo .bar i{display:block;height:100%;background:var(--vl-bar)}
+.vl-review{padding:var(--vl-s3) 0;border-top:1px solid var(--vl-line)}.vl-review .who{font-size:var(--vl-t-sm);color:var(--vl-ink-2);display:flex;flex-wrap:wrap;gap:6px var(--vl-s2);align-items:center}.vl-chip{display:inline-block;font-size:var(--vl-t-xs);padding:1px 7px;border:1px solid var(--vl-line);border-radius:var(--vl-r-chip);color:var(--vl-ink-2)}
+@media(max-width:520px){.vl-detail-head{grid-template-columns:var(--vl-tile-card) minmax(0,1fr)}.vl-detail-head .addon-icon{width:var(--vl-tile-card);height:var(--vl-tile-card)}.vl-detail-head h2{font-size:20px}.vl-links{grid-template-columns:minmax(0,1fr)}.addon-detail.vl-detail .addon-facts,.vl-detail .addon-facts{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:740px){#pluginsOverlay .modal-body{grid-template-columns:1fr;grid-template-rows:auto auto minmax(0,1fr)}#addonNav{grid-column:1;grid-row:1;flex-direction:row;border-right:0;border-bottom:1px solid var(--border);padding:10px;flex-wrap:wrap}.addon-nav-note{display:none}#addonSearchBar{grid-column:1;grid-row:2;margin:12px 16px 0;flex-wrap:wrap}#pluginsSearch{flex:1;min-width:120px}#addonSearchBar>button{min-height:40px}#pluginsBody{grid-column:1;grid-row:3;padding:20px 16px}.addon-grid,.addon-library-grid{grid-template-columns:1fr}.addon-collections{grid-template-columns:repeat(2,minmax(0,1fr))}.addon-hero h2{font-size:24px}.addon-facts{gap:8px}.addon-pending{align-items:flex-start}}
 </style>
 <script>(function(){
 'use strict';
 const tr=(key,fallback)=>{const k='addons.'+key;const v=window.VOOLT?window.VOOLT(k):k;return v===k?fallback:v;};
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
-let tab='discover',data=null,category='',ecosystem='',limit=24,remote=null,sort='name',availability='ready',selected=null,review=null,busy=false,error='',generation=0,localCheck=null;
-let registryData=null,registryReview=null;
+let tab='discover',data=null,category='',ecosystem='',limit=24,remote=null,sort='name',availability='ready',selected=null,review=null,busy=false,error='',errorNote=null,generation=0,localCheck=null;
+let registryData=null,registryReview=null,recallState=null,listingView=null;
 // A failed read (throw, non-OK answer, or a body that is not the catalogue) is the calm error
 // row with Try again, never an empty or blank grid; the empty state belongs to a real OK answer
 // alone. The growing-delay retry heals the store by itself across a restart; one pending timer,
@@ -71,7 +96,7 @@ const key=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s_-]+/g,''
 const slugKey=s=>String(s||'').replace(/-/g,'_');
 const catLabel=e=>tr('registry_category_'+slugKey(e.category),e.category)+' · '+tr('registry_subcategory_'+slugKey(e.subcategory),e.subcategory);
 function button(text,fn,cls){const b=node('button',text,cls||'');b.type='button';b.disabled=busy;b.addEventListener('click',fn);return b;}
-async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error){const translated=j.message_key&&window.VOOLT?window.VOOLT(j.message_key):j.message;const pluginMessage=translated===j.message_key?j.message:translated;const err=new Error(j.error==='plugin_refused'?pluginMessage:j.error==='registry_unsafe'?UNSAFE_NOTE():j.error==='registry_newer'?tr('registry_newer','This skill is already up to date. Check back for an update.'):(pluginMessage||tr('request_failed','The request could not finish.')));err.code=j.error;throw err;}return j;}
+async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error){const translated=j.message_key&&window.VOOLT?window.VOOLT(j.message_key):j.message;const pluginMessage=translated===j.message_key?j.message:translated;const err=new Error(j.error==='plugin_refused'?pluginMessage:j.error==='registry_unsafe'?UNSAFE_NOTE():j.error==='registry_newer'?tr('registry_newer','This skill is already up to date. Check back for an update.'):(pluginMessage||tr('request_failed','The request could not finish.')));err.code=j.error;if(j.maker_note&&j.maker_note.fix)err.maker=j.maker_note;throw err;}return j;}
 // The catalogue reads fail with their own words -- the browser's own error text never reaches the person.
 const catalogFailed=()=>new Error(tr('catalog_failed','Could not read the add-on catalogue.'));
 const readJson=endpoint=>fetch(endpoint).then(r=>r.ok?r.json():Promise.reject()).catch(()=>{throw catalogFailed();});
@@ -92,21 +117,116 @@ function icon(e){return node('span',e.category==='Design'?'Aa':e.category==='Sec
 function brand(label,tag,source){const n=node(tag||'span',label,'addon-brand');const id=String(source||label||'').toLowerCase();if(['anthropic','superpowers','vercel'].includes(id))n.classList.add(id);return n;}
 // A listing id such as "finishing-a-development-branch" reads as "Finishing a development branch".
 function listingTitle(e){const n=String((e&&e.name)||'');return /^[a-z0-9]+(?:[-_][a-z0-9]+)+$/.test(n)?n.charAt(0).toUpperCase()+n.slice(1).replace(/[-_]+/g,' '):n;}
-function installedState(card,e){if(e.installed)card.append(node('span',e.scan==='checked'?tr('plugin_checked','Scan reviewed'):e.scan==='checked_local'?tr('checked_local','Checked by VOOL'):e.scan==='risks_accepted'?tr('risk_accepted','Risks accepted by you'):tr('changed','Changed since review'),'addon-state '+(e.scan==='checked'||e.scan==='checked_local'?'good':'')),node('span',e.enabled?tr('enabled','Enabled'):tr('disabled','Disabled'),'addon-state'));}
+// The two team badges. A chip is drawn only for a name in e.badges, which VOOL fills from the signed badge
+// document it verified; no title, summary, picture or flag on a row reaches this function. The element and
+// its class are made here, and every author-written word on the page goes in as plain text, so nothing an
+// author writes can become one.
+const TEAM_BADGES=[['tested','badge_tested','Tested by VOOL','badge_tested_help','The VOOL team installed and used this exact version.'],['editors_choice','badge_editors_choice',"Editor's Choice",'badge_editors_choice_help','Picked by the VOOL team as one of the best of its kind.']];
+function teamBadges(e){const held=Array.isArray(e&&e.badges)?e.badges:[];return TEAM_BADGES.filter(([id])=>held.includes(id)).map(([id,labelKey,label,helpKey,help])=>{const chip=document.createElement('vool-badge');chip.className='vool-team-badge';chip.dataset.badge=id;chip.textContent=tr(labelKey,label);chip.title=tr(helpKey,help);chip.setAttribute('role','img');chip.setAttribute('aria-label',tr(labelKey,label)+'. '+tr(helpKey,help));return chip;});}
+// Beside the title; on a narrow card the chips go to a line of their own and the title stays whole.
+function addTeamBadges(head,e){const list=teamBadges(e);if(list.length){const row=node('span',undefined,'team-badge-row');row.append(...list);head.classList.add('with-team-badges');head.append(row);}}
+function installedState(card,e){if(e.installed)card.append(node('span',e.scan==='checked'?tr('plugin_checked','Scan reviewed'):e.scan==='checked_local'?tr('checked_local','Checked on this device'):e.scan==='risks_accepted'?tr('risk_accepted','Risks accepted by you'):tr('changed','Changed since review'),'addon-state '+(e.scan==='checked'||e.scan==='checked_local'?'good':'')),node('span',e.enabled?tr('enabled','Enabled'):tr('disabled','Disabled'),'addon-state'));}
+// One card top for a skill and for a plugin, listed or installed: picture, name, who made it and what kind it
+// is, then the team badges. Everything an author wrote goes in as text; the chips come from teamBadges alone.
+const kindLabel=kind=>kind==='plugin'?tr('codex_plugin_kind_plugin','Plugin'):tr('codex_plugin_kind_skill','Skill');
+const byMaker=name=>fill(tr('listing_by','by {publisher}'),{publisher:String(name||'')});
+function cardTop(picture,name,byline,e,nameId){
+ const top=node('div',undefined,'addon-card-head vl-card-top'),main=node('div',undefined,'vl-card-main'),h=node('h3',name);if(nameId)h.id=nameId;
+ const line=byline instanceof Node?byline:node('small',byline,'vl-byline');line.classList.add('vl-byline');main.append(h,line);
+ const chips=teamBadges(e);if(chips.length){const row=node('span',undefined,'team-badge-row');row.append(...chips);main.append(row);}
+ top.append(picture,main);return top;
+}
+// The long description, from the tree VOOL read it into. Each piece becomes a node of a kind listed here and
+// its words go in as text, so a tag, a script or a link an author typed is shown as the characters it is.
+const SPAN_TAGS=new Map([['bold','strong'],['italic','em'],['code','code']]),HEADING_TAGS=['h3','h4','h5'];
+function descriptionNodes(tree){
+ const box=node('div',undefined,'vl-description');if(!tree||!Array.isArray(tree.blocks))return box;
+ const spans=(host,list)=>{(Array.isArray(list)?list:[]).forEach(sp=>{if(!sp||typeof sp.text!=='string')return;const tag=SPAN_TAGS.get(sp.type);host.append(tag?node(tag,sp.text):document.createTextNode(sp.text));});return host;};
+ tree.blocks.forEach(b=>{if(!b)return;
+  if(b.type==='heading')box.append(spans(node(HEADING_TAGS[b.level-1]||'h5'),b.spans));
+  else if(b.type==='paragraph')box.append(spans(node('p'),b.spans));
+  else if(b.type==='list'){const l=node(b.ordered===true?'ol':'ul');(Array.isArray(b.items)?b.items:[]).forEach(item=>l.append(spans(node('li'),item)));box.append(l);}
+  else if(b.type==='code')box.append(node('pre',typeof b.text==='string'?b.text:''));});
+ return box;
+}
+const STAR_PATH='M8 1.5l2 4.2 4.5.6-3.3 3.1.8 4.6L8 11.8 4 14l.8-4.6L1.5 6.3 6 5.7z';
+function starRow(count){const row=node('span',undefined,'vl-stars');row.setAttribute('role','img');row.setAttribute('aria-label',fill(tr('listing_stars','{stars} out of 5'),{stars:count}));for(let i=1;i<=5;i++){const st=figureIcon(STAR_PATH,true);if(i>count)st.classList.add('off');row.append(st);}return row;}
+const REASON_WORDS={fake:'These ratings did not come from people who used the add-on.',automated:'These ratings were made by a script.',self_rating:'The creator rated their own add-on.',paid:'These ratings were paid for.',abusive:'The text was abusive.',off_topic:'The text was not about the add-on.',harmful:'This add-on can cause harm.',stolen:'This add-on was copied from someone else without permission.',misleading:'This add-on does not do what its page says.',creator_request:'The creator asked for this.',mistake_reversed:'An earlier team step was a mistake and was undone.',other:'It broke the Skill Codex rules.'};
+const reasonSentence=code=>{const known=Object.prototype.hasOwnProperty.call(REASON_WORDS,code)?code:'other';return tr('listing_reason_'+known,REASON_WORDS[known]);};
+const dayText=seconds=>Number.isInteger(seconds)&&seconds>0?new Date(seconds*1000).toLocaleDateString():'';
+// For an installed add-on that came from the Skill Codex: what the team did about it, and the Rate button when
+// this device holds its install pass. The facts are read on this device; nothing is asked of the Skill Codex.
+function installedExtras(registry,name){
+ const box=node('div',undefined,'vl-installed');if(!registry||typeof registry.id!=='string')return box;
+ const n=registry.notice;
+ if(n&&(n.state==='removed'||n.state==='delisted')){const note=node('p',(n.state==='removed'?tr('listing_removed','The VOOL team removed this add-on from the Skill Codex, so VOOL no longer uses it.'):tr('listing_delisted','The Skill Codex no longer lists this add-on. Your copy keeps working.'))+' '+reasonSentence(n.reason),'vl-notice');note.setAttribute('role','status');box.append(note);}
+ if(registry.rate_ready===true)box.append(rateControl({id:registry.id,title:name}));
+ return box;
+}
+function listingSection(detail,title){const sec=node('section');sec.append(node('h3',title));detail.append(sec);return sec;}
+function listingDetail(host){
+ const v=listingView,e=v.entry,d=v.data;const detail=node('section',undefined,'addon-detail vl-detail');host.append(detail);
+ const shown={...e,badges:d?d.badges:e.badges};
+ const head=node('div',undefined,'vl-detail-head'),main=node('div');main.append(node('h2',e.title||e.id),node('p',e.summary),node('small',kindLabel(e.kind)+' · '+byMaker(e.id.split('/')[0])+' · '+e.id+(d&&d.publisher_verified?' · '+tr('listing_publisher_proven','Publisher name proven'):''),'vl-byline'));
+ const chips=teamBadges(shown);if(chips.length){const row=node('span',undefined,'team-badge-row');row.append(...chips);main.append(row);}
+ head.append(skillPicture(e),main);detail.append(head);
+ const acts=node('div',undefined,'addon-actions');detail.append(acts);
+ if(stoppedSkills.has(e.id)||(d&&d.paused)){const[kind,text]=STOPPED.get(stoppedSkills.get(e.id)||'registry_paused'),note=node('p',text(),'addon-meta '+kind);note.setAttribute('role','status');acts.append(note);}
+ else acts.append(button(tr('registry_inspect','Download for inspection'),()=>action(()=>unlessStopped(e.id,async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});})),'addon-primary'));
+ acts.append(node('span',tr('listing_version','Version')+' '+e.version,'addon-meta'));
+ if(e.rate_ready)detail.append(rateControl(e));
+ if(!d){detail.append(node('p',v.failed?tr('listing_failed','VOOL could not read this listing. Try again.'):tr('loading','Loading…'),'addon-meta'));detail.append(reportBlock(e));return;}
+ if(d.description){listingSection(detail,tr('listing_about','About')).append(descriptionNodes(d.description));}
+ {const sec=listingSection(detail,tr('listing_needs','What it needs'));sec.append(registryFacts(e));
+  const a=d.access||{};
+  if(e.kind==='plugin'||(a.network||[]).length){sec.append(node('h4',tr('listing_needs_sites','Websites it can reach')),node('p',(a.network||[]).length?a.network.join(', '):tr('plugin_no_network','No network access.')));}
+  if(e.kind==='plugin'||(a.credentials||[]).length){sec.append(node('h4',tr('listing_needs_keys','Service keys')),node('p',(a.credentials||[]).length?a.credentials.join(', '):tr('plugin_no_keys','No service keys requested.')));}
+  if((a.tools||[]).length){const effects={read_only:tr('plugin_effect_read','Read information'),workspace_write:tr('plugin_effect_write','Change files in its own working space'),network_send:tr('plugin_effect_send','Send information'),network_publish:tr('plugin_effect_publish','Publish information'),external_unpinned:tr('plugin_effect_unknown','VOOL can’t tell what this does, so it asks you every time')};
+   const list=node('ul');a.tools.forEach(t=>list.append(node('li',t.description+' · '+(Object.prototype.hasOwnProperty.call(effects,t.effect)?effects[t.effect]:effects.external_unpinned))));sec.append(node('h4',tr('listing_needs_tools','Tools it adds')),list);}
+  if(a.runs_programs===true)sec.append(node('p',tr('plugin_local_server','Runs a small helper program on this computer.')));}
+ if((d.changelog||[]).length){const sec=listingSection(detail,tr('listing_changes','Versions and changes')),list=node('ul');d.changelog.forEach(c=>{const li=node('li');li.append(node('strong',c.version),document.createTextNode([dayText(c.date),c.notes].filter(Boolean).map(t=>' · '+t).join('')));list.append(li);});sec.append(list);}
+ {const sec=listingSection(detail,tr('listing_details','Details')),facts=node('dl',undefined,'addon-facts');const add=(k,val)=>{if(val)facts.append(node('dt',k),node('dd',val));};
+  const c=d.compatibility||{},platforms={'macos-arm64':'macOS Apple Silicon','macos-x86_64':'macOS Intel','linux-x86_64':'Linux','windows-x86_64':'Windows'};
+  add(tr('listing_version','Version'),e.version);
+  add(tr('listing_works_with','Works with'),c.min_vool&&c.max_vool?fill(tr('listing_vool_range','VOOL {min} to {max}'),{min:c.min_vool,max:c.max_vool}):c.min_vool?fill(tr('listing_vool_from','VOOL {min} or newer'),{min:c.min_vool}):c.max_vool?fill(tr('listing_vool_until','Up to VOOL {max}'),{max:c.max_vool}):'');
+  add(tr('listing_platforms','Platforms'),Array.isArray(c.platforms)?c.platforms.map(id=>platforms[id]||'').filter(Boolean).join(', '):'');
+  add(tr('license','License'),e.license);add(tr('category','Category'),catLabel(e));
+  add(tr('listing_package','Package checksum'),String(e.sha256||'').slice(0,12));
+  if(Number.isInteger(d.download_requests))add(tr('listing_downloads','Download requests'),String(d.download_requests));
+  sec.append(facts);}
+ {const names=[['homepage',tr('listing_link_homepage','Home page')],['support',tr('listing_link_support','Support')],['docs',tr('listing_link_docs','Guide')]].filter(([id])=>d.links&&typeof d.links[id]==='string'&&d.links[id].startsWith('https://'));
+  if(names.length){const sec=listingSection(detail,tr('listing_links','Links')),grid=node('div',undefined,'vl-links');
+   // The address is shown as text, whole, so the person sees where it goes. It opens only on their own click.
+   names.forEach(([id,label])=>{const open=link(tr('listing_link_open','Open in browser'),d.links[id]);open.setAttribute('aria-label',tr('listing_link_open','Open in browser')+': '+label);grid.append(node('span',label),node('code',d.links[id]),open);});
+   sec.append(grid,node('p',tr('listing_link_note','The creator wrote these addresses. VOOL has not checked the sites.'),'addon-meta'));}}
+ {const sec=listingSection(detail,tr('listing_ratings','Ratings and reviews')),r=d.rating||{};
+  ratingRow(sec,{rating:r});
+  if(r.shown===true&&Array.isArray(r.distribution)){const histo=node('div',undefined,'vl-histo'),total=r.distribution.reduce((x,y)=>x+y,0)||1;
+   for(let stars=5;stars>=1;stars--){const count=r.distribution[stars-1],bar=node('span',undefined,'bar'),inner=node('i');inner.style.width=Math.round(100*count/total)+'%';bar.append(inner);histo.append(node('span',String(stars)),bar,node('span',String(count)));}
+   histo.setAttribute('aria-hidden','true');sec.append(histo);}
+  if(r.frozen===true)sec.append(node('p',tr('listing_ratings_closed','New ratings are closed while the VOOL team looks into this.'),'addon-meta'));
+  if(!(d.reviews||[]).length)sec.append(node('p',tr('listing_no_reviews','No written reviews yet.'),'addon-meta'));
+  (d.reviews||[]).forEach(item=>{const row=node('div',undefined,'vl-review'),who=node('div',undefined,'who');
+   who.append(starRow(item.stars),node('span',item.author),node('span',item.bundled?tr('listing_review_bundled','Comes with VOOL'):fill(tr('listing_review_installed','Installed, version {version}'),{version:item.version}),'vl-chip'),node('span',dayText(item.created)));
+   row.append(who);if(item.text_removed)row.append(node('p',tr('listing_review_text_removed','Text removed by the VOOL team'),'addon-meta'));else if(item.body)row.append(node('p',item.body));sec.append(row);});}
+ if((d.notices||[]).length){const sec=listingSection(detail,tr('listing_notices','Notices from the VOOL team')),list=node('ul');d.notices.forEach(n=>list.append(node('li',[n.date,reasonSentence(n.reason)].filter(Boolean).join(': '))));sec.append(list);}
+ detail.append(reportBlock(e));
+}
+function openListing(e){listingView={entry:e,data:null,failed:false};return action(async()=>{try{const got=await post({action:'registry_listing',id:e.id,version:e.version,approved:true});if(listingView&&listingView.entry.id===e.id)listingView.data=got;}catch(err){if(listingView&&listingView.entry.id===e.id)listingView.failed=true;}});}
 function hero(host,title,subtitle,kicker){const h=node('header',undefined,'addon-hero');if(kicker)h.append(node('span',kicker,'addon-eyebrow'));h.append(node('h2',title),node('p',subtitle));host.append(h);}
 function nav(){
  const search=document.getElementById('pluginsSearch');if(!search)return;
  let n=document.getElementById('addonNav');if(!n){n=node('nav',undefined,'addon-nav');n.id='addonNav';n.setAttribute('aria-label',tr('navigation','Add-on navigation'));search.before(n);}
  let bar=document.getElementById('addonSearchBar');if(!bar){bar=node('div');bar.id='addonSearchBar';search.before(bar);bar.append(search);search.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&tab==='discover'){ev.preventDefault();ev.stopPropagation();remoteFind();}});}
  let remoteButton=document.getElementById('addonGitHubSearch');if(!remoteButton){remoteButton=button(tr('github_search','Search GitHub'),remoteFind);remoteButton.id='addonGitHubSearch';bar.append(remoteButton);}remoteButton.disabled=busy;remoteButton.hidden=tab!=='discover';
- n.replaceChildren();[['discover',tr('browse','Browse')],['registry',tr('registry_tab','Skill Codex')],['installed',tr('my_addons','My add-ons')],['security',tr('security_tab','Security')]].forEach(([id,label])=>{const b=button(label,()=>{if(busy)return;tab=id;selected=null;review=null;registryReview=null;remote=null;publishState=null;error='';refresh();});b.setAttribute('aria-pressed',String(tab===id));n.append(b);});
+ n.replaceChildren();[['discover',tr('browse','Browse')],['registry',tr('registry_tab','Skill Codex')],['installed',tr('my_addons','My add-ons')],['security',tr('security_tab','Security')]].forEach(([id,label])=>{const b=button(label,()=>{if(busy)return;tab=id;selected=null;review=null;registryReview=null;listingView=null;remote=null;publishState=null;error='';refresh();});b.setAttribute('aria-pressed',String(tab===id));n.append(b);});
  n.append(node('p',tr('nav_note','Skills teach VOOL new approaches. Plugins add tools and connections.'),'addon-nav-note'));
- bar.hidden=tab==='security'||!!selected||!!review||!!registryReview;search.hidden=false;search.placeholder=tr('search_store','Search skills, or paste a GitHub link…');
+ bar.hidden=tab==='security'||!!selected||!!review||!!registryReview||!!listingView;search.hidden=false;search.placeholder=tr('search_store','Search skills, or paste a GitHub link…');
  const title=document.getElementById('pluginsTitle');if(title){
   title.textContent=tr('store_title','Skills & Plugins');
-  let back=document.getElementById('addonBack');if(!back){back=button('',()=>{if(busy)return;if(registryReview){registryReview=null;}else if(review){review=null;selected=null;}else if(selected){selected=null;}else{remote=null;}error='';refresh();});back.id='addonBack';title.before(back);}
-  back.hidden=!(tab==='registry'&&registryReview)&&(tab!=='discover'||!(review||selected||remote));back.disabled=busy;
-  back.textContent=review||selected?tr('back_list','← Back to list'):tr('back_directory','← Back to directory');
+  let back=document.getElementById('addonBack');if(!back){back=button('',()=>{if(busy)return;if(registryReview){registryReview=null;}else if(tab==='registry'&&listingView){listingView=null;}else if(review){review=null;selected=null;}else if(selected){selected=null;}else{remote=null;}error='';refresh();});back.id='addonBack';title.before(back);}
+  back.hidden=!(tab==='registry'&&(registryReview||listingView))&&(tab!=='discover'||!(review||selected||remote));back.disabled=busy;
+  back.textContent=review||selected||(tab==='registry'&&listingView&&!registryReview)?tr('back_list','← Back to list'):tr('back_directory','← Back to directory');
  }
 }
 function security(host){
@@ -118,13 +238,15 @@ function security(host){
  card.append(button(tr('plugin_manage_scanners','Manage scanner plugins'),()=>{tab='installed';_pluginMode='plugins';refresh();}));
  card.append(node('p',tr('plugin_scan_limits','A scan is not a guarantee of safety. Tools still use their normal permissions. Remote scans may use your service allowance.'),'addon-meta'));
 }
-async function action(work){if(busy)return;busy=true;error='';refresh();try{await work();}catch(e){error=e.message;}finally{busy=false;refresh();}}
+async function action(work){if(busy)return;busy=true;error='';errorNote=null;refresh();try{await work();}catch(e){error=e.message;errorNote=e.maker?{of:e.message,where:e.maker.where||'',fix:e.maker.fix}:null;}finally{busy=false;refresh();}}
 function pending(host){
  if(!(data.reviews||[]).length)return;
  const group=node('details',undefined,'addon-saved-scans');group.append(node('summary',tr('saved_scans','Saved scans to review')+' ('+data.reviews.length+')'));group.style.marginBottom='18px';host.append(group);host=group;
  (data.reviews||[]).forEach(r=>{const row=node('div',undefined,'addon-pending');const label=node('div',r.entry.name);label.append(node('small',r.can_install?tr('ready_review','Scan ready · awaiting your decision'):tr('needs_review','Scan saved · needs review')));row.append(label,button(tr('resume_review','Review scan'),()=>action(async()=>{review=await post({action:'review',review_id:r.review_id});selected=null;}),'addon-linkbtn'));host.append(row);});
 }
 function renderError(host){if(!error)return;const p=node('p',error,'addon-error');p.setAttribute('role','alert');host.prepend(p);
+ // For the plugin's maker: which field of the setup file, and what to write instead. Plain text, VOOL's own words.
+ if(errorNote&&errorNote.of===error){const note=node('p',undefined,'addon-meta plugin-maker-note');note.append(node('strong',tr('plugin_maker_note','For the plugin’s maker')+': '),document.createTextNode((errorNote.where?errorNote.where+': ':'')+errorNote.fix));p.after(note);}
  // A refusal is drawn at the top; someone working further down the page must still see it.
  requestAnimationFrame(()=>{if(p.isConnected)p.scrollIntoView({block:'nearest'});});}
 function render(query){
@@ -152,7 +274,7 @@ function render(query){
   const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3','Media Studio'),brand('VOOL','small','built-in'));head.append(name);card.append(head,node('p','Cut, trim and export media in a dedicated editor window.'));
   const a=document.createElement('a');a.className='media-studio-open';a.href='/media-editor';a.target='_blank';a.rel='noopener';a.title='Open the Media Studio editor in a dedicated window';a.textContent='Open Media Studio';card.append(a);grid.append(card);
  }if(!rows.length)grid.append(node('p',availability==='ready'?tr('no_ready','No compatible skills match. Choose All listed skills to see what needs support.'):tr('no_results','No matching add-ons.')));
- rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3',listingTitle(e)),brand(e.publisher,'small',e.ecosystem));head.append(icon(e),name);card.append(head,node('p',e.description));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Compatible with VOOL'))),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));card.append(foot);installedState(card,e);grid.append(card);});
+ rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const maker=node('small',kindLabel('skill')+' · ');maker.append(brand(e.publisher,'span',e.ecosystem));card.append(cardTop(icon(e),listingTitle(e),maker,e),node('p',e.description,'vl-tagline'));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Compatible with VOOL'))),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));card.append(foot);installedState(card,e);grid.append(card);});
  if(rows.length>limit)host.append(button(tr('show_more','Show more')+' ('+(rows.length-limit)+')',()=>{limit+=24;refresh();},'addon-linkbtn'));
  host.append(node('p',tr('plugin_scope','Being listed here doesn’t mean VOOL recommends it.'),'addon-meta'));
  host.append(node('p',tr('github_privacy','Search GitHub sends only the text you enter to GitHub. Browsing this directory stays local.'),'addon-meta'));return true;
@@ -214,8 +336,47 @@ function registryFacts(e){
  add(tr('registry_tested','Checked for'),Object.entries(builds).map(([version,list])=>'VOOL '+version+' ('+list.join(', ')+')').join('; '));
  return facts;
 }
+// Ratings come from people who installed the add-on, read from the Skill Codex with the rest of the list. The
+// download number is a figure of its own with its own icon: a download is not a rating. All text is set as text.
+const SVG_NS='http://www.w3.org/2000/svg';
+function figureIcon(path,filled){const s=document.createElementNS(SVG_NS,'svg');s.setAttribute('viewBox','0 0 16 16');s.setAttribute('aria-hidden','true');s.setAttribute('focusable','false');const p=document.createElementNS(SVG_NS,'path');p.setAttribute('d',path);if(filled)p.setAttribute('fill','currentColor');else{p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');}s.append(p);return s;}
+function figure(svg,text,cls){const s=node('span',undefined,'registry-figure '+cls);s.append(svg,node('span',text));return s;}
+function ratingRow(card,e){
+ const r=e.rating&&typeof e.rating==='object'?e.rating:null,row=node('p',undefined,'addon-meta registry-figures');
+ if(r&&r.shown===true&&typeof r.average==='number'&&Number.isInteger(r.count))row.append(figure(figureIcon('M8 1.5l2 4.2 4.5.6-3.3 3.1.8 4.6L8 11.8 4 14l.8-4.6L1.5 6.3 6 5.7z',true),fill(tr('rating_average','{average} out of 5 · {count} ratings'),{average:r.average.toFixed(1),count:r.count}),'registry-rating'));
+ else if(r&&Number.isInteger(r.count))row.append(node('span',fill(tr('rating_not_enough','Not enough ratings yet ({count})'),{count:r.count}),'registry-figure registry-rating-few'));
+ if(Number.isInteger(e.download_requests))row.append(figure(figureIcon('M8 2v8M4.5 7L8 10.5 11.5 7M3 13.5h10',false),fill(tr('rating_downloads','{downloads} download requests'),{downloads:e.download_requests}),'registry-downloads'));
+ if(row.childNodes.length)card.append(row);
+ if(r&&Number.isInteger(r.removed)&&r.removed>0)card.append(node('p',fill(tr('moderation_ratings_removed','Ratings removed by the VOOL team for breaking the rules: {count}'),{count:r.removed}),'addon-meta registry-moderation'));
+}
+// Rating happens on the Skill Codex website, like reporting. VOOL makes the link, with the install pass of this one
+// add-on after the #, only when the person presses the button; it sends nothing itself.
+let rateState=null;
+function rateControl(e){
+ const wrap=node('div',undefined,'registry-rate'),label=tr('rating_rate','Rate this add-on');
+ const b=button(label,()=>action(async()=>{const r=await post({action:'registry_rate',id:e.id});rateState={id:e.id,url:r.url};}),'skill-publish-btn');
+ b.setAttribute('aria-label',label+': '+(e.title||e.id));wrap.append(b);
+ if(rateState&&rateState.id===e.id&&typeof rateState.url==='string'&&rateState.url.startsWith('https://')){
+  const open=link(tr('rating_open','Open Skill Codex'),rateState.url);open.className='addon-primary skill-publish-open';
+  wrap.append(node('p',tr('rating_rate_note','Open Skill Codex opens the website in your browser with proof that you installed this add-on. Sign in there and give your rating. VOOL sends nothing itself.'),'addon-meta'),open);}
+ return wrap;
+}
 function renderRegistry(host,query){
  hero(host,tr('registry_title','Skills and plugins from their creators'),tr('registry_intro','Automated checks cover package compatibility and known threat patterns for the listed VOOL builds. They do not guarantee that a skill is free of malicious behavior. Community skills are provided as is, without warranty. Inspect the files and use them at your own risk.'));
+ if(registryReview&&registryReview.plugin){
+  // A plugin from the Skill Codex gets the plugin review sheet a folder gets: what it is, what it reaches, its
+  // keys and every file. It can only be installed switched off; switching it on is the access sheet under Plugins.
+  const r=registryReview,info=r.metadata,p=r.plugin;const card=node('section',undefined,'addon-card');card.setAttribute('role','dialog');card.setAttribute('aria-label',tr('plugin_review','Review plugin package'));
+  card.append(node('h3',p.name),node('p',p.description),node('small',tr('codex_plugin_kind_plugin','Plugin')+' · '+info.id+' · '+info.version),node('p',fill(tr('codex_plugin_from','Published in the Skill Codex by {publisher}. VOOL checked that these are the files that were published. That does not prove they are safe.'),{publisher:p.publisher})));
+  pluginFacts(card,p);
+  {const files=(r.files||[]).filter(f=>f.type==='file');const box=node('details',undefined,'plugin-files');box.open=files.length<=40;box.append(node('summary',tr('plugin_files','Files in this package')+' ('+files.length+')'));const list=node('ul');files.forEach(f=>list.append(node('li',f.path+' · '+pluginSize(f.bytes)+(f.executable?' · '+tr('plugin_file_program','can run as a program'):''))));box.append(list);card.append(box);}
+  releaseNotes(card,info);nativeControlNotice(card,r);
+  Object.entries(r.instructions||{}).forEach(([name,body])=>{const item=node('details');item.append(node('summary',name),node('pre',body));card.append(item);});
+  card.append(node('p',tr('codex_plugin_off','It is installed switched off. To switch it on, open Plugins and review its access.'),'addon-meta'));
+  const acts=node('div',undefined,'addon-actions');
+  acts.append(button(tr('plugin_install_disabled','Install and keep disabled'),()=>action(()=>unlessStopped(r.id,async()=>{await post({action:'registry_install',id:r.id,version:r.version,review_id:r.review_id,accepted:true,enable:false});registryReview=null;tab='installed';_pluginCatalog=await(await fetch('/api/plugins')).json();data=await read();})),'addon-primary'),button(tr('cancel','Cancel'),()=>{registryReview=null;refresh();}));
+  card.append(acts);host.append(card,reportBlock(info));return;
+ }
  if(registryReview){
   const r=registryReview,info=r.metadata;
   host.append(node('h3',(info.title?info.title+' · ':'')+info.id+' · '+info.version),node('p',info.summary),registryFacts({...info,targets:r.targets}));releaseNotes(host,info);nativeControlNotice(host,r);
@@ -229,19 +390,28 @@ function renderRegistry(host,query){
   acts.append(button(tr('cancel','Cancel'),()=>{registryReview=null;refresh();}));
   host.append(reportBlock(info));return;
  }
- host.append(button(busy?tr('loading','Loading…'):tr('registry_refresh','Browse Skill Codex'),()=>action(async()=>{registryData=await post({action:'registry_refresh',approved:true});stoppedSkills.clear();loadPictures(registryData.entries);_pluginCatalog=await(await fetch('/api/plugins')).json();}),'addon-primary'));
+ if(listingView){listingDetail(host);return;}
+ host.append(button(busy?tr('loading','Loading…'):tr('registry_refresh','Browse Skill Codex'),()=>action(async()=>{registryData=await post({action:'registry_refresh',approved:true});listingView=null;stoppedSkills.clear();loadPictures(registryData.entries);_pluginCatalog=await(await fetch('/api/plugins')).json();}),'addon-primary'));
  host.append(node('p',tr('registry_network','This button requests the public registry. No account, chats, local files or provider keys are sent.'),'addon-meta'));
+ // The owner's daily check for add-ons the Skill Codex removed: a saved choice, off until they tick it.
+ // Its state comes with the page's own catalogue read; nothing is posted until the person ticks the box.
+ if(!recallState&&data?.registry_recall)recallState=data.registry_recall;
+ {const box=node('section',undefined,'registry-recall');const label=node('label');const toggle=node('input');toggle.type='checkbox';toggle.checked=recallState?.enabled===true;toggle.disabled=busy||!recallState;
+  toggle.onchange=()=>action(async()=>{recallState=await post({action:'registry_recall',enabled:toggle.checked});});
+  label.append(toggle,document.createTextNode(' '+tr('recall_switch','Check once a day for removed add-ons')));box.append(label,node('p',tr('recall_help','When this is on, VOOL reads the public Skill Codex list once a day, so an add-on that was removed there stops being used here. Nothing about you, your chats or your add-ons is sent.'),'addon-meta'));
+  if(recallState?.enabled){const line=recallState.installs===0?tr('recall_none','It starts once you have an add-on from the Skill Codex.'):recallState.last_failed?tr('recall_failed','The last check could not finish. VOOL will try again within the hour.'):recallState.last_checked?tr('recall_last','Last checked')+': '+new Date(recallState.last_checked*1000).toLocaleString():'';if(line)box.append(node('p',line,'addon-meta'));}
+  host.append(box);}
  if(!registryData)return;
  const rows=registryData.entries.filter(e=>key([e.id,e.summary,e.category,e.subcategory,catLabel(e)].join(' ')).includes(key(query)));
  if(!rows.length)host.append(node('p',tr('registry_empty','No listed versions match this exact VOOL build and search.')));
  const grid=node('div',undefined,'addon-grid');host.append(grid);
- rows.forEach((e,i)=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head'),name=node('h3',e.title||e.id);name.id='registry-skill-'+i;card.setAttribute('aria-labelledby',name.id);head.append(skillPicture(e),name);card.append(head,node('p',e.summary),node('small',(e.title?e.id+' · ':'')+catLabel(e)+' · '+e.version+' · '+e.license),registryFacts(e));
-  if(e.editors_pick)card.append(node('small',tr('registry_editors_pick',"Editor's pick"),'addon-meta registry-editor-pick'));
-  else if(e.featured)card.append(node('small',tr('registry_featured','Featured'),'addon-meta'));
-  if(Number.isInteger(e.stars)&&Number.isInteger(e.download_requests))card.append(node('p',fill(tr('registry_metrics','{stars} website stars · {downloads} download requests'),{stars:e.stars,downloads:e.download_requests}),'addon-meta'));
+ rows.forEach((e,i)=>{const card=node('article',undefined,'addon-card');card.setAttribute('aria-labelledby','registry-skill-'+i);card.dataset.listingId=e.id;card.append(cardTop(skillPicture(e),e.title||e.id,kindLabel(e.kind)+' · '+(e.title?e.id+' · ':'')+byMaker(e.id.split('/')[0]),e,'registry-skill-'+i),node('p',e.summary,'vl-tagline'),node('small',catLabel(e)+' · '+e.version+' · '+e.license,'vl-card-meta'),registryFacts(e));
+  ratingRow(card,e);
   releaseNotes(card,e);
   if(stoppedSkills.has(e.id)){const[kind,text]=STOPPED.get(stoppedSkills.get(e.id)),note=node('p',text(),'addon-meta '+kind);note.setAttribute('role','status');card.append(note);}
   else card.append(button(tr('registry_inspect','Download for inspection'),()=>action(()=>unlessStopped(e.id,async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});})),'addon-primary'));
+  {const view=button(tr('listing_view','View details'),()=>openListing(e));view.setAttribute('aria-label',tr('listing_view','View details')+': '+(e.title||e.id));card.append(view);}
+  if(e.rate_ready)card.append(rateControl(e));
   card.append(reportRow(e));grid.append(card);});
 }
 function releaseNotes(host,e){if(typeof e.release_notes==='string'&&e.release_notes){const details=node('details');details.append(node('summary',tr('registry_release_notes','Release notes')),node('p',e.release_notes));host.append(details);}}
@@ -440,7 +610,7 @@ function renderReview(host){
 function installDecision(risks){
  const id=review.review_id;return action(async()=>{await post({action:'install',review_id:id,accepted:true,...(risks?{risk_override:true,risk_acknowledged:true}:{})});review=null;localCheck=null;data=await read();if(remote&&remote.entries)remote.entries=remote.entries.map(e=>data.entries.find(row=>row.id===e.id)||e);_pluginCatalog=await (await fetch('/api/plugins')).json();});
 }
-window.VoolAddons={open:()=>{nav();return load();},render,mountSecurity:security,publishControl};
+window.VoolAddons={open:()=>{nav();return load();},render,mountSecurity:security,publishControl,teamBadges,installedExtras};
 })();</script>
 '''
 

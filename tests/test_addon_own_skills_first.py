@@ -56,7 +56,11 @@ def test_skill_codex_lists_the_teams_skills_first_even_above_an_editors_pick(wor
     team_steps(world, "team vool-team 202\neditors-pick alice/notes\n")
     run(world)
     _, token, csrf = creator(world, "202", "bob")
-    draft(world, token, csrf, "vool-team/meeting-notes")
+    upload = draft(world, token, csrf, "vool-team/meeting-notes").json()
+    # A team upload is signed only once a team-admit line names its exact bytes.
+    assert run(world)["admitted"] == []
+    team_steps(world, "team vool-team 202\neditors-pick alice/notes\n"
+                      "team-admit vool-team/meeting-notes " + upload["sha256"] + "\n")
     assert run(world)["admitted"] == ["vool-team/meeting-notes 1.0.0"]
     rows = app_rows(world)
     assert list(rows) == ["vool-team/meeting-notes", "alice/notes"]

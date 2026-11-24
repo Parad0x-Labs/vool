@@ -19,18 +19,39 @@ SERVICES = (
 RESERVED_NAME = ("This name belongs to a plugin made by VOOL. Give your plugin a different name to install it.")
 
 
+def _service(plugin_id: str):
+    return next((service for service in SERVICES if service["id"] == plugin_id), None)
+
+
+def own_package(plugin_id: str, digest: str) -> bool:
+    """Whether these exact package bytes are one of VOOL's own service plugins."""
+    service = _service(plugin_id)
+    return bool(service) and bool(digest) and digest in service["digests"]
+
+
 def reserved_refusal(plugin_id: str, digest: str) -> str:
     """VOOL's own service plugins are known by their exact package bytes, never by a claimed name.
 
     Their ids stay reserved so a package that only calls itself by one of those names can never
     pose as VOOL's own or reach a saved key; such a package is refused.
+
+    So is every other id that reads as VOOL's: the id of a pack VOOL ships, an id that is or
+    starts with VOOL's or its maker's name, and the names VOOL's own tools start with
+    (``core.plugin_identity.reserved_id``). Only two retired ids were kept back before, and a
+    folder calling itself by the shipped database pack's id installed like any other.
     """
-    service = next((service for service in SERVICES if service["id"] == plugin_id), None)
-    return RESERVED_NAME if service and digest not in service["digests"] else ""
+    service = _service(plugin_id)
+    if service:
+        return "" if own_package(plugin_id, digest) else RESERVED_NAME
+    from core.plugin_identity import reserved_id
+
+    return RESERVED_NAME if reserved_id(plugin_id) else ""
 
 
 def is_first_party(record) -> bool:
-    return bool(record) and not reserved_refusal(record.plugin_id, str(record.verified_digest or ""))
+    # Unchanged by the wider reservation above: this asks only about the retired service ids.
+    return bool(record) and not (_service(record.plugin_id) and not own_package(
+        record.plugin_id, str(record.verified_digest or "")))
 
 
 def retired_slots() -> tuple[str, ...]:

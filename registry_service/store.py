@@ -2,17 +2,31 @@
 
 The schema has no password, email, access-token, IP or user-agent columns. Scanner
 output is private until an independently signed admission is published.
+
+Deleting an account leaves one row per sign-in in retired_identities, keyed by a hash only this
+service can make. It holds when the person left, whether they were muted, the times of their last
+day's uploads and comments, and a hash of each public name they held (made with the same private
+key; none when they had no name): no name in words, no provider id, no text. That is how someone
+who signs in again is known as the same person. A suspension is read from the signed marks each
+time: the person is suspended while a name they held is on the suspended list, so suspending the
+old name after they left still reaches them, and taking it off the list lifts it. A row is
+forgotten 30 days after the deletion, at the service's next clean-up, unless the person was muted
+or a name they held is suspended at that moment; a suspension given later than that no longer
+finds them. Their reports about skills stay too, as a reason and a count under the same hash,
+without the account or the note they typed.
 """
 from __future__ import annotations
 
 import base64
 import contextlib
+import functools
 import hashlib
 import hmac
 import re
 import secrets
 import sqlite3
 import time
+from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -28,6 +42,13 @@ CHECKING_DAYS = 35
 # Submissions per account per 24 hours; a team member publishes the team's own skills in batches.
 DAILY_SUBMISSIONS = 10
 TEAM_DAILY_SUBMISSIONS = 100
+# A sign-in whose account was deleted waits this long before it may reserve a new public name, so leaving and
+# coming back never yields a clean name, or a fresh month of checks under one, more than once a month.
+RETURN_NAME_WAIT = 30 * 86400
+# The daily limits look back one day, so that is how much of a deleted account's activity is remembered.
+QUOTA_WINDOW = 86400
+# What a deleted account's last day is remembered by: the times of its uploads and of its comments.
+CARRIED = ("submissions", "comments")
 
 
 def owned_by(db, account: str) -> tuple[set[str], set[str]]:
@@ -45,6 +66,75 @@ def owned_by(db, account: str) -> tuple[set[str], set[str]]:
 def owns(db, account: str, package_id: str) -> bool:
     names, packages = owned_by(db, account)
     return package_id.split("/")[0] in names or package_id in packages
+
+
+def _identity_key(secret: bytes, provider: str, subject: str) -> str:
+    return hmac.digest(secret, canonical(["vool-registry-identity", provider, subject]), "sha256").hex()
+
+
+def _name_key(secret: bytes, namespace: str) -> str:
+    """The hash a public name is remembered by once its account is deleted; its own domain, so it is no sign-in hash."""
+    return hmac.digest(secret, canonical(["vool-registry-public-name", namespace]), "sha256").hex()
+
+
+def _identity_secret(db) -> bytes:
+    return db.execute("SELECT value FROM service_keys WHERE name='identity-hmac'").fetchone()[0]
+
+
+def identity_keys(db, account: str) -> list[str]:
+    """One keyed hash per sign-in of the account: the same person again after a deletion, and nothing else.
+
+    Only this service can make the hash, and it is all that stays of a sign-in once its account is deleted.
+    """
+    secret = _identity_secret(db)
+    return sorted(_identity_key(secret, row[0], row[1]) for row in db.execute(
+        "SELECT provider, subject FROM identities WHERE account=?", (account,)))
+
+
+def accounts_holding(db, keys) -> set[str]:
+    """Accounts that hold any of these sign-ins now. It reads every sign-in, so only operator steps use it."""
+    secret, wanted = _identity_secret(db), set(keys)
+    return {row[2] for row in db.execute("SELECT provider, subject, account FROM identities")
+            if wanted and _identity_key(secret, row[0], row[1]) in wanted}
+
+
+def retired(db, account: str) -> list:
+    """What earlier, deleted accounts left for the sign-ins this account holds."""
+    keys = identity_keys(db, account)
+    if not keys:
+        return []
+    return db.execute("SELECT * FROM retired_identities WHERE identity IN (%s)" % ",".join("?" * len(keys)), keys).fetchall()
+
+
+def _carried_times(rows, kind: str, since: int) -> list[int]:
+    # A deleted account with two sign-ins left the same times under both; they are counted once.
+    times = functools.reduce(lambda seen, row: seen | Counter(decode(row["recent"])[kind]), rows, Counter())
+    return sorted(moment for moment in times.elements() if moment > since)
+
+
+def carried(db, account: str, kind: str, *, since: int) -> int:
+    """Uploads or comments after `since` by an account this person deleted; they still count toward the daily limit."""
+    return len(_carried_times(retired(db, account), kind, since))
+
+
+def _held_names(rows) -> set[str]:
+    """Hashes of the public names earlier, deleted accounts of this person held."""
+    return {name for row in rows for name in (row["names"] or "").split()}
+
+
+def _suspended_names(db) -> set[str]:
+    secret = _identity_secret(db)
+    return {_name_key(secret, name) for name in Store._marks(db)["suspended"]}
+
+
+def carried_suspension(db, account: str) -> bool:
+    """Whether a public name this person held under an account they deleted is suspended now.
+
+    Read from the signed marks every time, so a new name does not end a suspension, suspending the old
+    name after the deletion still reaches the person, and taking the old name off the list lifts it.
+    """
+    held = _held_names(retired(db, account))
+    return bool(held) and bool(held & _suspended_names(db))
 
 
 class Store:
@@ -81,8 +171,6 @@ class Store:
                 CREATE TABLE IF NOT EXISTS service_keys (name TEXT PRIMARY KEY, value BLOB NOT NULL);
                 CREATE TABLE IF NOT EXISTS upload_leases (id TEXT PRIMARY KEY,
                     account TEXT REFERENCES accounts(id) ON DELETE CASCADE, namespace TEXT NOT NULL, expires INTEGER NOT NULL);
-                CREATE TABLE IF NOT EXISTS account_downloads (account TEXT REFERENCES accounts(id) ON DELETE CASCADE,
-                    package_id TEXT NOT NULL, first INTEGER NOT NULL, PRIMARY KEY(account,package_id));
                 CREATE TABLE IF NOT EXISTS comments (id TEXT PRIMARY KEY, package_id TEXT NOT NULL,
                     account TEXT REFERENCES accounts(id) ON DELETE CASCADE, created INTEGER NOT NULL,
                     body TEXT NOT NULL, state TEXT NOT NULL);
@@ -106,6 +194,8 @@ class Store:
                 CREATE TABLE IF NOT EXISTS authority_nonces (nonce TEXT PRIMARY KEY, expires INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS authority_marks (id INTEGER PRIMARY KEY CHECK(id=1), sequence INTEGER NOT NULL,
                     document BLOB NOT NULL);
+                CREATE TABLE IF NOT EXISTS retired_identities (identity TEXT PRIMARY KEY, deleted_at INTEGER NOT NULL,
+                    names TEXT, muted INTEGER NOT NULL, recent BLOB NOT NULL);
             """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(public_versions)")}
             if "inspection" not in columns:
@@ -126,6 +216,11 @@ class Store:
             if "since" not in {row[1] for row in db.execute("PRAGMA table_info(identities)")}:
                 # When the provider account was created (GitHub only), for the publishing age rule. Nothing else.
                 db.execute("ALTER TABLE identities ADD COLUMN since INTEGER")
+            if "reporter" not in {row[1] for row in db.execute("PRAGMA table_info(skill_reports)")}:
+                # The sender's sign-in hashes, so a report still says "the same person" after its account is deleted.
+                db.execute("ALTER TABLE skill_reports ADD COLUMN reporter TEXT")
+            db.execute("CREATE INDEX IF NOT EXISTS skill_reports_package ON skill_reports(package_id,state)")
+            db.execute("CREATE INDEX IF NOT EXISTS skill_reports_created ON skill_reports(created)")
             # A public name survives private account deletion without retaining
             # provider/account identifiers. Legacy state must be unambiguous.
             db.execute("BEGIN IMMEDIATE")
@@ -140,6 +235,17 @@ class Store:
             # An earlier generic publish choice is not consent to the returned artifact checksum.
             db.execute("UPDATE submissions SET auto_consent=0 WHERE consent=0")
             db.execute("INSERT OR IGNORE INTO service_keys VALUES ('download-hmac',?)", (secrets.token_bytes(32),))
+            # Ratings, install passes and the record of team steps; this also drops the old table of signed-in downloads.
+            from registry_service.ratings import install_schema
+
+            install_schema(db)
+            # The key behind the sign-in hashes. Without it a hash cannot be tried against a list of provider ids.
+            db.execute("INSERT OR IGNORE INTO service_keys VALUES ('identity-hmac',?)", (secrets.token_bytes(32),))
+            require(isinstance(_identity_secret(db), bytes) and len(_identity_secret(db)) == 32, "invalid private identity key")
+            for row in db.execute("SELECT DISTINCT account FROM skill_reports WHERE reporter IS NULL AND account IS NOT NULL").fetchall():
+                # Reports stored before the sender's hashes were kept.
+                db.execute("UPDATE skill_reports SET reporter=? WHERE account=? AND reporter IS NULL",
+                           (" ".join(identity_keys(db, row[0])), row[0]))
             self._ticket_key = db.execute("SELECT value FROM service_keys WHERE name='download-hmac'").fetchone()[0]
             require(isinstance(self._ticket_key, bytes) and len(self._ticket_key) == 32, "invalid private download key")
             namespaces = {row[0] for row in db.execute("SELECT namespace FROM accounts WHERE namespace IS NOT NULL")}
@@ -194,9 +300,17 @@ class Store:
                 db.execute("INSERT INTO accounts VALUES (?, NULL, ?, ?)", (account, canonical({"handles": {}, "bio": ""}), now))
             db.execute("INSERT INTO identities (provider,subject,account,since) VALUES (?,?,?,?)",
                        (provider, subject, account, since))
+            left = db.execute("SELECT muted FROM retired_identities WHERE identity=?",
+                              (_identity_key(_identity_secret(db), provider, subject),)).fetchone()
+            if left and left[0]:
+                # This sign-in was muted under an account it deleted: the mute comes back with it. An
+                # operator's unmute ends it as usual. (Suspension and daily limits are read where they apply.)
+                db.execute("INSERT OR IGNORE INTO muted_accounts VALUES (?,?)", (account, now))
+                db.execute("UPDATE comments SET state='held' WHERE account=? AND state='published'", (account,))
             return account
 
-    def profile(self, account: str, value: dict | None = None) -> dict:
+    def profile(self, account: str, value: dict | None = None, *, now: int | None = None) -> dict:
+        now = int(time.time()) if now is None else now
         with self.connection() as db:
             if value is not None:
                 db.execute("BEGIN IMMEDIATE")
@@ -220,6 +334,8 @@ class Store:
                         url = urlsplit(text)
                         require(url.scheme == "https" and url.hostname and not url.username and not url.password,
                                 "public links must be HTTPS and contain no credentials")
+                if row["namespace"] is None:
+                    self._returned_wait(db, account, now)
                 try:
                     if row["namespace"] is None:
                         db.execute("INSERT INTO namespace_reservations VALUES (?)", (namespace,))
@@ -229,6 +345,18 @@ class Store:
                     raise RegistryError("namespace already reserved; transfer requires maintainer review") from None
                 row = db.execute("SELECT * FROM accounts WHERE id=?", (account,)).fetchone()
             return {"id": account, "namespace": row["namespace"], **decode(row["profile"])}
+
+    @staticmethod
+    def _returned_wait(db, account: str, now: int) -> None:
+        """A sign-in whose account was deleted reserves no new public name for 30 days from that deletion.
+
+        A name is reserved for good, so without the wait each delete-and-return would use one up, and would
+        start the limits that are counted per name from zero.
+        """
+        left = max((row["deleted_at"] for row in retired(db, account)), default=None)
+        if left is not None and left > now - RETURN_NAME_WAIT:
+            day = time.strftime("%Y-%m-%d", time.gmtime(left + RETURN_NAME_WAIT))
+            require(False, f"an account with this sign-in was deleted; you can choose a public name from {day}")
 
     def public_profile(self, namespace: str) -> dict:
         with self.connection() as db:
@@ -348,12 +476,35 @@ class Store:
         with self.connection() as db:
             db.execute("DELETE FROM sessions WHERE hash=?", (hashlib.sha256(token.encode()).hexdigest(),))
 
-    def delete_account(self, account: str) -> None:
+    def delete_account(self, account: str, *, now: int | None = None) -> None:
         # Public Git history and licensed publications cannot be erased by this
         # private account operation. Delete credentials, stars and quarantine.
+        now = int(time.time()) if now is None else now
         with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT namespace FROM accounts WHERE id=?", (account,)).fetchone()
+            if row:
+                self._retire(db, account, row[0], now)
             db.execute("DELETE FROM accounts WHERE id=?", (account,))
             db.execute("DELETE FROM oauth WHERE link_account=?", (account,))
+
+    def _retire(self, db, account: str, namespace: str | None, now: int) -> None:
+        """Leave what protection needs, and nothing that says who the person was."""
+        keys, earlier = identity_keys(db, account), retired(db, account)
+        # Every name the person held, this account's and those of accounts they deleted before it: a
+        # suspension follows the name, so none of them may be lost by leaving a second time.
+        names = _held_names(earlier) | ({_name_key(_identity_secret(db), namespace)} if namespace else set())
+        muted = db.execute("SELECT 1 FROM muted_accounts WHERE account=?", (account,)).fetchone() is not None
+        recent = {kind: sorted([row[0] for row in db.execute(
+            f"SELECT created FROM {kind} WHERE account=? AND created>?", (account, now - QUOTA_WINDOW))] +
+            _carried_times(earlier, kind, now - QUOTA_WINDOW)) for kind in CARRIED}
+        for key in keys:
+            db.execute("INSERT OR REPLACE INTO retired_identities (identity,deleted_at,names,muted,recent) VALUES (?,?,?,?,?)",
+                       (key, now, " ".join(sorted(names)) or None, int(muted), canonical(recent)))
+        # Its reports stay as counted history, so a pause can still be traced and nobody counts twice by
+        # leaving and coming back. The account and the words the person typed do not stay.
+        db.execute("UPDATE skill_reports SET account=NULL, note='', reporter=COALESCE(reporter, ?) WHERE account=?",
+                   (" ".join(keys), account))
 
     @contextlib.contextmanager
     def upload_slot(self, account: str, *, now: int):
@@ -364,7 +515,7 @@ class Store:
             db.execute("DELETE FROM upload_leases WHERE expires<=?", (now,))
             namespace = self._upload_namespace(db, account)
             pending = db.execute("SELECT count(*) FROM upload_leases WHERE account=?", (account,)).fetchone()[0]
-            count = db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?", (account, now - 86400)).fetchone()[0]
+            count = self._submitted(db, account, now)
             require(count + pending < self._daily_limit(db, account), "daily submission quota reached")
             require(pending == 0, "concurrent upload already active for this account")
             require(db.execute("SELECT count(*) FROM upload_leases").fetchone()[0] < 4, "concurrent upload capacity reached")
@@ -374,6 +525,12 @@ class Store:
         finally:
             with self.connection() as db:
                 db.execute("DELETE FROM upload_leases WHERE id=? AND account=?", (token, account))
+
+    @staticmethod
+    def _submitted(db, account: str, now: int) -> int:
+        """Uploads in the last day, with those of an account this person deleted meanwhile."""
+        return db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?",
+                          (account, now - QUOTA_WINDOW)).fetchone()[0] + carried(db, account, "submissions", since=now - QUOTA_WINDOW)
 
     def _check_upload_slot(self, db, account: str, token: str, now: int) -> str:
         namespace = self._upload_namespace(db, account)
@@ -406,11 +563,52 @@ class Store:
                         f"an account outside the team holds the name {name}")
             from registry_service.operations import apply
 
-            apply(db, value.get("operations", []), now=now)
+            apply(db, value.get("operations", []), now=now, sequence=value["sequence"])
+            from registry_service.ratings import marks_changed
+
+            marks_changed(db, self._marks(db), value, now=now)  # before the new marks replace the old ones
             db.execute("INSERT OR REPLACE INTO authority_marks VALUES (1,?,?)", (value["sequence"], canonical(envelope)))
             # A team's name is the team's: nobody else can choose it.
             db.executemany("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", [(name,) for name in value["teams"]])
         return value
+
+    # ---- the two team badges ----
+
+    @staticmethod
+    def _badges(db) -> dict | None:
+        db.execute("CREATE TABLE IF NOT EXISTS authority_badges (id INTEGER PRIMARY KEY CHECK(id=1), "
+                   "sequence INTEGER NOT NULL, document BLOB NOT NULL)")
+        row = db.execute("SELECT document FROM authority_badges WHERE id=1").fetchone()
+        return decode(row[0]) if row else None
+
+    def badges(self) -> dict:
+        """The issuer list, the badge document two people signed and its stamp, as they came in. Readers verify them."""
+        with self.connection() as db:
+            return self._badges(db) or {"issuers": None, "badges": None, "stamp": None}
+
+    def set_badges(self, value: dict, root: dict, *, now: int) -> dict:
+        """Take a badge document from the signer's relay. The relay's own key proves nothing here:
+        the issuer list must carry the root's signature and the document two appointed people's."""
+        from core.registry import badges
+        from core.registry.codec import digest
+
+        issuer, signed, stamp = badges.verify_all(value, root, now=now)
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            stored = self._badges(db)
+            if stored:
+                before, old_issuer = stored["badges"]["signed"], stored["issuers"]["signed"]
+                require(issuer["version"] >= old_issuer["version"], "this badge issuer list is older than the one in place")
+                if signed["sequence"] == before["sequence"]:
+                    # The same document with a fresh stamp, never another document under the same number.
+                    require(digest(signed) == digest(before), "another badge document already has this number")
+                    require(stamp["issued_at"] >= stored["stamp"]["signed"]["issued_at"],
+                            "this badge stamp is older than the one in place")
+                else:
+                    require(signed["sequence"] == before["sequence"] + 1 and signed["previous_sha256"] == digest(before),
+                            "this badge document does not follow the one in place; propose it again from the current one")
+            db.execute("INSERT OR REPLACE INTO authority_badges VALUES (1,?,?)", (signed["sequence"], canonical(value)))
+        return {"sequence": signed["sequence"]}
 
     def _daily_limit(self, db, account: str) -> int:
         """A member of a team the signing Mac named publishes the team's skills in batches."""
@@ -442,18 +640,22 @@ class Store:
                 raise RegistryError("this authority request was already used") from None
 
     def queue(self, *, limit: int = 20) -> list[dict]:
-        """Uploads waiting for the signing Mac, oldest first. A suspended creator's uploads are refused here."""
+        """Uploads waiting for the signing Mac, oldest first. A suspended creator's uploads are refused here.
+
+        Uploads under a team's name come after everyone else's: each waits for a team member's hand step on
+        the signer, and a batch of them must not fill the list while other people's uploads wait behind it.
+        """
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             marks = self._marks(db)
             suspended = set(marks["suspended"])
             rows = db.execute("""SELECT submissions.id, submissions.package_id, submissions.version, submissions.sha256,
-                submissions.created, accounts.namespace FROM submissions JOIN accounts ON accounts.id=submissions.account
+                submissions.created, submissions.account, accounts.namespace FROM submissions JOIN accounts ON accounts.id=submissions.account
                 WHERE submissions.state='checking' AND submissions.agreement IS NOT NULL AND submissions.consent=1 AND submissions.artifact IS NOT NULL
                 ORDER BY submissions.created, submissions.rowid""").fetchall()
             waiting = []
-            for row in rows:
-                if {row["namespace"], row["package_id"].split("/")[0]} & suspended:
+            for row in sorted(rows, key=lambda row: row["package_id"].split("/")[0] in marks["teams"]):
+                if {row["namespace"], row["package_id"].split("/")[0]} & suspended or carried_suspension(db, row["account"]):
                     db.execute("UPDATE submissions SET state='refused', artifact=NULL, findings=? WHERE id=?", (canonical([
                         {"check": "creator", "path": "package", "reason": "This creator can't publish right now."}]), row["id"]))
                     continue
@@ -500,10 +702,11 @@ class Store:
             if row[1] != "checking":
                 return value  # the Mac sent it again after a lost answer; the first admission stands
             info = value["metadata"]
-            creator = db.execute("SELECT accounts.namespace FROM submissions JOIN accounts ON accounts.id=submissions.account "
+            creator = db.execute("SELECT accounts.namespace, accounts.id FROM submissions JOIN accounts ON accounts.id=submissions.account "
                                  "WHERE submissions.id=?", (identifier,)).fetchone()
             check = "source"
-            if {creator[0] if creator else None, info["id"].split("/")[0]} & set(self._marks(db)["suspended"]):
+            if {creator[0] if creator else None, info["id"].split("/")[0]} & set(self._marks(db)["suspended"]) or (
+                    creator and carried_suspension(db, creator[1])):
                 check, refusal = "creator", "This creator can't publish right now."  # suspended while the Mac checked
             elif db.execute("SELECT 1 FROM submissions WHERE package_id=? AND version=? AND sha256<>? AND state IN "
                             "('admitted','published') UNION SELECT 1 FROM public_versions WHERE package_id=? AND version=? "
@@ -549,7 +752,8 @@ class Store:
             namespace = self._check_upload_slot(db, account, _slot, now)
             require(namespace == publisher or self._team_member(db, account, publisher),
                     "package publisher must match your namespace")
-            require(not {namespace, publisher} & set(self._marks(db)["suspended"]), "this creator can't publish right now")
+            require(not {namespace, publisher} & set(self._marks(db)["suspended"]) and
+                    not carried_suspension(db, account), "this creator can't publish right now")
             if agreement:
                 self._old_enough(db, account, now)
             official = publisher in self._marks(db)["teams"]
@@ -591,8 +795,7 @@ class Store:
             db.execute("BEGIN IMMEDIATE")
             completed = now + int(time.monotonic() - started)
             self._check_upload_slot(db, account, _slot, completed)
-            count = db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?", (account, completed - 86400)).fetchone()[0]
-            require(count < self._daily_limit(db, account), "daily submission quota reached")
+            require(self._submitted(db, account, completed) < self._daily_limit(db, account), "daily submission quota reached")
             if findings:
                 state = "rejected"
             elif agreement:
@@ -908,6 +1111,38 @@ class Store:
                 db.execute("UPDATE public_versions SET inspection=? WHERE sha256=?", (canonical(inspection), sha256))
         return inspection
 
+    def listing_facts(self, sha256: str) -> dict:
+        """What a published package says about itself for its listing: the author's listing block as checked,
+        what its setup file asks for, and its licence checksum. Read from the stored package once, then kept."""
+        from registry_service.listing import facts
+
+        inspection = self.public_inspection(sha256)
+        if "listing_facts" not in inspection:
+            with self.connection() as db:
+                row = db.execute("SELECT artifact FROM public_versions WHERE sha256=?", (sha256,)).fetchone()
+            inspection["listing_facts"] = facts(inspect(row[0]))
+            with self.connection() as db:
+                db.execute("UPDATE public_versions SET inspection=? WHERE sha256=?", (canonical(inspection), sha256))
+        return inspection["listing_facts"]
+
+    def published_versions(self, package_id: str) -> list[dict]:
+        """Each published version of one add-on with its day and its own notes, for the list of changes."""
+        with self.connection() as db:
+            rows = db.execute("SELECT version, entry, published FROM public_versions WHERE package_id=?", (package_id,)).fetchall()
+        result = []
+        for version, entry, published in rows:
+            info = decode(entry)
+            result.append({"version": version, "date": int(info.get("issued_at") or published or 0)} |
+                          ({"notes": info["metadata"]["release_notes"]} if info["metadata"].get("release_notes") else {}))
+        return result
+
+    def creator_verified(self, namespace: str) -> dict:
+        """Whether the publisher name is proven. Which sign-in services its owner linked is the owner's own
+        business and is shown only to them (the profile route), so the public list here stays empty."""
+        with self.connection() as db:
+            row = db.execute("SELECT 1 FROM namespace_owners WHERE namespace=? AND verified=1", (namespace,)).fetchone()
+        return {"publisher": bool(row), "providers": []}
+
     def published_pictures(self) -> list[dict]:
         """Every picture of every published version, for the operator's review list."""
         with self.connection() as db:
@@ -974,8 +1209,31 @@ class Store:
                 db.execute("INSERT INTO download_counts VALUES (?,1) ON CONFLICT(package_id) DO UPDATE SET requests=requests+1", (entry["metadata"]["id"],))
         return raw
 
+    def review_pass(self, sha256: str, ticket: str) -> str:
+        """The install pass that goes out with one served download. Made from the ticket; no row is written.
+
+        A ticket tried again gets the same pass, so a retry never yields a second one. The ticket's own row is
+        gone 15 minutes later and a pass can't be used before the next day, so by then nothing stored links
+        a pass to a download.
+        """
+        from registry_service.ratings import PASS_KEY, make_pass
+
+        require(isinstance(ticket, str) and bool(re.fullmatch(r"[A-Za-z0-9_-]{118}", ticket)), "invalid download ticket")
+        token = base64.b64decode(ticket + "==", altchars=b"-_", validate=True)
+        require(len(token) == 88 and token[:32].hex() == sha256 and
+                hmac.compare_digest(token[56:], hmac.digest(self._ticket_key, token[:56], "sha256")),
+                "invalid download ticket signature")
+        _, entry = self.public_artifact(sha256)
+        with self.connection() as db:
+            key = db.execute("SELECT value FROM service_keys WHERE name=?", (PASS_KEY,)).fetchone()[0]
+        issued = int.from_bytes(token[32:40], "big") - 900  # when the ticket was handed out
+        return make_pass(key, entry["metadata"]["id"], sha256, issued // 86400, hashlib.sha256(token).digest())
+
     def prune(self, *, now: int) -> None:
         with self.connection() as db:
+            from registry_service.ratings import prune as prune_ratings
+
+            prune_ratings(db, now=now)
             db.execute("DELETE FROM sessions WHERE expires<=?", (now,))
             db.execute("DELETE FROM oauth WHERE expires<=?", (now,))
             db.execute("DELETE FROM download_tickets WHERE expires<=?", (now,))
@@ -985,3 +1243,10 @@ class Store:
                        (now - CHECKING_DAYS * 86400, now - 7 * 86400))
             db.execute("DELETE FROM authority_nonces WHERE expires<=?", (now,))
             db.execute("DELETE FROM upload_leases WHERE expires<=?", (now,))
+            # A deleted sign-in is forgotten once its name wait is over, unless the person was muted or a name
+            # they held is suspended now. A suspension given after this no longer finds them.
+            suspended = _suspended_names(db)
+            for row in db.execute("SELECT identity, names FROM retired_identities WHERE muted=0 AND deleted_at<=?",
+                                  (now - RETURN_NAME_WAIT,)).fetchall():
+                if not set((row["names"] or "").split()) & suspended:
+                    db.execute("DELETE FROM retired_identities WHERE identity=?", (row["identity"],))

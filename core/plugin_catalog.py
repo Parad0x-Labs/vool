@@ -244,6 +244,31 @@ def _plugin_entry(plugin_dir: Path, *, bundled: bool = False) -> dict[str, Any] 
     }
 
 
+def package_badges(plugin_id: str, plugin_dir: Path | None = None, *, index: dict | None = None) -> list[str]:
+    """The team badges of a plugin on this device, or none.
+
+    Only the signed badge document VOOL verified can give one, and only to the exact package: the
+    plugin's files are hashed as they are now and must equal the checksum two people signed for.
+    Nothing in the plugin's own setup file is read for this.
+    """
+    try:
+        from core.plugin_lifecycle import manifest_digest, record_for
+        from core.registry.badges import badges_for
+        from core.registry.client import local_badges
+
+        index = local_badges() if index is None else index
+        if not any(digest_type == "package" for digest_type, _ in index):
+            return []  # the usual case: no plugin badge exists, so no plugin is hashed
+        if plugin_dir is None:
+            record = record_for(plugin_id)
+            if record is None or not record.root:
+                return []
+            plugin_dir = Path(record.root)
+        return badges_for(index, "package", manifest_digest(Path(plugin_dir)), kind="plugin", package_id=plugin_id)
+    except Exception:
+        return []
+
+
 def _developer_skills_on() -> bool:
     from core.native_skill_library import developer_skills_on
 
@@ -890,10 +915,14 @@ def read_plugin_catalog() -> dict[str, Any]:
     bundled_roots = bundled_plugin_dirs()
     external_ok = root is not None and storage.get("state") == STORAGE_ACCESSIBLE
     if external_ok or bundled_roots:
+        from core.registry.client import local_badges
+
+        badge_index = local_badges()  # read once for the whole listing
         for plugin_id, plugin_dir in discovered_plugin_sources():
             entry = _plugin_entry(plugin_dir, bundled=plugin_dir in bundled_roots)
             if entry is None:
                 continue
+            entry["badges"] = package_badges(plugin_id, plugin_dir, index=badge_index)
             entry["enabled"] = plugin_id not in disabled
             from core.addon_store import available, is_managed
             if is_managed(plugin_id):
@@ -908,6 +937,10 @@ def read_plugin_catalog() -> dict[str, Any]:
                 entry["enabled"] = entry["enabled"] and is_available(plugin_id, root=plugin_dir)
                 entry["registry_id"] = record.source.removeprefix("registry:")
                 entry["registry_available"] = is_available(plugin_id, root=plugin_dir)
+                from core.registry.client import installed_facts
+
+                # Rate button and the team's notice, for the installed card. Read from this device only.
+                entry["registry"] = installed_facts(entry["registry_id"])
             entry["origin"] = "bundled" if (bundled_root is not None and plugin_dir.parent == bundled_root) else "installed"
             entry["root"] = str(plugin_dir.parent.parent)
             plugins.append(entry)

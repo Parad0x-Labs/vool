@@ -18,6 +18,10 @@ newest releases.
   creator/skill, removing a skill, comment/report moderation, pauses, picture approvals, editorial picks,
   the team's members and VOOL builds to test before their release. Its comments list every form. Edit it on
   GitHub; the next run applies it through signed requests, with no server restart.
+- `badges/` holds the two team badges, "Tested by VOOL" and "Editor's Choice": `badge-issuers.json` (the
+  people the owner appointed, signed with the offline main key), `badges.json` (the badge document, signed by
+  two of them on their own computers) and `badges.txt` (the lines it was made from). The job only passes the
+  signed file on and stamps it; it holds no badge key, so a change here without two signatures issues nothing.
 - The checks themselves are VOOL's own, from the commit named in `authority/vool-commit`.
 - The signing keys live only in this repository's Actions secrets. The run log shows counts, never
   what an upload contains.

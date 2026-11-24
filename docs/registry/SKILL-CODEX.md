@@ -21,17 +21,18 @@ The ticked box becomes `"agreement": "mit-own-work-v1"`:
 
 The agreement records rights, not publication consent. A clean upload returns `state: checking` and `consent: 0`. Show its exact `sha256` and a separate unticked public-history consent. Only an explicit `POST /submissions/{id}/consent` with `{sha256, public: true}` puts those bytes in the automatic signer queue. An unchanged checksum is required; the state stays `checking` until the signer acts. New imports follow the same checksum decision. Without the agreement the routes retain the separately reviewed legacy flow.
 
-The server checks every upload at once. A clean one stays private in `checking` until its author consents to the returned exact checksum. After consent the signer checks it again and asks a review model to read it. Then it becomes `refused` with reasons, or `admitted` and soon `published` in the category the creator chose. A refusal's `findings` are `{check, path, reason, line?, quote?, rule?}`. Show `reason` as written, with the file and line, and `quote` as plain monospace text so the creator sees the words that tripped the check. `rule` is a stable code for the reason, for a page that shows it in the reader's language: `install`, `download`, `address`, `secret-ask`, `wallet`, `injection`, `hidden`, `letters`, `invisible`, `escapes`, `secret`, `reserved-name`, `reserved-summary`, `summary`, `short`, `endorsed` and `too-long`. A finding without `rule` is shown by its `reason` alone. A line that looks like a key, password or recovery phrase is never quoted back, whichever check names it. Skill Codex skills:
+The server checks every upload at once. A clean one stays private in `checking` until its author consents to the returned exact checksum. After consent the signer checks it again and asks a review model to read it. Then it becomes `refused` with reasons, or `admitted` and soon `published` in the category the creator chose. A refusal's `findings` are `{check, path, reason, line?, quote?, rule?}`. Show `reason` as written, with the file and line, and `quote` as plain monospace text so the creator sees the words that tripped the check. `rule` is a stable code for the reason, for a page that shows it in the reader's language: `install`, `download`, `address`, `secret-ask`, `wallet`, `injection`, `hidden`, `letters`, `consent`, `voice`, `link-data`, `card-ask`, `phishing`, `invisible`, `escapes`, `secret`, `reserved-name`, `reserved-summary`, `summary`, `short`, `endorsed` and `too-long`. A finding without `rule` is shown by its `reason` alone. A line that looks like a key, password or recovery phrase is never quoted back, whichever check names it. Skill Codex skills:
 
 - hold Markdown or plain-text files under `skills/`, the licence, `registry.json`, the manifest and optional pictures, and nothing that runs: no scripts, programs, executable files, manifest commands, permissions or credential bindings, and no `vool` section in the manifest (VOOL writes that itself to mark a pack as its owner's own, and refuses to install a download that carries one);
 - never ask anyone to install, download or run software, paste commands into a terminal, or open a short link, raw address or paste site;
-- never ask for a recovery phrase, key, password or code, contain a wallet address, or carry hidden comments, invisible characters or encoded blobs;
+- never ask for a recovery phrase, key, password or code, however the ask is worded ("ask the user for", "request", "read out", "this skill needs your", "what is your"), contain a wallet address, or carry hidden comments, invisible characters or encoded blobs;
+- never say the person already agreed or that asking can be skipped, speak as VOOL or as a new set of rules, show a picture from a web address or put the person's words into a link, ask for card numbers, expiry dates or PINs, or carry a sign-in link or a web address dressed as VOOL's. These are the rules VOOL applies to a skill sent as a file; a published skill is held to all of them, and VOOL applies them again before it installs one;
 - never try to change VOOL's own rules, spending limits or approvals, or hide what they do from the user;
 - carry the MIT licence text with its copyright lines and nothing else, and have instructions long enough to be useful;
-- keep the words that read as the Skill Codex vouching for a skill out of their name, title and summary (such as verified, official, certified, endorsed, "tested by", "safe to use" or "security checked"), and out of every file (such as "verified by VOOL", "tested by Parad0x Labs", "official Skill Codex" or "VOOL team"); only the team's own skills may use them;
+- keep the words that read as the Skill Codex vouching for a skill out of their name, title, summary and the description a listing shows (such as verified, official, certified, endorsed, "tested by", "safe to use", "security checked", "Editor's Choice", "staff pick" or "made by VOOL"), and out of every file (such as "verified by VOOL", "tested by Parad0x Labs", "official Skill Codex", "recommended by VOOL" or "VOOL team"); only the team's own skills may use them. A title or an id also may not carry VOOL's or the Skill Codex's name, the words featured, recommended, trusted or approved, or a check mark, star or medal. A summary may name VOOL ("Helps VOOL plan your week");
 - keep all their text under 120,000 characters ("This skill is too long to check. Keep all its text under 120,000 characters.").
 
-The checks read the instructions, summary and manifest the way a person would: a command split over lines with `\` is read as one, even in the middle of a word, and full-width letters, joiners and look-alike letters from other alphabets are read as the plain letters they imitate. A word that mixes alphabets is refused on its own. Commands are refused even inside advice about them; write the advice in words instead.
+The checks read the instructions, summary and manifest the way a person would: a command split over lines with `\` is read as one, even in the middle of a word, and full-width letters, joiners and look-alike letters from other alphabets are read as the plain letters they imitate. A word that mixes alphabets is refused on its own. Names and summaries are also read with digits and signs that stand in for letters ("0fficial", "V00L"), apostrophes and extra spaces taken out. Commands are refused even inside advice about them; write the advice in words instead.
 
 The review model also refuses a skill that does something its summary does not say, sends anything somewhere the user did not choose, moves money, or is harmful. If the model cannot give a clear answer after three tries, the skill is refused with "Our checks couldn't finish reading this skill. Make it shorter and plainer, then upload it again." While the monthly review budget is used up, or the review service cannot be reached, uploads wait in `checking`; they are never published unchecked, and the wait never counts against them. An upload still waiting 35 days after it arrived expires, and its creator uploads it again. The same refused bytes sent again get the same answer without another review.
 
@@ -39,15 +40,31 @@ Each publisher name gets 30 model reviews a month (the team's name has no limit)
 
 A version number names one package for good. While one version waits for checks, another upload of the same or a lower version is refused with "this version is already waiting for checks; use a higher version number". If two uploads of one version still arrive together (two team members at once), the first is listed and the other is refused with "Version X is not higher than X, which is already listed. Use a higher version number."
 
+A package with `kind: "plugin"` goes through the same routes (`POST /submissions` with the agreement header; the written-skill form and GitHub import stay skill-only). Its rules are in the [author guide](AUTHOR-GUIDE.md#publishing-a-plugin). A plugin finding has two more fields: `{check: "code", path, reason, rule, where, fix}`. `where` is the field at fault in the setup file or in `registry.json`, at most 160 characters; `fix` says what to write instead, at most 900 characters, one line. Show both as plain text beside `reason`. One refusal can carry many such findings: every problem the rules found. The review model reads a plugin with its own instruction, which allows code and refuses behaviour the setup file does not declare.
+
+A plugin's signed row has the same fields as a skill's, so apps already shipped keep accepting the list. Its `plugin_id` is the row's own key, derived from the package id as for a skill; the plugin's id is the name part of the package id. For a plugin, `requirements.network` is true when its setup file lists any website.
+
 Other refusals the page shows as they come: "accept the Skill Codex agreement to publish", "Skill Codex skills use the MIT licence", "new accounts can publish 14 days after they start; yours can from YYYY-MM-DD" (counted from the older of the GitHub account and the Skill Codex account) and "this creator can't publish right now" (a suspended creator).
 
-Catalog rows carry two marks the team sets by hand. `tested: true` means the team tested this exact version; show it as "Tested by Parad0x Labs". An update drops the mark until the team tests the new version. `highlighted: true` puts the skill in the Highlighted spot. Neither is set by stars, downloads or the creator. Pictures of an automatically admitted skill show once that version is marked Tested; until then its creator sees them in `pictures_pending` and everyone else sees the placeholder tile. Team members publish under the team's name (`vool-team`), whose profile has `origin: "official"`; nobody else can choose that name.
+Catalog rows carry two marks the team sets by hand. `tested: true` means the team marked this exact version; it releases the version's pictures and is not a badge, so draw no label from it (see [Team badges](#team-badges)). An update drops the mark until the team marks the new version. `highlighted: true` puts the skill in the Highlighted spot. Neither is set by stars, downloads or the creator. Pictures of an automatically admitted skill show once that version is marked Tested; until then its creator sees them in `pictures_pending` and everyone else sees the placeholder tile. Team members publish under the team's name (`vool-team`), whose profile has `origin: "official"`; nobody else can choose that name.
+
+## Team badges
+
+`GET /registry/api/badges` (no parameters, public) returns exactly `{issuers, badges, stamp}`. Each is a signed envelope `{signed, signatures: [{keyid, sig}]}`, or `null` before the first badge document. This is the only source of the two badges, "Tested by VOOL" and "Editor's Choice". `/catalog`, `/presentation` and `/snapshot` are unchanged and carry no badge.
+
+- `issuers.signed` is `{schema: "vool.registry.badge_issuers.v1", version, expires, keys: {keyid: public key}, threshold}`, signed by the trust root's `root` role. `threshold` is never below 2.
+- `badges.signed` is `{schema: "vool.registry.badges.v1", sequence, previous_sha256, issued_at, expires, badges, team_releases, revoked}`, signed by at least `threshold` different keys of `issuers`. Each entry of `badges` is `{badge: "tested" | "editors_choice", kind: "skill" | "plugin", id, version, digest_type: "artifact" | "package" | "skill-file", sha256, issued_at, expires, targets: [{version, platform}], evidence_sha256, issued_by: [keyid, keyid], note}`. `revoked` lists withdrawn checksums.
+- `stamp.signed` is `{schema: "vool.registry.badges_stamp.v1", sequence, badges_sha256, issued_at, expires}`, signed by the `admission` role; `badges_sha256` is the SHA-256 of the canonical JSON of `badges.signed`, and `expires` is at most seven days after `issued_at`.
+
+A reader shows a badge for a row only when all of this holds: the issuer list verifies against the trust root and has not run out; the document carries valid signatures from two different listed keys and has not run out; the stamp verifies, names this document and has not run out; the entry has not run out, both keys in its `issued_by` are on the list and its `sha256` is not in `revoked`; and the entry's `kind`, `id`, `version` and `sha256` equal the row's (`digest_type: "artifact"` is the row's `sha256`). "Tested by VOOL" is shown to a VOOL app only when its own version and platform are in `targets`; a website shows it with the tested builds. A signature is Ed25519 over the canonical JSON of `signed`: keys sorted, no spaces, ASCII with `\u` escapes. A new version of a skill has another checksum and so no badge.
+
+The signer delivers the document with `POST /registry/api/authority/badges` (authority request signature, body `{issuers, badges, stamp}`, answer `{sequence}`). The service verifies all three as above and takes a document only when it follows the one in place: the next number, naming the stored document in `previous_sha256`. The same document with a newer stamp is taken; an older issuer list, an older stamp or another document under a used number is refused with `{error}`. How the team issues, renews and withdraws a badge is in [OPERATIONS.md](OPERATIONS.md#the-two-team-badges).
 
 ## Catalog search, filters, sort and labels
 
 `GET /registry/api/catalog` accepts `q` (up to 100 characters), `category`, `subcategory`, `origin` (`official` or `community`) and `sort` (`stars`, default; `updated`; `downloads`; `newest`). Unknown or repeated parameters are refused. Search matches every word against the package name, summary, and category and subcategory labels, so a job description such as "summarize meetings" finds a meeting skill whose name differs. Results are not paginated.
 
-Each row adds `published_at` (first listed version), `origin`, `featured`, `editors_pick` and `community_reviews: [{reviewer, role, version, date}]`. Only reviews of the row's exact version are listed. `role` is `team` or `community`. `reviewed: true` means the automated admission checks passed; it is not a statement that a person reviewed the skill.
+Each row adds `published_at` (first listed version), `origin`, `featured`, `editors_pick` and `community_reviews: [{reviewer, role, version, date}]`. `featured` and `editors_pick` choose what a home page puts first; neither is a badge. Only reviews of the row's exact version are listed. `role` is `team` or `community`. `reviewed: true` means the automated admission checks passed; it is not a statement that a person reviewed the skill.
 
 Rows carry the optional `title` when the author set one; show it as plain text and fall back to the package name. For a signed-in viewer every catalog and profile row also has `starred: true|false`; signed out, the field is absent.
 
@@ -62,6 +79,23 @@ All of these come from the signed entry, so the website and the app show the sam
 `GET /registry/api/requirements` returns `{requirements: [{id, label, kind, providers}]}`. `kind` is `provider` when the need is met by one of the listed services' keys in VOOL, or `vool` when VOOL itself provides it or the user allows it. A skill that needs a keyed Solana data service such as Helius declares `chain_data`; `solana_rpc` means it uses VOOL's own Solana connection, whatever RPC address the user set.
 
 `GET /registry/api/categories` returns the fixed category and subcategory list with display labels; read it rather than copying it, because new slugs may be added (existing slugs are never renamed or removed). `GET /registry/api/profiles/{namespace}` returns `{profile, origin, packages}`, where packages are that publisher's listed catalog rows.
+
+## Listing object
+
+`GET /registry/api/listing?id=publisher%2Fname` returns one `vool.listing.v1` object for a listed add-on
+(schema: `docs/reference/listing-standard-v1.schema.json`). It is built in `registry_service/listing.py` from the
+signed row, the checked `listing` block of the package's own `registry.json` (`core/registry/listing.py`), the
+package's setup file, the rating summary, the stored badge document and the team's notices. What a package says
+about itself is read once and kept in `public_versions.inspection` under `listing_facts`; a version published
+before this is read from its stored package on first use. A package whose block does not pass shows no
+description, links or stated compatibility. Nothing is added to `/catalog` rows, `/snapshot` or `/presentation`.
+
+The upload checks and the signer read the block with the rest of the package (`core.registry.checks.listing_findings`,
+under the `quality` check): its shape, then the description as a page shows it, with the Markdown marks gone, by the
+same text rules as SKILL.md. Each refusal carries `where` (the field) and `fix`.
+
+VOOL asks for this route only when a person opens an add-on's detail view, together with the first page of
+`GET /ratings`. Browse itself still reads only whole lists.
 
 ## Pictures
 
@@ -81,11 +115,11 @@ Where a skill has no approved icon, show the placeholder tile instead: [assets/s
 
 | Request | Contract |
 |---|---|
-| `GET /comments?id=publisher/name` | `{comments:[{id, author, created, body}], can_comment}`. A signed-in viewer also receives `mine:[{id, state, created, body}]`, which includes their own held comments, and, when `can_comment` is false, `can_comment_reason`: `no_public_name`, `not_downloaded` or `muted`. Signed out, there is no reason code (`GET /me` says the viewer is signed out). |
+| `GET /comments?id=publisher/name` | `{comments:[{id, author, created, body}], can_comment}`. A signed-in viewer also receives `mine:[{id, state, created, body}]`, which includes their own held comments, and, when `can_comment` is false, `can_comment_reason`: `no_public_name`, `not_rated` or `muted`. Signed out, there is no reason code (`GET /me` says the viewer is signed out). |
 | `POST /comments` | `{id, body}`. Returns HTTP 201 `{id, state, reason}` with state `published` or `held`, or HTTP 400 `{state: "refused", reason}`. |
-| `POST /comments/{id}/report` | `{status: "reported"}`. One report per account; authors cannot report themselves. |
+| `POST /comments/{id}/report` | `{status: "reported"}`. One report per account; authors cannot report themselves. Reports from three different people hold the comment for an operator. A report counts only from an account at least 14 days old that is not muted; every report is kept for the operator either way. |
 
-Only a signed-in account with a public name, which downloaded that package through the website while signed in, can comment. Native-app and anonymous downloads do not count. Each account can make five comment attempts per day, refused attempts included. A refused comment's text is not stored.
+Only a signed-in account with a public name that has rated that add-on can comment (a first rating needs an install pass, see Ratings). A download alone does not count, signed in or not, and the service keeps no list of who downloaded what. Each account can make five comment attempts per day, refused attempts included. A refused comment's text is not stored.
 
 The server filter in `registry_service/moderation.py` refuses links, domains (also spelled out, such as "example dot com slash page", "(dot)" and "[dot]"), email addresses, @handles, phone numbers, crypto addresses, seed or key requests, giveaways and other scam phrases, promotions, cursing, slurs, sexual content and illegal sales, including spaced, dotted, leetspeak and zero-width-character obfuscation. It holds for review: text mostly outside Latin script (the term lists are English), shouting, character floods, and every comment from an account younger than one day. Three reports hide a published comment until an operator acts.
 
@@ -101,6 +135,30 @@ vool-registry mute --config CONFIG --target NAMESPACE                # hides the
 vool-registry unmute --config CONFIG --target NAMESPACE
 ```
 
+## Ratings
+
+A person who installed an add-on from the Skill Codex can give it 1 to 5 stars and an optional text of up to 1000 characters: one rating per account per add-on, which they can change or delete. Nobody else can rate.
+
+What a rating proves: its writer's VOOL fetched that exact package through the install route. Every package download answers with an install pass in the `X-Vool-Review-Pass` header. VOOL keeps the pass in the install receipt only when the install succeeds, and hands it to the website (after the `#` of the Rate page address) only when the person presses **Rate this add-on**. The pass names the add-on, the package checksum and the day; it works from the next day for 180 days, once.
+
+What it does not prove: that the add-on was used. A script can download a package and get a pass. The pass adds a cost and a day's wait to each rating; the account rules below and the team's steps carry the rest.
+
+| Rule | Value |
+| --- | --- |
+| Who cannot rate | the add-on's creator, a member of the team that publishes it, a banned account |
+| Counted in the average | published ratings from accounts at least 7 days old (or with a GitHub account at least 30 days old) |
+| Held for a person's look | text from accounts under 30 days old, text another account already posted, ratings from a muted account, a burst (more new ratings on one add-on in 24 hours than 10, or than three times its usual day), a rating three people with accounts 14 days old reported |
+| Average | shown from 5 counted ratings; under that the page says "Not enough ratings yet (n)" |
+| Sorting score | `(10 × m + sum) / (10 + n)`, `m` = 3.5 until the registry holds 50 counted ratings, then their mean; three 5s score 3.85, three hundred at 4.4 score 4.37; an add-on under 5 counted ratings sorts last |
+| Versions | each rating shows the version its pass named; once the newest major version has 5 counted ratings the headline covers that major only (`scope: current_major`) |
+| Daily guard | 20 new ratings per account per 24 hours; no weekly or monthly limit |
+
+Routes are in `WEBSITE-HANDOVER.md`; team steps and appeals in `OPERATIONS.md`.
+
+Kept: the rating a person chose to publish (account, add-on, stars, text, version, checksum, times); for a used pass its hash, the add-on and the day, with no account; reports of a rating (account, rating, time); the record of team steps.
+
+Not collected, by decision: IP addresses, user agents, device ids, install lists, usage counts, and the list of passes handed out. A pass is computed from the download ticket and no row is written when it is issued, so the service cannot say who installed an add-on they did not rate. The table that linked signed-in accounts to downloads (`account_downloads`) is dropped at the first start of this version. The download number stays one counter per package.
+
 ## Skill reports
 
 Anyone signed in can report a skill from the website. A report holds the skill's ID, one reason and an optional note the person typed, and it is tied to the sender's account and the time it was sent; the account is never shown, not even to operators. The website sends nothing else. The VOOL app only opens the report page (`/codex/skills/report?id=publisher%2Fname`) in the browser and sends nothing itself.
@@ -114,17 +172,32 @@ Both answer HTTP 400 `{"error": "this skill is not listed"}` for a skill the cat
 
 The reasons are `scam`, `harmful`, `stolen`, `picture`, `broken` and `other`; read their labels from `GET /reports`. `other` needs a note. A note is plain text of at most 500 characters and may name a link, for example to the original of a copied skill. A note that looks like it holds a key, password or recovery phrase (also numbered, split up or with a typo) is refused and not stored. This check can miss things, so the form asks people not to paste them. Each account can report a skill once while its earlier report is open, at most ten reports in any 24 hours, and never a skill it publishes.
 
-Reports are private. No page shows how many reports a skill has, their reasons or who sent them. Three open `scam`, `harmful` or `stolen` reports pause downloads of every version of that skill. They count only from accounts older than one day, that are not muted, and that have not already reported that skill in a report an operator closed. A pause refuses new download tickets and tickets already handed out, with HTTP 400 `{"error": "downloads of this skill are paused while a person looks into it"}`, and the skill's catalog row carries `downloads_paused: true`. The skill stays listed, because only the signed catalog decides what is listed. Other reports reach the operator but never pause a skill. VOOL says in the person's language that downloads are paused when someone tries to download or install a paused skill, including one downloaded for inspection before the pause. Installing that inspected copy asks the registry again, so it waits until VOOL can reach the registry.
+Reports are private. No page shows how many reports a skill has, their reasons or who sent them. Open `scam`, `harmful` or `stolen` reports from three different people pause downloads of every version of that skill. A report counts only from an account at least 14 days old, that is not muted, from a person who has not already reported that skill in a report an operator closed. One person counts once: an account with several sign-ins is one person, and so is someone who deleted their account and signed in again. A pause that only reports caused ends by itself 48 hours after it began, unless the team confirmed it with `skill-pause`; it does not start again until an operator has closed those reports. Two kinds of skill are never paused by reports alone: a skill under a team's publisher name, and a skill whose listed version carries the Tested mark. Their reports are kept and shown to the operator, who can pause by hand. A pause refuses new download tickets and tickets already handed out, with HTTP 400 `{"error": "downloads of this skill are paused while a person looks into it"}`, and the skill's catalog row carries `downloads_paused: true`. The skill stays listed, because only the signed catalog decides what is listed. Other reports reach the operator but never pause a skill. VOOL says in the person's language that downloads are paused when someone tries to download or install a paused skill, including one downloaded for inspection before the pause. Installing that inspected copy asks the registry again, so it waits until VOOL can reach the registry.
 
-Operators receive private aggregate counts and opaque report IDs through signed authority HTTP requests. Signed `team-steps.txt` actions close reports, pause or resume downloads, and mute a reporter by opaque ID. Browser sessions have no operator authority. Full private report text stays in the server CLI; reporter identity is never returned. The CLI also provides these fallback actions:
+Operators receive private aggregate counts and opaque report IDs through signed authority HTTP requests. Signed `team-steps.txt` actions close reports, pause or resume downloads, and mute a reporter by opaque ID. Browser sessions have no operator authority. Full private report text stays in the server CLI; reporter identity is never returned. `reports-open` shows, for each skill: `paused` (the cause while downloads are paused now), `paused_since`, and for a pause from reports `pause_lapses` (when it ends) and `pause_lapsed: true` once it has ended; `counting`, the number of different people whose reports count; and `protected: "team"` or `"tested"` when that is why nothing was paused. Each report shows `account_deleted: true` when its sender has since deleted their account. The CLI also provides these fallback actions:
 
 ```sh
 vool-registry reports-open --config CONFIG                           # every skill with open reports or a pause
 vool-registry reports-close --config CONFIG --target PUBLISHER/NAME  # looked at: closes them, wipes notes, ends a pause they caused
 vool-registry skill-pause --config CONFIG --target PUBLISHER/NAME    # an operator's pause; reports-close does not end it
 vool-registry skill-resume --config CONFIG --target PUBLISHER/NAME   # ends any pause and closes open reports
-vool-registry reporter-mute --config CONFIG --target REPORT_ID       # the account behind that report stops counting
+vool-registry reporter-mute --config CONFIG --target REPORT_ID       # the person behind that report stops counting
 ```
+
+## Deleting an account
+
+`DELETE /session` deletes the account, its sign-ins, sessions, uploads that were not published, comments, stars and the notes typed into reports. Published skills stay public under their MIT licence, and the public name stays reserved.
+
+One row stays for each sign-in the account had. It is keyed by a hash that only this service can make from the provider and the provider's account number, with a private key the service keeps. The row holds: when the account was deleted, whether the person was muted, the times of their uploads and comments in the last day, and a hash of each public name they held, made with the same private key. It holds no name in words, no provider id, no email and no text. The person's reports about skills stay as a reason and a count under the same hash, so a pause can always be traced and nobody counts twice.
+
+The row is used for four things when the same sign-in comes back:
+
+- A mute returns with it. `unmute` ends it as usual.
+- A suspension follows the old name. While a name the person held is on the suspended list, they cannot publish under any name, with "this creator can't publish right now". Suspending the old name after they left still reaches them; taking the old name off the list lifts it.
+- The daily limits for uploads, comments and reports continue where they stood.
+- They wait 30 days from the deletion before choosing a new public name. `PUT /profile` answers HTTP 400 `{"error": "an account with this sign-in was deleted; you can choose a public name from YYYY-MM-DD"}`; show it as it comes. Linking a name that already publishes through GitHub (below) has no wait, because that is the person's old name, not a new one.
+
+A row is forgotten 30 days after the deletion, at the service's next clean-up, unless the person was muted or a name they held is suspended at that moment. A suspension given after the row is gone no longer finds the person; suspend within those 30 days.
 
 ## Publishing from VOOL
 

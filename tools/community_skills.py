@@ -1,5 +1,7 @@
 """Make, check and share a VOOL skill: write a starter, test which messages pick it, zip it, put it
-in VOOL's drafts, and prepare a package for the shared skill library. Nothing here publishes anything."""
+in VOOL's drafts, and prepare a package for the shared skill library. A plugin folder is prepared the
+same way: plugin-init writes its listing file, then lint and pack check and pack it. Nothing here
+publishes anything."""
 from __future__ import annotations
 
 import argparse
@@ -86,13 +88,9 @@ def starter_finding(path: str) -> dict:
 
 #: Frontmatter keys VOOL reads (core.plugin_skills.parse_skill_content), plus `license` and
 #: `metadata`, which the publishing tools read. Any other key is ignored by VOOL.
-KNOWN_FRONTMATTER_KEYS = frozenset({
-    "name", "description", "summary", "triggers", "allowed-tools", "allowed_tools", "version", "capabilities",
-    "permissions", "effects", "inputs", "outputs", "stop-conditions", "stop_conditions", "recovery",
-    "cumulative-test-law", "cumulative_test_law", "license", "metadata",
-})
-#: Keys an author writes hoping the skill runs on its own. A skill never does.
-SCHEDULE_KEYS = frozenset({"schedule", "interval", "cron", "every", "timer", "repeat", "run-every", "run_every"})
+# One list, kept beside the loader that reads the header.
+from core.skill_tools import READ_HEADER_KEYS as KNOWN_FRONTMATTER_KEYS
+from core.skill_tools import SCHEDULE_HEADER_KEYS as SCHEDULE_KEYS
 
 
 def frontmatter_warnings(text: str) -> list[str]:
@@ -291,6 +289,47 @@ def initialize(destination: Path, info: dict, license_bytes: bytes) -> None:
     (destination / "registry.json").write_bytes(canonical(info))
 
 
+def plugin_listing(folder: Path, namespace: str, category: str, subcategory: str, summary: str = "") -> dict:
+    """The listing file (registry.json) for a plugin folder, read from the plugin's own setup file.
+
+    The listing has to agree with the setup file, so it is written from it: the package id ends in the
+    plugin's id, the title is its name, the version and licence are its own. An existing listing file is
+    never replaced.
+    """
+    folder = Path(folder)
+    target = folder / "registry.json"
+    require(folder.is_dir() and (folder / ".codex-plugin" / "plugin.json").is_file(),
+            "no plugin in " + str(folder), "Give the plugin's folder: the one that holds .codex-plugin/plugin.json.")
+    require(not target.exists(), str(target) + " already exists", "Edit that file, or remove it and run plugin-init again.")
+    # Only the fields the listing is written from are read here. lint and pack check the whole setup file and
+    # name every field to change in one run.
+    manifest = decode((folder / ".codex-plugin" / "plugin.json").read_bytes(), 1024 * 1024)
+    block = manifest.get("vool") if isinstance(manifest, dict) else None
+    require(isinstance(block, dict) and all(isinstance(value, str) and value.strip() for value in (
+        manifest.get("name"), manifest.get("version"), block.get("name"), block.get("description"), block.get("license"))),
+        "this folder holds no plugin access block",
+        "The setup file needs name and version, and a vool block with name, description and license. "
+        "examples/plugins/template has every field.")
+    plugin_id, version = manifest["name"], manifest["version"]
+    require(bool(IDENTITY.fullmatch(plugin_id)), "this plugin id cannot be a package name",
+            "A package id holds lowercase letters, digits and hyphens only, at most 64 characters. Change name and "
+            "vool.id in the setup file (and the first part of each tool name) to an id of that shape.")
+    require(bool(IDENTITY.fullmatch(namespace)) and namespace not in RESERVED_NAMESPACES, "invalid namespace",
+            "Pass --namespace with your own public name: lowercase letters, digits and hyphens.")
+    require(len(block["name"]) <= 60, "the plugin's name is too long for a listing",
+            "A listing title is at most 60 characters. Shorten vool.name in the setup file.")
+    words = " ".join(str(summary or block["description"]).split())
+    info = {"id": namespace + "/" + plugin_id, "kind": "plugin", "version": version, "title": block["name"],
+            "summary": words[:500], "category": category, "subcategory": subcategory, "license": block["license"],
+            "languages": ["any"], "source": {"upload_id": secrets.token_hex(16), "namespace": namespace}}
+    metadata(info)
+    target.write_bytes(canonical(info))
+    return {"status": "created", "listing": str(target), "id": info["id"], "version": info["version"],
+            "next": "Check it: python -m tools.community_skills lint " + str(folder) + " --scratch <an empty folder "
+                    "outside it>. Then pack it for upload: python -m tools.community_skills pack " + str(folder) +
+                    " --scratch <folder> --output <file>."}
+
+
 def separate(source: Path, *paths: Path) -> None:
     """Refuse scratch/output inside the package before anything is created there."""
     root = source.resolve()
@@ -314,10 +353,21 @@ def preflight(raw: bytes, scratch: Path) -> dict:
         findings.append(starter_finding("registry.json summary"))
     boundaries = analyze(artifact["files"])
     findings.extend(boundaries["conflicts"])
-    with execution_directory(scratch) as owned:
-        root = owned / "package"
-        materialize(raw, root)
-        findings.extend(native_format_findings(root, artifact))
+    # A plugin: the rules an install runs and that listing and setup file agree, each with the field and the fix.
+    from core.registry.checks import plugin_findings
+
+    plugin = plugin_findings(artifact)
+    findings.extend(plugin)
+    # The listing block (description, links, compatibility): what an upload would refuse, each with field and fix.
+    from core.registry.checks import listing_findings
+
+    findings.extend(listing_findings(artifact))
+    if not plugin:
+        # A setup file with a fault above cannot be loaded; its faults are already listed, each by its field.
+        with execution_directory(scratch) as owned:
+            root = owned / "package"
+            materialize(raw, root)
+            findings.extend(native_format_findings(root, artifact))
     from core.registry.requirements import undeclared_needs
 
     return {"status": "blocked" if findings else "preflight_passed", "artifact_sha256": artifact["sha256"],
@@ -345,6 +395,12 @@ def main(argv=None) -> int:
                              help="an empty folder outside the package for temporary files")
         if name == "pack":
             command.add_argument("--output", required=True, type=Path, help="the package file to write (must not exist yet)")
+    listing = commands.add_parser("plugin-init", help="write the listing file (registry.json) into a plugin folder")
+    listing.add_argument("folder", type=Path, help="the plugin folder (holding .codex-plugin/plugin.json)")
+    listing.add_argument("--namespace", required=True, help="your publisher name on the Skill Codex")
+    listing.add_argument("--category", required=True, help="a category id from the Skill Codex list, for example productivity")
+    listing.add_argument("--subcategory", required=True, help="a subcategory id of that category, for example notes-summaries")
+    listing.add_argument("--summary", default="", help="one plain sentence for the card (default: the plugin's description)")
     check = commands.add_parser("check", help="check a packed package file")
     check.add_argument("artifact", type=Path, help="the package file pack wrote")
     check.add_argument("--scratch", required=True, type=Path, help="an empty folder for temporary files")
@@ -400,6 +456,11 @@ def main(argv=None) -> int:
             print(canonical({"status": "created", "next": "Edit instructions and native manifest, then lint and pack."}).decode())
             return 0
         if args.command == "new":
+            from core.skill_tools import _slug, name_problem, reserved_name_reason
+
+            # Said now, not three steps later at import.
+            refused = name_problem(args.name) or reserved_name_reason(_slug(args.name))
+            require(not refused, refused)
             scaffold(args.folder, args.name, args.namespace, args.author)
             print(canonical({"status": "created", "skill_folder": str(args.folder),
                              "metadata": str(metadata_path(args.folder)),
@@ -414,7 +475,13 @@ def main(argv=None) -> int:
                                      "Tool names and limits: docs/guides/skill-tools-and-limits.md"}).decode())
             return 0
         if args.command == "zip":
-            print(canonical(zip_skill(args.folder, args.output)).decode())
+            try:
+                print(canonical(zip_skill(args.folder, args.output)).decode())
+            except FileExistsError:
+                require(False, "that zip file already exists", "Delete it, or give another file with --output.")
+            return 0
+        if args.command == "plugin-init":
+            print(canonical(plugin_listing(args.folder, args.namespace, args.category, args.subcategory, args.summary)).decode())
             return 0
         if args.command == "stage":
             print(canonical(stage_skill(args.folder, overwrite=args.overwrite)).decode())
@@ -432,10 +499,28 @@ def main(argv=None) -> int:
         else:
             separate(args.source, args.scratch, *([args.output] if args.command == "pack" else []))
             info = decode((args.source / "registry.json").read_bytes(), 32768)
+            if isinstance(info, dict):
+                # The listing block stays in the package's own registry.json, where the package checksum covers
+                # it. It is not part of the signed row, so the row keeps the fields every VOOL build knows.
+                info = {key: value for key, value in info.items() if key != "listing"}
             # "icon": "assets/icon.png" is enough; the package records that file's checksum.
             info = bind(info, lambda path: (args.source / path_name(path)).read_bytes())
             raw = pack(args.source, info, args.scratch)
         report = preflight(raw, args.scratch)
+        # The author's own check also reads the skill's text by the rules try, zip, stage and the Skill
+        # Codex apply. Without them lint passed a skill that every later step refused. (The service
+        # runs its full checks after preflight, so preflight itself stays as it is.)
+        from core.registry.checks import skill_text_findings
+
+        seen = {(item.get("path"), item.get("line"), item.get("reason")) for item in report["findings"]}
+        for name, data in sorted(inspect(raw)["files"].items()):
+            if name.endswith("SKILL.md"):
+                for item in skill_text_findings(data.decode("utf-8", "replace")):
+                    item = dict(item, path=name)
+                    if item.get("rule") and (item["path"], item.get("line"), item.get("reason")) not in seen:
+                        report["findings"].append(item)
+        if report["findings"]:
+            report["status"] = "blocked"
         warnings = [line for name, data in sorted(inspect(raw)["files"].items()) if name.endswith("SKILL.md")
                     for line in frontmatter_warnings(data.decode("utf-8", "replace"))]
         if warnings:
@@ -454,7 +539,10 @@ def main(argv=None) -> int:
         print(canonical(report).decode())
         return 0
     except (RegistryError, PackageError, OSError, ValueError) as exc:
-        print(canonical({"status": "refused", "reason": str(exc)}).decode())
+        refused = {"status": "refused", "reason": str(exc)}
+        if getattr(exc, "fix", ""):
+            refused["fix"] = exc.fix  # what to write instead, where the rule knows it
+        print(canonical(refused).decode())
         return 1
 
 

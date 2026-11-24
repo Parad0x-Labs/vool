@@ -10,7 +10,13 @@
 #   suspended publisher              withdraw listed skills and refuse this creator's pending/new uploads
 #   suspended publisher/name         withdraw this skill, the same permanent version revocation as removed
 #   removed publisher/name           off the Skill Codex, and installed copies stop working
+#   removed publisher/name REASON    the same, and people are told why
+#   delisted publisher/name REASON   off the list, installed copies keep working; delete the line to list it again
 #   team vool-team 12345 67890       a team name and its members' GitHub account numbers
+#   team-admit vool-team/name <64-hex package checksum>
+#                                    sign this one upload under the team's name; without the line it waits,
+#                                    because the signer can't know who uploaded. The checksum is the sha256
+#                                    the upload printed. A new version is other bytes and needs its own line.
 #   build 0.7.2-beta <commit id>     also sign for this VOOL build before it is released, to test it
 #
 # Routine moderation (opaque IDs/counts are in authority/state.json under moderation; no private text):
@@ -22,6 +28,17 @@
 #   skill-pause publisher/name             closes reports and pauses downloads by operator decision
 #   skill-resume publisher/name            closes reports and ends the pause
 #   reporter-mute <32-hex report id>        mutes the sender without exposing their identity
+#
+# Ratings and accounts (one-shot like the lines above; each leaves a public notice). REASON is one of:
+# fake automated self_rating paid abusive off_topic harmful stolen misleading creator_request mistake_reversed
+#   rating-void <32-hex rating id> REASON          removes one rating from the list and the average
+#   review-text-remove <32-hex rating id> REASON   removes its words, keeps its stars
+#   rating-restore <32-hex rating id>              publishes a removed or held rating again
+#   ratings-void-account publisher-or-handle REASON
+#   ratings-void-window publisher/name 2026-01-31T00 2026-01-31T12 REASON    UTC hours, end not included
+#   ratings-freeze publisher/name REASON           no new ratings; undo with ratings-unfreeze publisher/name
+#   account-ban publisher-or-handle REASON         no ratings, comments or stars; undo with account-unban
+# Held rating ids and open appeal ids are in authority/state.json under moderation_ratings.
 #
 # Curation (complete signed replacement for static curation.json after the first curation line):
 #   picture publisher/name <64-hex picture checksum>    approve exactly this skill's picture

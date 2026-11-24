@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 
 from core import plugin_lifecycle as lifecycle
-from core.plugin_migration import reserved_refusal
+from core.plugin_identity import identity_note, identity_refusal
 from core.plugin_package import PackageError, capture_package
 from core.plugin_paths import child_of
 from core.plugin_tools import PluginManifestError, confined_plugin_id, load_manifest, parse_manifest
@@ -132,6 +132,19 @@ def message_key(message: str) -> str:
 GENERIC_FAILURE = "This plugin action could not be completed. Nothing was changed. Review the plugin in Add-ons and try again."
 
 
+def maker_note(exc, written: str = "") -> dict:
+    """The note for a plugin's maker that a refusal carries: {"where": field, "fix": what to change}, or {}.
+
+    VOOL's own words about the manifest (`core.plugin_manifest.ManifestRefusal`), bounded and flat. It is
+    shown as plain text beside the translated sentence, and printed by `python -m tools.plugin_check`.
+    """
+    where, fix = str(getattr(exc, "where", "") or ""), str(getattr(exc, "fix", "") or written or "")
+    if not fix:
+        return {}
+    flat = lambda text, limit: " ".join(text.split())[:limit]  # noqa: E731
+    return {"where": flat(where, 160), "fix": flat(fix, 900)}
+
+
 def user_message(message: str) -> dict:
     """Only reviewed, catalogued sentences reach the page; internal detail never does."""
     from core.i18n.catalog import catalog_for
@@ -191,11 +204,17 @@ def prepare_local(folder: str, *, update=False, source="local", local_findings=0
     stage = pending / review_id
     try:
         captured = capture_package(Path(folder).expanduser(), destination=stage)
+        # Who the package says it is, read before anything else about it: an id, a name or a
+        # maker's name that poses as VOOL's own, or as checked by anyone, goes no further. The
+        # GitHub door ends here too, so both are held to the one rule.
+        refusal, note = identity_note(captured.manifest, digest=captured.digest)
+        if refusal:
+            named = lifecycle.LifecycleError(refusal)
+            named.maker_note = note
+            raise named
         plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
         if not plugin.vool:
             raise lifecycle.LifecycleError("This plugin was made for an older VOOL. Ask its maker for an update.")
-        if refusal := reserved_refusal(plugin.plugin_id, captured.digest):
-            raise lifecycle.LifecycleError(refusal)
         value = {"review_id": review_id, "digest": captured.digest, "plugin_id": plugin.plugin_id,
                  "created_at": time.time(), "update": update is True, "source": source,
                  "local_findings": int(local_findings)}
@@ -291,20 +310,27 @@ def install(review_id: str, *, accepted: bool, digest: str, findings_seen=0) -> 
         if int(saved.get("local_findings") or 0) and findings_seen != saved["local_findings"]:
             # The device check flagged files: the owner accepts only a review that showed them.
             raise lifecycle.LifecycleError("The on-device check flagged files in this package. Review them before installing.")
-        plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
-        if refusal := reserved_refusal(plugin.plugin_id, captured.digest):
+        # Asked again on the reviewed copy: what VOOL keeps for itself may have grown since the review.
+        if refusal := identity_refusal(captured.manifest, digest=captured.digest):
             raise lifecycle.LifecycleError(refusal)
+        plugin = parse_manifest(captured.manifest, path=stage / ".codex-plugin" / "plugin.json")
         target = _destination(plugin.plugin_id)
         previous = lifecycle.record_for(plugin.plugin_id)
         active = previous and previous.stage != lifecycle.STAGE_UNINSTALLED
+        # A package from the Skill Codex keeps that as its source, so a removal there reaches this copy. Only
+        # core.registry.native passes such a source; the page's own actions cannot name one.
+        from_codex = str(saved["source"]).startswith("registry:")
+        new_source = saved["source"] if from_codex else "plugin:" + saved["source"]
         if active or target.exists():
-            if not saved["update"] or not active or Path(previous.root).resolve() != target.resolve() or not previous.source.startswith("plugin:"):
+            # A copy from the Skill Codex is replaced only by a later version of the same package there, and a
+            # folder or GitHub copy only by another of those: neither quietly becomes the other.
+            same_kind = active and (previous.source == new_source if from_codex else previous.source.startswith("plugin:"))
+            if not saved["update"] or not active or Path(previous.root).resolve() != target.resolve() or not same_kind:
                 raise lifecycle.LifecycleError("A plugin with this identity is already installed. Use Update to review a replacement.")
         elif saved["update"]:
             raise lifecycle.LifecycleError("Install the plugin before updating it.")
         # An update from another repository or publisher is another party's code: it must not
         # inherit keys the owner saved for the plugin it replaces.
-        new_source = "plugin:" + saved["source"]
         keys_follow = True
         if active:
             try:
@@ -573,9 +599,14 @@ def handle(action: str, body: dict) -> dict:
     except ServiceRefused as exc:
         raise lifecycle.LifecycleError(str(exc)) from None
     except (PackageError, PluginManifestError) as exc:
-        reason = str(exc)
+        reason = written = str(exc)
         if isinstance(exc, PackageError) and "links" in reason:
             reason = "Linked files and embedded projects can't be added."
         if user_message(reason)["message"] != reason:
             reason = "The plugin's setup file is invalid or missing. Review it before installing."
-        raise lifecycle.LifecycleError(reason) from None
+        refusal = lifecycle.LifecycleError(reason)
+        # The person installing reads the sentence. Its maker, often the same person trying their own
+        # folder, also gets the field at fault and what to write instead. A rule that has no such note
+        # wrote its message for the maker to begin with; that message is the note.
+        refusal.maker_note = maker_note(exc) or (maker_note(None, written) if written != reason else {})
+        raise refusal from None

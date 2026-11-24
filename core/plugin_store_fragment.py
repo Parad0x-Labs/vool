@@ -17,7 +17,7 @@ function pluginBrowserFacts(host,b){
  const asks=pluginBrowserAccess(b.access||[]);if(asks.length){const list=node('ul');asks.forEach(t=>list.append(node('li',t)));host.append(list);}}
 function pluginFacts(host,p){
  if(((p.tools||[]).length||(p.mcp_servers||[]).length)&&p.executable_runtime_available===false)host.append(node('p',tr(p.executable_runtime_refusal_key,p.executable_runtime_refusal)));
- if(((p.tools||[]).length||(p.mcp_servers||[]).length)&&p.executable_runtime_available!==false&&p.mac_process_note)host.append(node('p',tr('plugin_mac_process_note','On a Mac, a plugin’s programs can see some settings of other apps you run, like any app can. Your plugin keys are never put there.')));
+ if(((p.tools||[]).length||(p.mcp_servers||[]).length)&&p.executable_runtime_available!==false&&p.mac_process_note)host.append(node('p',(p.network||[]).length&&p.process_network_available!==false?tr('plugin_mac_process_network_note','On a Mac, this plugin’s programs can see the start-up settings of other apps you run. Those can hold keys, and this plugin can send what it sees to the sites under Network access. Your plugin keys are never put there.'):tr('plugin_mac_process_note','On a Mac, a plugin’s programs can see some settings of other apps you run, like any app can. Your plugin keys are never put there.')));
  if((p.kind||[]).includes('model_provider'))host.append(node('p',tr('plugin_provider_effect','Sends the chat requests you choose to this service. Usage may be billed to your service account.')));
  if((p.kind||[]).includes('scanner'))host.append(node('p',tr('plugin_scanner_effect','Sends public add-on content to this service when you request a scan. A scan does not grant installation or tool permissions.')));
  if(p.browser){pluginBrowserFacts(host,p.browser);if((p.kind||[]).every(k=>k==='browser'))return;}
@@ -78,7 +78,7 @@ function renderServicePlugins(host,query){
  rows.forEach(p=>{
   const now=inBrowser(p)?'browser':'other';
   if(now!==group&&rows.some(inBrowser)){group=now;const heading=node('h3',now==='browser'?tr('plugin_group_browser','Web browser'):tr('plugin_group_other','Tools and services'),'plugin-group');heading.style.gridColumn='1 / -1';grid.append(heading);}
-  const card=node('article',undefined,'addon-card');card.dataset.pluginId=p.id;card.dataset.pluginGroup=now;card.append(node('h3',p.name),node('p',p.description||''),node('p',p.enabled?tr('plugin_enabled','Enabled'):tr('plugin_disabled','Disabled'),'addon-state'));
+  const card=node('article',undefined,'addon-card');card.dataset.pluginId=p.id;card.dataset.pluginGroup=now;const top=cardTop(skillPicture({}),p.name,kindLabel('plugin')+(p.publisher?' · '+byMaker(p.publisher):''),p);top.querySelector('.vl-card-main').classList.add('plugin-title-row');card.append(top,node('p',p.description||'','vl-tagline'),installedExtras(p.registry,p.name),node('p',p.enabled?tr('plugin_enabled','Enabled'):tr('plugin_disabled','Disabled'),'addon-state'));
   if(!p.reviewed_by_store)card.append(node('p',tr('plugin_not_reviewed','Not reviewed by the VOOL store'),'addon-meta'));
   if(p.reason)card.append(node('p',tr(p.reason_key,p.reason),'addon-error'));
   if((p.kind||[]).includes('model_provider'))card.append(node('p',tr('plugin_model_count','{count} models available').replace('{count}',String(p.model_count||0))));

@@ -57,6 +57,10 @@ def test_complete_inventory_sdk_and_signed_native_install(tmp_path, monkeypatch,
     if route == "sdk":
         report = preflight(raw, tmp_path / "preflight")
         assert report["admitted"] is False
+        if variant == "plugin-only":
+            # A package of kind plugin is published only with its access block; the author's check says which.
+            assert report["status"] == "blocked" and [item["where"] for item in report["findings"]] == ["vool"]
+            return
         assert report["status"] == ("blocked" if invalid else "preflight_passed")
         if invalid:
             assert any(item["check"] == "native-format" for item in report["findings"])

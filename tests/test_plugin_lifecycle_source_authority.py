@@ -81,6 +81,9 @@ def test_an_installed_copy_cannot_shadow_the_bundled_identity_it_declares(world,
     # catalog's merged inventory drops it as a duplicate and keeps only the bundled directory.
     _pack(base / "plugins" / "notes", "wallet")
     monkeypatch.setattr(plugin_catalog, "discovered_plugin_sources", lambda: (("wallet", bundled),))
+    # The door now asks who a pack says it is. A pack is VOOL's own by where it is loaded from, so the
+    # stand-in for a shipped pack has to sit where shipped packs sit.
+    monkeypatch.setenv("VOOL_BUNDLED_PLUGINS_DIR", str(base / "bundled"))
 
     assert plugin_lifecycle_action(action="install", plugin_id="notes")["ok"] is False
     assert plugin_lifecycle.record_for("notes") is None

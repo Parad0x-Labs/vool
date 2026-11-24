@@ -65,6 +65,8 @@ from registry_service.mac_authority import (
     _write,
 )
 from registry_service.operations import ACTIONS as OPERATOR_ACTIONS
+from registry_service.ratings import FORMS as RATING_FORMS
+from registry_service.ratings import pending_summary, reason_code, step_from_words
 
 FOLDER = "authority"
 STEPS = "team-steps.txt"
@@ -89,8 +91,12 @@ REMOVED = "This skill was taken off the Skill Codex. Ask the team before you pub
 _STEP_FORMS = {"tested": "tested publisher/name version", "highlighted": "highlighted publisher/name",
                "suspended": "suspended publisher", "removed": "removed publisher/name",
                "team": "team name github-account-number [github-account-number ...]",
+               "team-admit": "team-admit publisher/name package-checksum",
                "build": "build version full-commit-id"}
 _STEP_FORMS.update({name: name + " target" for name in OPERATOR_ACTIONS})
+# Steps about ratings and accounts name a reason from the fixed list; so does hiding an add-on from the list.
+_STEP_FORMS.update(RATING_FORMS)
+_STEP_FORMS.update({"delisted": "delisted publisher/name reason", "removed": "removed publisher/name [reason]"})
 _STEP_FORMS.update({"picture": "picture publisher/name sha256", "official": "official publisher",
                     "featured": "featured publisher/name", "editors-pick": "editors-pick publisher/name",
                     "reviewer": "reviewer publisher team|community",
@@ -217,7 +223,26 @@ def parse_steps(text: str) -> dict:
         step, args = words[0].lower(), words[1:]
         require(step in _STEP_FORMS, f"{STEPS} line {number}: this is not a step; use a form listed in the file")
         form = f"{STEPS} line {number}: write it as \"{_STEP_FORMS[step]}\""
-        if step in OPERATOR_ACTIONS:
+        if step in RATING_FORMS:
+            from registry_service.operations import validate
+
+            # A wrong reason code or a misspelt id stops the whole file, and the line says what to write.
+            try:
+                operation = step_from_words(step, args)
+                validate([*wanted.get("operations", []), operation])
+            except RegistryError as exc:
+                raise RegistryError(f"{STEPS} line {number}: {exc}") from None
+            wanted.setdefault("operations", []).append(operation)
+        elif step == "delisted":
+            # Off the list, while installed copies keep working. Take the line out to list the add-on again.
+            require(len(args) == 2 and _skill(args[0]) and
+                    args[0] not in {item["id"] for item in wanted.get("delisted", [])}, form)
+            try:
+                reason_code(args[1])
+            except RegistryError as exc:
+                raise RegistryError(f"{STEPS} line {number}: {exc}") from None
+            wanted.setdefault("delisted", []).append({"id": args[0], "reason": args[1]})
+        elif step in OPERATOR_ACTIONS:
             from registry_service.operations import validate
 
             require(len(args) == 1, form)
@@ -247,12 +272,27 @@ def parse_steps(text: str) -> dict:
         elif step == "tested":
             require(len(args) == 2 and _skill(args[0]) and bool(VERSION.fullmatch(args[1])), form)
             wanted["tested"].append((args[0], args[1]))
+        elif step == "removed" and len(args) == 2:
+            # The reason is what people who had it installed are told.
+            require(_skill(args[0]) and args[0] not in {item["id"] for item in wanted.get("withdrawals", [])}, form)
+            try:
+                reason_code(args[1])
+            except RegistryError as exc:
+                raise RegistryError(f"{STEPS} line {number}: {exc}") from None
+            wanted["removed"].append(args[0])
+            wanted.setdefault("withdrawals", []).append({"id": args[0], "reason": args[1]})
         elif step in {"highlighted", "removed"}:
             require(len(args) == 1 and _skill(args[0]), form)
             wanted[step].append(args[0])
         elif step == "suspended":
             require(len(args) == 1 and (bool(IDENTITY.fullmatch(args[0])) or _skill(args[0])), form)
             wanted["removed" if _skill(args[0]) else "suspended"].append(args[0])
+        elif step == "team-admit":
+            # One upload under a team's name, by its exact bytes; the signer signs no team upload without one.
+            require(len(args) == 2 and _skill(args[0]) and bool(HEX.fullmatch(args[1])), form)
+            admits = wanted.setdefault("team_admits", [])
+            if args[0] + "@" + args[1] not in admits:
+                admits.append(args[0] + "@" + args[1])
         elif step == "build":
             require(len(args) == 2 and bool(VERSION.fullmatch(args[0])) and bool(COMMIT.fullmatch(args[1])), form)
             if [args[0], args[1]] not in wanted["builds"]:
@@ -263,7 +303,8 @@ def parse_steps(text: str) -> dict:
             wanted["teams"][args[0]] = sorted(set(args[1:]))
     require(len(wanted["teams"]) <= 16, STEPS + ": at most 16 teams")
     require(len(wanted["builds"]) <= 8, STEPS + ": at most 8 builds")
-    require(all(len(wanted[field]) <= 4096 for field in ("tested", "highlighted", "suspended", "removed")),
+    require(all(len(wanted.get(field, [])) <= 4096 for field in ("tested", "highlighted", "suspended", "removed",
+                                                                 "team_admits", "delisted", "withdrawals")),
             STEPS + ": too many steps")
     if "curation" in wanted:
         from registry_service.curation import validate_curation
@@ -332,6 +373,7 @@ class RepoAuthority(Authority):
         self._releases = releases
         self._sealed = ""
         self._removed: set[str] = set()
+        self._admits: set[str] = set()
         # Without its key every clean upload would be refused for a reason that is the team's, not the creator's.
         self._openrouter = env.get("VOOL_AUTHORITY_OPENROUTER_KEY", "")
         require(review is not None or bool(self._openrouter.strip()),
@@ -372,7 +414,8 @@ class RepoAuthority(Authority):
         from core.registry.trust import validate_entry, verify
 
         required = {"epoch", "entries", "revoked", "targets", "authorized_until", "marks"}
-        optional = {"released", "builds", "removed", "unpublished", "marks_unsent", "releases_checked", "rechecked", "moderation"}
+        optional = {"released", "builds", "removed", "unpublished", "marks_unsent", "releases_checked", "rechecked", "moderation",
+                    "moderation_ratings"}
         require(required <= set(value) <= required | optional and type(value["epoch"]) is int and value["epoch"] >= 0 and
                 type(value["authorized_until"]) is int and value["authorized_until"] >= 0 and
                 isinstance(value["entries"], list) and len(value["entries"]) <= 4096 and
@@ -442,6 +485,10 @@ class RepoAuthority(Authority):
         require(hashlib.sha256(raw).hexdigest() == sha256, "the server sent different bytes")
         return raw
 
+    def _badge_folder(self) -> Path:
+        # In the open, beside team-steps.txt: a change arrives by pull request and is worth nothing unsigned.
+        return self.repo / "badges"
+
     def _today(self) -> str:
         return time.strftime("%Y-%m-%d", time.gmtime(self.now()))
 
@@ -451,7 +498,8 @@ class RepoAuthority(Authority):
         marks = self.state["marks"]
         value = marks_document({"schema": MARKS_SCHEMA, "sequence": marks["sequence"] + 1, "issued_at": self.now(),
                                 **{key: marks[key] for key in ("tested", "highlighted", "suspended", "teams")},
-                                **{key: marks[key] for key in ("operations", "curation") if key in marks}},
+                                **{key: marks[key] for key in ("operations", "curation", "delisted", "withdrawals")
+                                   if key in marks}},
                                now=self.now())
         envelope = add_signature({"signed": value, "signatures": []}, self.admission_key)
         require(len(canonical(envelope)) <= 65536, "signed marks update exceeds byte limit; reduce the steps")
@@ -461,6 +509,9 @@ class RepoAuthority(Authority):
         self.state.pop("marks_unsent")
         self.save()
         return value
+
+    def _team_admitted(self, named: str) -> bool:
+        return named in self._admits  # this run's team-admit lines; the file is read again every run
 
     def _check(self, raw: bytes, *, official: bool) -> dict:
         try:
@@ -508,11 +559,27 @@ class RepoAuthority(Authority):
                 problems.append(f"suspended {name}: a team can't be suspended")
             else:
                 suspended.append(name)
+        self._admits = set()
+        for named in wanted.get("team_admits", []):
+            publisher = named.split("/")[0]
+            if publisher in wanted["teams"]:
+                self._admits.add(named)
+            else:
+                problems.append(f"team-admit {named.partition('@')[0]}: {publisher} is not a team")
         new = {"tested": sorted(set(tested)), "highlighted": sorted(set(highlighted)), "suspended": sorted(set(suspended)),
                "teams": wanted["teams"]}
         marks = self.state["marks"]
         if "operations" in wanted or "operations" in marks:
             new["operations"] = wanted.get("operations", [])
+        if "delisted" in wanted or "delisted" in marks:
+            new["delisted"] = []
+            for item in sorted(wanted.get("delisted", []), key=lambda item: item["id"]):
+                if item["id"] in listed:
+                    new["delisted"].append(item)
+                else:
+                    problems.append(f"delisted {item['id']}: that skill is not in the Skill Codex")
+        if "withdrawals" in wanted or "withdrawals" in marks:
+            new["withdrawals"] = sorted(wanted.get("withdrawals", []), key=lambda item: item["id"])
         if "curation" in wanted or "curation" in marks:
             new["curation"] = wanted.get("curation", {"schema": "vool.registry.curation.v1", "official_namespaces": [],
                 "featured": [], "editors_picks": [], "reviewers": {}, "reviews": [], "approved_pictures": []})
@@ -624,8 +691,17 @@ class RepoAuthority(Authority):
         from registry_service.operations import summary
 
         moderation = summary(self.call("GET", "/authority/moderation"))
+        try:
+            # Held ratings and open appeals, as ids and counts for the team to act on.
+            waiting = pending_summary(self.call("GET", "/authority/moderation/ratings"))
+        except RegistryError as exc:
+            if str(exc) != "the server refused: HTTP 404":
+                raise
+            waiting = None  # a service from before ratings has no such list
         report = {"steps": self.team_steps(wanted), "dropped": []}
         self.state["moderation"] = moderation
+        if waiting is not None:
+            self.state["moderation_ratings"] = waiting
         report["releases_changed"] = self.follow_releases(released)
         report["dropped"] = self.recheck()
         if self._recheck_waiting:
@@ -675,7 +751,11 @@ def quiet(report: dict) -> dict:
     return {"admitted": len(report.get("admitted", [])), "refused": len(report.get("refused", [])),
             "waiting": len(report.get("waiting", [])), "errors": len(report.get("errors", [])),
             "dropped": len(report.get("dropped", [])), "list_published": "catalog" in report,
+            # Team uploads that wait for a team-admit line in the steps file.
+            "team_step_needed": len(report.get("team_step_needed", [])),
             "team_steps": report["steps"]["problems"] + ([] if report["steps"]["applied"] else ["nothing applied"]),
+            # The badge document in badges/ did not verify or was refused: run `python -m registry_service.badges check`.
+            **({"badges_waiting": True} if "badge_problem" in report else {}),
             **{key: "The source could not be checked; the next run tries again."
                for key in ("releases_waiting", "recheck_waiting") if key in report}}
 

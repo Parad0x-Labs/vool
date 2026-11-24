@@ -8,6 +8,13 @@ The person had no way to know the answer did not come from the plugin they added
 Whether a plugin may run is already decided elsewhere (`plugin_lifecycle.is_available`, the
 owner's chat-tools switch). This lane only reads that decision and tells the person, before any
 model is asked. It never enables, reviews or runs anything.
+
+The sentence is VOOL's own, so the plugin's name in it is VOOL's writing too: the name a maker
+wrote goes through one cleaner (`core.plugin_identity.shown_name`) and is never copied as it
+came. A name that carried a link and a sentence of its own used to be said in VOOL's voice. And a
+package the person never switched on gets no sentence at all unless they typed one of its tools
+by its exact id: nobody agreed to it, so its words and a judge's guess are no reason for VOOL to
+answer a question about something else with a notice about it.
 """
 
 from __future__ import annotations
@@ -36,6 +43,27 @@ REMOVED = (
 )
 
 
+def plugin_sentence(template: str, name: str) -> str:
+    """One of the sentences above about the named plugin; with no readable name it says "a plugin"."""
+    if name:
+        return template.format(name=name)
+    return template.replace("The {name} plugin", "A plugin").replace("the {name} plugin", "a plugin")
+
+
+def _shown(state: dict[str, Any]) -> str:
+    from core.plugin_identity import shown_name
+
+    return shown_name(state.get("name"), state.get("id"))
+
+
+def _switched_on_before(plugin_id: str) -> bool:
+    """Whether the person ever switched this installed package on (`core.plugin_ask.switched_on_before`)."""
+    from core import plugin_lifecycle
+    from core.plugin_ask import switched_on_before
+
+    return switched_on_before(plugin_lifecycle.record_for(plugin_id))
+
+
 def unavailable_plugin_notice(text: str, source_context: dict[str, Any] | None = None) -> str:
     """The sentence for a turn that asks only for plugins that cannot run; "" otherwise.
 
@@ -51,7 +79,9 @@ def unavailable_plugin_notice(text: str, source_context: dict[str, Any] | None =
 
         removed = removed_plugins_named_in_words(text)
         if removed:
-            return REMOVED.format(name=removed[0])
+            from core.plugin_identity import shown_name
+
+            return plugin_sentence(REMOVED, shown_name(removed[0]))
         if source_context is not None:
             from core.execution_requirements import _compute_requirements
 
@@ -64,24 +94,28 @@ def unavailable_plugin_notice(text: str, source_context: dict[str, Any] | None =
     from core import plugin_manager
     from core.plugin_tools import plugin_id_for_intent, plugin_tools_on
 
+    typed = {plugin_id_for_intent(intent) for intent in signals.explicit_intents} - {""}
     asked = asked or [plugin_id_for_intent(intent) for intent in signals.explicit_intents] or list(plugins_named_in_words(text))
     states: list[dict[str, Any]] = []
     for plugin_id in dict.fromkeys(p for p in asked if p):
         try:
+            # A package nobody ever switched on is spoken about only when its tool was typed by its exact id.
+            if plugin_id not in typed and not _switched_on_before(plugin_id):
+                continue
             states.append(plugin_manager.inspect(plugin_id))
         except Exception:
             return ""   # not a reviewed package, or unreadable: leave the turn to the ordinary path
     if not states:
         return ""
-    names = " and ".join(str(state.get("name") or state.get("id") or "") for state in states[:2])
+    names = " and ".join(name for name in (_shown(state) for state in states[:2]) if name)
     usable = [state for state in states if state.get("enabled")]
     if usable and plugin_tools_on():
         return ""
     if usable:
-        return SWITCHED_OFF.format(name=str(usable[0].get("name") or usable[0].get("id")))
+        return plugin_sentence(SWITCHED_OFF, _shown(usable[0]))
     first = states[0]
     template = CHANGED if str(first.get("reason") or "") else TURNED_OFF
-    return template.format(name=names if len(states) > 1 and not first.get("reason") else str(first.get("name") or first.get("id")))
+    return plugin_sentence(template, names if len(states) > 1 and not first.get("reason") else _shown(first))
 
 
 def maybe_explain_unavailable_plugin(

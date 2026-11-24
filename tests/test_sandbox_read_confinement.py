@@ -167,3 +167,49 @@ def test_live_named_root_is_restored_inside_a_denied_tree_and_siblings_stay_deni
         assert "SIBLING_DENIED" in r.stdout, (r.stdout, r.stderr)
     finally:
         shutil.rmtree(control, ignore_errors=True)
+
+
+def test_private_read_roots_include_every_account_and_the_shared_folder():
+    """/Users holds every account on a Mac and the folder they all share. A confined job reads none of
+    it unless the policy names a root there; the operator's own home was already private."""
+    if not Path("/Users").is_dir():
+        pytest.skip("no /Users on this host")
+    assert Path("/Users") in _private_read_roots()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="seatbelt is macOS-only")
+def test_live_seatbelt_blocks_the_shared_folder_and_keeps_the_workspace(tmp_path):
+    """Real kernel enforcement: a confined child can neither list the folder every account shares
+    nor read a file in it, while its own workspace still reads under the same profile."""
+    import os
+    import pwd
+    import uuid
+
+    # The folder every account on this Mac shares sits beside the account homes (the real one, not $HOME).
+    shared = Path(pwd.getpwuid(os.getuid()).pw_dir).parent / "Shared"
+    if not shared.is_dir():
+        pytest.skip("no shared folder on this host")
+    canary = shared / ("vool-pytest-" + uuid.uuid4().hex)
+    try:
+        canary.write_text("CANARY")
+    except OSError:
+        pytest.skip("cannot write a canary into the shared folder")
+    try:
+        workspace = tmp_path.resolve()
+        (workspace / "own.txt").write_text("OWN")
+        prof = _macos_confined_profile((workspace,))
+        with tempfile.NamedTemporaryFile("w", suffix=".sb", delete=False) as f:
+            f.write(prof)
+            sbf = f.name
+
+        def child(code):
+            return subprocess.run(["sandbox-exec", "-f", sbf, "python3", "-c", code],
+                                  capture_output=True, text=True, timeout=20)
+
+        for code in (f"open({str(canary)!r}).read()", f"import os; os.listdir({str(shared)!r})"):
+            denied = child(code)
+            assert denied.returncode != 0 and "not permitted" in (denied.stderr or "").lower(), code
+        own = child(f"print(open({str(workspace / 'own.txt')!r}).read())")
+        assert own.returncode == 0 and own.stdout.strip() == "OWN", own.stderr
+    finally:
+        canary.unlink(missing_ok=True)

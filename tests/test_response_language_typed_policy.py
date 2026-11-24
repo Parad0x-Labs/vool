@@ -422,3 +422,40 @@ def test_english_turn_keeps_its_existing_prompt_shape() -> None:
         if str(message.get("role") or "").casefold() == "system"
     ]
     assert not any("Respond in" in content for content in system_messages)
+
+
+def test_the_tool_round_that_writes_the_answer_carries_the_persons_language() -> None:
+    """After tool work the answer is the tool round's respond.direct message, so that call needs the line too.
+
+    Measured in the app on 2026-11-24: a plugin asked for in Lithuanian ran correctly and the answer came
+    back in English; no tool-round prompt carried any language line, for any language.
+    """
+    from core.memory_first_router import MemoryFirstRouter
+    from core.prompt_normalizer import _tool_intent_catalog_text
+
+    def tool_round(text: str):
+        router = MemoryFirstRouter(registry=mock.Mock())
+        return router._build_request(
+            task=SimpleNamespace(task_id="language-tool-round"),
+            classification={},
+            interpretation=SimpleNamespace(raw_text=text, normalized_text=text),
+            context_result=SimpleNamespace(report=SimpleNamespace(to_dict=lambda: {})),
+            persona=SimpleNamespace(),
+            output_mode="tool_intent",
+            task_kind="tool_intent",
+            surface="openclaw",
+            source_context={},
+        )
+
+    def system(request) -> str:
+        return "\n".join(str(m.get("content") or "") for m in request.messages if str(m.get("role") or "").casefold() == "system")
+
+    assert "Respond in Lithuanian." in system(tool_round("Paaiškink, kaip veikia duomenų bazių indeksas ir kodėl jis greitas."))
+    english = system(tool_round("Please save a copy of this note for Monday and tell me where it went."))
+    assert "Respond in" not in english
+    # No letter names most languages (Lithuanian without two exclusive letters, Spanish, Dutch, German...).
+    # The rule then lives in respond.direct's own instruction, the field that holds the answer.
+    catalog = _tool_intent_catalog_text(user_text="Me guardas una copia de esta nota para el lunes")
+    assert "in the language the person wrote their own message in" in catalog
+    # The JSON of a tool round is never measured as prose.
+    assert tool_round("Paaiškink, kaip veikia duomenų bazių indeksas.").metadata.get("response_language_policy") in (None, {})

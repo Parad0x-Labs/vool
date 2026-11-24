@@ -53,6 +53,22 @@ def native_identity(package_id: str) -> str:
     return "registry-" + hashlib.sha256(package_id.encode("utf-8")).hexdigest()[:24]
 
 
+def holds_plugin(metadata: dict, manifest: dict) -> bool:
+    """Whether this package is a plugin with its access block: code and tools, not a skill's text."""
+    return (metadata.get("kind") == "plugin" and isinstance(manifest, dict) and isinstance(manifest.get("vool"), dict)
+            and "id" in manifest["vool"])
+
+
+def keeps_own_id(metadata: dict, manifest: dict) -> bool:
+    """Whether the package is a plugin published under its own id: the name part of the package id.
+
+    A skill, and a plugin packaged the earlier way, is named ``native_identity(package id)``. A plugin
+    published from VOOL 0.8 keeps the id its maker gave it, because its tools are named after it, and
+    the package id must end in that same id so the listing and the installed plugin cannot differ.
+    """
+    return holds_plugin(metadata, manifest) and manifest.get("name") == str(metadata.get("id", "")).split("/")[-1]
+
+
 def path_name(value: str) -> str:
     require(isinstance(value, str) and 0 < len(value) <= 512 and bool(_PATH.fullmatch(value)),
             "invalid package path")
@@ -68,10 +84,25 @@ def path_name(value: str) -> str:
     return value
 
 
+def _field_fix(value, needed: set, optional: set) -> str:
+    """Which metadata fields are missing and which are not known, for the author."""
+    if not isinstance(value, dict):
+        return "The metadata must be one JSON object."
+    missing, extra = sorted(needed - set(value)), sorted(str(key)[:40] for key in set(value) - needed - optional)
+    said = []
+    if missing:
+        said.append("Missing: " + ", ".join(missing) + ".")
+    if extra:
+        said.append("Not known, so take out: " + ", ".join(extra[:12]) + ".")
+    said.append("Needed: " + ", ".join(sorted(needed)) + ". Optional: " + ", ".join(sorted(optional)) + ".")
+    return " ".join(said)
+
+
 def metadata(value: dict) -> dict:
-    require(isinstance(value, dict) and set(value) - {"title", "languages", "needs", "icon", "banner", "release_notes"} == {
-        "id", "kind", "version", "summary", "category", "subcategory", "license", "source"},
-        "invalid package metadata fields")
+    needed = {"id", "kind", "version", "summary", "category", "subcategory", "license", "source"}
+    optional = {"title", "languages", "needs", "icon", "banner", "release_notes"}
+    require(isinstance(value, dict) and set(value) - optional == needed, "invalid package metadata fields",
+            _field_fix(value, needed, optional))
     # Optional in signed entries so earlier packages stay valid; new uploads must
     # declare languages (registry intake and the author tool enforce that).
     if "languages" in value:
@@ -81,7 +112,9 @@ def metadata(value: dict) -> dict:
     if "release_notes" in value:
         text = value["release_notes"]
         require(isinstance(text, str) and text == text.strip() and 0 < len(text) <= 2000 and
-                all(ord(char) >= 32 and char not in "<>" for char in text), "invalid release notes")
+                all(ord(char) >= 32 and char not in "<>" for char in text), "invalid release notes",
+                "release_notes is plain text of 1 to 2000 characters on one line: no < or >, no line breaks, "
+                "no space at the start or end.")
     from core.registry.media import KINDS, reference
 
     for kind in KINDS:
@@ -92,17 +125,24 @@ def metadata(value: dict) -> dict:
         # Optional display name; plain text only.
         title = value["title"]
         require(isinstance(title, str) and title == title.strip() and 0 < len(title) <= 60 and
-                all(ord(char) >= 32 and char not in "<>" for char in title), "invalid title")
+                all(ord(char) >= 32 and char not in "<>" for char in title), "invalid title",
+                "title is plain text of 1 to 60 characters: no < or >, no line breaks, no space at the start or end.")
     parts = str(value["id"]).split("/")
-    require(len(parts) == 2 and all(IDENTITY.fullmatch(part) for part in parts), "invalid stable package id")
-    require(parts[0] not in {"vool", "parad0x-labs", "official", "native"}, "reserved publisher namespace")
+    require(len(parts) == 2 and all(IDENTITY.fullmatch(part) for part in parts), "invalid stable package id",
+            "id is publisher/name. Each part starts with a lowercase letter or a digit and holds lowercase letters, "
+            "digits and hyphens only, at most 64 characters: for example alice/meeting-notes.")
+    require(parts[0] not in {"vool", "parad0x-labs", "official", "native"}, "reserved publisher namespace",
+            "vool, parad0x-labs, official and native are kept back. Publish under your own public name.")
     require(value["kind"] in {"skill", "plugin"} and isinstance(value["version"], str) and
             len(value["version"]) <= 64 and bool(VERSION.fullmatch(value["version"])),
-            "invalid package kind or version")
+            "invalid package kind or version",
+            'kind is "skill" or "plugin". version is three numbers such as 1.0.0, optionally with a lowercase '
+            "ending such as 1.0.0-beta, at most 64 characters.")
     for field, limit in (("summary", 500), ("license", 80)):
         text = value[field]
         require(isinstance(text, str) and text.strip() and len(text) <= limit and
-                all(ord(char) >= 32 for char in text), f"invalid {field}")
+                all(ord(char) >= 32 for char in text), f"invalid {field}",
+                f"{field} is plain text of 1 to {limit} characters on one line.")
     require(is_listed(value["category"], value["subcategory"]),
             "category and subcategory must come from the registry category list")
     source = value["source"]
@@ -189,8 +229,11 @@ def inspect(raw: bytes) -> dict:
     manifest = decode(content.get(".codex-plugin/plugin.json", b""), limit=1024 * 1024)
     require(isinstance(manifest, dict) and bool(IDENTITY.fullmatch(str(manifest.get("name", "")))) and
             manifest.get("version") == value["metadata"]["version"], "native manifest identity mismatch")
-    require(manifest["name"] == native_identity(value["metadata"]["id"]),
-            "native manifest identity is not bound to the package id")
+    require(manifest["name"] == native_identity(value["metadata"]["id"]) or keeps_own_id(value["metadata"], manifest),
+            "native manifest identity is not bound to the package id",
+            "For a plugin, the name part of the package id must be the plugin's own id: a plugin whose name and "
+            "vool.id are parcel-desk is published as <your name>/parcel-desk. For a skill, make the package "
+            "folder again with init, which writes this name itself.")
     dependencies = manifest.get("requires", [])
     require(isinstance(dependencies, list) and len(dependencies) <= 64 and
             all(isinstance(item, str) and bool(IDENTITY.fullmatch(item)) for item in dependencies) and

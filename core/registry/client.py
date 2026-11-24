@@ -6,6 +6,7 @@ import hashlib
 import http.client
 import os
 import platform
+import re
 import sqlite3
 import threading
 import time
@@ -39,6 +40,11 @@ _PICTURE_STATE = {"browsed": False}
 _PICTURE_LOCK = threading.Lock()
 # The team's own publisher name. Only team members can publish under it, so its skills are listed first.
 TEAM_PUBLISHER = "vool-team"
+# The install pass: the registry sends one with each package download. VOOL keeps it with the installed copy
+# and hands it to the website only when the person presses Rate, for that one add-on.
+PASS_HEADER = "X-Vool-Review-Pass"
+RATE_PATH = "/codex/skills/review"
+_PASS = re.compile(r"[A-Za-z0-9_-]{135}")
 
 
 def _team(package_id: str) -> bool:
@@ -50,12 +56,14 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         raise RegistryError("registry redirect refused")
 
 
-def fetch(url: str, *, limit: int) -> bytes:
+def fetch(url: str, *, limit: int, passes: list | None = None) -> bytes:
     try:
         with urllib.request.build_opener(_NoRedirect()).open(
                 urllib.request.Request(url, headers={"User-Agent": "VOOL-registry", "Accept": "application/json"}), timeout=20) as response:
             raw = response.read(limit + 1)
             require(len(raw) <= limit, "registry response exceeds byte limit")
+            if passes is not None:
+                passes.append(response.headers.get(PASS_HEADER, ""))  # the install pass that comes with a package
             return raw
     except urllib.error.HTTPError as error:
         # One refusal is shown as it is, because a person can act on it; any other answer stays generic.
@@ -92,11 +100,13 @@ def runtime_target() -> dict:
 
 
 class Client:
-    def __init__(self, trusted_root: dict, target: dict, *, origin=ORIGIN, request=fetch, now=None):
+    def __init__(self, trusted_root: dict, target: dict, *, origin=ORIGIN, request=fetch, now=None, download=None):
         parsed = urllib.parse.urlsplit(origin)
         require(parsed.scheme == "https" and parsed.netloc and not parsed.path and not parsed.query and
                 not parsed.fragment and not parsed.username, "registry origin must be a fixed HTTPS origin")
         self.origin, self.target, self.request = origin, target, request
+        # Fetches a package and the install pass sent with it: (url, limit=) -> (bytes, pass text).
+        self.download = download or (_download if request is fetch else None)
         self.catalog = TrustedCatalog(trusted_root, home() / "config" / STATE_NAME, now=int(time.time()) if now is None else now)
 
     def close(self):
@@ -123,6 +133,10 @@ class Client:
                 require(marks.get("schema") == "vool.registry.marks.v1" and type(marks.get("sequence")) is int and
                         marks["sequence"] > 0 and type(marks.get("issued_at")) is int and marks["issued_at"] <= now + 300,
                         "invalid editorial marks")
+                # Add-ons the team took off the list leave it here too; installed copies are not touched.
+                hidden = {item.get("id") for item in marks.get("delisted", []) if isinstance(item, dict)} \
+                    if isinstance(marks.get("delisted", []), list) else set()
+                rows[:] = [row for row in rows if row["id"] not in hidden]
                 curated = marks.get("curation", {})
                 require(isinstance(curated, dict) and all(isinstance(curated.get(field, []), list) and
                         len(curated.get(field, [])) <= 24 and all(isinstance(item, str) for item in curated.get(field, []))
@@ -135,6 +149,7 @@ class Client:
                             (marks["sequence"] == previous[0] and digest(marks) == previous[1]), "editorial marks rollback")
                     self.catalog.db.execute("INSERT OR REPLACE INTO presentation_state VALUES (?,?,?)",
                                             (self.catalog.root["version"], marks["sequence"], digest(marks)))
+                self._keep_notices(marks)  # only marks that passed the rollback check above
             for row in rows:
                 row.update(metrics.get(row["id"], {}))
                 row.update(editors_pick=row["id"] in curated.get("editors_picks", []),
@@ -143,6 +158,147 @@ class Client:
                                        not item.get("featured", False), -item.get("stars", 0), item["id"]))
         except (RegistryError, OSError, ValueError, TypeError, KeyError):
             return  # An unavailable display feed does not grant a label or change the verified catalog.
+
+    def _keep_notices(self, marks: dict) -> None:
+        """Remember which add-ons the team took off the list or removed, and the reason code, from verified marks.
+
+        My add-ons reads this to say why. Only the code is kept; the sentence is VOOL's own, in the person's language.
+        """
+        found = {}
+        for field, state in (("delisted", "delisted"), ("withdrawals", "removed")):
+            items = marks.get(field, [])
+            for item in (items if isinstance(items, list) else [])[:4096]:
+                if isinstance(item, dict) and isinstance(item.get("id"), str) and len(item["id"]) <= 129:
+                    reason = item.get("reason")
+                    found[item["id"]] = (state, reason if reason in NOTICE_REASONS else "other")
+        with self.catalog.lock, self.catalog.db:
+            self.catalog.db.execute("CREATE TABLE IF NOT EXISTS listing_notices (id TEXT PRIMARY KEY, state TEXT, reason TEXT)")
+            self.catalog.db.execute("DELETE FROM listing_notices")
+            self.catalog.db.executemany("INSERT INTO listing_notices VALUES (?,?,?)",
+                                        [(name, state, reason) for name, (state, reason) in found.items()])
+
+    def listing(self, package_id: str, version: str, *, approved: bool, now: int) -> dict:
+        """One add-on's listing for its detail view, asked for only when the person opens that view.
+
+        The answer is the service's listing object, and nothing in it is trusted to be safe to draw: it must
+        name the exact package the signed list names, every value is copied field by field as plain text, the
+        description is read into its tree here again, links are checked here again, and the two team badges
+        come from the badge document this device verified, never from the answer.
+        """
+        from core.registry import badges
+        from core.registry import listing as rules
+
+        require(approved is True, "explicit registry network consent required")
+        entry = self.catalog.resolve(package_id, version, target=self.target, now=now)
+        info = entry["metadata"]
+        query = urllib.parse.urlencode({"id": package_id})
+        value = decode(self.request(self.origin + PREFIX + "/listing?" + query, limit=512 * 1024), 512 * 1024)
+        require(isinstance(value, dict) and value.get("schema") == "vool.listing.v1" and value.get("id") == package_id and
+                value.get("version") == version and value.get("sha256") == entry["artifact_sha256"],
+                "this listing is not for the listed version; browse the Skill Codex again")
+
+        def part(name, kind=dict):
+            return value[name] if isinstance(value.get(name), kind) else kind()
+
+        result = {"status": "ok", "id": package_id, "version": version, "kind": info["kind"],
+                  "name": info.get("title") or package_id.split("/")[1], "tagline": info["summary"],
+                  "publisher": package_id.split("/")[0], "license": info["license"], "sha256": entry["artifact_sha256"],
+                  "category": info["category"], "subcategory": info["subcategory"], "needs": list(info.get("needs", [])),
+                  "languages": list(info.get("languages", [])), "targets": entry["targets"]}
+        described = part("description")
+        if isinstance(described.get("text"), str) and 0 < len(described["text"]) <= rules.MAX_DESCRIPTION:
+            result["description"] = rules.parse(described["text"])
+        links = {}
+        for name in rules.LINKS:
+            try:
+                links[name] = rules.link(name, part("links").get(name))
+            except RegistryError:
+                continue
+        result["links"] = links
+        try:
+            stated = rules.compatibility({key: item for key, item in part("compatibility").items()
+                                          if key in ("min_vool", "max_vool", "platforms")})
+        except RegistryError:
+            stated = {}  # nothing stated, or something this build cannot read: the view says nothing
+        result["compatibility"] = stated
+        access = part("access")
+        result["access"] = {
+            "network": [_plain(host, 253) for host in _items(access.get("network"), 32) if isinstance(host, str)],
+            "credentials": [_plain(item.get("label"), 120) for item in _items(access.get("credentials"), 32)
+                            if isinstance(item, dict) and isinstance(item.get("label"), str)],
+            "tools": [{"description": _plain(item.get("description") or item.get("intent"), 400),
+                       "effect": item.get("effect") if item.get("effect") in _EFFECTS else "external_unpinned"}
+                      for item in _items(access.get("tools"), 128) if isinstance(item, dict)],
+            "runs_programs": access.get("runs_programs") is True}
+        result["plugin_kinds"] = [kind for kind in ("tools", "model_provider", "scanner") if kind in part("plugin_kinds", list)]
+        result["changelog"] = [{"version": _plain(item.get("version"), 64), "date": item["date"] if type(item.get("date")) is int and
+                                0 <= item["date"] < 2**40 else 0, "notes": _plain(item.get("notes"), 2000)}
+                               for item in _items(value.get("changelog"), 50) if isinstance(item, dict)]
+        verified = part("creator").get("verified")
+        result["publisher_verified"] = isinstance(verified, dict) and verified.get("publisher") is True
+        rating = part("rating")
+        shown = rating.get("shown") is True and type(rating.get("count")) is int and rating["count"] >= 5 and \
+            type(rating.get("average")) in (int, float) and 1 <= rating["average"] <= 5
+        spread = rating.get("distribution")
+        result["rating"] = {"shown": shown, "average": rating["average"] if shown else None,
+                            "count": rating["count"] if type(rating.get("count")) is int and 0 <= rating["count"] <= 10**9 else 0,
+                            "distribution": spread if shown and isinstance(spread, list) and len(spread) == 5 and
+                            all(type(n) is int and 0 <= n <= 10**9 for n in spread) else None,
+                            "removed": rating["removed_by_team"] if type(rating.get("removed_by_team")) is int and
+                            0 <= rating["removed_by_team"] <= 10**9 else 0, "frozen": rating.get("frozen") is True}
+        downloads = part("counts").get("download_requests")
+        result["download_requests"] = downloads if type(downloads) is int and 0 <= downloads <= 10**12 else None
+        result["paused"] = part("status").get("state") == "downloads_paused"
+        result["notices"] = [{"action": _plain(item.get("action"), 40), "reason": item.get("reason") if item.get("reason") in
+                              NOTICE_REASONS | RATING_REASONS else "other", "date": _plain(item.get("date"), 10),
+                              "affected": item["affected"] if type(item.get("affected")) is int and 0 <= item["affected"] <= 10**9 else 0}
+                             for item in _items(part("notices").get("moderation"), 100) if isinstance(item, dict)]
+        try:
+            index = badges.held(self.catalog, now=now, target=self.target)
+        except (RegistryError, sqlite3.Error, ValueError, TypeError, KeyError):
+            index = {}
+        result["badges"] = [] if result["paused"] else badges.badges_for(
+            index, "artifact", entry["artifact_sha256"], kind=info["kind"], package_id=package_id, version=version)
+        result["reviews"] = self._reviews(package_id)
+        return result
+
+    def _reviews(self, package_id: str) -> list[dict]:
+        """The first page of ratings people wrote, as plain text. No page of them is better than a broken one."""
+        try:
+            query = urllib.parse.urlencode({"id": package_id})
+            value = decode(self.request(self.origin + PREFIX + "/ratings?" + query, limit=512 * 1024), 512 * 1024)
+            return [{"author": _plain(item.get("author"), 64), "stars": item["stars"], "body": _plain(item.get("body"), 1000),
+                     "version": _plain(item.get("version"), 64), "bundled": item.get("proof") == "bundled",
+                     "created": item["created"] if type(item.get("created")) is int and 0 <= item["created"] < 2**40 else 0,
+                     "text_removed": item.get("text_removed") is True}
+                    for item in _items(value.get("ratings") if isinstance(value, dict) else None, 50)
+                    if isinstance(item, dict) and type(item.get("stars")) is int and 1 <= item["stars"] <= 5]
+        except (RegistryError, OSError, ValueError, TypeError, KeyError):
+            return []
+
+    def _ratings(self, rows: list[dict]) -> None:
+        """Stars for the cards, fetched only by Browse: the whole list, so the request says nothing about this device."""
+        try:
+            value = decode(self.request(self.origin + PREFIX + "/ratings/summary", limit=1024 * 1024), 1024 * 1024)
+            require(isinstance(value, dict) and isinstance(value.get("ratings"), list) and len(value["ratings"]) <= 4096,
+                    "invalid ratings")
+            ratings = {}
+            for item in value["ratings"]:
+                # Fields this build does not know are left alone, so the list can grow later.
+                require(isinstance(item, dict) and isinstance(item.get("id"), str) and type(item.get("shown")) is bool and
+                        type(item.get("count")) is int and 0 <= item["count"] <= 10**9 and
+                        type(item.get("removed", 0)) is int and 0 <= item.get("removed", 0) <= 10**9, "invalid rating")
+                average = item.get("average")
+                # No average under five counted ratings, whatever the feed says.
+                require((item["shown"] and item["count"] >= 5 and type(average) in (int, float) and 1 <= average <= 5) or
+                        (not item["shown"] and average is None), "invalid rating")
+                ratings[item["id"]] = {"shown": item["shown"], "average": average, "count": item["count"],
+                                       "removed": item.get("removed", 0)}
+            for row in rows:
+                row["rating"] = ratings.get(row["id"], {"shown": False, "average": None, "count": 0, "removed": 0})
+        except (RegistryError, OSError, ValueError, TypeError, KeyError):
+            for row in rows:
+                row.pop("rating", None)  # no feed, no stars: a card never shows a number it could not read
 
     def refresh(self, *, approved: bool, now: int) -> dict:
         require(approved is True, "explicit registry network consent required")
@@ -164,6 +320,8 @@ class Client:
                 latest[row["id"]] = row
         rows = [latest[package_id] for package_id in sorted(latest, key=lambda package_id: (not _team(package_id), package_id))]
         self._presentation(rows, now=now)
+        self._ratings(rows)
+        self._badges(rows, now=now)
         with _PICTURE_LOCK:
             # A new Browse forgets earlier pictures, so a picture whose approval was taken away stops showing.
             _PICTURES.clear()
@@ -176,6 +334,42 @@ class Client:
         # Reporting happens on the website, after the person picks a reason; VOOL only opens the page.
         return {"status": "ok", "entries": rows, "expires": value["expires"], "target": self.target,
                 "requirements": public_requirements(), "report_page": self.origin + "/codex/skills/report"}
+
+    def recall(self, *, now: int) -> dict:
+        """Read the signed list only to learn what was removed. Shows nothing and installs nothing.
+
+        The requests are ones Browse makes: the signed list and the signed badge document. Their consent is
+        the owner's saved daily-check choice, which core.registry.recall reads before it calls this.
+        """
+        snapshot = decode(self.request(self.origin + PREFIX + "/snapshot", limit=4 * 1024 * 1024), 4 * 1024 * 1024)
+        value = self.catalog.accept(snapshot, now=now)
+        self._fetch_badges(now=now)  # a withdrawn badge leaves installed add-ons within the day as well
+        return {"status": "ok", "removed_listed": len(value["revoked"])}
+
+    # ---- the two team badges ----
+
+    def _fetch_badges(self, *, now: int) -> None:
+        """Read the signed badge document and keep it when it verifies. A failure keeps what was verified before."""
+        from core.registry import badges
+
+        try:
+            answer = decode(self.request(self.origin + PREFIX + "/badges", limit=2 * badges.MAX_BYTES), 2 * badges.MAX_BYTES)
+            badges.keep(self.catalog, answer, now=now)
+        except (RegistryError, OSError, sqlite3.Error, ValueError, TypeError, KeyError):
+            return  # no badge document, or one that does not verify, grants nothing
+
+    def _badges(self, rows: list[dict], *, now: int) -> None:
+        """Set each row's badges from the verified badge document only. Nothing on a row can produce one."""
+        from core.registry import badges
+
+        self._fetch_badges(now=now)
+        try:
+            index = badges.held(self.catalog, now=now, target=self.target)
+        except (RegistryError, sqlite3.Error, ValueError, TypeError, KeyError):
+            index = {}
+        for row in rows:
+            row["badges"] = badges.badges_for(index, "artifact", row.get("sha256"), kind=row.get("kind"),
+                                              package_id=row.get("id"), version=row.get("version"))
 
     def picture(self, package_id: str, sha256: str, *, approved: bool, now: int) -> dict:
         """A listed skill's approved icon, checked against the signed listing from this run's Browse."""
@@ -218,10 +412,19 @@ class Client:
                 parsed.path == PREFIX + "/artifacts/" + entry["artifact_sha256"] and
                 set(params) == {"ticket"} and len(params["ticket"]) == 1 and
                 0 < len(params["ticket"][0]) <= 128, "unexpected artifact URL")
-        raw = self.request(self.origin + ticket["url"], limit=entry["artifact_length"])
+        if self.download is not None:
+            raw, handed = self.download(self.origin + ticket["url"], limit=entry["artifact_length"])
+        else:
+            raw, handed = self.request(self.origin + ticket["url"], limit=entry["artifact_length"]), ""
         result = preview(self.catalog, raw, package_id=package_id, version=version, target=self.target, now=now)
         stage = home() / "registry_staging" / (entry["artifact_sha256"] + ".json")
         _write(stage, decode(raw))
+        # The pass waits beside the staged copy. It reaches the install receipt only if the install succeeds.
+        waiting = stage.with_suffix(".pass")
+        if isinstance(handed, str) and _PASS.fullmatch(handed):
+            _write(waiting, {"review_pass": handed})
+        else:
+            waiting.unlink(missing_ok=True)
         return {"status": "review", "review_id": entry["artifact_sha256"], **result}
 
     def accept(self, package_id: str, version: str, review_id: str, *, accepted: bool, enable: bool, now: int) -> dict:
@@ -241,9 +444,99 @@ class Client:
         except RegistryError as exc:
             if str(exc) == FAILED_SAFETY_CHECKS:
                 stage.unlink(missing_ok=True)  # a copy VOOL's own checks refused is not kept either
+            stage.with_suffix(".pass").unlink(missing_ok=True)  # no install, no pass
             raise
         stage.unlink()
+        from core.registry.artifact import native_identity
+
+        # The receipt and the pass are kept under the row's own key; a plugin is installed under its own id.
+        _keep_pass(native_identity(package_id), stage.with_suffix(".pass"))
         return result
+
+
+# Why the team took an add-on off the list or removed it: the codes My add-ons has a sentence for.
+NOTICE_REASONS = frozenset({"harmful", "stolen", "misleading", "creator_request"})
+RATING_REASONS = frozenset({"fake", "automated", "self_rating", "paid", "abusive", "off_topic", "mistake_reversed"})
+_EFFECTS = frozenset({"read_only", "workspace_write", "network_send", "network_publish"})
+
+
+def _plain(value, limit: int) -> str:
+    """Text from the service as text for a page: no control characters, and no longer than its place allows."""
+    return "".join(char for char in value if ord(char) >= 32 or char == "\n")[:limit] if isinstance(value, str) else ""
+
+
+def _items(value, limit: int) -> list:
+    return value[:limit] if isinstance(value, list) else []
+
+
+def installed_facts(package_id: str) -> dict:
+    """For an installed Skill Codex add-on: whether it can be rated, and whether the team removed or delisted it.
+
+    Reads this device only: the install receipt, and the notices kept when the signed marks were last verified.
+    """
+    facts = {"id": package_id, "rate_ready": bool(_rate_pass(package_id))}
+    try:
+        state = home() / "config" / STATE_NAME
+        if state.is_file():
+            db = sqlite3.connect(state.resolve().as_uri() + "?mode=ro", uri=True)
+            try:
+                row = db.execute("SELECT state, reason FROM listing_notices WHERE id=?", (package_id,)).fetchone()
+            finally:
+                db.close()
+            if row and row[0] in ("delisted", "removed"):
+                facts["notice"] = {"state": row[0], "reason": row[1] if row[1] in NOTICE_REASONS else "other"}
+    except (sqlite3.Error, OSError):
+        pass  # no notice kept: the card says nothing it cannot back
+    return facts
+
+
+def _download(url: str, *, limit: int) -> tuple[bytes, str]:
+    passes: list = []
+    raw = fetch(url, limit=limit, passes=passes)
+    return raw, passes[0] if passes else ""
+
+
+def _keep_pass(plugin_id: str, waiting: Path) -> None:
+    """After a successful install the pass joins the install receipt, the only place it is kept."""
+    from core.registry.native import _receipt_path
+
+    try:
+        handed = decode(waiting.read_bytes(), 4096).get("review_pass")
+        receipt = decode(_receipt_path(plugin_id).read_bytes(), 65536)
+        if isinstance(handed, str) and _PASS.fullmatch(handed) and isinstance(receipt, dict):
+            _write(_receipt_path(plugin_id), {**receipt, "review_pass": handed})
+    except (OSError, RegistryError, AttributeError):
+        pass  # the add-on is installed either way; without a pass there is no Rate button
+    finally:
+        waiting.unlink(missing_ok=True)
+
+
+def _rate_pass(package_id: str) -> str:
+    """The pass kept for an installed Skill Codex add-on, or nothing. Reads this device only."""
+    from core.registry.artifact import native_identity
+    from core.registry.native import _receipt_path
+
+    try:
+        receipt = decode(_receipt_path(native_identity(package_id)).read_bytes(), 65536)
+        handed = receipt.get("review_pass")
+        if receipt["admission"]["signed"]["metadata"]["id"] == package_id and isinstance(handed, str) and _PASS.fullmatch(handed):
+            return handed
+    except (OSError, RegistryError, KeyError, TypeError, AttributeError, ValueError):
+        pass
+    return ""
+
+
+def rate(package_id: str) -> dict:
+    """The website page where the person rates this add-on, with its install pass after the #.
+
+    Nothing is sent from here. What follows a # never leaves the browser by itself: the page reads it and
+    sends the pass only with the rating, after the person signs in. One add-on, one pass, on this click only;
+    no other receipt is read.
+    """
+    handed = _rate_pass(package_id)
+    require(bool(handed), "this add-on has no install pass; install it from the Skill Codex to rate it")
+    return {"status": "ok", "id": package_id,
+            "url": ORIGIN + RATE_PATH + "#" + urllib.parse.urlencode({"id": package_id, "pass": handed})}
 
 
 CLOSED = "Skill Codex is not open yet in this version of VOOL"
@@ -271,6 +564,31 @@ def _read_anchor() -> dict:
         raise RegistryError(CLOSED) from None
 
 
+def _shipped_badges() -> Path:
+    """Where a release carries its own signed badge document (badges.json and badge-issuers.json), when it has one."""
+    from core.runtime_paths import PROJECT_ROOT
+
+    return Path(PROJECT_ROOT) / "core" / "registry"
+
+
+def local_badges() -> dict:
+    """Badges for what is already on this device, from the document VOOL verified last or the one it shipped with.
+
+    Local files only: no request and no writes. Anything that does not verify gives an empty answer.
+    """
+    from core.registry import badges
+
+    try:
+        root = _read_anchor()["signed"]
+        try:
+            target = runtime_target()
+        except RegistryError:
+            target = None  # no release identity: nothing can show as tested on this build
+        return badges.local(root, home() / "config" / STATE_NAME, _shipped_badges(), now=int(time.time()), target=target)
+    except (RegistryError, OSError, sqlite3.Error, ValueError, TypeError, KeyError):
+        return {}
+
+
 def is_open() -> bool:
     """Local capability only: no network and no trust-state writes during startup or listing."""
     try:
@@ -287,11 +605,27 @@ def configured_client() -> Client:
 
 
 def handle(action: str, body: dict) -> dict:
+    if action == "registry_recall":
+        # The owner's daily-check switch: read it, or save a clear yes or no. No request is made here.
+        from core.registry import recall
+
+        if "enabled" in body:
+            require(type(body["enabled"]) is bool, "the daily check is either on or off")
+            return recall.set_enabled(body["enabled"])
+        return recall.status()
+    if action == "registry_rate":
+        return rate(str(body.get("id", "")))  # a link for the person to open; no request is made here
     client = configured_client()
     try:
         now = int(time.time())
         if action == "registry_refresh":
-            return client.refresh(approved=body.get("approved") is True, now=now)
+            result = client.refresh(approved=body.get("approved") is True, now=now)
+            for row in result["entries"]:
+                row["rate_ready"] = bool(_rate_pass(row["id"]))  # installed from the Skill Codex, with a pass kept
+            return result
+        if action == "registry_listing":
+            return client.listing(str(body.get("id", "")), str(body.get("version", "")),
+                                  approved=body.get("approved") is True, now=now)
         if action == "registry_picture":
             return client.picture(str(body.get("id", "")), str(body.get("sha256", "")),
                                   approved=body.get("approved") is True, now=now)

@@ -1,5 +1,5 @@
 {
-  "name": "vool-plugin-template",
+  "name": "text-digest-example",
   "version": "1.0.0",
   "description": "Compute the SHA-256 digest of supplied text through a bundled local connection server."
 }

@@ -27,9 +27,10 @@ def publish(directory: Path, entries: list, revoked: list, marks: dict, *, artif
     previous_rows = {item["id"]: item for item in previous["entries"]}
     require(all(isinstance(sha, str) and HEX.fullmatch(sha) for sha in old), "invalid previous publication")
     latest = {}
+    hidden = {item["id"] for item in marks.get("delisted", [])}  # delisted by the team: off this directory too
     for envelope in entries:
         entry = envelope["signed"]
-        if entry["artifact_sha256"] in revoked:
+        if entry["artifact_sha256"] in revoked or entry["metadata"]["id"] in hidden:
             continue
         info = entry["metadata"]
         prior = latest.get(info["id"])

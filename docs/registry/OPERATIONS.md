@@ -16,12 +16,12 @@ VOOL preserves the root used to verify each installed receipt, allowing higher-v
 6. Configure the service origin and immutable catalog/artifact inputs. Run `vool-registry check-config --config CONFIG` before starting it. The command fails if root, catalog, artifacts or requested provider registrations are missing/stale. Never use test fixtures as a production root or report.
 7. Reverse proxy only `/registry/api/` to the localhost service. Preserve the existing relay/routes. Disable access, error, proxy, journal and backup request logging that could retain addresses or callback codes. Audit hosting/provider retention separately; do not claim no party ever processes an IP.
 8. Use private directory mode 0700 and database mode 0600. Encrypt off-host backups, restrict operators, expire private quarantine after seven days and verify an actual restore. The restored catalog must meet signature/freshness/rollback rules; old account backups must respect the deletion retention policy.
-9. The team's publisher name `vool-team` is reserved. With automatic checks, a `team` line in the signer's `team-steps.txt` (or the signing Mac's `team` command) names its members by GitHub account number; members publish under it and its profile shows as official. Without them, sign in with the team's own GitHub account, choose the name on its profile, then list it in `official_namespaces` in `registry_service/curation.json` through a reviewed pull request.
+9. The team's publisher name `vool-team` is reserved. With automatic checks, a `team` line in the signer's `team-steps.txt` (or the signing Mac's `team` command) names its members by GitHub account number; members publish under it and its profile shows as official. Each upload under the team's name then waits until a team member's `team-admit` step names its exact bytes (see below): the signer cannot know who uploaded, so it signs nothing as the team's by itself. Without them, sign in with the team's own GitHub account, choose the name on its profile, then list it in `official_namespaces` in `registry_service/curation.json` through a reviewed pull request.
 10. Verify actual GitHub/Google/Apple login, account linking/deletion, secret rejection, failed scans, public-consent export, exact GitHub commit verification, signed browse, install/enable, update recovery, tamper/revocation and stats with production registrations on disposable accounts/profiles before opening the service publicly.
 
 ## Automatic checks on GitHub
 
-The signer parses all operator lines and reads release discovery and the moderation summary before changing state or sending decisions. A bad line, failed release discovery or unreadable moderation summary prints `Stopped: ...`, exits non-zero and leaves `state.json` and `private.bin` byte-identical. The next run retries. An upload batch that cannot be read whole (a malformed queue, bytes that differ from the queue, or a refused request) waits whole: nothing in it is reviewed, decided or listed. A decision an earlier run already made on the exact bytes is still sent and listed. An unavailable review or exhausted cap also holds the whole batch without admissions; completed review costs and verdicts remain sealed for retry. Unconfirmed admission/refusal responses stop later decisions; the next run sends them again without another paid review. In each of these held cases the run still applies the team's steps, follows releases, rechecks listed skills and renews the list already signed, so browsing never lapses while uploads wait; it then prints `Stopped: ...` and exits non-zero. A signer that has never published a list waits for its first complete run. A listed skill whose bytes cannot be read stays listed and is checked again in the next daily recheck; if its signature runs out first, only that skill leaves the list. Malformed catalog or marks acknowledgments stop before further requests; retries retain spent epochs and pending decisions. Corrupt private state or a public-state digest mismatch refuses before requests.
+The signer parses all operator lines and reads release discovery and the moderation summary before changing state or sending decisions. A bad line, failed release discovery or unreadable moderation summary prints `Stopped: ...`, exits non-zero and leaves `state.json` and `private.bin` byte-identical. The next run retries. An upload batch that cannot be read whole (a malformed queue, bytes that differ from the queue, a queue row whose skill name or version differs from the one inside its package, or a refused request) waits whole: nothing in it is reviewed, decided or listed. A decision an earlier run already made on the exact bytes is still sent and listed. An unavailable review or exhausted cap also holds the whole batch without admissions; completed review costs and verdicts remain sealed for retry. Unconfirmed admission/refusal responses stop later decisions; the next run sends them again without another paid review. In each of these held cases the run still applies the team's steps, follows releases, rechecks listed skills and renews the list already signed, so browsing never lapses while uploads wait; it then prints `Stopped: ...` and exits non-zero. A signer that has never published a list waits for its first complete run. A listed skill whose bytes cannot be read stays listed and is checked again in the next daily recheck; if its signature runs out first, only that skill leaves the list. Malformed catalog or marks acknowledgments stop before further requests; retries retain spent epochs and pending decisions. Corrupt private state or a public-state digest mismatch refuses before requests.
 
 Immediately before each uncached paid review, the signer fetches the remote state and operator instructions and stops if either has changed. Each completed upload check is checkpointed before the next review. This is a freshness check, not an atomic reservation across Git and the review provider.
 
@@ -65,8 +65,23 @@ highlighted PUBLISHER/NAME       the Highlighted spot
 suspended PUBLISHER              refuses their uploads and waiting submissions
 removed PUBLISHER/NAME           takes every version out of the list and revokes it; new uploads of it are refused
 team vool-team ID ID             a team name and its members' GitHub account numbers
+team-admit vool-team/NAME SHA256 sign this one upload under the team's name; without the line it waits
 build 0.7.2-beta COMMIT          also sign for this VOOL build (version and full commit id) before it is released, to test it
 ```
+
+Publishing a team skill takes two steps, because being in the upload queue proves nothing about who uploaded. First upload it: on the website as a team member, or on the server with `vool-registry team-upload --config CONFIG --github-id ID --packages agenda.json`. The command prints the upload and the step for its exact bytes:
+
+```text
+{"consent": 1, "package_id": "vool-team/agenda", "sha256": "5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592", "state": "checking", "version": "1.0.0"}
+  It waits for a team member's step. On GitHub, add this line to team-steps.txt:
+    team-admit vool-team/agenda 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592
+  or, with the signing Mac:
+    python -m registry_service.mac_authority team-admit vool-team/agenda@5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592 --dir DIR
+```
+
+Then add that line to `team-steps.txt` and commit. The next run checks those bytes, reviews them and signs them if they pass. Until then the upload is not checked and costs no review; the run log counts it under `waiting` and `team_step_needed`. The checksum is the package's sha256, so a line for other bytes releases nothing and version 1.0.1 needs its own line. A `team-admit` line whose publisher is not a team is reported as a problem and does nothing. Uploads under a team's name are queued after everyone else's, so a waiting batch never holds up other creators.
+
+If a run stops with `Stopped: the service named an upload differently than its package does; the uploads wait for the next run`, a row in the service's queue disagrees with the package it carries. The signer signs nothing from that batch and refuses nothing either, because the fault is the service's and not the creator's. Look at the service and its database before anything else; the batch goes through once the row and the package agree again.
 
 If a line can't be read, nothing in the file is applied until it is fixed, and the removals already in force keep holding. A `tested` line for a version that isn't listed, or a `highlighted` line for a skill that isn't listed, waits, and the run log names it.
 
@@ -87,9 +102,134 @@ Limits, so say nothing stronger:
 - Whoever can change the signer's repository can change its workflow and reach the online keys. Keep write access to the team, with two-factor sign-in, and look at every change to the workflow.
 - The other limits of the signing Mac apply as written below: one signature per role, a 7-day list, the check suite named by its major version, and one review model.
 
+## The two team badges
+
+"Tested by VOOL" and "Editor's Choice" are lines in one signed file, the badge document. A line names one exact package: its kind, name, version and checksum. Nothing else makes a badge: not a line in `team-steps.txt`, not a flag on a catalog row, not a word or a picture an author supplies. The older `tested`, `highlighted`, `featured` and `editors-pick` steps still order the list and release pictures; they draw no badge.
+
+Who holds what:
+
+- The owner holds the main (root) key offline. With it he signs the list of the people he appoints, `badge-issuers.json`. He signs no badge and need not be one of the people.
+- Each appointed person has a key of their own, in a file protected by a passphrase, on their own computer. A badge document counts once two different people on the list have signed it.
+- The signer (the GitHub job or the signing Mac) holds no badge key. It passes the signed files on to the service and signs a stamp, "this document, still current", good for seven days. Whoever can write to the signer's repository can therefore issue no badge.
+- The service checks the list, the two signatures, the number and the chain before it stores a document, and serves it at `GET /registry/api/badges`. Every app and the website check all of it again.
+
+A badge key never goes into a workflow file, an Actions secret, an environment variable or onto the server. The tool reads keys from files and passphrases from the keyboard only.
+
+### Appoint the people (owner)
+
+1. Each person makes their key and sends the owner the public line it prints:
+
+```text
+$ python -m registry_service.badges keygen --out ana.pem
+Choose a passphrase for your badge key:
+Type it again:
+Made ana.pem. Keep it and its passphrase on your own computer only.
+Public line (send this to the owner): 30698e6a884550b38f47b5008b740a094f7f49956533e8b553863c0b67956444
+Key id: 9c2605372d33df5161daf511c293e78e186ec6df328f18e9243f32446bfbe8e6
+```
+
+2. The owner signs the list with the main key, on the computer that holds the offline folder (`root.pem` and `trusted-root.json` from the signer's setup). Name at least two people; a third as a spare is sensible:
+
+```text
+$ python -m registry_service.badges issuers --root-key usb/root.pem --trusted-root usb/trusted-root.json \
+    --key 30698e6a...6444 --key 1e70ab2c...752c --key 1cb89fd0...9524 --out badges/badge-issuers.json
+Passphrase for root.pem:
+Issuer list 1, good until 2028-02-11. Appointed keys:
+  9c2605372d33df5161daf511c293e78e186ec6df328f18e9243f32446bfbe8e6
+  cbeb1f07aa3834fdc4bff609483efbd75b4e3e0d9f3ba5ed7a7f70c248389b8d
+  ebde5f3df59fcfc7a253663d67e7933b2842dcb88cf2b5652b872504e1b538b0
+Signed with the main key and written to badge-issuers.json.
+```
+
+3. Commit `badges/badge-issuers.json` to the signer's repository (on the signing Mac: put it in `FOLDER/badges/`).
+
+The list is good for 365 days (`--days`, at most 730); sign a new one before it runs out, or every badge stops showing. To change the people, run `issuers` again with `--previous badges/badge-issuers.json` and the new set of `--key` lines: the list number goes up and an older list is refused from then on. A badge that was signed for by someone who is no longer on the list stops showing until two current people issue it again (`--renew`).
+
+### Issue a badge (two appointed people)
+
+Keep the test record of each "Tested by VOOL" badge (who ran it, when, on which build, what was done) in a private place; only its checksum goes into the document. Write the badges into `badges/badges.txt` in a checkout of the signer's repository, one per line. The file is the complete set: a line you take out drops that badge.
+
+```text
+tested alice/notes 1.0.0 0.7.1 macos-arm64 /private/records/notes-1.0.0-test-record.json
+editors-choice alice/notes 1.0.0 "Short, clear, asks before it sends"
+```
+
+`tested` names the skill, its version, the VOOL version or versions it was run on (`0.8.0,0.8.1`), the platform or platforms (`macos-arm64,macos-x86_64`) and the record. `editors-choice` names the skill, its version and why. The checksum is read from the signer's own list (`authority/state.json`), so it is the listed package's and nobody types it. A plugin, or a skill that ships inside VOOL, is not in that list; give its checksum after the version: `tested plugin:PLUGIN-ID 1.0.0 sha256:<64 hex> 0.8.0 macos-arm64 record.json` (the checksum VOOL computes over the plugin's files: `core.plugin_package.capture_package(FOLDER).digest`) or `editors-choice bundled:SKILL-ID 1.0.0 sha256:<64 hex> "why"` (the `sha256` of its row in `core/addon_directory.json`).
+
+One of the two people proposes, naming both signers by key id (the first 8 characters or more):
+
+```text
+$ python -m registry_service.badges propose --file badges/badges.txt --issuers badges/badge-issuers.json \
+    --state authority/state.json --previous badges/badges.json --by 9c2605372d33 --by cbeb1f07aa38 --out badges/badges.json
+Badge document 1 written to badges.json, unsigned. It runs out on 2027-05-12.
+  new: Tested by VOOL  alice/notes 1.0.0
+  new: Editor's Choice  alice/notes 1.0.0
+Next: each of the two people named with --by runs `sign --key THEIR-KEY badges.json` on their own computer.
+```
+
+Leave `--previous` out for the very first document. Then each of the two signs on their own computer and passes the file on:
+
+```text
+$ python -m registry_service.badges sign --key ana.pem badges/badges.json
+Passphrase for ana.pem:
+Signed badge document 1: 1 of 2 signatures. Send the file to the second person to sign.
+
+$ python -m registry_service.badges sign --key ben.pem badges/badges.json
+Passphrase for ben.pem:
+Signed badge document 1: 2 of 2 signatures. It is complete. Run check, then put it in the signer repository as badges/badges.json through a pull request.
+
+$ python -m registry_service.badges check badges/badges.json --issuers badges/badge-issuers.json --trusted-root authority/trusted-root.json
+Badge document 1 holds: two appointed people signed it. It runs out on 2027-05-12.
+  Tested by VOOL  alice/notes 1.0.0 on VOOL 0.7.1  (180 days left)
+  Editor's Choice  alice/notes 1.0.0  (365 days left)
+  withdrawn checksums: 0
+```
+
+Merge the pull request that carries `badges/badges.json` (and `badges/badges.txt`). The next signer run passes the document on; its report then carries `"badges": {"sequence": 1, "badges": 2}`. A document that does not verify is not sent, and the public run log shows `"badges_waiting": true`; `check` says why:
+
+```text
+$ python -m registry_service.badges check badges/badges.json --issuers badges/badge-issuers.json --trusted-root authority/trusted-root.json
+Refused: 1 of 2 appointed people have signed this document. Each one runs: sign --key THEIR-KEY badges.json
+```
+
+Other refusals name the line or the cause, for example `Refused: badges.txt line 1: alice/notes 2.0.0 is not in the Skill Codex list`, `Refused: this key is not on the issuer list, so its signature would count for nothing` and `Refused: --by names the same person twice; a badge takes two different people`.
+
+### Renew, re-test and withdraw
+
+- **Every 90 days at the latest**, propose and sign a new document, even when nothing changed: a badge document runs out 90 days after it is made, and from then on no badge shows. `propose` with the same `badges.txt` carries every badge over as it is, with its own end date.
+- **A badge runs out by itself**: Tested by VOOL after 180 days, Editor's Choice after 365. `propose` then refuses with the date and asks for `--renew NAME`, which issues it again from today, or for the line to be taken out. Renewing is a new statement by two people, so test or look again first.
+- **A new version of a skill carries no badge.** A badge is for one checksum. Test the new version, change the version on its line, propose and sign.
+- **A new VOOL release**: "Tested by VOOL" shows only on the VOOL builds named on its line. List what waits:
+
+```text
+$ python -m registry_service.badges propose --retest 0.9.0 --previous badges/badges.json --issuers badges/badge-issuers.json
+Not yet tested on VOOL 0.9.0: 1
+alice/notes 1.0.0 (tested on 0.7.1)
+Nothing was changed. Test each one, add the version to its line in badges.txt, then propose.
+```
+
+- **Withdraw a badge**: take its line out and add `withdrawn <64 hex checksum>`, then propose and sign as above. Apps drop the badge at their next Browse or daily check. An app that saw the withdrawal never shows a badge for that checksum again, so a withdrawn package gets a badge back only as a new version. Taking the line out without `withdrawn` also removes the badge, and leaves room to issue it again later.
+
+```text
+$ python -m registry_service.badges propose --file badges/badges.txt --issuers badges/badge-issuers.json \
+    --state authority/state.json --previous badges/badges.json --by cbeb1f07aa38 --by ebde5f3df59f --out badges/badges.json
+Badge document 2 written to badges.json, unsigned. It runs out on 2027-05-12.
+  dropped: Tested by VOOL  alice/notes 1.0.0
+  dropped: Editor's Choice  alice/notes 1.0.0
+  withdrawn: a91e8d3de54316becd5cc8bea9dec49ccd03d54e0c92dc5957bedee1ee345c72
+Next: each of the two people named with --by runs `sign --key THEIR-KEY badges.json` on their own computer.
+```
+
+Limits to know:
+
+- Each document must follow the one in place: the service takes number N+1 only when it names document N. Always propose with `--previous` set to the file the signer's repository holds.
+- If the signer stops running, the stamp runs out after seven days and badges stop showing until it runs again. A taken-over server can hold back a withdrawal for at most those seven days.
+- A VOOL release can carry its own copy of the two files as `core/registry/badges.json` and `core/registry/badge-issuers.json`, for the skills that ship inside VOOL. That copy counts past its own date until the app has verified a newer document. No release carries one yet.
+- Removing a skill from the Skill Codex does not need a badge step: a removed version is not listed, so nothing is drawn for it.
+
 ## Automatic checks with the signing Mac
 
-Instead of the GitHub job, the owner's Mac can be the signing authority. It checks every upload made with the creator's MIT agreement, signs what passes, and sends the signed list to the service. No person approves uploads; a person only adds the "Tested by Parad0x Labs" mark, the Highlighted spot, suspensions, team members and removals, each behind a code from an authenticator app.
+Instead of the GitHub job, the owner's Mac can be the signing authority. It checks every upload made with the creator's MIT agreement, signs what passes, and sends the signed list to the service. No person approves uploads; a person only adds the "Tested by Parad0x Labs" mark, the Highlighted spot, suspensions, team members, the step that admits each team upload, and removals, each behind a code from an authenticator app.
 
 1. On the server, create the online catalog key once: `vool-registry catalog-key --config CONFIG`. It writes `catalog.key` (mode 0600) in the private directory and prints the public key. An existing key is kept.
 2. On the Mac, write the released VOOL builds to a file such as `targets.json` (`[{"version", "commit", "platform"}, ...]`), then run `python -m registry_service.mac_authority setup --dir FOLDER --server https://SITE --catalog-key PUBLIC_KEY --targets targets.json --provider openrouter --model MODEL --cap 20`. `FOLDER` must not exist yet; it is created with mode 0700. Choose a passphrase of at least 12 characters for the main (root) key. Add the printed `otpauth://` line to the authenticator app (as a QR code or by typing the key), then type the code it shows to confirm. `--provider ollama` uses a local model at `127.0.0.1:11434` instead, with no spend.
@@ -108,6 +248,7 @@ python -m registry_service.mac_authority unhighlight PUBLISHER/NAME --dir FOLDER
 python -m registry_service.mac_authority suspend PUBLISHER --dir FOLDER          # refuses their uploads and waiting submissions
 python -m registry_service.mac_authority unsuspend PUBLISHER --dir FOLDER
 python -m registry_service.mac_authority team vool-team --github-id ID --github-id ID --dir FOLDER
+python -m registry_service.mac_authority team-admit vool-team/NAME@SHA256 --dir FOLDER  # sign this one team upload; it waits without it
 python -m registry_service.mac_authority remove PUBLISHER/NAME --dir FOLDER      # takes every version out of the list and revokes it
 python -m registry_service.mac_authority status --dir FOLDER                     # no code needed
 ```
@@ -117,7 +258,9 @@ What happens when something stops:
 - The Mac is off: the signed list runs out six to seven days after its last run, and browsing, downloads and installs then stop with "catalog freshness expired" until the next run. Nothing unsigned is served.
 - The review model is unreachable: the upload keeps waiting, and the outage never counts against it. A model that answers in the wrong shape gets three tries, then the upload is refused with a plain reason. The monthly cap (`monthly_cap` in `FOLDER/config.json`) stops paid calls; uploads then wait for the next month. An upload still waiting 35 days after it arrived expires, and its creator uploads it again.
 - One publisher name sends many uploads: each name gets 30 model reviews a month (`REVIEWS_PER_CREATOR` in `registry_service/mac_authority.py`; the team's name has no limit), then its uploads are refused until the next month. The same refused bytes sent again reuse the first answer.
-- A suspended creator's waiting uploads are refused at the next run, and new ones at once.
+- A suspended creator's waiting uploads are refused at the next run, and new ones at once. Deleting the account and signing in again does not end it: the suspension follows the old name to the same sign-in under any new name, and `unsuspend OLDNAME` (or removing the `suspended` line) lifts it.
+- A team upload nobody admitted: the run reports it under `waiting` and prints `team_step_needed` with `publisher/name@checksum`, the exact target for `team-admit`. Everyone else's uploads are signed as usual meanwhile.
+- A queue row that names its bytes differently than the package does: the run stops with "the service named an upload differently than its package does" and the whole batch waits, signed list renewed as in the other held cases.
 - A package makes the checks fail in a way nobody planned for: that upload is refused with "Our checks couldn't read this skill", the run goes on with the others, and the Mac's log shows `Refused <checksum> after an unexpected <error>`. Send that line to whoever maintains the checks.
 
 The authenticator code protects the hand-action commands. The admission and review keys are files readable only by the Mac account that runs the signer; the root key is encrypted with its passphrase. Anyone who controls that Mac account can sign, so keep it for this job, with FileVault and a login password. Removing a skill revokes its versions in every VOOL at the next Browse; downloads already made are not taken back.
@@ -222,16 +365,52 @@ location /registry/api/pictures/ {
 
 A VOOL build that predates the `icon`, `banner`, `languages` or `needs` metadata fields refuses a whole catalog in which any entry carries one, including builds whose owner installed a trust anchor through `VOOL_REGISTRY_ROOT_FILE`. Ship the first registry trust anchor only in a build that knows every field the catalog will carry. Upgrade the registry service before signing any entry with pictures, because an older service refuses that catalog too. Builds without a trust anchor never read the catalog, so they are unaffected.
 
+## What stays after an account is deleted
+
+Deleting an account removes the account row, its sign-ins, sessions, unpublished uploads, comments, stars and report notes. One row per sign-in stays in `retired_identities`, keyed by a hash made with a private key in the service's database (`identity-hmac`). It holds the deletion time, whether the person was muted, the times of their last day's uploads and comments, and a hash of each public name they held. It holds no name in words, no provider id and no text. The person's skill reports stay as a reason and a count under the same hash.
+
+The row makes a returning sign-in the same person again: a mute returns, a suspension of a name they held applies under any new name, the daily limits continue, and they choose no new public name for 30 days ("an account with this sign-in was deleted; you can choose a public name from YYYY-MM-DD"). The service's clean-up at start forgets a row 30 days after the deletion unless the person was muted or a name they held is suspended then. So suspend a creator who left within 30 days of the deletion; a later suspension still closes the old name, but no longer follows the person to a new one. The key and the rows live in the same `accounts.sqlite`, so back it up and restore it whole: rows restored without their key match nobody.
+
 ## Skill reports
 
-Read open reports with `vool-registry reports-open --config CONFIG` (see [SKILL-CODEX.md](SKILL-CODEX.md#skill-reports)). It lists every skill with open reports or a pause, including a pause whose reports are gone. Each report shows its id, reason, note, time, whether it counted toward a pause and `reporter`, an opaque handle that is the same for every report from one account. Read the reported version from `<artifact_dir>/<sha256>.json` (downloads of a paused skill are refused) and check the claim against its files: instructions that ask for money, passwords, keys or a recovery phrase, behaviour the description does not mention, a copy of someone else's work, a misleading picture, or a skill that does not work.
+Read open reports with `vool-registry reports-open --config CONFIG` (see [SKILL-CODEX.md](SKILL-CODEX.md#skill-reports)). It lists every skill with open reports or a pause. Each report shows its id, reason, note, time, whether it counted toward a pause and `reporter`, an opaque handle that is the same for every report from one person. A report whose sender deleted their account stays in the list with `account_deleted: true` and an empty note, so a pause can always be traced to its reports. Each skill shows `counting` (how many different people's reports count), `paused` (the cause while downloads are paused now), `paused_since`, and for a pause from reports `pause_lapses` and, once it has ended, `pause_lapsed: true`. `protected: "team"` or `"tested"` marks a skill that reports alone never pause. Read the reported version from `<artifact_dir>/<sha256>.json` (downloads of a paused skill are refused) and check the claim against its files: instructions that ask for money, passwords, keys or a recovery phrase, behaviour the description does not mention, a copy of someone else's work, a misleading picture, or a skill that does not work.
 
 - Nothing wrong: `reports-close` closes the reports, wipes their notes and ends a pause the reports caused.
 - Harmful or stolen: `skill-pause` keeps downloads paused, then revoke the version in the next signed catalog so VOOL stops listing it. A pause alone does not change what VOOL lists. `skill-resume` ends an operator's pause.
 - A bad picture: remove its signed `picture` line (or change/restart the fallback curation), then add `reports-close publisher/name`.
-- Reports in bad faith: `reporter-mute --target REPORT_ID` for each report. That account's open and later reports stop counting and its comments are held. A closed report never counts again either: the same account cannot pause that skill a second time.
+- Reports in bad faith: `reporter-mute --target REPORT_ID` for each report. That person's open and later reports stop counting and their comments are held. It also works on a report whose sender deleted their account: the mute lands on the account they came back with, or waits for them. A closed report never counts again either: the same person cannot pause that skill a second time, also not by deleting their account and signing in again.
 
-A paused skill stays paused until an operator acts. Check the list every day while the registry is open.
+What pauses a skill: `scam`, `harmful` or `stolen` reports from three different people, each with an account at least 14 days old and not muted. A pause that only reports caused ends by itself after 48 hours. To keep a skill paused, add `skill-pause publisher/name` within those 48 hours; that pause has no end date. After a pause has ended, the same open reports do not pause the skill again; close them once you have looked. A skill under a team's publisher name, and a skill whose listed version carries the Tested mark, are never paused by reports alone: their reports wait in this list with `protected`, and `skill-pause` still pauses them. A comment is held the same way: by reports from three different people with accounts at least 14 days old.
+
+Check the list every day while the registry is open: a pause from reports gives you 48 hours to confirm it.
+
+## Ratings, listing and account steps
+
+These are signed team steps like the others: a line in `team-steps.txt` on the GitHub signer, or a command on the signing Mac. No website session can do any of them. Every step writes one row in the service's `moderation_log` (marks number, step digest, action, target, reason code, time, rows affected) in the same transaction, and the public reads the action, reason sentence, date and count from `GET /moderation/notices`. The record holds no actor yet: who committed a line is in the signer repository's history.
+
+Reason codes (required where shown; any other word stops the whole file): `fake`, `automated`, `self_rating`, `paid`, `abusive`, `off_topic`, `harmful`, `stolen`, `misleading`, `creator_request`, `mistake_reversed`.
+
+| Line in `team-steps.txt` | What it does | How to undo |
+| --- | --- | --- |
+| `delisted publisher/name REASON` | Off the catalog, the public directory and VOOL's Browse; no new downloads; ratings closed. Nothing is revoked, so installed copies keep working | delete the line |
+| `removed publisher/name REASON` | As `removed` before (revoked; installed copies stop at their next list check), and the notice carries the reason. The reason is optional so older lines still read | deleting the line lets a higher version in; revoked versions stay revoked |
+| `review-text-remove RATING_ID REASON` | Removes the words of one rating; its stars stay. The words are kept 30 days for a second look, then erased | `rating-restore RATING_ID` within 30 days |
+| `rating-void RATING_ID REASON` | Takes one rating out of the list and the average; it counts in "ratings removed by the VOOL team". Its writer cannot rewrite or delete it | `rating-restore RATING_ID` |
+| `ratings-void-account PUBLISHER-or-HANDLE REASON` | Voids every rating of one account | `rating-restore` each id |
+| `ratings-void-window publisher/name 2026-01-31T00 2026-01-31T12 REASON` | Voids every rating on that add-on created from the first hour up to, not including, the second (UTC) | `rating-restore` each id |
+| `ratings-freeze publisher/name REASON` | No new ratings or edits on that add-on | `ratings-unfreeze publisher/name` |
+| `account-ban PUBLISHER-or-HANDLE REASON` | No ratings, comments or stars from that account; its ratings read as removed, its reports stop counting, its stars are deleted. Uploads are stopped with `suspended` | `account-unban PUBLISHER-or-HANDLE` (deleted stars do not return) |
+| `rating-restore RATING_ID` | Publishes a rating that was voided or held, and puts back removed words while they are kept | `rating-void` again |
+
+These are one-shot while the line stays, like the other moderation lines; `delisted` and `removed` describe the complete wanted set, like `tested`. An account without a public name is named by the 12-character handle the operator views show. Rating ids are in `authority/state.json` under `moderation_ratings` (held ratings, open appeals: ids and counts only) and in the public `GET /ratings` list.
+
+On the signing Mac: `python -m registry_service.mac_authority step "rating-void RATING_ID fake" --dir DIR` takes any of the rating and account lines; `delist publisher/name --reason REASON`, `relist publisher/name` and `remove publisher/name --reason REASON` do the listing steps. Each asks for the authenticator code.
+
+Operator views on the server (read only): `python -m registry_service.cli ratings-held --config FILE` lists ratings waiting for a look with their text, reports and repeats; publish one with `rating-restore`, remove one with `rating-void`.
+
+Appeals: the creator or the rater presses "Ask for another look" on the website. `python -m registry_service.cli appeals-open --config FILE` lists open appeals with the step they are about; `appeal-close --config FILE --target APPEAL_ID --outcome upheld|rejected` answers one and erases its text. Closing changes nothing else: to undo a step, use the undo in the table.
+
+Upgrade order: the service first, then the signer, then the app. An older service refuses marks that carry `delisted` or `withdrawals`; an older signer keeps working against the new service, because the older moderation answer keeps its shape and the new list is a route of its own (`GET /authority/moderation/ratings`). Shipped apps accept marks with the two new lists: they read only the curation part.
 
 ## Native activation and release limits
 
@@ -263,7 +442,8 @@ The complete syntax is in `registry_service/github/team-steps.txt`. Routine acti
 | Pause/resume | `skill-pause publisher/name`, `skill-resume publisher/name` | Close reports and change download availability. |
 | Mute report sender | `reporter-mute REPORT_ID` | Remove counting authority and hold comments without exposing identity. |
 | Withdraw | `removed publisher/name`, `suspended publisher/name` | Remove every listed version and revoke their checksums. Restoration needs a higher version after clearing the line. |
-| Suspend creator | `suspended namespace` | Withdraw listed skills; refuse pending/new uploads. |
+| Suspend creator | `suspended namespace` | Withdraw listed skills; refuse pending/new uploads, also from the same sign-in under a new name after an account deletion. Remove the line to lift it. |
+| Admit a team upload | `team-admit publisher/name SHA256` | Check and sign this one upload under a team's name; without the line it waits. |
 | Approve picture | `picture publisher/name SHA256` | Exact skill/picture approval; remove line to withdraw it. |
 | Curate | `official namespace`, `featured publisher/name`, `editors-pick publisher/name` | Maintainer labels, separate from admission/popularity. |
 | Appoint/review | `reviewer namespace team|community`, `review publisher/name VERSION reviewer YYYY-MM-DD` | Exact-version public reviewer record; no self-review. |

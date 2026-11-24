@@ -4,11 +4,14 @@ from __future__ import annotations
 import re
 
 from core.registry.codec import HEX, IDENTITY, digest, require
+from registry_service.ratings import STEPS as RATING_STEPS
 
 COMMENT = {"comment-publish", "comment-remove"}
 ACCOUNT = {"mute", "unmute"}
 PACKAGE = {"reports-close", "skill-pause", "skill-resume"}
-ACTIONS = COMMENT | ACCOUNT | PACKAGE | {"reporter-mute"}
+# Steps about ratings and accounts carry a reason from a fixed list; registry_service.ratings owns their forms.
+RATING = set(RATING_STEPS)
+ACTIONS = COMMENT | ACCOUNT | PACKAGE | {"reporter-mute"} | RATING
 _ID = re.compile(r"[0-9a-f]{32}")
 
 
@@ -16,8 +19,16 @@ def validate(value) -> list[dict]:
     require(isinstance(value, list) and len(value) <= 1000, "invalid operator steps")
     seen = set()
     for item in value:
-        require(isinstance(item, dict) and set(item) == {"action", "target"} and
-                item["action"] in ACTIONS and isinstance(item["target"], str), "invalid operator step")
+        require(isinstance(item, dict) and item.get("action") in ACTIONS and isinstance(item.get("target"), str),
+                "invalid operator step")
+        if item["action"] in RATING:
+            from registry_service.ratings import validate_step
+
+            key = validate_step(item)
+            require(key not in seen, "conflicting or repeated operator steps for " + item["target"])
+            seen.add(key)
+            continue
+        require(set(item) == {"action", "target"}, "invalid operator step")
         action, target = item["action"], item["target"]
         if action in COMMENT | {"reporter-mute"}:
             valid = bool(_ID.fullmatch(target))
@@ -38,7 +49,7 @@ def _close(db, package_id):
     db.execute("UPDATE skill_reports SET state='closed', note='' WHERE package_id=? AND state='open'", (package_id,))
 
 
-def apply(db, value: list[dict], *, now: int) -> None:
+def apply(db, value: list[dict], *, now: int, sequence: int = 0) -> None:
     """Caller owns BEGIN/commit. Retries apply once; removing then re-adding a line applies it again."""
     validate(value)
     db.execute("CREATE TABLE IF NOT EXISTS authority_actions (digest TEXT PRIMARY KEY)")
@@ -49,7 +60,11 @@ def apply(db, value: list[dict], *, now: int) -> None:
         if signature in previous:
             continue
         action, target = item["action"], item["target"]
-        if action in COMMENT:
+        if action in RATING:
+            from registry_service.ratings import apply_step
+
+            apply_step(db, item, now=now, sequence=sequence)  # writes its own row in moderation_log
+        elif action in COMMENT:
             row = db.execute("SELECT state FROM comments WHERE id=?", (target,)).fetchone()
             require(row and row[0] in {"held", "published"}, "comment not found")
             if action == "comment-publish":
@@ -57,18 +72,18 @@ def apply(db, value: list[dict], *, now: int) -> None:
                 db.execute("UPDATE comments SET state='published' WHERE id=?", (target,))
             else:
                 db.execute("UPDATE comments SET state='removed', body='' WHERE id=?", (target,))
-        elif action in ACCOUNT | {"reporter-mute"}:
-            query = "SELECT account FROM skill_reports WHERE id=?" if action == "reporter-mute" else \
-                "SELECT id FROM accounts WHERE namespace=?"
-            row = db.execute(query, (target,)).fetchone()
-            require(row and row[0], "report not found" if action == "reporter-mute" else "account not found")
+        elif action == "reporter-mute":
+            from registry_service.reports import mute_sender
+
+            mute_sender(db, target, now=now)  # also when the sender has deleted their account since
+        elif action in ACCOUNT:
+            row = db.execute("SELECT id FROM accounts WHERE namespace=?", (target,)).fetchone()
+            require(row and row[0], "account not found")
             if action == "unmute":
                 db.execute("DELETE FROM muted_accounts WHERE account=?", (row[0],))
             else:
                 db.execute("INSERT OR IGNORE INTO muted_accounts VALUES (?,?)", (row[0], now))
                 db.execute("UPDATE comments SET state='held' WHERE account=? AND state='published'", (row[0],))
-                if action == "reporter-mute":
-                    db.execute("UPDATE skill_reports SET counted=0 WHERE account=? AND state='open'", (row[0],))
         else:
             require(db.execute("SELECT 1 FROM public_versions WHERE package_id=?", (target,)).fetchone(),
                     "package not published")
@@ -79,20 +94,33 @@ def apply(db, value: list[dict], *, now: int) -> None:
                 db.execute("DELETE FROM paused_packages WHERE package_id=?", (target,))
             else:
                 db.execute("DELETE FROM paused_packages WHERE package_id=? AND cause='reports'", (target,))
+        if action not in RATING:
+            # The older steps leave a row in the record too. A comment step is filed under the comment's add-on.
+            from registry_service.ratings import _log
+
+            about = db.execute("SELECT package_id FROM comments WHERE id=?", (target,)).fetchone() if action in COMMENT else None
+            _log(db, item, now=now, sequence=sequence,
+                 affected={about[0]: 1} if about else {target: 0} if action in PACKAGE else {})
         db.execute("INSERT INTO authority_actions VALUES (?)", (signature,))
     for signature in previous - wanted:
         require(bool(HEX.fullmatch(signature)), "invalid saved operator step")
         db.execute("DELETE FROM authority_actions WHERE digest=?", (signature,))
 
 
-def pending(store) -> dict:
-    """Public-safe opaque IDs and counts; private text and reporter identities never leave the store."""
+def pending(store, *, now: int) -> dict:
+    """Public-safe opaque IDs and counts; private text and reporter identities never leave the store.
+
+    `paused` counts the skills paused at `now`; a pause from reports alone that ran out is not one of them.
+    """
+    from registry_service.reports import REPORT_PAUSE_SECONDS
+
     with store.connection() as db:
         comments = [row[0] for row in db.execute("SELECT id FROM comments WHERE state='held' ORDER BY id LIMIT 1000")]
         reports = [row[0] for row in db.execute("SELECT id FROM skill_reports WHERE state='open' ORDER BY id LIMIT 1000")]
         counts = {"comments": db.execute("SELECT count(*) FROM comments WHERE state='held'").fetchone()[0],
                   "reports": db.execute("SELECT count(*) FROM skill_reports WHERE state='open'").fetchone()[0],
-                  "paused": db.execute("SELECT count(*) FROM paused_packages").fetchone()[0]}
+                  "paused": db.execute("SELECT count(*) FROM paused_packages WHERE cause<>'reports' OR created>?",
+                                       (now - REPORT_PAUSE_SECONDS,)).fetchone()[0]}
     from registry_service.curation import load_curation, picture_approvals
 
     marks = store.marks()

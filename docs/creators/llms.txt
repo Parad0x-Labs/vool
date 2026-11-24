@@ -1,0 +1,25 @@
+# VOOL: build skills and plugins
+
+Note for the website: substitute your own base address in front of every path below (paths are relative to the site root), then drop this line.
+
+> A skill is text that tells VOOL how to do a task. A plugin is code that adds a tool, with only the websites and keys the owner agreed to.
+> Skills run in VOOL 0.7.7 or newer; the author commands and all plugins need VOOL 0.8.0 or newer.
+
+## For AI agents (read these first)
+
+- [Agent entry page](/docs/creators/agents/README.md): decide skill or plugin, the rules an agent must not break, links to the task pages.
+- [Make a skill: agent procedure](/docs/creators/agents/skill.md): numbered steps, a complete example, acceptance checks with expected output, the stop list.
+- [Make a plugin: agent procedure](/docs/creators/agents/plugin.md): numbered steps, a complete manifest and server, acceptance checks with expected output, the stop list.
+- [Refusals lookup](/docs/creators/agents/errors.md): message or code, field, cause, fix.
+- [Plugin refusals table](/docs/creators/reference/plugin-refusals.md): each plugin mistake, the sentence shown, the field, what to write instead. Generated from the code.
+- [Skill rules table](/docs/creators/reference/skill-rules.md): text rule codes, header settings VOOL reads, timer settings, limits, package details. Generated from the code.
+- [Names kept back](/docs/creators/reference/names-kept-back.md): ids and names a plugin, a skill or a publisher may not use. Generated from the code.
+
+## For people
+
+- [Start here](/docs/creators/README.md): what a skill and a plugin are, and which one you need.
+- [Make a skill](/docs/creators/make-a-skill.md): write, test and switch on a skill.
+- [Make a plugin](/docs/creators/make-a-plugin.md): build, check and switch on a plugin.
+- [The rules and why](/docs/creators/rules-and-why.md): what a skill or plugin may not do, the reason, and what to do instead.
+- [Publish and share](/docs/creators/publish.md): share a zip or a folder, and how the Skill Codex lists a skill.
+- [Questions and answers](/docs/creators/faq.md): short answers to common questions.

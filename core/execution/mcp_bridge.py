@@ -470,12 +470,26 @@ def mcp_tool_specs() -> list[dict[str, Any]]:
     ]
 
 
+_HEADER_NAME = re.compile(r"[A-Za-z0-9_.-]{1,80}")
+
+
+def _header_name(value: Any) -> str:
+    """A server's or a tool's name as it may stand in the line VOOL writes above the output.
+
+    Those names come from outside (a plugin's manifest, a connection server's own tool list).
+    Only the plain start of the name is kept, so a name can never close the line's quote or its
+    bracket, or begin a line of its own above the output.
+    """
+    found = _HEADER_NAME.match(str(value or ""))
+    return found.group(0) if found else "unnamed"
+
+
 def _frame_output(server: str, tool_name: str, text: str) -> str:
     clean = _ANSI_ESCAPES.sub("", str(text or ""))
     clean = _CONTROL_CHARS.sub("", clean)
     if len(clean) > _MAX_OUTPUT_CHARS:
         clean = clean[:_MAX_OUTPUT_CHARS] + "\n[output truncated]"
-    return f"[untrusted output from MCP server '{server}' tool '{tool_name}']\n{clean}"
+    return f"[untrusted output from MCP server '{_header_name(server)}' tool '{_header_name(tool_name)}']\n{clean}"
 
 
 def execute_plugin_mcp(plugin, contract, arguments, *, scratch, dependencies, call, credentials, proxy=None):

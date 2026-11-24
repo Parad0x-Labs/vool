@@ -70,6 +70,10 @@ def test_team_upload_uploads_and_consents_the_team_packages(world, tmp_path, mon
     assert status == 0
     assert [(line["package_id"], line["state"], line["consent"]) for line in lines] == [
         ("vool-team/agenda", "checking", 1), ("vool-team/notes", "checking", 1)]
+    # The unattended run signs nothing under the team's name until a hand step names each package's bytes.
+    assert world.mac.run_once()["admitted"] == []
+    for line in lines:
+        world.mac.act("team-admit", line["package_id"] + "@" + line["sha256"])
     assert world.mac.run_once()["admitted"] == ["vool-team/agenda 1.0.0", "vool-team/notes 1.0.0"]
     assert {item["package_id"] for item in world.store.submissions(sls)} == {"vool-team/agenda", "vool-team/notes"}
 
