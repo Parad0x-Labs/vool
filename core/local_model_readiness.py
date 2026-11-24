@@ -268,7 +268,16 @@ def ready_local_models(
         except Exception:
             continue
         if state == "verified":
-            return []
+            # Only a model this computer can hold answers turns. A verified model too large for it
+            # (qwen3.8:27b on sls's iMac, 2026-11-24) is never chosen, so it must not stand in for
+            # readiness: that left a stale qwen3:8b unchecked and every local answer refused.
+            try:
+                usable = fits is None or bool(fits(manifest))
+            except Exception:
+                usable = True
+            if usable:
+                return []
+            continue
         if name == primary and _check_ran_out_of_time(status):
             # The boot primary's check never finished: run it again, as a first check would.
             state = "unknown"

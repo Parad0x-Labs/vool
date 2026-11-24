@@ -805,7 +805,10 @@ def _ready_a_local_model_on_boot(registry: ModelRegistry, *, primary_model: str,
 
             for manifest in _local_manifests():
                 try:
-                    if str((certification_status(manifest) or {}).get("state") or "").lower() == "verified":
+                    if (
+                        str((certification_status(manifest) or {}).get("state") or "").lower() == "verified"
+                        and _fits(manifest)
+                    ):
                         return True
                 except Exception:
                     continue

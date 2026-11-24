@@ -249,6 +249,18 @@ def certification_status(
             "routing_effect": CERTIFICATION_ROUTING_EFFECT,
         }
     if latest.get("fingerprint") != fingerprint and latest.get("state") != "probing":
+        # The newest run was taken under another identity (measured 2026-11-24 on sls's iMac profile: a
+        # qwen3:8b run under Ollama 0.40.3 was newest while 0.40.14 ran, and that 0.40.14 had its own
+        # verified run of the same digest). What decides is the newest run under the identity running
+        # NOW; only with none is the model stale.
+        same = latest_certification_run(
+            provider_name=manifest.provider_name,
+            model_name=manifest.model_name,
+            fingerprint=fingerprint,
+            db_path=db_path,
+        )
+        if same is not None and same.get("state") != "probing":
+            return same
         latest = dict(latest)
         latest["state"] = "stale"
         latest["current_fingerprint"] = fingerprint

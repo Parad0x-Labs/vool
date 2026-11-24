@@ -174,18 +174,18 @@ def latest_certification_run(
     *,
     provider_name: str,
     model_name: str,
+    fingerprint: str = "",
     db_path: str | Path | None = None,
 ) -> dict[str, Any] | None:
+    """The newest run of this model, or with ``fingerprint`` the newest run taken under exactly that one."""
     conn = _connection(db_path)
     try:
         _ensure_table(conn)
+        where = "provider_name = ? AND model_name = ?" + (" AND fingerprint = ?" if fingerprint else "")
+        args = (provider_name, model_name, *((fingerprint,) if fingerprint else ()))
         row = conn.execute(
-            """
-            SELECT * FROM local_model_tool_certification_runs
-            WHERE provider_name = ? AND model_name = ?
-            ORDER BY started_at DESC LIMIT 1
-            """,
-            (provider_name, model_name),
+            f"SELECT * FROM local_model_tool_certification_runs WHERE {where} ORDER BY started_at DESC LIMIT 1",
+            args,
         ).fetchone()
         return _row_payload(row) if row else None
     finally:
