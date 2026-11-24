@@ -154,6 +154,16 @@ def on_start_up(profile: Path) -> tuple[bool, list[str]]:
     return choice in (1, 6), theirs if choice in (4, 6) else []
 
 
+#: Spell-check in a new profile. On macOS the engine uses the system's own checker and
+#: fetches nothing, so it stays on. Elsewhere the engine has no dictionary of its own:
+#: measured, it downloads one from its maker's server the first time the person types in a
+#: page, and switching the check off does not stop that while a language is still chosen
+#: for it. Nothing is fetched that the person did not ask for, so there a new profile starts
+#: with the check off and no language chosen for it; the person switches it on and picks the
+#: language in the browser's settings, and the engine fetches the dictionary then.
+_SYSTEM_SPELL_CHECK = sys.platform == "darwin"
+
+
 def default_preferences() -> dict[str, Any]:
     """What VOOL writes into a new profile. The person can change any of it in the browser.
 
@@ -187,7 +197,8 @@ def default_preferences() -> dict[str, Any]:
         "safebrowsing": {"enabled": False, "enhanced": False, "scout_reporting_enabled": False},
         "signin": {"allowed": False},
         "privacy_sandbox": {"m1": {"topics_enabled": False, "fledge_enabled": False, "ad_measurement_enabled": False}},
-        "browser": {"check_default_browser": False},
+        "browser": {"check_default_browser": False, **({} if _SYSTEM_SPELL_CHECK else {"enable_spellchecking": False})},
+        **({} if _SYSTEM_SPELL_CHECK else {"spellcheck": {"dictionaries": []}}),
         # Read by the engine on macOS only. There the engine asks, in a bubble on a new
         # tab, whether a page that stands in for its own new tab page may stay, and once
         # per profile it takes whatever stands in at that moment as agreed to. This says

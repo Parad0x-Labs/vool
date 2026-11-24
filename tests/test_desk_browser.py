@@ -626,6 +626,13 @@ def test_starting_settings_are_written_once_and_never_over_the_persons_own(home,
     assert written["https_only_mode_enabled"] is True
     assert written["profile"]["cookie_controls_mode"] == 1
     assert written["safebrowsing"]["enabled"] is False and written["search"]["suggest_enabled"] is False
+    # Spell-check starts off, with no language chosen for it, where the engine would have to
+    # download its dictionary.
+    import sys
+
+    own_checker = sys.platform == "darwin"
+    assert written["browser"].get("enable_spellchecking", True) is own_checker
+    assert ("spellcheck" not in written) if own_checker else (written["spellcheck"]["dictionaries"] == [])
     assert written["download"]["default_directory"] == str(desk_module.downloads_dir())
     # The starting search is the engine's own writing, in whichever settings file the engine
     # keeps it. An engine that knows this search as one of its built-in ones holds it as
@@ -842,6 +849,16 @@ def test_the_engine_asks_no_search_company_for_anything_at_start_or_for_a_new_ta
     opened = browser._call(new_tab())
     # A new tab is VOOL's own start page, which lives on this computer.
     assert opened == start_page(browser), opened
+
+    # Typing in a page is where an engine with spell-check on and no dictionary of its own
+    # goes to its maker's download server for one.
+    async def type_in_a_page():
+        page = await browser.context_for_agent().new_page()
+        await page.goto("data:text/html,<title>note</title><textarea id=t spellcheck=true></textarea>")
+        await page.click("#t")
+        await page.keyboard.type("Thiss is a speling mistake. ", delay=30)
+
+    browser._call(type_in_a_page())
     assert not _wait(others, seconds=12), asked
 
     # A private window starts from a profile of its own: the same holds there.

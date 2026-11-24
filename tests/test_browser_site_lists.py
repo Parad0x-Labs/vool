@@ -325,6 +325,8 @@ def test_a_listed_site_is_stopped_with_a_warning_and_the_person_can_open_it_with
     assert state["protected"] is True and state["site_lists"]["sites"] == 1
 
     async def read():
+        # The page writes its words itself once it has loaded.
+        await warning.wait_for_function("document.title !== '' && document.body.innerText.includes(document.title)")
         return await warning.inner_text("body"), await warning.title()
 
     text, title = browser._call(read())
