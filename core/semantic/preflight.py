@@ -149,10 +149,15 @@ _FRAME_EXIT = re.compile(
     r"(?:the |this )?(?:scenario|hypothetical|fiction|roleplay|timeline))\b",
     re.IGNORECASE,
 )
+# Each word counts as a word of the sentence only: not as a part of a name joined by a hyphen, dot,
+# slash or underscore. "Use the text-digest-example.sha256 tool ..." names a plugin tool; reading its
+# "example" as "the quoted text is an example" muted every tool of the turn, and the plugin's own tool
+# went unoffered (CI on 8050c2e48, test_plugin_served_journey; the sample plugin was renamed to
+# text-digest-example that day). A file such as my-example.txt or a word like test-case-7 is the same.
 _QUOTED_DISCOURSE = re.compile(
-    r"\b(?:calls?|called|says?|said|claims?|claimed|labels?|labelled|means?|meant|"
+    r"(?<![\w./-])(?:calls?|called|says?|said|claims?|claimed|labels?|labelled|means?|meant|"
     r"phrase|metaphor|figurative|quote|quoted|example|test case|worksheet|fable|"
-    r"interpret|explain)\b",
+    r"interpret|explain)(?![\w/-])(?!\.\w)",
     re.IGNORECASE,
 )
 _ASSIGNMENT = re.compile(
