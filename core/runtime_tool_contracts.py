@@ -670,7 +670,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             input_schema={
                 "account": "string optional",
                 "folder": "string optional",
-                "limit": "integer optional",
+                "limit": "integer optional, the most messages to list (default 25); leave it out unless the person asked for a number",
                 "sender": "string optional, substring match on From",
                 "subject": "string optional, substring match on Subject",
                 "since": "string optional, YYYY-MM-DD",

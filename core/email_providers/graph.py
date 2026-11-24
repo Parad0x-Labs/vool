@@ -172,8 +172,11 @@ class GraphAdapter:
         except ProviderAccountError as exc:
             return EmailReadResult(False, exc.kind, str(exc))
         messages = [self._summary(m) for m in listing.get("value") or []]
+        # A next link means more matched than are listed: the count must not read as the total.
+        note = (f" Only the newest {len(messages)} are listed here (limit {limit}); more matched and are not listed."
+                if listing.get("@odata.nextLink") else "")
         return EmailReadResult(True, "executed",
-                               f"{len(messages)} message(s) matched (Graph).", messages=messages)
+                               f"{len(messages)} message(s) matched (Graph).{note}", messages=messages)
 
     @staticmethod
     def _summary(m: dict[str, Any]) -> dict[str, str]:

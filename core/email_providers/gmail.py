@@ -179,7 +179,10 @@ class GmailAdapter:
                 messages.append(entry)
             if len(messages) >= limit:
                 break
-        return EmailReadResult(True, "executed", f"{len(messages)} message(s) matched (Gmail).", messages=messages)
+        # A next page means more matched than are listed: the count must not read as the total.
+        note = (f" Only the newest {len(messages)} are listed here (limit {limit}); more matched and are not listed."
+                if listing.get("nextPageToken") else "")
+        return EmailReadResult(True, "executed", f"{len(messages)} message(s) matched (Gmail).{note}", messages=messages)
 
     def _summary(self, message_id: str) -> dict[str, str] | None:
         data = self._message(message_id, "metadata")

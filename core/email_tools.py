@@ -926,6 +926,7 @@ def search_email(
     password = str(creds.get("password") or "")
     folder = str(folder or "INBOX")
     messages: list[dict[str, str]] = []
+    ids: list[bytes] = []
     scan_bounded = False
     scanned = 0
     criteria: list[str] = []
@@ -982,8 +983,14 @@ def search_email(
         )
     except Exception as exc:  # network / auth / config
         return EmailReadResult(False, "read_failed", f"Email search failed ({type(exc).__name__}): {exc}")
+    # The count is what matched, never just what was listed: measured 2026-11-24 on sls's iMac, a read
+    # with limit 8 of 9 unread said "8 message(s) matched" and the reply told him he had 8 unread.
+    listed = len(messages)
+    matched = len(ids) if not header_filter else listed
+    more_unlisted = (not header_filter and matched > listed) or (
+        header_filter and listed >= limit and scanned < len(ids) and not scan_bounded)
     summary = (
-        f"{len(messages)} message(s) matched in {folder}"
+        f"{matched} message(s) matched in {folder}"
         + f" (from {sender!r})" * bool(sender)
         + f" (subject {subject!r})" * bool(subject)
         + f" (since {since})" * bool(since)
@@ -991,6 +998,12 @@ def search_email(
         + " (unread only)" * bool(unseen_only)
         + "."
     )
+    if more_unlisted:
+        summary += (
+            f" Only the newest {listed} are listed here (limit {limit}); "
+            + (f"{matched - listed} more matched and are not listed." if not header_filter
+               else "more matches may exist and are not listed.")
+        )
     if scan_bounded and len(messages) < limit:
         summary += (
             f" Search bounded: {scanned} message(s) scanned (cap {_SEARCH_SCAN_CAP}) before "
