@@ -565,9 +565,6 @@ def response_language_retry_instruction(policy: dict[str, Any] | None) -> str:
     return "Return the answer in the user's language."
 
 
-SAME_LANGUAGE_INSTRUCTION = "Write the reply in the language of the person's latest message."
-
-
 def response_language_provider_instruction(policy: dict[str, Any] | None) -> str:
     """The one bounded system-prompt line that carries the policy onto the provider request.
 
@@ -578,14 +575,6 @@ def response_language_provider_instruction(policy: dict[str, Any] | None) -> str
     if not isinstance(policy, dict):
         return ""
     expected = str(policy.get("expected_language") or "")
-    if expected in {"", "none"} and policy.get("reason") == "insufficient_evidence":
-        # Most turns carry no letter exclusive to one language (Lithuanian without two of e-dot,
-        # i-ogonek, u-ogonek; Spanish without inverted punctuation; German, French or Dutch at all),
-        # so the policy rightly decides nothing. Saying nothing left the model to choose, and after
-        # an English tool result or system prompt it chose English. The model reads the person's
-        # language itself; this line only keeps it from drifting. A translation or a quoted subject
-        # has its own reason and gets no such line.
-        return SAME_LANGUAGE_INSTRUCTION
     if expected in {"", "none", "en"}:
         return ""
     name = LANGUAGE_NAMES.get(expected)

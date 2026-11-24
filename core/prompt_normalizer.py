@@ -3045,8 +3045,13 @@ def _tool_intent_catalog_text(
         # and a small local model copied it straight into the answer -- the user was shown the literal
         # words "final grounded reply". An angle-bracket slot cannot be mistaken for prose. The
         # placeholder guard in response_policy_classification is the backstop if a model echoes anyway.
+        # The person's language rides in respond.direct's own instruction. Measured 2026-11-24 on
+        # replayed tool rounds of the local model: a separate "answer in the person's language"
+        # line elsewhere in the prompt did not stop an English answer to a Lithuanian ask after
+        # an English tool result; the same words here, at the field that holds the answer, did.
         "If no tool is needed or you are done after real tool work, use respond.direct with your actual "
-        "reply written out in full in its message field. Never send placeholder text. "
+        "reply written out in full in its message field, in the language the person wrote their own "
+        "message in (not the language of tool results or of these instructions). Never send placeholder text. "
         "Prefer another real tool call over guessing. Never invent intent names or unsupported arguments."
     )
     catalog = " ".join(line for line in lines if line.strip())
