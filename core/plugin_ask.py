@@ -468,6 +468,40 @@ def _web_confirmed(text: str, keys: tuple[str, ...], source_context: dict[str, A
     return tuple(key for key in keys if key != "web")
 
 
+def _judged_again_without_the_web(
+    text: str, builtins: list[tuple[str, str, tuple[str, ...]]], source_context: dict[str, Any], session_id: str
+) -> tuple[str, ...]:
+    """The built-in choices a second reading picks once the internet is out of the list, after the judge's only pick
+    was the internet and the web's own yes/no said the message needs none.
+
+    That pick was a misreading, and with nothing left the turn had no tool of the person's at all. Fresh audit of
+    02ff11496 (2026-11-23, qwen3:8b): "kokius priminimus turiu?" ("which reminders do I have?") was judged the
+    internet, the web yes/no said no, no reminder tool was offered, and the model told the person to use
+    "operator.list_reminders" itself. Read again against the person's own tools, the message can find the one it
+    means; a plain question picks none, as before. No answer keeps it at none."""
+    rest = [row for row in builtins if row[0] != "web"]
+    if not rest:
+        return ()
+    from core import intent_arbiter
+
+    try:
+        picked = intent_arbiter.arbitrate_plugin_ask(
+            text,
+            [row[1] for row in rest],
+            previous=_previous_request(text, source_context),
+            chat_id=str(session_id or ""),
+            source_context=source_context,
+        )
+    except Exception as exc:
+        _log.info("tool ask: second reading without the web failed (%s)", type(exc).__name__)
+        return ()
+    if isinstance(picked, int) and not isinstance(picked, bool):
+        picked = (picked,) if picked else ()
+    keys = tuple(dict.fromkeys(rest[n - 1][0] for n in (picked or ()) if 1 <= n <= len(rest)))
+    _log.info("tool ask: read again without the web: %s", keys or "none")
+    return keys
+
+
 def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> tuple[str, ...] | None:
     """The plugin judgement for this turn's text, recorded with the built-in one; None when nothing judged the plugins
     (the words then decide alone)."""
@@ -528,8 +562,10 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
     numbers = [number for number in picked if 1 <= number <= len(choices)]
     plugins = tuple(dict.fromkeys(shown_plugins[n - 1][0] for n in numbers if n <= len(shown_plugins)))
     if builtins:
-        keys = tuple(builtins[n - len(shown_plugins) - 1][0] for n in numbers if n > len(shown_plugins))
-        keys = _web_confirmed(text, keys, source_context, session_id)
+        picked_keys = tuple(builtins[n - len(shown_plugins) - 1][0] for n in numbers if n > len(shown_plugins))
+        keys = _web_confirmed(text, picked_keys, source_context, session_id)
+        if picked_keys and not keys and not plugins:
+            keys = _judged_again_without_the_web(text, builtins, source_context, session_id)
         _record_builtins(text, _memory_kind_confirmed(text, keys, source_context, session_id))
     if not rows:
         return None
