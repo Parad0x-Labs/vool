@@ -207,7 +207,7 @@ Report these six things, in this order.
 5. The checks: the lines printed by acceptance checks 1 to 3.
 6. How to switch it on. In VOOL open **Skills & Plugins**, then **My add-ons**, then **Plugins**. Choose **Install from a folder**, give the folder, and choose **Review folder**. VOOL shows every file and installs the plugin switched off. Then choose **Review access and enable**, read the access sheet, and accept it. Chats use the plugin's tools while **Let chats use plugin tools** is on. A key, when the plugin has a slot for one, is typed into the plugin's card by the owner.
 
-Sharing: give someone the folder, or put it in a public GitHub project; they install it with **Install from public GitHub source**, naming the project, the folder and an exact version (a full commit id). The Skill Codex lists skills; plugins are shared as a folder or from GitHub. See [../publish.md](../publish.md).
+Sharing: give someone the folder, or put it in a public GitHub project; they install it with **Install from public GitHub source**, naming the project, the folder and an exact version (a full commit id). To publish it in the Skill Codex instead, run `python -m tools.community_skills plugin-init FOLDER --namespace NAME --category CATEGORY --subcategory SUBCATEGORY`, then `lint FOLDER --scratch DIR` and `pack FOLDER --scratch DIR --output NAME.vool.json`; the package id must end in the plugin's id and the listing `title` must equal `vool.name`. Publishing needs the person's own account and their yes: stop and ask before any upload. See [../publish.md](../publish.md).
 
 ## Stop list
 

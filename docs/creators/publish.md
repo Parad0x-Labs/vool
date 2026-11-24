@@ -13,9 +13,11 @@ Publishing to the Skill Codex works with VOOL 0.7.7 and later. Plugins need VOOL
 | A skill | Send its zip. They say *import this skill*, then *turn it on* | Anyone you send it to |
 | A skill | Publish it to the Skill Codex, VOOL's shared library of skills | Everyone, from the website and from inside VOOL |
 | A plugin | Send the folder, or point to a public GitHub folder at an exact commit | Anyone you send it to |
+| A plugin | Publish it to the Skill Codex | Everyone, from the website and from inside VOOL |
 
-The Skill Codex lists skills and takes no plugins. A plugin is code, and the person installing it reviews
-its files and its access sheet on their own computer: see [Make a plugin](make-a-plugin.md#7-share-it).
+From VOOL 0.8 the Skill Codex takes plugins as well as skills. A plugin is code, so the person installing it
+still reviews its files and its access sheet on their own computer, and it installs switched off: see
+[Make a plugin](make-a-plugin.md#7-share-it).
 
 Nobody needs an account to browse the Skill Codex or to install from it.
 
@@ -133,8 +135,8 @@ The team can remove a skill, or suspend its creator. Then:
 - Copies people already downloaded and public history cannot be erased from other computers.
 - A suspended creator reads `this creator can't publish right now`.
 
-The daily check covers skills installed from the Skill Codex. A skill shared as a zip, and a plugin shared
-as a folder or from GitHub, are removed by the owner on their own computer.
+The daily check covers skills and plugins installed from the Skill Codex. A skill shared as a zip, and a plugin
+shared as a folder or from GitHub, are removed by the owner on their own computer.
 
 ## When you delete your account
 

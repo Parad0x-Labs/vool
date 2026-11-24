@@ -124,9 +124,9 @@ The manifest has no `vool` block. A plugin made for another app needs one added:
 lists its tools, websites and keys for the owner to review.
 [The manifest, field by field](make-a-plugin.md#4-the-manifest-field-by-field)
 
-### Why does the check show one problem at a time?
+### Does the check show every problem at once?
 
-The plugin check stops at the first problem. Fix it and run again. (The skill check lists every problem in one run.)
+Yes. The plugin check and the skill check each list every problem they can find in one run, with the field and the fix.
 
 ### Can my plugin use the person's OpenAI key?
 
@@ -182,8 +182,9 @@ on itself. Name it for what it does. [Rules: identity and names](rules-and-why.m
 
 ### Can I publish a plugin on the Skill Codex?
 
-No, the Skill Codex lists skills. Share a plugin as a folder, or as a public GitHub folder at an exact
-commit; the person reviews it in their own VOOL. [Share it](make-a-plugin.md#7-share-it)
+Yes, from VOOL 0.8, with `plugin-init`, `lint` and `pack`, then an upload. It installs through the same review,
+switched off. You can still share it as a folder or as a public GitHub folder at an exact commit.
+[Share it](make-a-plugin.md#7-share-it)
 
 ### Why can't I publish yet?
 

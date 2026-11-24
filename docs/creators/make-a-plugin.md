@@ -107,7 +107,7 @@ And a pass:
 | `fix` | On a refusal: what to write instead |
 | `plugin`, `tools`, `files` | On a pass: what VOOL read, the tool names and the number of files |
 
-The check stops at the first problem. Fix it and run again until it prints `OK`.
+The check lists every problem it can find in one run, each with its field and its fix; `--json` carries them in `problems`. Fix them and run again until it prints `OK`.
 Every refusal with its fix: [plugin refusals](reference/plugin-refusals.md).
 
 ## 4. The manifest, field by field
@@ -194,7 +194,23 @@ Plugins are shared in two ways:
   against that commit, then shows the same review. A commit never changes, so what they review is what you
   published.
 
-The Skill Codex lists skills; it takes no plugins. A package may hold at most 4,096 files and 128 MB in all,
+- **The Skill Codex.** Everyone can find and install it from the website and from inside VOOL.
+
+Publish a plugin to the Skill Codex with three commands, then upload the packed file:
+
+```text
+python -m tools.community_skills plugin-init FOLDER --namespace YOUR-PUBLIC-NAME --category CATEGORY --subcategory SUBCATEGORY
+python -m tools.community_skills lint FOLDER --scratch SCRATCH-FOLDER
+python -m tools.community_skills pack FOLDER --scratch SCRATCH-FOLDER --output NAME.vool.json
+```
+
+`plugin-init` writes the listing (`registry.json`) from your manifest, so the two agree. Three things must hold:
+the package id ends in the plugin's id (`your-name/parcel-desk` for the plugin `parcel-desk`), the listing `title`
+equals `vool.name`, and the maker shown is your public name, never `vool.publisher`. A published plugin installs
+through the same review, switched off, and nothing about publishing loosens a rule: the same checks run at upload
+and again on the installer's computer. Details: [Publishing a plugin](../registry/AUTHOR-GUIDE.md#publishing-a-plugin).
+
+A package may hold at most 4,096 files and 128 MB in all,
 64 MB per file.
 
 ## 8. Before you hand it over

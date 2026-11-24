@@ -132,7 +132,7 @@ requires testing in those applications.
 
 Share a plugin as its folder, or as a folder in a public GitHub repository at an exact commit
 (Add-ons, Plugins, "Review from GitHub": repository, the full 40-character commit, the folder).
-The Skill Codex lists skills; it does not take plugin packages. Check a folder before you share it
+From VOOL 0.8 a plugin can also be published in the Skill Codex ([Publishing a plugin](../registry/AUTHOR-GUIDE.md#publishing-a-plugin)). Check a folder before you share it
 with `python -m tools.plugin_check FOLDER` (add `--json` for a tool or an agent): it prints the
-sentence a person installing would read and, for the maker, the field at fault and what to write
+sentence a person installing would read and, for the maker, every field at fault and what to write
 instead. The guides for makers are in [docs/creators](../creators/README.md).
