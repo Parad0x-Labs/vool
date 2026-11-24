@@ -52,9 +52,12 @@ def _judge(monkeypatch, keys: tuple[str, ...], web: str | None = "yes") -> list:
     calls: list = []
     monkeypatch.setattr(intent_arbiter, "arbitrate_web_ask", lambda *_a, **_k: web)
 
+    wanted = {description for key, description, _seats in plugin_ask.BUILTIN_CHOICES if key in keys}
+
     def arbitrate(message, choices, **kwargs):
+        # By the choices shown, so a second reading over a shorter list still picks what is meant.
         calls.append(message)
-        return tuple(KEYS.index(key) + 1 for key in keys)
+        return tuple(number for number, choice in enumerate(choices, 1) if choice in wanted)
 
     monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
     monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", arbitrate)

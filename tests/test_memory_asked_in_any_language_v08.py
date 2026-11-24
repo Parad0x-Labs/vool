@@ -514,7 +514,10 @@ def test_a_recall_with_nothing_saved_is_not_saved_never_a_guess(home, monkeypatc
     _judged(text, "recall")
     monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", lambda *_a, **_k: ())
     result = _recall_lane(text)
-    assert result and result["response"] == pm.JUDGED_RECALL_NOTHING, result
+    # In the language the person wrote in (core.i18n.lane_receipts): the same "not saved", never a guess.
+    from core.i18n.lane_receipts import in_the_persons_language
+
+    assert result and result["response"] == in_the_persons_language(pm.JUDGED_RECALL_NOTHING, text), result
 
 
 def test_a_recall_with_a_saved_fact_still_reads_it_and_a_chat_with_earlier_turns_goes_on(home, monkeypatch):

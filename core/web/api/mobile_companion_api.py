@@ -1363,7 +1363,109 @@ def _action_chats_send(
         "model": payload.get("model"),
         "turn_id": request_id,
     }
+    if device.get("kind") != "bot" and not approval_token:
+        waiting = _phone_turn_waiting(device, request_id)
+        if waiting is not None:
+            # The turn stopped for the owner's OK. The phone shows the same question the computer
+            # does, and the turn is kept so an answer from the phone can finish it (_finish_on_phone).
+            result["approval"] = waiting
+            _hold_phone_turn(service, device, waiting, request_id, {
+                "message": message, "chat_id": phone_chat_id, "attachments": attachments,
+                "idempotency_key": idempotency_key})
     return 200, result
+
+
+PHONE_HELD_TURNS_MAX = 8
+
+
+def _phone_turn_waiting(device: dict[str, Any], turn_id: str) -> dict[str, Any] | None:
+    """The approval a phone's turn is stopped on, read from the one approval store, or None."""
+    import core.mode_permission_policy as mpp
+
+    device_id = str(device.get("device_id") or "")
+    if not turn_id or not device_id:
+        return None
+    mpp._ensure_approvals_restored()
+    now = _now()
+    with mpp._LOCK:
+        for token, approval in mpp._APPROVALS.items():
+            if (approval.get("remote_device") == device_id and str(approval.get("task_id") or "") == turn_id
+                    and approval.get("status") == "pending" and float(approval.get("expires_at") or 0) > now):
+                return _phone_approval_row(token, approval, device)
+    return None
+
+
+def _phone_approval_row(token: str, approval: dict[str, Any], device: dict[str, Any] | None) -> dict[str, Any]:
+    diff_preview = str(approval.get("diff_preview") or "")
+    return {
+        "approval_id": token,
+        "task_id": approval.get("task_id"),
+        "intent": approval.get("intent"),
+        "action": approval.get("action"),
+        "action_plain": approval.get("action_plain") or "",
+        "affected_resources": approval.get("affected_resources"),
+        "expected_side_effects": approval.get("expected_side_effects"),
+        "reversible": approval.get("reversible"),
+        "scope_options": approval.get("scope_options"),
+        "planned_actions": approval.get("planned_actions"),
+        "planned_action_count": approval.get("planned_action_count"),
+        "diff_preview": diff_preview[:1024],
+        "raised_at": approval.get("raised_at"),
+        "expires_at": approval.get("expires_at"),
+        "phone_may_answer": bool(device) and _phone_may_answer(approval, device),
+    }
+
+
+def _hold_phone_turn(service, device: dict[str, Any], waiting: dict[str, Any], turn_id: str, params: dict[str, Any]) -> None:
+    device_id = str(device.get("device_id") or "")
+    with service.dispatch_lock:
+        fresh = service.store.device(device_id) or {}
+        held = [row for row in fresh.get("phone_held_turns") or [] if isinstance(row, dict)
+                and row.get("approval_id") != waiting["approval_id"]
+                and float(row.get("expires_at") or 0) > _now()][-(PHONE_HELD_TURNS_MAX - 1):]
+        held.append({"approval_id": waiting["approval_id"], "turn_id": turn_id, "params": params,
+                     "expires_at": float(waiting.get("expires_at") or 0)})
+        service.store.mark_device(device_id, phone_held_turns=held)
+
+
+def _take_phone_turn(service, device: dict[str, Any], approval_id: str) -> dict[str, Any] | None:
+    device_id = str(device.get("device_id") or "")
+    if not hasattr(service, "dispatch_lock") or not hasattr(service.store, "device"):
+        return None
+    with service.dispatch_lock:
+        fresh = service.store.device(device_id) or {}
+        held = [row for row in fresh.get("phone_held_turns") or [] if isinstance(row, dict)]
+        taken = next((row for row in held if row.get("approval_id") == approval_id), None)
+        if taken is not None:
+            service.store.mark_device(device_id, phone_held_turns=[row for row in held if row is not taken])
+        return taken
+
+
+def _finish_on_phone(row: dict[str, Any], *, approval_id: str, runtime, model_name: str, client_host: str,
+                     workspace_root_provider, service, device: dict[str, Any]) -> str:
+    """Run a phone's held turn again under the approval the phone just gave, as a chat app's worker
+    does for an approval its owner gave (core.mobile_companion.bot_runtime). The answer is written to
+    the chat; the phone reads it there. Returns the new request's idempotency key."""
+    params = dict(row.get("params") or {})
+    # A new request for the same turn: the first one's committed answer was the question.
+    params["idempotency_key"] = hashlib.sha256(
+        (str(params.get("idempotency_key") or row.get("turn_id") or "") + ":approved:" + approval_id).encode()
+    ).hexdigest()
+
+    def run():
+        try:
+            status, result = _action_chats_send(
+                params, runtime=runtime, model_name=model_name, client_host=client_host,
+                workspace_root_provider=workspace_root_provider, service=service, device=device,
+                approval_token=approval_id, resume_turn_id=str(row.get("turn_id") or ""))
+            service.store.append_receipt("chat.turn_resumed" if status == 200 else "chat.turn_resume_refused",
+                                         device_id=str(device.get("device_id") or ""),
+                                         detail={"status": status, "turn_id": (result or {}).get("turn_id")})
+        except Exception:
+            logger.exception("a phone turn could not finish after its approval")
+
+    threading.Thread(target=run, name="phone-approved-turn", daemon=True).start()
+    return params["idempotency_key"]
 
 
 def _action_chats_progress(params, *, service, device, **_kw):
@@ -1523,10 +1625,8 @@ def _action_files_fetch(params: dict[str, Any], *, service: MobileCompanionServi
                  "done": not data or offset + len(data) >= int(record["size_bytes"])}
 
 
-_COMPUTER_ONLY_APPROVAL_ACTIONS = frozenset({
-    "access_secrets", "financial_or_paid_actions", "change_settings", "change_security_settings",
-    "change_provider_configuration", "unknown_side_effect",
-})
+from core.request_trust import REMOTE_COMPUTER_ONLY_ACTIONS as _COMPUTER_ONLY_APPROVAL_ACTIONS
+
 #: What a phone may grant when it answers its own approval: this action, or the rest of the same request
 #: or task. A project-wide grant stays on the computer.
 _PHONE_APPROVAL_SCOPES = frozenset({"once", "task", "request"})
@@ -1569,23 +1669,7 @@ def _action_approvals_pending(params: dict[str, Any], *, device: dict[str, Any] 
                 continue
             if float(approval.get("expires_at") or 0) <= now:
                 continue
-            diff_preview = str(approval.get("diff_preview") or "")
-            rows.append({
-                "approval_id": token,
-                "task_id": approval.get("task_id"),
-                "intent": approval.get("intent"),
-                "action": approval.get("action"),
-                "affected_resources": approval.get("affected_resources"),
-                "expected_side_effects": approval.get("expected_side_effects"),
-                "reversible": approval.get("reversible"),
-                "scope_options": approval.get("scope_options"),
-                "planned_actions": approval.get("planned_actions"),
-                "planned_action_count": approval.get("planned_action_count"),
-                "diff_preview": diff_preview[:1024],
-                "raised_at": approval.get("raised_at"),
-                "expires_at": approval.get("expires_at"),
-                "phone_may_answer": bool(device) and _phone_may_answer(approval, device),
-            })
+            rows.append(_phone_approval_row(token, approval, device))
     rows.sort(key=lambda r: float(r.get("expires_at") or 0))
     return 200, {"approvals": rows, "needs_approval": bool(rows)}
 
@@ -1595,6 +1679,10 @@ def _action_approvals_resolve(
     *,
     service: MobileCompanionService,
     device: dict[str, Any],
+    runtime=None,
+    model_name: str = "",
+    client_host: str = "",
+    workspace_root_provider=None,
     **_kw,
 ):
     from core.mode_permission_policy import resolve_approval
@@ -1637,7 +1725,15 @@ def _action_approvals_resolve(
     service.store.append_receipt("approval.decided", device_id=str(device.get("device_id") or ""), detail={
         "approval_id": approval_id, "decision": decision, "scope": str(approval.get("scope") or scope),
         "intent": str(approval.get("intent") or "")})
-    return 200, {"approval": approval, "decision": decision}
+    answer: dict[str, Any] = {"approval": approval, "decision": decision}
+    held = _take_phone_turn(service, device, approval_id)
+    if held is not None and allowed and runtime is not None and workspace_root_provider is not None:
+        answer["resumed"] = {"chat_id": str((held.get("params") or {}).get("chat_id") or ""),
+                             "idempotency_key": _finish_on_phone(
+                                 held, approval_id=approval_id, runtime=runtime, model_name=model_name,
+                                 client_host=client_host, workspace_root_provider=workspace_root_provider,
+                                 service=service, device=device)}
+    return 200, answer
 
 
 def _action_proof_get(params: dict[str, Any], *, client_host: str = "", device=None, **_kw):
@@ -2122,6 +2218,8 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
   button:disabled { opacity: .5; cursor: default; }
   .say { color: #aaa5a0; font-size: 13px; margin-top: 8px; }
   .say code { display: block; overflow-wrap: anywhere; word-break: break-all; font-size: 12px; line-height: 1.5; }
+  .back { text-align: center; margin: 18px 0 0; font-size: 13px; }
+  .back a { color: #aaa5a0; }
 </style>
 </head>
 <body>
@@ -2139,6 +2237,7 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
     <button type="button" id="again">Make a new code</button>
     <div class="say" id="againSay" role="status" aria-live="polite"></div>
   </div>
+  <p class="back"><a href="/settings#phone" id="back">Back to Settings</a></p>
 </div>
 <script>
 (function () {

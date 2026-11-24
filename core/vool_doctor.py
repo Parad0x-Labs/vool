@@ -24,7 +24,6 @@ import shutil
 import sqlite3
 import tempfile
 import time
-import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -71,20 +70,18 @@ def check_local_model() -> dict[str, Any]:
 
 
 def _local_model_names(endpoint: str) -> list[str] | None:
+    """The chat models the local endpoint lists, read through the same listing reader that tells whether a local model
+    runs (core.local_model_presence), so the Doctor opens no connection of its own; None when the listing is
+    unreadable."""
     base = str(endpoint or "").rstrip("/")
     if not base:
         return None
-    try:
-        import json
+    from core.local_model_presence import _get_json, _listed_chat_models
 
-        with urllib.request.urlopen(base + "/api/tags", timeout=2.0) as response:
-            data = json.loads(response.read().decode("utf-8") or "{}")
-    except Exception:
+    data = _get_json(base + "/api/tags")
+    if data is None:
         return None
-    rows = data.get("models") if isinstance(data, dict) else None
-    if not isinstance(rows, list):
-        return None
-    return [str((row or {}).get("name") or "") for row in rows if isinstance(row, dict) and (row or {}).get("name")]
+    return _listed_chat_models(data)
 
 
 def _cloud_ready() -> bool:

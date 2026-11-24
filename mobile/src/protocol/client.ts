@@ -414,10 +414,13 @@ export class MobileCompanionClient {
   }
 
   resolveApproval(approvalId: string, decision: "allow" | "deny", scope: "once" | "task" | "request" | "project" = "once"): Promise<ApprovalRecord> {
-    return this.request<{ approval: ApprovalRecord; decision: string }>(
-      "approvals.resolve",
-      { approval_id: approvalId, decision, scope },
-    ).then(r => r.approval);
+    return this.answerApproval(approvalId, decision, scope).then(r => r.approval);
+  }
+
+  /** The answer, and the turn it lets finish: an Allow from this phone runs the turn again on the computer. */
+  answerApproval(approvalId: string, decision: "allow" | "deny", scope: "once" | "task" | "request" | "project" = "once"):
+      Promise<{approval: ApprovalRecord; decision: string; resumed?: {chat_id: string; idempotency_key: string}}> {
+    return this.request("approvals.resolve", { approval_id: approvalId, decision, scope });
   }
 
   turnProof(chatId: string, requestId: string): Promise<TurnProof> {

@@ -287,3 +287,14 @@ def test_a_pipe_or_a_link_named_like_a_backup_is_skipped_without_blocking(stick,
     (written,) = [p for p in _files(stick["mount"]) if not p.name.startswith("a ")]
     (folder / f"a link{usb_backup.SUFFIX}").symlink_to(written)
     assert [row["address"] for row in usb_backup.overview()["backups"]] == [made["address"]]
+
+
+def test_a_usb_stick_is_offered_before_any_fixed_external_drive(stick, monkeypatch):
+    """Found on the Mac (Nov 23): drives came by name, so a work SSD was the preselected choice ahead of the stick."""
+    from core.wallet import usb_backup
+
+    mount = stick["mount"]
+    monkeypatch.setattr(usb_backup, "_mounts", lambda: [(mount.parent / "ARCHIVE_SSD", "ARCHIVE_SSD", "external_drive"), (mount.parent / "aaa-disk", "aaa-disk", "external_drive"),
+                                                        (mount, "ZZ-STICK", "usb_stick"), (mount.parent / "card", "card", "usb_stick")])
+    assert [(d["name"], d["kind"]) for d in usb_backup.drives()] == [("card", "usb_stick"), ("ZZ-STICK", "usb_stick"), ("aaa-disk", "external_drive"),
+                                                                     ("ARCHIVE_SSD", "external_drive")]

@@ -102,6 +102,8 @@ export interface ChatMessage {
 
 export interface SendResult {
   pending?: boolean;
+  /** The question this turn stopped on, which the owner answers before it can finish. */
+  approval?: PendingApproval;
   turn_id?: string;
   chat_id: string;
   reply: string;
@@ -155,6 +157,8 @@ export interface PendingApproval {
   task_id: string | null;
   intent: string | null;
   action: string | null;
+  /** What it would do, in plain words in this phone's language ("read your email"). */
+  action_plain?: string | null;
   affected_resources: string[] | null;
   expected_side_effects: string[] | null;
   reversible: boolean | null;

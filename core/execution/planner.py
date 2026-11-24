@@ -801,7 +801,11 @@ def should_attempt_tool_intent(
     try:
         from core.execution_requirements import requirements_for
 
-        if requirements_for(text, task_class=task_class, source_context=source_context).tools_required:
+        # The request as the person wrote it (a paste under it and a part taken back already set aside above), not
+        # its carved copy: the requirements carve their own eligible text, and the turn's judgement is keyed by the
+        # message. Carved twice, "anything i asked you to nudge me about?" was read as "anything", the reminder pick
+        # its judge made was never found, and no tool was offered (CI on 412af1a79).
+        if requirements_for(intent_surface, task_class=task_class, source_context=source_context).tools_required:
             return True
     except Exception:
         pass

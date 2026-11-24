@@ -19,7 +19,9 @@ class Clock:
         from core.time_authority import CLOCK
 
         self.now = start
-        monkeypatch.setattr(CLOCK, "now_utc", lambda: self.now)
+        # setitem on the clock's own dict, so the undo removes the stand-in; setattr on an instance would leave the
+        # bound method behind as an instance attribute, and every later class-level clock patch would be ignored.
+        monkeypatch.setitem(vars(CLOCK), "now_utc", lambda: self.now)
 
     def __call__(self) -> str:
         return self.now.isoformat()
@@ -40,7 +42,27 @@ def prepare_home(tmp_path, monkeypatch, *, zone: str = "Europe/Athens"):
     from core.user_preferences import save_user_timezone
 
     assert save_user_timezone(zone)
+    _clear_of_the_small_hours(zone, monkeypatch)
     return tmp_path
+
+
+def _clear_of_the_small_hours(zone: str, monkeypatch) -> None:
+    """Run VOOL's clock a few hours ahead while the rig's zone is in the small hours, where "tomorrow" is asked about
+    (core.operator.when, owner decision 2026-11-23): these tests say "tomorrow" and mean the next day, and they ran
+    red every night between midnight and 04:00 in the saved zone. The clock keeps moving; only its start moves."""
+    from zoneinfo import ZoneInfo
+
+    from core import time_authority
+    from core.operator.when import _SMALL_HOURS_END
+
+    clock = time_authority.CLOCK
+    real = clock.now_utc
+    local = real().astimezone(ZoneInfo(zone))
+    if local.hour >= _SMALL_HOURS_END:
+        return
+    ahead = local.replace(hour=_SMALL_HOURS_END + 1, minute=0, second=0, microsecond=0) - local
+    # On the clock VOOL reads (an instance attribute wins over its class), undone by removing it again.
+    monkeypatch.setitem(vars(clock), "now_utc", lambda: real() + ahead)
 
 
 def connect(provider, clock, *, base_url="", select=(), lead=(15,), sync=True, alerts=True, adapter_factory=None):

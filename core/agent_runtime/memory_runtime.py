@@ -27,11 +27,13 @@ def maybe_handle_memory_fast_path(
         )
     keep_receipt.stamp(source_context, receipt)
     if handled:
+        from core.i18n.lane_receipts import in_the_persons_language
+
         response = _gate_memory_response(response, session_id, source_context)
         result = agent._fast_path_result(
             session_id=session_id,
             user_input=user_input,
-            response=response,
+            response=in_the_persons_language(response, user_input),
             confidence=0.93,
             source_context=source_context,
             reason="memory_command",
@@ -55,8 +57,11 @@ def maybe_handle_memory_fast_path(
 
         nothing = _judged_recall_with_nothing_behind_it(user_input, session_id=session_id)
         if nothing is not None:
+            from core.i18n.lane_receipts import in_the_persons_language
+
             return agent._fast_path_result(
-                session_id=session_id, user_input=user_input, response=nothing, confidence=0.9,
+                session_id=session_id, user_input=user_input, response=in_the_persons_language(nothing, user_input),
+                confidence=0.9,
                 source_context=source_context, reason="memory_command",
             )
     return result

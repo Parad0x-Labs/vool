@@ -313,6 +313,20 @@ def _protected_vault_key(home: Path, path: Path) -> bytes:
     return key
 
 
+def _existing_vault_key(home: Path, crypto: Path) -> bytes | None:
+    """The key of a session store that already exists, found where DropHome keeps it:
+    the credential store for the running profile, a file for any other home. Never makes
+    a key or a store. None when there is no store to open."""
+    from core.runtime_paths import active_vool_home
+
+    if not (crypto / "sessions" / "drop.sqlite").exists():
+        return None
+    path = crypto / "vault.key"
+    if home.resolve() == active_vool_home().resolve():
+        return _protected_vault_key(home, path)
+    return _vault_key(path) if path.exists() else None
+
+
 def _scrub(path: Path):
     with contextlib.suppress(OSError):
         with open(path, "r+b") as out:
@@ -377,32 +391,35 @@ def discard_local_invite_tokens(home, tokens):
     if not unique or not db.exists():
         return
     _private_directory(root)
-    lock = (root/"actor.lock").open("a+")
-    try:
-        os.chmod(root/"actor.lock", 0o600)
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        marks = ",".join("?" for _ in unique)
-        con = sqlite3.connect(db, timeout=15)
-        con.row_factory = sqlite3.Row
+    # Same order as DropHome.scope: the process lock first, then the actor file lock.
+    with _HOME_LOCK:
+        lock = (root/"actor.lock").open("a+")
         try:
-            rows = con.execute(f"SELECT token, prekey FROM invites WHERE token IN ({marks})", unique).fetchall()
-            if not rows:
-                return
-            crypto = root/"crypto"
-            if (crypto/"vault.key").exists() and (crypto/"sessions").is_dir():
-                client = DropClient(crypto/"sessions", _vault_key(crypto/"vault.key"))
-                try:
+            os.chmod(root/"actor.lock", 0o600)
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            marks = ",".join("?" for _ in unique)
+            con = sqlite3.connect(db, timeout=15)
+            con.row_factory = sqlite3.Row
+            try:
+                rows = con.execute(f"SELECT token, prekey FROM invites WHERE token IN ({marks})", unique).fetchall()
+                if not rows:
+                    return
+                crypto = root/"crypto"
+                key = _existing_vault_key(root.parent, crypto)
+                if key is not None:
+                    client = DropClient(crypto/"sessions", key)
+                    try:
+                        for row in rows:
+                            client.discard_invite(row["prekey"])
+                    finally:
+                        client.close()
+                with con:
                     for row in rows:
-                        client.discard_invite(row["prekey"])
-                finally:
-                    client.close()
-            with con:
-                for row in rows:
-                    con.execute("DELETE FROM invites WHERE token=?", (row["token"],))
+                        con.execute("DELETE FROM invites WHERE token=?", (row["token"],))
+            finally:
+                con.close()
         finally:
-            con.close()
-    finally:
-        lock.close()
+            lock.close()
 
 
 class DropHome:

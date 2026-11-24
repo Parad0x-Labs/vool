@@ -47,6 +47,9 @@ def isolated_home(tmp_path, monkeypatch):
     run_migrations()
     from core.user_preferences import save_user_timezone
     assert save_user_timezone('Europe/Athens')
+    from ._pc_calendar_rig import _clear_of_the_small_hours
+
+    _clear_of_the_small_hours('Europe/Athens', monkeypatch)
     return tmp_path
 
 

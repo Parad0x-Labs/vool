@@ -12,6 +12,23 @@ import pytest
 from tests.channels.test_managed_chat_apps import allow_chat, bots, receipts, record, wait_for  # bots is a fixture
 from tests.mobile.test_phone_listener_served import http
 
+
+@pytest.fixture(autouse=True)
+def _desktop_clock_clear_of_the_small_hours(monkeypatch):
+    """The served desktop keeps the computer's own time zone (TZ), set here to one where it is daytime now.
+
+    The reminder wordings say "tomorrow" and mean the next day. Before 04:00 local VOOL asks which day "tomorrow"
+    means (core.operator.when, owner decision 2026-11-23), so on a UTC runner the test ran red every night between
+    midnight and 04:00 (CI on 412af1a79). The desktop is a separate process: its clock cannot be moved, its zone can.
+    Picked before the desktop starts (autouse runs first)."""
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    offset = next(hours for hours in range(0, 24) if 9 <= (now + timedelta(hours=hours)).hour <= 15)
+    offset = offset if offset <= 12 else offset - 24
+    # Etc/GMT names count the other way round: Etc/GMT-3 is three hours ahead of UTC.
+    monkeypatch.setenv("TZ", "Etc/UTC" if offset == 0 else f"Etc/GMT{-offset:+d}")
+
 CHORES = ("water the plants", "call the dentist", "pay the gas bill", "take the bins out", "book the car service")
 REMIND = ("remind me tomorrow at {h}am to {c}", "set a reminder for {h}am tomorrow: {c}", "tomorrow {h}am remind me to {c}")
 LIST = ("what reminders do I have?", "show my reminders", "which reminders are pending?")

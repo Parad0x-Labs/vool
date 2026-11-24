@@ -559,6 +559,10 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
         # so a failure is readable from the job log itself.
         logs = scratch / "logs"
         logs.mkdir(exist_ok=True)
+        # The rotated parts too (vool_api.log.1 ...): the API log rolls over at 5 MB, and on the Intel runner the
+        # current file held only the last 20 minutes of a 55-minute smoke, so the slow turns were unreadable.
+        for source in sorted(support.rglob("*.log.[0-9]*")) if support.exists() else []:
+            shutil.copy2(source, logs / str(source.relative_to(support)).replace("/", "__"))
         for source in sorted(support.rglob("*.log")) if support.exists() else []:
             target = logs / str(source.relative_to(support)).replace("/", "__")
             shutil.copy2(source, target)

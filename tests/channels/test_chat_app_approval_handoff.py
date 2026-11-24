@@ -28,7 +28,7 @@ def worker(tmp_path, monkeypatch):
     sent, calls = [], []
     monkeypatch.setattr(bot_runtime.ManagedBot, "send", lambda self, channel, text, right="chat": sent.append((channel, text)))
     monkeypatch.setattr(bot_runtime.ManagedBot, "deliver_files", lambda self, channel: None)
-    monkeypatch.setattr(bot_runtime, "turn_notes", lambda platform, result: [])
+    monkeypatch.setattr(bot_runtime, "turn_notes", lambda platform, result, locale="en": [])
 
     def fake_send(params, *, approval_token="", resume_turn_id="", **_kw):
         calls.append({"params": dict(params), "approval_token": approval_token, "resume_turn_id": resume_turn_id})

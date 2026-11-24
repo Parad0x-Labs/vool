@@ -18,7 +18,7 @@ import SwipeRow from "../ui/SwipeRow.tsx";
 import Sheet from "../ui/Sheet.tsx";
 
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
-import type { ChatMessage, ChatSummary, SentFile } from "../protocol/models.ts";
+import type { ChatMessage, ChatSummary, PendingApproval, SentFile } from "../protocol/models.ts";
 import { outboxFor, type QueuedTurn } from "../protocol/outbox.ts";
 import { randomBytes, toHex } from "../protocol/sha256.ts";
 
@@ -68,6 +68,10 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
   const [filesKey, setFilesKey] = useState(0);
   // Files the computer sent; each shows in the answer that sent it.
   const [sentFiles, setSentFiles] = useState<SentFile[]>([]);
+  // A question this chat's turn stopped on (an approval): shown under the answer, never only on the computer.
+  const [asking, setAsking] = useState<PendingApproval | null>(null);
+  const [askNote, setAskNote] = useState("");
+  const [askBusy, setAskBusy] = useState(false);
   // Managing chats: the archived list, the hold menu, renaming, and the short Undo after an archive.
   const [showArchived, setShowArchived] = useState(false);
   const [menuFor, setMenuFor] = useState<ChatSummary | null>(null);
@@ -137,7 +141,9 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
   useEffect(() => outbox.subscribe(setQueued,
     (result, turn) => {
       if (activeRef.current === result.chat_id) {
-        setMessages(previous => [...previous, {role: "user", content: turn.text}, {role: "assistant", content: result.reply, ts: new Date().toISOString()}]);
+        setMessages(previous => [...previous, {role: "user", content: turn.text},
+          ...(result.reply ? [{role: "assistant", content: result.reply, ts: new Date().toISOString()}] : [])]);
+        setAsking(result.approval || null); setAskNote("");
         void client.chatHistory(result.chat_id).then(setMessages).catch(() => {});
         if (result.commit?.request_id) void client.turnProof(result.chat_id, result.commit.request_id)
           .then(value => setProof(value.state)).catch(() => setProof(""));
@@ -183,10 +189,15 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
   const openChat = useCallback(
     async (chatId: string) => {
       setActiveChat(chatId); activeRef.current=chatId;
-      setMessages([]); setProof(""); setTimeShown(null); setAbilityNote("");
+      setMessages([]); setProof(""); setTimeShown(null); setAbilityNote(""); setAsking(null); setAskNote("");
       try {
         const history=await client.chatHistory(chatId);
         if (activeRef.current === chatId) setMessages(history);
+        const turns = history.map(m => String(m.request_id || "")).filter(Boolean);
+        if (turns.length) void client.pendingApprovals().then(list => {
+          const open = list.find(a => !!a.task_id && turns.some(id => id.endsWith(String(a.task_id))));
+          if (open && activeRef.current === chatId) setAsking(open);
+        }).catch(() => {});
       } catch (exc) {
         if (guard(exc)) return;
         setNotice(tr("Couldn't load this chat. Try again when your computer is reachable."));
@@ -198,7 +209,7 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
   const newChat = useCallback(() => {
     const id = "mob-" + toHex(randomBytes(10));
     setActiveChat(id); activeRef.current = id;
-    setMessages([]); setProof(""); setTimeShown(null); setAbilityNote("");
+    setMessages([]); setProof(""); setTimeShown(null); setAbilityNote(""); setAsking(null); setAskNote("");
   }, []);
 
   // Changes show at once; if the computer refuses, the list goes back and says so.
@@ -272,6 +283,34 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
       setBusy(false);
     }
   }, [activeChat, attachmentIds, draft, guard, outbox]);
+
+  const answer = useCallback(async (decision: "allow" | "deny") => {
+    const question = asking; const chatId = activeRef.current;
+    if (!question || !chatId) return;
+    setAskBusy(true);
+    try {
+      const done = await client.answerApproval(question.approval_id, decision, "once");
+      setAsking(null);
+      if (decision === "deny") {setAskNote(tr("Denied. Nothing was done.")); return;}
+      setAskNote(tr("Allowed. Your computer is working on it…"));
+      // The answer is written to this chat on the computer; read the chat until it is there (one read at a time).
+      const before = messages.filter(m => m.role === "assistant").length;
+      const until = Date.now() + 5 * 60_000;
+      while (done.resumed && Date.now() < until && activeRef.current === chatId) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const history = await client.chatHistory(chatId).catch(() => null);
+        if (history && history.filter(m => m.role === "assistant").length > before) {
+          if (activeRef.current === chatId) {setMessages(history); setAskNote("");}
+          return;
+        }
+      }
+      if (activeRef.current === chatId) setAskNote(tr("Allowed. The answer will be in this chat when your computer has it."));
+    } catch (exc) {
+      if (!guard(exc)) setAskNote(errorText(exc));
+    } finally {
+      setAskBusy(false);
+    }
+  }, [asking, client, guard, messages]);
 
   const archivedCount = (chats || []).filter(chat => chat.archived).length;
   const shown = (chats || []).filter(chat => !!chat.archived === showArchived);
@@ -384,7 +423,9 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
           <Pressable key={i} style={m.role === "user" ? styles.userBubble : styles.agentBlock}
             onPress={() => setTimeShown(shown => shown === i ? null : i)}
             onLongPress={() => setTimeShown(i)}>
-            <Text style={m.role === "user" ? styles.userText : styles.agentText}>{m.content}</Text>
+            {m.content || m.role === "user" ? <Text style={m.role === "user" ? styles.userText : styles.agentText}>{m.content}</Text>
+              : <Text style={styles.noteInline}>{m.answer_state === "unavailable_by_policy" ? tr("This answer was removed.")
+                : tr("No answer came back. Send it again.")}</Text>}
             {m.attachments?.map((a) => (
               <View key={a.id} style={styles.attachmentTag}>
                 <Icon name="paperclip" size={14} color={m.role === "user" ? C.sendSoft : C.mute} />
@@ -423,6 +464,21 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
             </View>
           );
         })}
+        {asking ? <View style={styles.ask}>
+          <View style={styles.row}>
+            <Icon name="shield-alert-outline" size={18} color={C.acc} />
+            <Text style={styles.askTitle}>{tr("Waiting for your OK")}</Text>
+          </View>
+          <Text style={styles.askText}>{asking.action_plain || asking.intent || tr("VOOL needs an approval")}</Text>
+          {(asking.affected_resources || []).slice(0, 3).map(r => <Text key={r} style={styles.noteInline} numberOfLines={1}>{r}</Text>)}
+          {asking.phone_may_answer ? <View style={styles.row}>
+            <Pressable style={styles.chip} disabled={askBusy} onPress={() => void answer("deny")}>
+              <Text style={styles.chipText}>{tr("Deny")}</Text></Pressable>
+            <Pressable style={[styles.chip, styles.chipMain]} disabled={askBusy} onPress={() => void answer("allow")}>
+              <Text style={[styles.chipText, styles.chipMainText]}>{tr("Allow once")}</Text></Pressable>
+          </View> : <Text style={styles.noteInline}>{tr("Allow or deny this in VOOL on your computer.")}</Text>}
+        </View> : null}
+        {askNote ? <Text style={styles.note}>{askNote}</Text> : null}
         {busy ? <View style={styles.working}>
           <Gears size={20} color={received ? C.ok : C.mute} />
           <Text style={styles.workingText} numberOfLines={2}>
@@ -496,6 +552,10 @@ export default function ChatsScreen({ client, onRevoked, pick, onLink, onChats, 
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  ask: { gap: 8, padding: 14, marginVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: C.acc, backgroundColor: C.raised },
+  askTitle: { color: C.ink, fontSize: 15, fontWeight: "700" },
+  askText: { color: C.ink, fontSize: 15, lineHeight: 21 },
+  noteInline: { color: C.soft, fontSize: 13, lineHeight: 19, fontStyle: "italic" },
   fill: { flex: 1 },
   center: { marginTop: 40 },
   inset: { paddingHorizontal: 20 },

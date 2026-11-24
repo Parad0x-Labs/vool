@@ -33,7 +33,7 @@ def _pin_clock(monkeypatch):
     from core.time_authority import CLOCK
 
     monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
-    monkeypatch.setattr(CLOCK, "now_utc", lambda: T0)
+    monkeypatch.setitem(vars(CLOCK), "now_utc", lambda: T0)
     monkeypatch.setattr(CLOCK, "now_for_timezone", lambda name: T0.astimezone(ZoneInfo(name)))
 
 

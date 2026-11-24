@@ -596,6 +596,28 @@ _WEB_VERDICTS_LOCK = _threading.Lock()
 _WEB_VERDICT_LIFETIME_S = 120.0
 
 
+#: The turn judge's choices that read something the person holds in VOOL: their memory and their own stores.
+_PERSONS_OWN_CHOICES = frozenset({"memory_recall", "memory_keep", "memory_forget", "reminders", "calendar",
+                                  "contacts", "mail", "notes", "things"})
+
+
+def _judged_about_the_persons_own(text: str) -> bool:
+    """Whether the turn's judge read this message as asking about something the person keeps in VOOL (a fact they
+    told it, their reminders, contacts, notes ...) and did not pick the internet. Such a message needs no lookup.
+
+    Measured on 02ff11496 (fresh audit, new chat): "how much is my rent these days" (rent told in an earlier chat)
+    was judged a recall, then a second, separate web reading said yes, the turn went to the online door and was
+    refused there ("I didn't look anything up for this"). The turn's judge offers the internet as a choice of its
+    own; a message it read as the person's own business, without that choice, is not asked again."""
+    try:
+        from core import plugin_ask
+
+        picked = set(plugin_ask.judged_builtins(text))
+    except Exception:
+        return False
+    return bool(picked & _PERSONS_OWN_CHOICES) and "web" not in picked
+
+
 def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id: str = "") -> str | None:
     """Whether the message needs the internet, judged from what it says in any language: "yes", "no", or None
     when no model judged it (`core.intent_arbiter.arbitrate_web_ask`). One verdict per message in a turn, so the
@@ -609,6 +631,8 @@ def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id
     flat = " ".join(str(text or "").split())
     if not flat:
         return None
+    if _judged_about_the_persons_own(flat):
+        return "no"
     try:
         from core.intent_arbiter import _turn_key
 

@@ -24,6 +24,9 @@ def _home(tmp_path, monkeypatch):
 
     run_migrations()
     monkeypatch.setattr("core.user_preferences.load_user_timezone", lambda: "")
+    from tests.pa_beta_gate._pc_calendar_rig import _clear_of_the_small_hours
+
+    _clear_of_the_small_hours("Europe/Vilnius", monkeypatch)
     yield
     reset_default_connection()
     configure_default_db_path(None)

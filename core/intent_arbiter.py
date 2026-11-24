@@ -1678,8 +1678,8 @@ def _web_ask_prompt(message: str) -> str:
         "page, or ask for something that changes and only the internet knows now (today's news, weather, prices, "
         "opening hours, timetables, scores)?",
         'Answer {"answer": "no"} when an encyclopedia, a textbook or general knowledge answers it (what something is, '
-        "who wrote or made something, how something works, a capital, a definition, maths), or when it asks to write, "
-        "translate or explain something.",
+        "who wrote or made something, how something works, a capital, a definition, maths, counting days or dates "
+        "from today's date), or when it asks to write, translate or explain something.",
         'Answer {"answer": "no"} as well when the message only TELLS the assistant something (the person\'s own news, '
         "what happened to them or their people, how they feel) and asks nothing to be found out, and when it asks "
         "about the person's own life, people or things (what they own, where they keep something, what they told "
@@ -1695,6 +1695,8 @@ def _web_ask_prompt(message: str) -> str:
         'Message: "kas yra gravitacija?" -> {"answer": "no"}',
         'Message: "wie steht das Spiel Bayern gegen Dortmund gerade?" -> {"answer": "yes"}',
         'Message: "wie funktioniert ein Kühlschrank?" -> {"answer": "no"}',
+        'Message: "how many days till christmas then" -> {"answer": "no"}',
+        'Message: "kiek dienų liko iki Joninių?" -> {"answer": "no"}',
         'Message: "busca en internet el precio del billete de tren a Madrid" -> {"answer": "yes"}',
         'Message: "¿cuál es la capital de Perú?" -> {"answer": "no"}',
         "",
@@ -1720,6 +1722,47 @@ def arbitrate_web_ask(
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_web_ask_prompt(message), operation="web_ask_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
+def _whole_memory_prompt(message: str) -> str:
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
+    return "\n".join([
+        "Does this message ask the assistant to tell EVERYTHING it remembers about the person (the whole list of what",
+        "they told it), rather than one particular thing? Answer yes or no. Any language.",
+        "",
+        'Message: "what are all the things you remember about me?" -> {"answer": "yes"}',
+        'Message: "what is my dog called?" -> {"answer": "no"}',
+        'Message: "ką apie mane žinai?" -> {"answer": "yes"}',
+        'Message: "kur laikau savo dviratį?" -> {"answer": "no"}',
+        'Message: "Was hast du dir alles über mich gemerkt?" -> {"answer": "yes"}',
+        'Message: "Wie heißt mein Zahnarzt?" -> {"answer": "no"}',
+        'Message: "¿qué sabes de mí?" -> {"answer": "yes"}',
+        'Message: "what did I say my locker code was?" -> {"answer": "no"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_whole_memory_ask(
+    message: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a recall asks for everything VOOL remembers about the person: ``"yes"`` / ``"no"``, or None when
+    nothing judged it. Asked only when a judged recall named none of the held facts (core.persistent_memory)."""
+    if not str(message or "").strip():
+        return None
+    model = _keep_judge_model()
+    if not model:
+        return _judged_for_the_turn(_whole_memory_prompt(message), source_context)
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_whole_memory_prompt(message), operation="whole_memory_arbitration", model=model,
         runner_role="general", call_role=_judgement_role(),
     )
 

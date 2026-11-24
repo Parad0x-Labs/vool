@@ -5,6 +5,7 @@ import pytest
 
 from core.drop import DropError, people
 from core.drop.service import CONTACT_SLOTS, DROPS_PER_PEER, MAX_FILE, DropHome, LocalRelay, check_relay
+from tests._credential_intelligence_support import isolated_home
 
 
 @pytest.fixture
@@ -289,3 +290,66 @@ def test_what_drop_keeps_on_this_disk_is_sealed(trio, tmp_path):
     os.chmod(target, 0o600)
     with pytest.raises(DropError, match="LOCAL_COPY_DAMAGED"):
         b.file_bytes(sid)
+
+
+def test_discarding_an_invite_also_removes_its_key_for_the_running_profile(isolated_home, tmp_path, monkeypatch):
+    """A feature that issued a Drop invite and is being turned off (lending) discards the invite locally.
+    The running profile keeps its Drop key in the credential store, not in a file, so the discard has to
+    look for the key there: before, it found no key file, removed the invite row and left the invite's
+    one-use key in the session store. A home named by path keeps its key file and is covered too."""
+    import sqlite3
+
+    from core.drop import service
+    from core.drop.client import DropClient
+
+    isolated_home.chmod(0o700)
+    monkeypatch.setenv("VOOL_DROP", "1")
+    relay = tmp_path / "relay-for-discard"
+    relay.mkdir(mode=0o755)
+    other = tmp_path / "another-home"
+    peer = "A" * 43
+
+    def left(home, own):
+        crypto = home / "drop" / "crypto"
+        key = (service._protected_vault_key(home, crypto / "vault.key") if own
+               else service._vault_key(crypto / "vault.key"))
+        con = sqlite3.connect(home / "drop" / "drops.db")
+        try:
+            rows = con.execute("SELECT token, prekey FROM invites").fetchall()
+        finally:
+            con.close()
+        return key, rows
+
+    def has_key(home, key, prekey):
+        client = DropClient(home / "drop" / "crypto" / "sessions", key)
+        try:
+            return client._store.transaction(lambda: client._store.get("prekey", prekey)) is not None
+        finally:
+            client.close()
+
+    for home, own in ((isolated_home, True), (other, False)):
+        with DropHome(home if not own else None, relay) as drop:
+            assert drop._own_home is own
+            token = drop.invite(peer).rsplit("/", 1)[1]
+        assert (home / "drop" / "crypto" / "vault.key").exists() is (not own)
+        key, rows = left(home, own)
+        assert [row[0] for row in rows] == [token]
+        prekey = rows[0][1]
+        assert has_key(home, key, prekey)
+
+        service.discard_local_invite_tokens(home, (token,))
+
+        assert left(home, own)[1] == []
+        assert not has_key(home, key, prekey)
+        assert (home / "drop" / "crypto" / "vault.key").exists() is (not own)
+
+
+def test_discarding_an_invite_never_makes_a_key_or_a_store(isolated_home):
+    from core.drop import service
+
+    isolated_home.chmod(0o700)
+    service.discard_local_invite_tokens(isolated_home, ("x" * 22,))
+    assert not (isolated_home / "drop").exists()
+    crypto = isolated_home / "drop" / "crypto"
+    assert service._existing_vault_key(isolated_home, crypto) is None
+    assert not crypto.exists()

@@ -842,7 +842,43 @@ _FORGET_ORDER_LEAD_IN_RE = re.compile(
     r"|(?:i\s+want|i'?d\s+like)\s+you\s+to\s+)*",
     re.IGNORECASE,
 )
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
+class _SentenceSplitter:
+    """Sentences of what the person typed, cut at ". ", "! ", "? ", "; " and line breaks, but never at the dot of a
+    word of one or two characters or a short capitalised word: that is a title, an abbreviation, an initial or a day
+    number ("Dr. Albrecht", "Hr. Brandt", "ul. Długa", "J. Smith", "am 5. Mai"), in any language that writes them so.
+
+    Measured on 02ff11496 (fresh audit, German): "Mein Zahnarzt heißt Dr. Albrecht und die Praxis ist in der
+    Lindenstraße" was saved cut at "Dr.", and the recall answered "Albrecht und die Praxis ...". A sentence that ends
+    in a short capitalised word ("... ist Tom. Er ...") stays joined to the next one: one fact kept whole is read back
+    right, one cut in two is not."""
+
+    _CUT_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
+    _LAST_WORD_RE = re.compile(r"(\w+)\.$")
+
+    def _before_an_abbreviation_dot(self, head: str) -> bool:
+        """A word of one or two characters ("J.", "Dr.", "ul.", "5." as in "5. Mai"), or of three or four letters
+        starting with a capital ("Hrn.", "Prof."), right before the dot."""
+        match = self._LAST_WORD_RE.search(head)
+        if not match:
+            return False
+        word = match.group(1)
+        return len(word) <= 2 or (len(word) <= 4 and word.isalpha() and word[0].isupper())
+
+    def split(self, text: str) -> list[str]:
+        raw = str(text or "")
+        parts: list[str] = []
+        start = 0
+        for cut in self._CUT_RE.finditer(raw):
+            head = raw[start:cut.start()]
+            if "\n" not in cut.group(0) and head.endswith(".") and self._before_an_abbreviation_dot(head):
+                continue
+            parts.append(head)
+            start = cut.end()
+        parts.append(raw[start:])
+        return parts
+
+
+_SENTENCE_SPLIT_RE = _SentenceSplitter()
 
 
 def memory_command_owns_turn(user_text: str) -> bool:
@@ -3436,6 +3472,55 @@ def _judged_forgotten_named(
         return []
 
 
+def _one_line_per_fact(items: list[str]) -> list[str]:
+    """One line for each fact a recall names: a line whose words (accents off, every number kept) are all in a line
+    already shown says nothing new and is left out; a line that says all of an earlier one and more takes its place.
+
+    Measured on 02ff11496 (fresh audit): "what's the code for my locker at the gym?" was answered with "my gym locker
+    code is 4471", "Gym locker code: 4471" and "gym locker code is 4471": the saved sentence and two lines learned
+    from it."""
+    from core.fact_extractor import _folded_words
+
+    shown: list[tuple[str, set[str]]] = []
+    for item in items:
+        words = _folded_words(item)
+        if not words:
+            shown.append((item, words))
+            continue
+        if any(words <= other for _line, other in shown if other):
+            continue
+        wider = [index for index, (_line, other) in enumerate(shown) if other and other < words]
+        if wider:
+            shown[wider[0]] = (item, words)
+            shown = [entry for index, entry in enumerate(shown) if index not in wider[1:]]
+            continue
+        shown.append((item, words))
+    return [line for line, _words in shown]
+
+
+#: How many held facts a "what do you remember about me" answer shows.
+_WHOLE_MEMORY_SHOWN = 12
+
+
+def _asks_for_the_whole_memory(
+    question: str, *, session_id: str | None, source_context: Mapping[str, Any] | None,
+) -> bool:
+    """Whether a recall that named none of the held facts asks for all of them, in any language.
+
+    Measured on 02ff11496 (fresh audit): "what are all the things you remember about me?" with 40 facts held was
+    answered "I don't have that saved": the recall judge names the facts a question is about, and a question about
+    everything is about none of them in particular. Only the English shapes opened the inventory."""
+    from core.intent_arbiter import arbitrate_whole_memory_ask
+
+    try:
+        return arbitrate_whole_memory_ask(
+            question, chat_id=str(session_id or ""),
+            source_context=source_context if isinstance(source_context, dict) else None) == "yes"
+    except Exception as exc:
+        LOGGER.warning("whole-memory question unavailable: %s", type(exc).__name__)
+        return False
+
+
 def _judged_recall_reply(
     question: str, *, session_id: str | None, policy: Any, source_context: Mapping[str, Any] | None,
     forgotten_too: bool = True,
@@ -3451,8 +3536,12 @@ def _judged_recall_reply(
         LOGGER.info("judged recall: %d forgotten item(s) asked about", len(forgotten))
         if forgotten:
             return JUDGED_RECALL_FORGOTTEN
-    named = _judged_items_named(question, held, session_id=session_id, source_context=source_context)
+    named = _one_line_per_fact(_judged_items_named(question, held, session_id=session_id,
+                                                   source_context=source_context))
     LOGGER.info("judged recall: %d held, %d named", len(held), len(named))
+    if not named and held and _asks_for_the_whole_memory(question, session_id=session_id,
+                                                         source_context=source_context):
+        named = _one_line_per_fact(held)[:_WHOLE_MEMORY_SHOWN]
     if len(named) == 1:
         return f"You told me: {named[0]}"
     if named:
@@ -4868,7 +4957,10 @@ def _replies_to_own_chat_sentence(sentence: str, *, session_id: str, source_cont
     from core.fact_extractor import _folded_words, _same_word
 
     own_words = [word for word in _folded_words(sentence) if len(word) >= 4]
+    from core.i18n.lane_receipts import every_kept_receipt
+
     receipts = {_plain_sentence(KEPT_REPLY), _plain_sentence(ALREADY_KEPT_REPLY)}
+    receipts |= {_plain_sentence(receipt) for receipt in every_kept_receipt()}
     receipts |= {_plain_sentence(part) for part in _replies_to_other_messages(scope, token)}
     out: list[str] = []
     for reply in replies:

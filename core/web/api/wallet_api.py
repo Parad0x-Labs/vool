@@ -97,6 +97,7 @@ _ROLE_REFUSALS = {
     "backup_password_weak": "Use a backup password of at least 12 characters that is not only numbers. Nothing was saved.",
     "backup_password_is_the_pin": "Use a backup password different from this wallet's PIN or password. Nothing was saved.",
     "secure_store_unavailable": "This computer's secure store (Keychain) could not be used right now. Nothing was saved. Write the backup key down instead, or try again.",
+    "secure_store_waiting_for_permission": "Your computer asked whether VOOL may open its secure store (Keychain) and got no yes in time, so VOOL left it alone. Nothing was saved or changed. Answer that question with Always Allow, then quit VOOL and open it again.",
     "secure_store_readback_failed": "The backup could not be read back from the secure store, so it was not kept. Try again.",
     "no_backup_in_secure_store": "There is no backup of this wallet in this computer's secure store.",
     "backup_password_wrong": "That backup password does not open this backup. Nothing changed.",

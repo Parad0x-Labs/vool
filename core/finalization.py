@@ -1545,6 +1545,35 @@ def get_finalization_by_request_id(
         conn.close()
 
 
+#: The principals of the owner's own paired devices: a paired phone and a chat app the owner bound.
+#: Their turns are the owner's own chats, shown on the owner's computer.
+OWNER_DEVICE_PRINCIPAL_PREFIXES = ("channel:http:mobile:", "channel:http:bot:")
+
+
+def owner_view_principal(request_id: str) -> str:
+    """The principal an owner-local door reads ``request_id``'s committed truth as.
+
+    A turn the owner sent from a paired phone or a bound chat app was accepted under that device's
+    principal, and a replay read is bound to the principal that owns the request. The owner's own
+    doors (the chat history and the Proof Chip on the computer) read such a turn as its own device,
+    so its answer is judged by its own record: read as owner_local the lookup was refused, the
+    history fell back to judging the answer by its words, and a fixed sentence erased with another
+    chat blanked it (phone, 2026-11-23); the chip said "Record unverified". Any other principal
+    (another host, an unknown class) stays as it was: owner_local, which that request refuses.
+    """
+    clean = str(request_id or "").strip()
+    if not clean:
+        return "owner_local"
+    try:
+        from core.invocation.ledger import get_invocation
+
+        invocation = get_invocation(clean)
+    except Exception:
+        return "owner_local"
+    owner = str((invocation or {}).get("principal") or "").strip()
+    return owner if owner.startswith(OWNER_DEVICE_PRINCIPAL_PREFIXES) else "owner_local"
+
+
 def get_finalization_by_semantic_id(semantic_result_id: str) -> dict[str, Any] | None:
     """TRUE_REPLAY read path: existing immutable truth keyed by admitted identity.
 

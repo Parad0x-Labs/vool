@@ -261,6 +261,56 @@ def _fact_from_the_person(fact: ExtractedFact, user_text: str, assistant_text: s
     return not from_reply or len(theirs) > len(from_reply)
 
 
+#: A number as people type it: digit runs joined by the marks they put between them ("+1 555 0163", "7:45", "1.500",
+#: "12,5", "2026-11-27"). The runs are compared without the marks, so "555-0163" and "555 0163" are one number.
+_NUMBER_SPAN_RE = re.compile(r"\d+(?:[ \t .,:/()+\-–]{1,3}\d+)*")
+
+
+def _number_runs(text: str) -> list[list[str]]:
+    return [re.findall(r"\d+", span) for span in _NUMBER_SPAN_RE.findall(str(text or ""))]
+
+
+def _numbers_as_typed(fact: ExtractedFact, user_text: str) -> bool:
+    """Whether every number a fact writes is one the person typed, digit for digit.
+
+    Measured on 02ff11496 (fresh audit, local qwen3:8b): a contact saved as "+1 555 0163" was learned as "Tel. +1 553
+    0163", and "+1 555 0185" was learned twice, once with 553; the recall then read both numbers back. A model that
+    copies a number can change a digit in any language, and the person's own words are the only check that holds: a
+    number in the fact must be the digits of whole runs, next to each other, of one number the person typed (leading
+    zeros aside, so "07:45" is "7:45"). A fact with a number the person never typed (a date the model worked out, a
+    digit it changed) is not written. DELETE and NOOP write nothing new."""
+    if fact.action not in {"ADD", "UPDATE"}:
+        return True
+    typed: set[str] = set()
+    for runs in _number_runs(user_text):
+        for start in range(len(runs)):
+            for end in range(start + 1, len(runs) + 1):
+                typed.add("".join(runs[start:end]).lstrip("0") or "0")
+    return all(("".join(runs).lstrip("0") or "0") in typed for runs in _number_runs(_fact_value(fact)))
+
+
+def _said_as_a_tool_order(sources: list[str], turns: dict[int, str]) -> bool:
+    """Whether every turn a fact came from was judged an order for one of VOOL's own tools (set a reminder, save a
+    contact, write a note ...): that tool's own store holds what was asked, and a learned line beside it is a second
+    copy that can disagree with it.
+
+    Measured on 02ff11496 (fresh audit): "Erinnere mich jeden Montag um 18 Uhr ..." failed to set a reminder and was
+    learned anyway as "Erinnerung: Mülltonne rausstellen jeden Montag um 18 Uhr", and a contact save was learned as a
+    "Kontakt:" line; "Welche Erinnerungen habe ich?" was then answered from those lines with a reminder that did not
+    exist. The turn's judge read those messages in their own language; with no judgement of a turn, its facts are
+    learned as before."""
+    from core.plugin_ask import judged_tool_ask
+
+    if not sources:
+        return False
+    for source in sources:
+        clause = " ".join(str(source or "").split()).casefold()
+        holding = [text for text in turns.values() if clause and clause in " ".join(str(text).split()).casefold()]
+        if not holding or not any(judged_tool_ask(text) for text in holding):
+            return False
+    return True
+
+
 #: How many background extractions may be in flight at once. Each one owns a socket for its
 #: `/api/chat` POST and a thread-local SQLite connection for the memory write, so this number IS
 #: the descriptor ceiling this module can reach. It is deliberately small: extraction is background
@@ -390,6 +440,7 @@ class FactExtractor:
             for fact in self._parse_facts(raw)
             if _fact_grounded(fact, user_text)
             and _fact_from_the_person(fact, user_text, assistant_text)
+            and _numbers_as_typed(fact, user_text)
             and not (fact.block == "constraints" and _is_transient_content_avoidance(fact.content))
         ]
         facts = _merge_facts([*_rule_based_facts(conversation_text), *llm_facts])
@@ -416,6 +467,8 @@ class FactExtractor:
                 return applied  # an unreadable forget record, or a forget not finished: learn nothing
             for fact in facts[:5]:
                 sources = _fact_sources(fact, turns)
+                if _said_as_a_tool_order(sources, turns):
+                    continue
                 if any(carries(source, token) or (len(_learned_words(source)) >= 2 and carries(token, source))
                        for source in sources for token in forgotten):
                     continue

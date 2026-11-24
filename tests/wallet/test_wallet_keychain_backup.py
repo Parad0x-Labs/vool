@@ -144,3 +144,27 @@ def test_without_a_secure_store_nothing_is_saved_and_the_page_is_told(home, monk
     with pytest.raises(WalletFault) as refused:
         kb.save(made["wallet_id"], credential=PIN, password=BACKUP_PASSWORD, confirmation=BACKUP_PASSWORD)
     assert refused.value.context["reason"] == "secure_store_unavailable"
+
+
+def test_an_unanswered_system_permission_question_is_named_and_nothing_is_saved(home, monkeypatch):
+    """Found on the Mac (Nov 23): a build reading a backup an older build saved meets the system's permission question;
+    after the bound the store is left alone for this run. The person must be told what to do, not "no secure store"."""
+    from core import bounded_keyring
+    from core.wallet import keychain_backup as kb
+
+    made = _create()
+    kb.save(made["wallet_id"], credential=PIN, password=BACKUP_PASSWORD, confirmation=BACKUP_PASSWORD)
+    before = dict(home.items)
+    monkeypatch.setattr(bounded_keyring, "_KEYCHAIN_BLOCKED", True)
+    view = kb.overview()
+    assert view["available"] is False and view["waiting_for_permission"] is True and view["restorable"] == []
+    for attempt in (lambda: kb.save(made["wallet_id"], credential=PIN, password=BACKUP_PASSWORD + "2", confirmation=BACKUP_PASSWORD + "2"),
+                    lambda: kb.recover(made["wallet_id"], password=BACKUP_PASSWORD, method="pin", credential="24680135", credential_confirmation="24680135"),
+                    lambda: kb.forget(made["wallet_id"])):
+        with pytest.raises(WalletFault) as refused:
+            attempt()
+        assert refused.value.context["reason"] == "secure_store_waiting_for_permission"
+    assert home.items == before
+    monkeypatch.setattr(bounded_keyring, "_KEYCHAIN_BLOCKED", False)
+    monkeypatch.setattr(kb, "_backend", lambda: None)
+    assert kb.overview()["waiting_for_permission"] is False  # no secure store at all is still its own answer

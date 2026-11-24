@@ -3026,8 +3026,9 @@ def test_vool_chat_page_is_self_contained_and_wired() -> None:
     external = _external_asset_references(page_code)
     assert not external, f"chat page must not reference external assets: {external}"
     # Embedded PNG and WebP bytes are opaque: their base64 alphabet can contain "cdn".
-    # Keep checking page code/URLs for external dependencies.
-    assert "cdn" not in page_code.lower()
+    # Keep checking page code/URLs for external dependencies. A CDN host starts a word ("cdn.",
+    # "//cdn"); an identifier such as the pet picker's "vcdNowName" holds the letters, not a host.
+    assert not re.search(r"\bcdn", page_code, re.IGNORECASE)
     # Prove the observer still catches a genuine external dependency rather than having been
     # loosened into vacuity: both an executable element attribute and a scripted absolute-URL
     # call site must be flagged (https as well as http, and protocol-relative).
