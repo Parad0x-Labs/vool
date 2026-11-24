@@ -86,7 +86,7 @@ def test_the_app_keeps_a_pass_only_after_an_install_and_sends_one_pass_only_on_t
     assert other not in answer["url"]
     # Nothing VOOL asked the registry for named an installed add-on, apart from the downloads themselves.
     asked = {path for _, path in app.outbound[start:]}
-    assert asked <= {PREFIX + "/snapshot", PREFIX + "/presentation", PREFIX + "/ratings/summary", PREFIX + "/download"} | {
+    assert asked <= {PREFIX + "/snapshot", PREFIX + "/presentation", PREFIX + "/ratings/summary", PREFIX + "/badges", PREFIX + "/download"} | {
         path for path in asked if path.startswith(PREFIX + "/artifacts/")}
 
     # The pass the website receives is the one the registry takes, the next day, from a signed-in person.
