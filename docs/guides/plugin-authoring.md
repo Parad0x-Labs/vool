@@ -137,7 +137,8 @@ What VOOL checks at review, before anything is installed:
 - it does not ask for `nativeMessaging`, `debugger`, `proxy`, `vpnProvider`, `management`,
   `privacy`, `passwordsPrivate`, `webAuthenticationProxy`, `certificateProvider`, `platformKeys`,
   `contentSettings`, `desktopCapture`, the `enterprise` group or `downloads`, and it does not
-  replace the start page or search (`chrome_settings_overrides`). These reach saved sign-ins,
+  replace the start page or search (`chrome_settings_overrides`, or `newtab` under
+  `chrome_url_overrides`). These reach saved sign-ins,
   the browser's connection and safety settings, other plugins, the screen and programs outside
   the browser, or save files without the person.
 

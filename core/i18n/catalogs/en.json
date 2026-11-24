@@ -5486,6 +5486,7 @@
     "addons.plugin_message_d7609ad7b6f5": "This browser plugin has no working extension inside it. Ask its maker to fix it.",
     "addons.plugin_message_8eaed13d5095": "This browser plugin uses an older extension format that VOOL's browser does not load. Ask its maker for an update.",
     "addons.plugin_message_1f77b409c962": "This browser plugin would fetch its own updates from outside VOOL. It was not installed.",
+    "addons.plugin_message_1581bd9ab20f": "This browser plugin would replace the browser's start page or search. It was not installed.",
     "addons.plugin_message_059f31a84645": "This browser plugin asks for access no browser plugin may have, such as saved sign-ins, the browser's connection or programs outside the browser. It was not installed.",
     "addons.plugin_message_1c75c9d309c9": "Give your browser plugin a short name.",
     "addons.plugin_message_101ca90c6bf7": "VOOL could not write the plugin folder. Nothing was changed.",

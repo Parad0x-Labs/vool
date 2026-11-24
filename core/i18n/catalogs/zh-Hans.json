@@ -5486,6 +5486,7 @@
     "addons.plugin_message_d7609ad7b6f5": "这个浏览器插件里没有可用的扩展程序。请让它的制作者修复。",
     "addons.plugin_message_8eaed13d5095": "这个浏览器插件使用的是 VOOL 浏览器不加载的旧版扩展格式。请让它的制作者更新。",
     "addons.plugin_message_1f77b409c962": "这个浏览器插件会自行从 VOOL 之外获取更新。它没有被安装。",
+    "addons.plugin_message_1581bd9ab20f": "这个浏览器插件会替换浏览器的起始页或搜索。它没有被安装。",
     "addons.plugin_message_059f31a84645": "这个浏览器插件要求任何浏览器插件都不得拥有的访问权限，例如已保存的登录信息、浏览器的连接或浏览器之外的程序。它没有被安装。",
     "addons.plugin_message_1c75c9d309c9": "请给您的浏览器插件起一个简短的名称。",
     "addons.plugin_message_101ca90c6bf7": "VOOL 无法写入插件文件夹。没有任何更改。",
@@ -5530,7 +5531,7 @@
     "live.home_afternoon": "下午好",
     "live.home_evening": "晚上好"
   },
-  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
+  "source_catalog_sha256": "0d3e245a3392c9e97d99e0ed68509c63e1179c17d67ff43fb78395170b6253c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

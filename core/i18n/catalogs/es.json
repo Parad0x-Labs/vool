@@ -5486,6 +5486,7 @@
     "addons.plugin_message_d7609ad7b6f5": "Este complemento del navegador no trae dentro una extensión que funcione. Pide a quien lo hizo que lo arregle.",
     "addons.plugin_message_8eaed13d5095": "Este complemento del navegador usa un formato de extensión antiguo que el navegador de VOOL no carga. Pide a quien lo hizo una versión nueva.",
     "addons.plugin_message_1f77b409c962": "Este complemento del navegador buscaría sus propias actualizaciones fuera de VOOL. No se instaló.",
+    "addons.plugin_message_1581bd9ab20f": "Este complemento del navegador sustituiría la página de inicio o la búsqueda del navegador. No se instaló.",
     "addons.plugin_message_059f31a84645": "Este complemento del navegador pide un acceso que ningún complemento del navegador puede tener, como los inicios de sesión guardados, la conexión del navegador o programas fuera del navegador. No se instaló.",
     "addons.plugin_message_1c75c9d309c9": "Ponle un nombre corto a tu complemento del navegador.",
     "addons.plugin_message_101ca90c6bf7": "VOOL no pudo escribir la carpeta del complemento. No se cambió nada.",
@@ -5530,7 +5531,7 @@
     "live.home_afternoon": "Buenas tardes",
     "live.home_evening": "Buenas noches"
   },
-  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
+  "source_catalog_sha256": "0d3e245a3392c9e97d99e0ed68509c63e1179c17d67ff43fb78395170b6253c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

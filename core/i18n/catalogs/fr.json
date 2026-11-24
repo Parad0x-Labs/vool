@@ -5486,6 +5486,7 @@
     "addons.plugin_message_d7609ad7b6f5": "Ce plugin de navigateur ne contient aucune extension qui fonctionne. Demandez à son auteur de le corriger.",
     "addons.plugin_message_8eaed13d5095": "Ce plugin de navigateur utilise un ancien format d'extension que le navigateur VOOL ne charge pas. Demandez une mise à jour à son auteur.",
     "addons.plugin_message_1f77b409c962": "Ce plugin de navigateur irait chercher ses propres mises à jour en dehors de VOOL. Il n'a pas été installé.",
+    "addons.plugin_message_1581bd9ab20f": "Ce plugin de navigateur remplacerait la page de démarrage ou la recherche du navigateur. Il n'a pas été installé.",
     "addons.plugin_message_059f31a84645": "Ce plugin de navigateur demande un accès qu'aucun plugin de navigateur ne peut avoir, par exemple aux connexions enregistrées, à la connexion du navigateur ou à des programmes hors du navigateur. Il n'a pas été installé.",
     "addons.plugin_message_1c75c9d309c9": "Donnez un nom court à votre plugin de navigateur.",
     "addons.plugin_message_101ca90c6bf7": "VOOL n'a pas pu écrire le dossier du plugin. Rien n'a été modifié.",
@@ -5530,7 +5531,7 @@
     "live.home_afternoon": "Bonjour",
     "live.home_evening": "Bonsoir"
   },
-  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
+  "source_catalog_sha256": "0d3e245a3392c9e97d99e0ed68509c63e1179c17d67ff43fb78395170b6253c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

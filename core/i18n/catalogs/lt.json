@@ -5486,6 +5486,7 @@
     "addons.plugin_message_d7609ad7b6f5": "Šiame naršyklės papildinyje nėra veikiančio plėtinio. Paprašykite jo kūrėjo tai pataisyti.",
     "addons.plugin_message_8eaed13d5095": "Šis naršyklės papildinys naudoja senesnį plėtinių formatą, kurio VOOL naršyklė neįkelia. Paprašykite jo kūrėjo atnaujinimo.",
     "addons.plugin_message_1f77b409c962": "Šis naršyklės papildinys pats siųstųsi savo atnaujinimus ne per VOOL. Jis nebuvo įdiegtas.",
+    "addons.plugin_message_1581bd9ab20f": "Šis naršyklės papildinys pakeistų naršyklės pradžios puslapį arba paiešką. Jis nebuvo įdiegtas.",
     "addons.plugin_message_059f31a84645": "Šis naršyklės papildinys prašo prieigos, kurios negali turėti joks naršyklės papildinys, pavyzdžiui, prie išsaugotų prisijungimų, naršyklės ryšio ar programų už naršyklės ribų. Jis nebuvo įdiegtas.",
     "addons.plugin_message_1c75c9d309c9": "Suteikite savo naršyklės papildiniui trumpą pavadinimą.",
     "addons.plugin_message_101ca90c6bf7": "VOOL nepavyko įrašyti papildinio aplanko. Niekas nepakeista.",
@@ -5530,7 +5531,7 @@
     "live.home_afternoon": "Laba diena",
     "live.home_evening": "Labas vakaras"
   },
-  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
+  "source_catalog_sha256": "0d3e245a3392c9e97d99e0ed68509c63e1179c17d67ff43fb78395170b6253c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

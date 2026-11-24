@@ -222,9 +222,16 @@ def browser_extension(block: dict, root: Path) -> dict:
     if "update_url" in data:
         raise ValueError("This browser plugin would fetch its own updates from outside VOOL. It was not installed.")
     access = _names(data.get("permissions")) + _names(data.get("optional_permissions"))
-    # An extension may not replace the person's start page or search either.
-    if set(access) & BROWSER_REFUSED_ACCESS or "chrome_settings_overrides" in data:
+    if set(access) & BROWSER_REFUSED_ACCESS:
         raise ValueError("This browser plugin asks for access no browser plugin may have, such as saved sign-ins, the browser's connection or programs outside the browser. It was not installed.")
+    # The start page and the search are the person's. An extension names a page to stand in
+    # for the engine's new tab page in one part of its manifest, and a home page, pages to
+    # open at start or a search in another.
+    pages = data.get("chrome_url_overrides", {})
+    if not isinstance(pages, dict):
+        raise ValueError("This browser plugin has no working extension inside it. Ask its maker to fix it.")
+    if "newtab" in pages or "chrome_settings_overrides" in data:
+        raise ValueError("This browser plugin would replace the browser's start page or search. It was not installed.")
     sites = _names(data.get("host_permissions")) + _names(data.get("optional_host_permissions"))
     scripts = data.get("content_scripts") or []
     if not isinstance(scripts, list) or any(not isinstance(row, dict) for row in scripts):

@@ -5486,6 +5486,7 @@
     "addons.plugin_message_d7609ad7b6f5": "لا توجد داخل إضافة المتصفح هذه إضافةٌ تعمل. اطلب من صانعها إصلاحها.",
     "addons.plugin_message_8eaed13d5095": "تستخدم إضافة المتصفح هذه صيغة إضافات قديمة لا يحمّلها متصفح VOOL. اطلب من صانعها تحديثًا.",
     "addons.plugin_message_1f77b409c962": "كانت إضافة المتصفح هذه ستجلب تحديثاتها بنفسها من خارج VOOL. لم يتم تثبيتها.",
+    "addons.plugin_message_1581bd9ab20f": "كانت إضافة المتصفح هذه ستستبدل صفحة البداية أو البحث في المتصفح. لم يتم تثبيتها.",
     "addons.plugin_message_059f31a84645": "تطلب إضافة المتصفح هذه وصولًا لا يجوز لأي إضافة متصفح أن تملكه، مثل بيانات تسجيل الدخول المحفوظة أو اتصال المتصفح أو برامج خارج المتصفح. لم يتم تثبيتها.",
     "addons.plugin_message_1c75c9d309c9": "أعطِ إضافة المتصفح الخاصة بك اسمًا قصيرًا.",
     "addons.plugin_message_101ca90c6bf7": "تعذّر على VOOL كتابة مجلد الإضافة. لم يتغير شيء.",
@@ -5530,7 +5531,7 @@
     "live.home_afternoon": "طاب نهارك",
     "live.home_evening": "مساء الخير"
   },
-  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
+  "source_catalog_sha256": "0d3e245a3392c9e97d99e0ed68509c63e1179c17d67ff43fb78395170b6253c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5486,6 +5486,7 @@
     "addons.plugin_message_d7609ad7b6f5": "이 브라우저 플러그인 안에는 작동하는 확장 프로그램이 없습니다. 만든 사람에게 고쳐 달라고 요청하세요.",
     "addons.plugin_message_8eaed13d5095": "이 브라우저 플러그인은 VOOL 브라우저가 불러오지 않는 오래된 확장 프로그램 형식을 사용합니다. 만든 사람에게 업데이트를 요청하세요.",
     "addons.plugin_message_1f77b409c962": "이 브라우저 플러그인은 VOOL 밖에서 스스로 업데이트를 가져오려 합니다. 설치되지 않았습니다.",
+    "addons.plugin_message_1581bd9ab20f": "이 브라우저 플러그인은 브라우저의 시작 페이지나 검색을 바꾸려 합니다. 설치되지 않았습니다.",
     "addons.plugin_message_059f31a84645": "이 브라우저 플러그인은 저장된 로그인 정보, 브라우저의 연결, 브라우저 밖의 프로그램처럼 어떤 브라우저 플러그인도 가질 수 없는 접근을 요청합니다. 설치되지 않았습니다.",
     "addons.plugin_message_1c75c9d309c9": "브라우저 플러그인에 짧은 이름을 지어 주세요.",
     "addons.plugin_message_101ca90c6bf7": "VOOL이 플러그인 폴더를 쓰지 못했습니다. 아무것도 바뀌지 않았습니다.",
@@ -5530,7 +5531,7 @@
     "live.home_afternoon": "좋은 오후입니다",
     "live.home_evening": "좋은 저녁입니다"
   },
-  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
+  "source_catalog_sha256": "0d3e245a3392c9e97d99e0ed68509c63e1179c17d67ff43fb78395170b6253c9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
