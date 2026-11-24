@@ -166,7 +166,7 @@ def test_words_that_name_two_reminders_ask_which_and_cancel_nothing(seed, home) 
     word = rng.choice(["dentist", "passport", "garage"])
     notes = [f"call the {word} about {rng.choice(['monday', 'the bill', 'parking'])}", f"{word} {rng.choice(['visit', 'form'])}"]
     due = _due(rng)
-    for chat, text in zip((first, second), notes):
+    for chat, text in zip((first, second), notes, strict=True):
         assert _model_call("operator.schedule_reminder", {"note": text, "due_iso": due.strftime("%Y-%m-%dT%H:%M")},
                            session_id=chat).ok
     asked = _model_call("operator.cancel_reminder", {"note": word}, session_id=here)

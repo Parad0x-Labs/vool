@@ -1371,6 +1371,24 @@ def _machine_find_file(
                 kept = [m for m in again[0] if not suffix or Path(m).suffix.lower() == suffix]
                 if kept:
                     matches, roots, scanned_dirs, timed_out = kept, again[1], scanned_dirs + again[2], again[3]
+    looked_for = name
+    if not matches:
+        # A name the model wrote with the ask's next words still on it ("atostogos-892 around here" for "a file named
+        # atostogos-892 around here", app from source on qwen3:8b, 2026-11-24): the file is the name's first words. Its
+        # leading words are looked up, longest first, down to the one word that is a file name on its own (letters with
+        # a digit, a dash, a dot or an underscore), so a plain word is never searched alone. What was found says the
+        # name it was found by.
+        words = name.split()
+        for size in range(len(words) - 1, 0, -1):
+            lead = " ".join(words[:size])
+            if size == 1 and not re.search(r"[0-9._-]", lead):
+                break
+            again = _walk_safe_roots_for_files(lead, workspace_root=workspace_root)
+            if again is not None and again[0]:
+                matches, roots, timed_out = again[0], again[1], again[3]
+                scanned_dirs += again[2]
+                looked_for = lead
+                break
 
     scope = ", ".join(_home_relative_label(Path(root)) for root in roots)
     observation = _tool_observation(
@@ -1386,7 +1404,9 @@ def _machine_find_file(
         truncated=len(matches) >= _FIND_FILE_MAX_MATCHES,
     )
     if matches:
-        lines = [f"Found {len(matches)} file{'s' if len(matches) != 1 else ''} matching '{name}':"]
+        lines = [f"Found {len(matches)} file{'s' if len(matches) != 1 else ''} matching '{looked_for}':"]
+        if looked_for != name:
+            lines.insert(0, f"No file is named '{name}'; looked up by its first words instead.")
         # The person sees their home as ~ (Chat R8 M6 printed the whole home path); details keep the real paths.
         lines.extend(f"- {_home_relative_label(Path(path))}" for path in matches)
         lines.append(f"Searched: {scope} (to depth {_FIND_FOLDER_MAX_DEPTH}; system folders skipped).")
