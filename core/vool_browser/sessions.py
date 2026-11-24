@@ -141,9 +141,13 @@ class SessionHandle:
 
         from playwright.sync_api import sync_playwright
 
-        from core.vool_browser.engine import isolation_launch_flags
+        from core.vool_browser.engine import isolation_launch_flags, start_quiet
 
         try:
+            # The engine's own services that only a profile's settings switch off: written
+            # before its first start, inside the same try, so a profile that cannot take
+            # them never starts an engine.
+            start_quiet(self.profile_dir)
             with sync_playwright() as driver:
                 # Playwright owns the user-data-dir flag (it refuses the raw
                 # argument); the profile itself is still OURS — the disposable

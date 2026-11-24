@@ -101,6 +101,46 @@ def test_the_lookup_engine_and_the_browser_window_share_one_quiet_list():
     assert sum(arg.startswith("--disable-features=") for arg in argv) == 1
 
 
+def test_a_lookup_profile_begins_with_the_quiet_settings_and_one_that_cannot_take_them_is_not_used(monkeypatch, tmp_path):
+    """Some of the engine's services are switched off only by a profile's own settings. On
+    an engine without those services the network checks above cannot tell whether the
+    settings are in the profile, so what the engine is handed is read here."""
+    import json
+
+    from core.vool_browser import engine
+
+    monkeypatch.setenv("VOOL_BROWSER_PROFILE_DIR", str(tmp_path))
+    argv, profile = browser_render._chrome_argv("engine", "https://example.org/", user_agent="ua",
+                                                virtual_time_ms=1000, screenshot_path=None)
+    try:
+        assert f"--user-data-dir={profile}" in argv
+        held = json.loads((engine.Path(profile) / "Default" / "Preferences").read_text())
+        assert held == engine.quiet_preferences()
+        assert held["safebrowsing"]["enabled"] is False and held["signin"]["allowed"] is False
+    finally:
+        browser_render._cleanup_isolated_profile(profile)
+
+    def cannot(profile_dir):
+        raise PermissionError("no settings can be written here")
+
+    monkeypatch.setattr(browser_render, "start_quiet", cannot)
+    with pytest.raises(browser_render.BrowserProfileUnavailableError):
+        browser_render._chrome_argv("engine", "https://example.org/", user_agent="ua",
+                                    virtual_time_ms=1000, screenshot_path=None)
+    # No half-made profile is left behind for a later launch to pick up.
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_the_quiet_settings_are_never_written_over_a_profile_that_has_its_own(tmp_path):
+    from core.vool_browser import engine
+
+    assert engine.start_quiet(tmp_path) is True
+    kept = tmp_path / "Default" / "Preferences"
+    kept.write_text('{"safebrowsing": {"enabled": true}}')
+    assert engine.start_quiet(tmp_path) is False
+    assert kept.read_text() == '{"safebrowsing": {"enabled": true}}'
+
+
 def _session_start(monkeypatch, socks) -> set[str]:
     """Start the engine behind a VOOL browser session on a recorded way out; open no page."""
     from core import private_web
@@ -132,5 +172,7 @@ def test_without_the_quiet_settings_a_session_start_contacts_other_servers(monke
     pytest.importorskip("playwright")
     from core.vool_browser import engine
 
+    # Both halves of quiet are lifted: the launch options and the profile's starting settings.
     monkeypatch.setattr(engine, "QUIET_FLAGS", ())
+    monkeypatch.setattr(engine, "start_quiet", lambda profile_dir: False)
     assert _session_start(monkeypatch, socks), "this engine made no background contact even without the quiet settings"

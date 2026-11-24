@@ -632,7 +632,9 @@ def test_starting_settings_are_written_once_and_never_over_the_persons_own(home,
 
     own_checker = sys.platform == "darwin"
     assert written["browser"].get("enable_spellchecking", True) is own_checker
-    assert ("spellcheck" not in written) if own_checker else (written["spellcheck"]["dictionaries"] == [])
+    # Both of the engine's settings that name a language for it are empty: it carries the
+    # older, single one over into an empty list at its first start.
+    assert ("spellcheck" not in written) if own_checker else (written["spellcheck"] == {"dictionaries": [], "dictionary": ""})
     assert written["download"]["default_directory"] == str(desk_module.downloads_dir())
     # The starting search is the engine's own writing, in whichever settings file the engine
     # keeps it. An engine that knows this search as one of its built-in ones holds it as
@@ -923,6 +925,37 @@ def test_the_engine_asks_no_search_company_for_anything_at_start_or_for_a_new_ta
     browser.open(f"http://far-end-only.example:{port}/quiet", private=True)
     assert _wait(lambda: (3, "far-end-only.example") in asked), asked
     assert not _wait(others, seconds=12), asked
+
+
+def test_a_window_whose_starting_profile_the_engine_could_not_make_fetches_no_dictionary_either(
+    browser, files_site, socks, monkeypatch
+):
+    """When the engine cannot make the starting profile the window still opens, on VOOL's
+    settings alone. An engine holds its own language in an older spell-check setting until
+    a first start has emptied it, and carries that into an empty list of languages: left
+    in place, the first words typed in a page fetched a dictionary from its maker."""
+    from core import private_web
+
+    port, _ = files_site
+    socks_port, asked = socks
+    monkeypatch.setattr(private_web, "current_route", lambda: private_web.RouteState(kind=private_web.ROUTE_TOR, socks_port=socks_port))
+    monkeypatch.setattr(private_web, "route_problem", lambda state=None: None)
+
+    async def could_not(binary):
+        return None
+
+    monkeypatch.setattr(start_profile, "ready", could_not)
+    browser.open(f"http://far-end-only.example:{port}/first")
+    assert _wait(lambda: (3, "far-end-only.example") in asked), asked
+
+    async def type_in_a_page():
+        page = await browser.context_for_agent().new_page()
+        await page.goto("data:text/html,<title>note</title><textarea id=t spellcheck=true></textarea>")
+        await page.click("#t")
+        await page.keyboard.type("Thiss is a speling mistake. ", delay=30)
+
+    browser._call(type_in_a_page())
+    assert not _wait(lambda: {host for _, host in asked} - {"far-end-only.example"}, seconds=12), asked
 
 
 def _open_at(browser, name, port):

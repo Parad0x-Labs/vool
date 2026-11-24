@@ -39,7 +39,14 @@ from typing import Any
 from core.runtime_paths import active_data_dir
 from core.secret_env import child_env
 
-from .engine import MAKER_UPDATE_HOSTS, QUIET_FLAGS, UNATTENDED_UI_FLAGS, find_engine_binary, refuse_real_profile_target
+from .engine import (
+    MAKER_UPDATE_HOSTS,
+    QUIET_FLAGS,
+    UNATTENDED_UI_FLAGS,
+    find_engine_binary,
+    quiet_preferences,
+    refuse_real_profile_target,
+)
 
 ENGINE_START_TIMEOUT = 30.0
 #: While a window is open, how often the desk looks whether today's site lists are due.
@@ -154,16 +161,6 @@ def on_start_up(profile: Path) -> tuple[bool, list[str]]:
     return choice in (1, 6), theirs if choice in (4, 6) else []
 
 
-#: Spell-check in a new profile. On macOS the engine uses the system's own checker and
-#: fetches nothing, so it stays on. Elsewhere the engine has no dictionary of its own:
-#: measured, it downloads one from its maker's server the first time the person types in a
-#: page, and switching the check off does not stop that while a language is still chosen
-#: for it. Nothing is fetched that the person did not ask for, so there a new profile starts
-#: with the check off and no language chosen for it; the person switches it on and picks the
-#: language in the browser's settings, and the engine fetches the dictionary then.
-_SYSTEM_SPELL_CHECK = sys.platform == "darwin"
-
-
 def default_preferences() -> dict[str, Any]:
     """What VOOL writes into a new profile. The person can change any of it in the browser.
 
@@ -177,7 +174,9 @@ def default_preferences() -> dict[str, Any]:
     throws away a value another program wrote; they come with the starting profile, which
     the engine makes itself (``start_profile``).
     """
-    return {
+    # What keeps the engine's own services from contacting a server is shared with the
+    # hidden engines (``engine.quiet_preferences``); the window's own choices lie over it.
+    return _laid_over(quiet_preferences(), {
         "https_only_mode_enabled": True,
         "enable_do_not_track": True,
         "profile": {
@@ -191,18 +190,11 @@ def default_preferences() -> dict[str, Any]:
             "directory_upgrade": True,
         },
         "savefile": {"default_directory": str(downloads_dir())},
-        "search": {"suggest_enabled": False},
-        "alternate_error_pages": {"enabled": False},
-        "net": {"network_prediction_options": 2},   # no speculative connections
-        "safebrowsing": {"enabled": False, "enhanced": False, "scout_reporting_enabled": False},
-        "signin": {"allowed": False},
-        "privacy_sandbox": {"m1": {"topics_enabled": False, "fledge_enabled": False, "ad_measurement_enabled": False}},
-        "browser": {"check_default_browser": False, **({} if _SYSTEM_SPELL_CHECK else {"enable_spellchecking": False})},
-        **({} if _SYSTEM_SPELL_CHECK else {"spellcheck": {"dictionaries": []}}),
+        "browser": {"check_default_browser": False},
         # Read by the engine on macOS only; see ``start_page_is_agreed_to``.
         _AGREED_ONCE: False,
         "bookmark_bar": {"show_on_all_tabs": True},
-    }
+    })
 
 
 #: On macOS the engine asks, in a bubble on a new tab ("Did you mean to change this

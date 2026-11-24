@@ -8,10 +8,12 @@ no page, form, or credential prompt can reach the real Keychain.
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 
 # Profile targets a session may NEVER point at: the operator's real browsers.
 # Sabotage S2 renames this constant; the guard test must then go red.
@@ -110,6 +112,9 @@ _QUIET_FEATURES = (
     "InterestFeedContentSuggestions", "CertificateTransparencyComponentUpdater",
     "AutofillServerCommunication", "Translate", "PreconnectToSearch", "ZeroSuggestPrefetching",
     "ChromeWhatsNewUI",
+    # An engine whose search is its maker's asks that company at every start whether its
+    # "AI Mode" may be offered. Only the request at start is switched off.
+    "AimServerRequestOnStartupEnabled",
 )
 
 #: An address on this machine where nothing listens. The engine's built-in account,
@@ -155,6 +160,56 @@ QUIET_FLAGS: tuple[str, ...] = (
 #: Used by the everyday window and by the hidden engine that does VOOL's own web lookups: the
 #: lookup engine, measured the same way without them, asked for accounts.google.com and the
 #: engine maker's download server on every single lookup.
+
+#: Spell-check in a new profile. On macOS the engine uses the system's own checker and
+#: fetches nothing, so it stays on. Elsewhere the engine has no dictionary of its own:
+#: measured, it downloads one from its maker's server the first time something is typed in
+#: a page, and switching the check off does not stop that while a language is still chosen
+#: for it. Nothing is fetched that the person did not ask for, so there a new profile starts
+#: with the check off and no language chosen for it; the person switches it on and picks the
+#: language in the browser's settings, and the engine fetches the dictionary then.
+_SYSTEM_SPELL_CHECK = sys.platform == "darwin"
+
+
+def quiet_preferences() -> dict[str, Any]:
+    """The settings half of quiet: what only a profile's own settings switch off.
+
+    The launch options above cannot reach these. Measured on a branded engine with a new
+    profile and every launch option in force: its safe-browsing service fetched a key from
+    its maker's servers within seconds of starting, which it needs to ask those servers
+    about each address opened, and its spell-check downloaded a dictionary. With that
+    service off the engine asks its maker about no address; the lists of harmful sites
+    that warn in VOOL's browser are VOOL's own (``site_lists``).
+    """
+    quiet: dict[str, Any] = {
+        "search": {"suggest_enabled": False},
+        "alternate_error_pages": {"enabled": False},
+        "net": {"network_prediction_options": 2},   # no speculative connections
+        "safebrowsing": {"enabled": False, "enhanced": False, "scout_reporting_enabled": False},
+        "signin": {"allowed": False},
+        "privacy_sandbox": {"m1": {"topics_enabled": False, "fledge_enabled": False, "ad_measurement_enabled": False}},
+    }
+    if not _SYSTEM_SPELL_CHECK:
+        quiet["browser"] = {"enable_spellchecking": False}
+        # Two settings name the languages. The engine carries the older, single one
+        # ("dictionary", which it holds as its own language until a first start has emptied
+        # it) over into an empty list, so both are written empty.
+        quiet["spellcheck"] = {"dictionaries": [], "dictionary": ""}
+    return quiet
+
+
+def start_quiet(profile_dir: str | Path) -> bool:
+    """Give a profile the engine has never opened the quiet settings. True when written.
+
+    For the hidden engines, whose throwaway profiles would otherwise begin with the
+    engine's own settings. A profile that already has settings is left as it is.
+    """
+    target = Path(profile_dir) / "Default" / "Preferences"
+    if target.exists():
+        return False
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    target.write_text(json.dumps(quiet_preferences()), encoding="utf-8")
+    return True
 
 
 def automated_launch_flags(*, profile_dir: str) -> list[str]:
@@ -226,5 +281,7 @@ __all__ = [
     "_FORBIDDEN_PROFILE_MARKERS",
     "find_engine_binary",
     "isolation_launch_flags",
+    "quiet_preferences",
     "refuse_real_profile_target",
+    "start_quiet",
 ]

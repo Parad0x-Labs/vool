@@ -14,7 +14,7 @@ from typing import Any
 
 from core import policy_engine
 from core.remote_fetch_policy import note_remote_fetch_attempt, remote_fetch_forbidden
-from core.vool_browser.engine import CREDENTIAL_ISOLATION_FLAGS, QUIET_FLAGS
+from core.vool_browser.engine import CREDENTIAL_ISOLATION_FLAGS, QUIET_FLAGS, start_quiet
 from tools.web.browser_identity import DESKTOP_ACCEPT_LANGUAGE, DESKTOP_USER_AGENT
 
 _CAPTCHA_RE = re.compile(
@@ -317,6 +317,16 @@ def _chrome_argv(
             "no disposable browser profile could be created, so no browser was launched: "
             f"{type(exc).__name__}. VOOL never renders through the operator's own browser "
             "profile."
+        ) from exc
+    # The launch options above do not reach the services only a profile's settings switch
+    # off. A profile that cannot take those settings is not used at all.
+    try:
+        start_quiet(profile_dir)
+    except OSError as exc:
+        _cleanup_isolated_profile(profile_dir)
+        raise BrowserProfileUnavailableError(
+            "the disposable browser profile could not be given its settings, so no browser "
+            f"was launched: {type(exc).__name__}."
         ) from exc
     argv.append(f"--user-data-dir={profile_dir}")
     argv += _proxy_flags_from_environment()
