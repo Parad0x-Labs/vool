@@ -1,7 +1,7 @@
 # Text digest example
 
 A complete, working tools plugin to copy. It bundles a small MCP server that computes the SHA-256 fingerprint of
-text you give it. Plugins are planned for VOOL 0.8, not released yet.
+text you give it. Plugins are coming in VOOL 0.8.
 
 ## What it does
 

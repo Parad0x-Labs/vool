@@ -1,6 +1,6 @@
-For AI agents: make one VOOL plugin, check it, and hand it over. Needs VOOL 0.8.0 or newer, as a source checkout to build with and as the app to run in.
-
 # Make a plugin: agent procedure
+
+For AI agents: make one VOOL plugin, check it, and hand it over. Needs VOOL 0.8.0 or newer, as a source checkout to build with and as the app to run in.
 
 A plugin is a folder of code plus a setup file (the manifest, `.codex-plugin/plugin.json`) that states what the code is, which tools it adds, which websites it reaches and which keys it needs. VOOL runs it in a confined process with only what the manifest lists and the owner agreed to. It is off until the owner switches it on. Read [README.md](README.md) section 4 first.
 

@@ -1,6 +1,6 @@
-For AI agents: make one VOOL skill, check it, and hand it over. Needs a VOOL source checkout at 0.8.0 or newer; the finished skill runs in VOOL 0.7.7 or newer.
-
 # Make a skill: agent procedure
+
+For AI agents: make one VOOL skill, check it, and hand it over. Needs a VOOL source checkout at 0.8.0 or newer; the finished skill runs in VOOL 0.7.7 or newer.
 
 A skill is one folder holding `SKILL.md`: a header, then instructions. It is text. Read [README.md](README.md) section 4 first.
 

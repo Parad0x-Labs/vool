@@ -21,7 +21,7 @@ description, public HTTPS homepage and licence.
 | `model_provider` | HTTPS base URL, header or path authentication, model list and pricing source. |
 | `scanner` | HTTPS base URL, test/scan paths, input template and validated response mapping. |
 
-Tool intents belong to the package namespace and have one shape: `<plugin id>.<tool>`, the tool part in
+Tool intents belong to the package namespace and have one shape: `PLUGIN-ID.TOOL` (the plugin's id, a dot, the tool's name), the tool part in
 lowercase letters, digits and `_` (for example `parcel-desk.lookup`). An MCP tool's own name uses
 letters, digits, `.`, `_` and `-`. Subprocess handlers use the existing JSON
 stdio protocol. Each MCP tool names its bundled server and explicitly pins its effect class

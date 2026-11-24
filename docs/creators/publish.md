@@ -42,7 +42,7 @@ Nobody needs an account to browse the Skill Codex or to install from it.
 | You are signed in and have a public name. | A published skill has a named maker. |
 | Your account is at least 14 days old, counted from the older of your GitHub account and your Skill Codex account. Before that you see `new accounts can publish 14 days after they start; yours can from YYYY-MM-DD`. | Throwaway accounts made today cannot publish today. |
 | The skill is your own work, or you have the right to share it, under the MIT licence (`Skill Codex skills use the MIT licence`). | Everyone who installs it may use, change and share it. |
-| At most 10 uploads a day per account, and 30 reviews a month per public name (`This account has used this month's checks. Upload it again next month.`). | The checks cost time and money; the limits keep them available to everyone. |
+| At most 10 uploads a day per account, and 30 safety checks of your uploads a month per public name. This is not a limit on ratings or reviews from people who use a skill (`This account has used this month's checks. Upload it again next month.`). | The checks cost time and money; the limits keep them available to everyone. |
 | Your public name is your own: not VOOL's, not another maker's, not a role such as `admin` or `support`. | A name is not proof. See [names kept back](reference/names-kept-back.md). |
 
 Importing a skill from GitHub needs a GitHub sign-in, and the public repository must belong to that account.

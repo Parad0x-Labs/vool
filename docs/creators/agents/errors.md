@@ -1,6 +1,6 @@
-For AI agents: look up a VOOL refusal by its message or code. Matches VOOL 0.8.0.
-
 # Refusals: message, field, cause, fix
+
+For AI agents: look up a VOOL refusal by its message or code. Matches VOOL 0.8.0.
 
 How to use: find the message (or the start of it) in the first column. Do what the last column says. Then run the check again. Full tables, generated from the code:
 

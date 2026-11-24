@@ -1,6 +1,6 @@
-For AI agents asked to make a VOOL skill or plugin for a person. Skills run in VOOL 0.7.7 or newer; every command on these pages, and every plugin, needs VOOL 0.8.0 or newer.
-
 # Build for VOOL: agent entry page
+
+For AI agents asked to make a VOOL skill or plugin for a person. Skills run in VOOL 0.7.7 or newer; every command on these pages, and every plugin, needs VOOL 0.8.0 or newer.
 
 People read [../README.md](../README.md). You read this page, then exactly one task page.
 
