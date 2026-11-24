@@ -91,17 +91,29 @@ def create(note, session="review", due=None):
 
 @pytest.mark.parametrize("verb", ["cancel", "move"])
 def test_ambiguous_or_foreign_reminder_id_never_falls_back_to_another(store, verb):
+    """An id names that reminder or none: never another one. A reminder another chat set is reached only by its own
+    id, and only while the listing here shows it (a private chat's never; Mac gate on 608294d38, 2026-11-24, made a
+    listed one reachable from any chat)."""
+    from core.private_chat import set_private
+
     first = create("orchard")
     second = create("harbor")
     foreign = create("other", session="elsewhere")
-    for target in (None, foreign, "00000000-0000-0000-0000-000000000000"):
+    sealed = create("sealed", session="sealed-chat")
+    assert set_private("sealed-chat", True)
+    untouched = {first, second, foreign, sealed}
+    for target in (None, sealed, "00000000-0000-0000-0000-000000000000", foreign):
         result = dispatch_operator_action(
             OperatorActionIntent(kind=f"{verb}_reminder", action_id=target,
                                  raw_text=f"{verb} reminder in 20 minutes"),
             task_id="change", session_id="review",
         )
-        assert not result.ok
-        for rid in (first, second, foreign):
+        if target == foreign:
+            assert result.ok, result.response_text
+            untouched.discard(foreign)
+        else:
+            assert not result.ok
+        for rid in untouched:
             row = reminders.load_reminder(rid, get_connection_fn=get_connection)
             assert row["status"] == "scheduled" and row["due_at_utc"] == (NOW - timedelta(minutes=1)).isoformat()
 

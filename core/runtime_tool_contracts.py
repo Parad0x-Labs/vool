@@ -3247,9 +3247,9 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         RuntimeToolContract(
             intent="operator.cancel_reminder",
             description=(
-                "Cancel one of this chat's pending reminders. Give the reminder id the reminder list "
-                "shows, or when no id was shown, the reminder's own words as note; without either, the "
-                "chat's only pending reminder. To change only when it is due, use operator.move_reminder. "
+                "Cancel a pending reminder: one this chat set, or one the reminder list shows from another "
+                "chat. Give the reminder id the reminder list shows, or when no id was shown, the reminder's "
+                "own words as note; without either, this chat's only pending reminder. To change only when it is due, use operator.move_reminder. "
                 "The reminder is found before anything is asked, and anything unclear is refused."
             ),
             tool_surface="operator",
@@ -3277,10 +3277,10 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         RuntimeToolContract(
             intent="operator.move_reminder",
             description=(
-                "Move one of this chat's pending reminders to a new due time; it stays the same reminder "
-                "with the same id. Give the new due time and the reminder id the reminder list shows, or "
-                "when no id was shown, the reminder's own words as note; without either, the chat's only "
-                "pending reminder."
+                "Move a pending reminder (one this chat set, or one the reminder list shows from another "
+                "chat) to a new due time; it stays the same reminder with the same id. Give the new due time "
+                "and the reminder id the reminder list shows, or when no id was shown, the reminder's own "
+                "words as note; without either, this chat's only pending reminder."
             ),
             tool_surface="operator",
             capability_id="operator.mutate",

@@ -1442,7 +1442,8 @@ def handle_cancel_reminder(
         ok=True,
         status="executed",
         response_text=(
-            f"Reminder cancelled: {target.get('note')} will not be delivered. It was due {wall}."
+            f"Reminder cancelled: {target.get('note')}{_set_in_another_chat(target, session_id)} will not be "
+            f"delivered. It was due {wall}."
         ),
         details={**outcome, "reminder_id": str(target.get("reminder_id")), "note": target.get("note")},
         learned_plan=_learned_plan(
@@ -1508,7 +1509,7 @@ def handle_move_reminder(
     return OperatorActionResult(
         ok=True,
         status="executed",
-        response_text=f"Reminder moved: {target.get('note')} is now due {wall}.",
+        response_text=f"Reminder moved: {target.get('note')}{_set_in_another_chat(target, session_id)} is now due {wall}.",
         details={**outcome, "reminder_id": str(target.get("reminder_id")), "note": target.get("note")},
         learned_plan=_learned_plan(
             "Verified reminder move workflow: parse the new due time, CAS the store row back to scheduled.",
@@ -2000,28 +2001,29 @@ def reminder_target_or_refusal(
     list_reminders_fn: Any,
     owner_rows_fn: Any = None,
 ) -> tuple[dict[str, Any] | None, OperatorActionResult | None]:
-    """The one reminder of this chat a cancel or move means, or the refusal that says why there is none.
+    """The one reminder a cancel or move means, or the refusal that says why there is none.
 
     One reading for the handler and for the approval card before it: the card names the reminder it found and the
-    approved call runs by that id, and a reminder that cannot be found is refused before anything is asked."""
+    approved call runs by that id, and a reminder that cannot be found is refused before anything is asked.
+
+    The reminders a cancel or move may reach are the ones a listing in this chat shows (`owner_rows_fn`): this chat's
+    and every other chat's that is not private. Mac gate on 608294d38 (2026-11-24): "never mind, remove the
+    electricity reminder", asked in another chat than the one that set it, was told to open that chat, while "list my
+    reminders" in the same chat listed it with its id. Words that name two or more reminders equally are answered
+    with those reminders, so the person says which one."""
     verb = "cancel" if kind == "cancel_reminder" else "move"
+    visible = _visible_pending(owner_rows_fn, session_id)
     target = _select_reminder_target(
         intent,
         session_id=session_id,
         load_reminder_fn=load_reminder_fn,
         list_reminders_fn=list_reminders_fn,
-        owner_rows_fn=owner_rows_fn,
+        visible_rows=visible,
     )
     if target is None:
-        elsewhere = _reminder_set_elsewhere(intent, session_id=session_id, owner_rows_fn=owner_rows_fn)
-        if elsewhere:
-            return None, OperatorActionResult(
-                ok=False, status="invalid_request", response_text=elsewhere,
-                details={"kind": kind, "reason": "reminder_in_another_chat"},
-            )
         # An id (or pointer) WAS named and matched nothing this chat may see: refuse it plainly,
-        # never list-and-redirect -- a foreign reminder's existence must not be confirmed either
-        # way (reminders-everywhere law).
+        # never list-and-redirect -- a private chat's reminder's existence must not be confirmed
+        # either way (reminders-everywhere law).
         if getattr(intent, "action_id", ""):
             return None, OperatorActionResult(
                 ok=False,
@@ -2030,24 +2032,34 @@ def reminder_target_or_refusal(
                 details={"kind": kind},
             )
         rows = list_reminders_fn(session_id=session_id, include_delivered=False)
-        pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
-        if pending:
+        pending = [row for row in rows if str(row.get("status")) in _PENDING_REMINDER_STATES]
+        tied = _reminders_named_by(_reminder_order_text(intent), visible if visible is not None else pending)
+        candidates = tied if len(tied) > 1 else pending
+        if candidates:
             # More than one candidate and no id: name them instead of sending the user elsewhere.
             lines = []
-            for row in pending[:3]:
+            for row in candidates[:5]:
                 wall = format_due_time(
                     str(row.get("due_at_utc") or ""), str(row.get("tz_name") or ""), str(row.get("due_wall") or "")
                 )
-                lines.append(f"- {row.get('note')} — due {wall} (id {str(row.get('reminder_id'))[:8]})")
-            more = f"\n(and {len(pending) - 3} more)" if len(pending) > 3 else ""
+                label = str(row.get("_chat_label") or "").strip()
+                where = f' (chat "{label}")' if label else ""
+                lines.append(f"- {row.get('note')} — due {wall}{where} (id {str(row.get('reminder_id'))[:8]})")
+            more = f"\n(and {len(candidates) - 5} more)" if len(candidates) > 5 else ""
+            head = (
+                f"{len(candidates)} pending reminders match that:"
+                if candidates is tied
+                else f"This chat has {len(candidates)} pending reminders:"
+            )
             return None, OperatorActionResult(
                 ok=False,
                 status="invalid_request",
                 response_text=(
-                    f"This chat has {len(pending)} pending reminders:\n" + "\n".join(lines) + more
+                    head + "\n" + "\n".join(lines) + more
                     + f"\nWhich one should I {verb}? Say it with the reminder id."
                 ),
-                details={"kind": kind, "pending_count": len(pending)},
+                details={"kind": kind, "pending_count": len(candidates),
+                         "choices": [str(row.get("reminder_id") or "") for row in candidates[:5]]},
             )
         return None, OperatorActionResult(
             ok=False,
@@ -2058,33 +2070,69 @@ def reminder_target_or_refusal(
     return target, None
 
 
+def _set_in_another_chat(row: dict[str, Any], session_id: str) -> str:
+    """" (set in the chat ...)" for a reminder another chat set, so the person knows which one was changed; else ""."""
+    if str(row.get("session_id") or "") in {"", session_id}:
+        return ""
+    label = str(row.get("_chat_label") or "").strip()
+    return f' (set in the chat "{label}")' if label else " (set in another chat)"
+
+
+_PENDING_REMINDER_STATES = frozenset({"scheduled", "delivery_uncertain"})
+
+
+def _visible_pending(owner_rows_fn: Any, session_id: str) -> list[dict[str, Any]] | None:
+    """The pending reminders a listing in this chat shows (this chat's and every chat's that is not private), or None
+    when no owner view was given (the caller then stays with this chat's own)."""
+    if owner_rows_fn is None:
+        return None
+    try:
+        return [row for row in owner_rows_fn(session_id) if str(row.get("status")) in _PENDING_REMINDER_STATES]
+    except Exception:
+        return None
+
+
+def _reminder_order_text(intent: OperatorActionIntent) -> str:
+    """The words that say which reminder: the call's own note when it carries one, else the request as written."""
+    typed = str(getattr(intent, "reminder_note", "") or "")
+    if typed and _reminder_words(typed):
+        return typed
+    return str(getattr(intent, "raw_text", "") or "")
+
+
 def _select_reminder_target(
     intent: OperatorActionIntent,
     *,
     session_id: str,
     load_reminder_fn: Any,
     list_reminders_fn: Any,
-    owner_rows_fn: Any = None,
+    visible_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
-    """The one reminder of THIS chat a cancel or move means: by id, by the words that name it, or the chat's only
-    pending one. Cancel and move stay scoped to the chat that owns the reminder (`owner_rows_fn` is read only by
-    `_reminder_set_elsewhere`, to say where a named one lives)."""
+    """The one reminder a cancel, move or edit means: by id, by the words that name it, or the chat's only pending one.
+
+    `visible_rows` are the pending reminders a listing in this chat shows (see `reminder_target_or_refusal`); an id or
+    words may name any of them. Without them only this chat's reminders are reachable. A request that names no
+    reminder at all still means only this chat's one pending reminder, never another chat's."""
+    rows = list_reminders_fn(session_id=session_id, include_delivered=False)
+    pending = [row for row in rows if str(row.get("status")) in _PENDING_REMINDER_STATES]
+    reachable = list(pending)
+    if visible_rows is not None:
+        own = {str(row.get("reminder_id") or "") for row in pending}
+        reachable += [row for row in visible_rows if str(row.get("reminder_id") or "") not in own]
     if intent.action_id:
         row = load_reminder_fn(intent.action_id)
         if row is not None and str(row.get("session_id")) == session_id:
             return row
-        # The UI displays short ids. Resolve only a unique prefix in this session;
+        # The UI displays short ids. Resolve only a unique prefix among the reminders this chat may see;
         # a missing/foreign explicit target must never fall back to another reminder.
-        rows = list_reminders_fn(session_id=session_id, include_delivered=False)
-        matches = [row for row in rows if str(row.get("reminder_id", "")).startswith(intent.action_id)]
+        wanted = str(intent.action_id).strip().lower()
+        matches = [row for row in reachable if str(row.get("reminder_id", "")).lower().startswith(wanted)]
         return matches[0] if len(matches) == 1 else None
-    rows = list_reminders_fn(session_id=session_id, include_delivered=False)
-    pending = [row for row in rows if str(row.get("status")) in {"scheduled", "delivery_uncertain"}]
     typed_words = str(getattr(intent, "reminder_note", "") or "")
     if typed_words and _reminder_words(typed_words):
-        # The reminder a tool call named in its own words: that one, or none when they name no reminder here.
-        return _reminder_named_by(typed_words, pending)
-    named = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), pending)
+        # The reminder a tool call named in its own words: that one, or none when they name none it can reach.
+        return _reminder_named_by(typed_words, reachable)
+    named = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), reachable)
     if named is not None:
         return named
     if len(pending) == 1:
@@ -2099,40 +2147,6 @@ _REMINDER_ORDER_WORDS = (
 )
 
 
-def _reminder_set_elsewhere(intent: OperatorActionIntent, *, session_id: str, owner_rows_fn: Any) -> str:
-    """The answer for a cancel or move whose words name a reminder another chat set; "" when they name none.
-
-    The listing shows every chat's reminders that are not private, each with the chat it came from, and cancel and
-    move stay with the chat that owns them. "Alright scrap the reminder to take out the recycling", asked in a new chat
-    while "which reminders are set" listed it from another, was answered "I could not find a pending reminder" (real-app
-    check v3 on fe98e849, 2026-11-22): it is there, and the person is told where. An id answers the same way when
-    it is one the listing in this chat shows (the outside review of 261a0389: the listing showed 3bbb4fbf and a cancel
-    by that id was told to give the id); a private chat's reminders are not among `owner_rows_fn`'s rows, so an id
-    of one is refused as before, without saying whether another chat has it."""
-    if owner_rows_fn is None:
-        return ""
-    try:
-        rows = [
-            row for row in owner_rows_fn(session_id)
-            if str(row.get("session_id") or "") != session_id and str(row.get("status")) in {"scheduled", "delivery_uncertain"}
-        ]
-    except Exception:
-        return ""
-    named_id = str(getattr(intent, "action_id", "") or "").strip().lower()
-    if named_id:
-        by_id = [row for row in rows if str(row.get("reminder_id") or "").lower().startswith(named_id)]
-        row = by_id[0] if len(by_id) == 1 else None
-    else:
-        row = _reminder_named_by(
-            str(getattr(intent, "reminder_note", "") or "") or str(getattr(intent, "raw_text", "") or ""), rows
-        )
-    if row is None:
-        return ""
-    label = str(row.get("_chat_label") or "").strip()
-    where = f'in the chat "{label}"' if label else "in another chat"
-    return f'The reminder "{row.get("note")}" was set {where}, and only that chat can change it. Open that chat and ask there.'
-
-
 def _reminder_words(text: str) -> list[str]:
     """The words of an order that could name a reminder: its terms besides the order's own words."""
     try:
@@ -2145,17 +2159,23 @@ def _reminder_words(text: str) -> list[str]:
 
 def _reminder_named_by(text: str, rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     """The one reminder whose note shares the most words with the order, or None when no note shares one or two tie."""
+    winners = _reminders_named_by(text, rows)
+    return winners[0] if len(winners) == 1 else None
+
+
+def _reminders_named_by(text: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The reminders whose notes share the most words with the order (more than one when they tie), or [] when no
+    note shares a word with it."""
     try:
         from core.chat_housekeeping import _doc_stems
     except Exception:
-        return None
+        return []
     asked = _reminder_words(text)
     if not asked or not rows:
-        return None
+        return []
     scored = [(sum(1 for term in asked if term in _doc_stems(str(row.get("note") or ""))), row) for row in rows]
     best = max(score for score, _ in scored)
-    winners = [row for score, row in scored if score == best]
-    return winners[0] if best > 0 and len(winners) == 1 else None
+    return [row for score, row in scored if score == best] if best > 0 else []
 
 
 def handle_complete_reminder(

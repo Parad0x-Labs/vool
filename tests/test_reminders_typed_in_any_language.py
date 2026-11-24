@@ -93,25 +93,103 @@ def test_a_typed_time_that_is_not_one_stores_nothing(typed, home) -> None:
     assert _pending(session) == []
 
 
+def _cancel_allowed(arguments: dict, session: str):
+    asked = _model_call("operator.cancel_reminder", arguments, session_id=session)
+    if asked.status == "pending_approval":
+        return asked, _model_call("operator.cancel_reminder", arguments, session_id=session, approval_token=_allow(asked))
+    return asked, asked
+
+
 @pytest.mark.parametrize("seed", range(4))
-def test_another_chats_reminder_by_its_listed_id_is_answered_with_where_it_lives(seed, home) -> None:
+def test_another_chats_reminder_by_its_listed_id_is_cancelled_from_here(seed, home) -> None:
+    """Mac gate on 608294d38 (2026-11-24): a reminder another chat set, which "list my reminders" in this chat showed
+    with its id, could not be cancelled here ("Open that chat and ask there"). Any reminder the listing here shows
+    can be cancelled here; the card names it and the chat it came from keeps nothing pending."""
     rng = random.Random(f"typed-elsewhere-{seed}")
     owner, other = f"chat-owner-{seed}", f"chat-other-{seed}"
-    note, _due_at, stored = _set(rng, owner)
-    assert stored.ok, stored.response_text
+    kept_note, _due0, kept = _set(rng, owner)
+    note, _due_at, stored = _set(rng, owner, besides=kept_note)
+    assert kept.ok and stored.ok, stored.response_text
     listed = _model_call("operator.list_reminders", {}, session_id=other)
     shown = next(row for row in listed.details["reminders"] if row["note"] == note)
     short_id = str(shown["reminder_id"])[:8]
     assert short_id in listed.response_text
 
-    asked = _model_call(
-        "operator.cancel_reminder", {"reminder_id": rng.choice([short_id, short_id.upper(), str(shown["reminder_id"])])},
-        session_id=other,
-    )
-    # Refused before any approval is asked, saying where the reminder lives; nothing is cancelled.
-    assert asked.status != "pending_approval" and not asked.ok, asked.details
-    assert note in asked.response_text and "only that chat can change it" in asked.response_text, asked.response_text
-    assert [row["reminder_id"] for row in _pending(owner)] == [shown["reminder_id"]]
+    arguments = {"reminder_id": rng.choice([short_id, short_id.upper(), str(shown["reminder_id"])])}
+    asked, done = _cancel_allowed(arguments, other)
+    if asked.status == "pending_approval":
+        request = dict(asked.details["approval_request"])
+        assert note in str(request.get("action_plain") or ""), request
+    assert done.ok and done.mode == "tool_executed", done.response_text
+    assert note in done.response_text, done.response_text
+    assert [row["note"] for row in _pending(owner)] == [kept_note]
+
+
+#: (language, the note, a word of it a person uses to name it in another chat, how they ask in that language).
+NAMED = (
+    ("en", "pay the electricity bill", "electricity", "never mind, remove the {word} reminder"),
+    ("en", "book the vet for the cat", "vet", "actually scrap the {word} one"),
+    ("lt", "sumokėti už elektrą", "elektrą", "atšauk priminimą apie {word}"),
+    ("lt", "nupirkti dovaną mamai", "dovaną", "nebereikia priminimo dėl {word}, ištrink"),
+    ("de", "die Stromrechnung bezahlen", "Stromrechnung", "lösch bitte die Erinnerung zur {word}"),
+    ("es", "renovar el pasaporte", "pasaporte", "quita el recordatorio del {word}"),
+)
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_a_reminder_named_in_its_own_words_is_cancelled_from_another_chat(seed, home) -> None:
+    rng = random.Random(f"named-elsewhere-{seed}")
+    owner, other = f"chat-named-owner-{seed}", f"chat-named-other-{seed}"
+    language, note, word, said = NAMED[seed % len(NAMED)]
+    kept_note = rng.choice([row[1] for row in NAMES_OTHER if row[1] != note])
+    due = _due(rng)
+    for text in (kept_note, note):
+        made = _model_call("operator.schedule_reminder", {"note": text, "due_iso": due.strftime("%Y-%m-%dT%H:%M")},
+                           session_id=owner)
+        assert made.ok, made.response_text
+        due += timedelta(hours=1)
+    # The model's call carries the person's words, or the note's word it picked out, in the language they were said.
+    arguments = rng.choice([{"text": said.format(word=word)}, {"note": word}])
+    _asked, done = _cancel_allowed(arguments, other)
+    assert done.ok and done.mode == "tool_executed", (language, arguments, done.response_text)
+    assert [row["note"] for row in _pending(owner)] == [kept_note], language
+
+
+NAMES_OTHER = (("en", "water the tomatoes"), ("en", "call the plumber"), ("lt", "paskambinti odontologui"),
+               ("de", "den Zahnarzt anrufen"))
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_words_that_name_two_reminders_ask_which_and_cancel_nothing(seed, home) -> None:
+    rng = random.Random(f"tied-{seed}")
+    first, second, here = f"chat-tied-a-{seed}", f"chat-tied-b-{seed}", f"chat-tied-c-{seed}"
+    word = rng.choice(["dentist", "passport", "garage"])
+    notes = [f"call the {word} about {rng.choice(['monday', 'the bill', 'parking'])}", f"{word} {rng.choice(['visit', 'form'])}"]
+    due = _due(rng)
+    for chat, text in zip((first, second), notes):
+        assert _model_call("operator.schedule_reminder", {"note": text, "due_iso": due.strftime("%Y-%m-%dT%H:%M")},
+                           session_id=chat).ok
+    asked = _model_call("operator.cancel_reminder", {"note": word}, session_id=here)
+    assert asked.status == "invalid_request" and not asked.ok, asked.details
+    assert all(text in asked.response_text for text in notes), asked.response_text
+    assert len(_pending(first)) == 1 and len(_pending(second)) == 1
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_private_chats_reminder_stays_out_of_reach(seed, home) -> None:
+    from core.private_chat import set_private
+
+    rng = random.Random(f"private-{seed}")
+    owner, other = f"chat-private-owner-{seed}", f"chat-private-other-{seed}"
+    note, _due_at, stored = _set(rng, owner)
+    assert stored.ok
+    assert set_private(owner, True)
+    reminder_id = str(stored.details["reminder_id"])
+    for arguments in ({"reminder_id": reminder_id[:8]}, {"note": note}):
+        asked = _model_call("operator.cancel_reminder", arguments, session_id=other)
+        assert not asked.ok and asked.status != "pending_approval", asked.details
+        assert note not in asked.response_text, asked.response_text
+    assert [row["reminder_id"] for row in _pending(owner)] == [reminder_id]
 
 
 @pytest.mark.parametrize("seed", range(4))

@@ -94,7 +94,7 @@ def _cancel(said, *, asking, visible):
 
 
 @pytest.mark.parametrize("seed", range(6))
-def test_a_cancel_names_its_reminder_here_and_says_where_it_lives_elsewhere(seed):
+def test_a_cancel_names_its_reminder_here_and_from_another_chat(seed):
     rng = random.Random(f"reminder-cancel-{seed}")
     target, other = rng.sample([RECYCLING, HAIRCUT], 2)
     task = target["note"].replace(" please", "")
@@ -104,11 +104,11 @@ def test_a_cancel_names_its_reminder_here_and_says_where_it_lives_elsewhere(seed
     # In the chat that set it, the words pick that one of its reminders.
     result, cancelled = _cancel(said, asking="chat-set", visible=[RECYCLING, HAIRCUT, SEALED])
     assert cancelled == [target["reminder_id"]], (said, result.response_text)
-    # In another chat nothing is cancelled, and the answer says where the reminder lives.
+    # In another chat, whose listing shows it, the same words cancel the same one, and the answer says it came from
+    # another chat (Mac gate on 608294d38, 2026-11-24: it used to be "open that chat and ask there").
     result, cancelled = _cancel(said, asking="chat-ask", visible=[RECYCLING, HAIRCUT, SEALED])
-    assert cancelled == [], (said, result.response_text)
+    assert cancelled == [target["reminder_id"]], (said, result.response_text)
     assert target["note"] in result.response_text and "chat" in result.response_text, (said, result.response_text)
-    assert "could not find" not in result.response_text, (said, result.response_text)
 
 
 def test_a_private_chats_reminder_is_never_reached_from_another_chat():
