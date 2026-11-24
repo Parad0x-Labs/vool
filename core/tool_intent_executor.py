@@ -418,6 +418,36 @@ def _execute_tool_intent(
     return execution
 
 
+def _save_answered_by_its_lookup(lookup: ToolIntentExecution, contact: dict[str, Any]) -> ToolIntentExecution:
+    """The answer to a contacts.save that changes nothing, under the save's own name: the call that was asked for is
+    the one answered. Mac gate on 608294d38 (2026-11-24): the lookup came back named contacts.search, the tool loop
+    read that as a result of another call than the one it sent and stopped the turn with "Internal tool result did
+    not match the requested operation". What ran is said: nothing was saved, and the saved contact is shown."""
+    if not lookup.handled or lookup.status in {"pending_approval", "approval_required", "blocked_by_mode"}:
+        lookup.tool_name = "contacts.save"
+        return lookup
+    name = str(contact.get("display_name") or "").strip()
+    head = (
+        f"Nothing was saved: {name} is already saved with every detail this call carried. "
+        "If the message asks for a new contact, save it with the name and details from that message."
+    )
+    found = str(lookup.response_text or "").strip()
+    text = f"{head}\n{found}" if found else head
+    details = dict(lookup.details or {})
+    details.update({"executed": False, "reason": "save_changes_nothing", "answered_as": "contacts.search",
+                    "contact": contact})
+    return ToolIntentExecution(
+        handled=True,
+        ok=True,
+        status="unchanged",
+        mode=lookup.mode,
+        tool_name="contacts.save",
+        response_text=text,
+        user_safe_response_text=text,
+        details=details,
+    )
+
+
 def _intent_is_dispatchable(intent: str) -> bool:
     """Does SOME handler in this runtime claim this intent?
 
@@ -1419,13 +1449,15 @@ def _execute_tool_intent_impl(
         # own permission still decides. See core.contacts.tools.save_changes_nothing.
         from core.contacts.tools import save_changes_nothing
 
-        if save_changes_nothing(arguments) is not None:
-            return _execute_tool_intent_impl(
+        unchanged = save_changes_nothing(arguments)
+        if unchanged is not None:
+            lookup = _execute_tool_intent_impl(
                 {"intent": "contacts.search", "arguments": {"query": str(arguments.get("name") or "")}},
                 task_id=task_id, session_id=session_id, source_context=source_context,
                 hive_activity_tracker=hive_activity_tracker, public_hive_bridge=public_hive_bridge,
                 checkpoint_id=checkpoint_id, step_index=step_index, trusted_local_only=trusted_local_only,
             )
+            return _save_answered_by_its_lookup(lookup, unchanged)
 
     # UNCONDITIONAL. This used to run only `if mode_policy_is_active(source_context)`, which made
     # the absence of a mode a total bypass: a caller carrying no `operating_mode` and no session

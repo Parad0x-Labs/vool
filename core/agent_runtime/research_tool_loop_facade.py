@@ -600,6 +600,29 @@ _EARLIER_MESSAGE_REASON = "arguments_from_an_earlier_message"
 _EARLIER_MESSAGE_SAID = "is from an earlier message, and this message does not ask about it"
 
 
+_DATE_OR_TIME_RE = re.compile(
+    r"\d{4}-\d{1,2}-\d{1,2}(?:[T ]\d{1,2}:\d{2}(?::\d{2})?)?|\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b|\b\d{1,2}:\d{2}\b"
+)
+_NUMBER_RE = re.compile(r"(?<![\w.])\+?\(?\d[\d\s().\-/]*\d(?![\w])")
+
+
+def _numbers_in(text: str) -> list[str]:
+    """The numbers of five digits or more a text carries, each as its digits only (separators dropped), so the same
+    number written two ways is one; a date, a time or a short count is no such number."""
+    found = []
+    for match in _NUMBER_RE.finditer(_DATE_OR_TIME_RE.sub(" ", str(text or ""))):
+        digits = re.sub(r"\D", "", match.group(0))
+        if len(digits) >= 5:
+            found.append(digits)
+    return found
+
+
+def _same_number_in(digits: str, numbers: list[str]) -> bool:
+    """Whether one of ``numbers`` is this number: the same digits, or one of them with a prefix the other leaves off
+    (a country or area code)."""
+    return any(digits == other or digits.endswith(other) or other.endswith(digits) for other in numbers)
+
+
 def _words_of(text: str) -> list[str]:
     """The words of a text, in any script: tokens made of letters only, so an id ("bfb7f9ab") or a time is no word."""
     words = []
@@ -663,8 +686,27 @@ def _change_call_carries_an_earlier_message(
             str(step.get("observation") or "") for step in (steps or []) if not step.get("correction")
         ).casefold()
         arguments = dict(payload.get("arguments") or {})
+        # A number (a phone, an account, a house number) has no words to compare, so its digits are compared: one
+        # an earlier call or an earlier message of this chat carried, which this message does not carry and this
+        # turn never read, is the earlier message's. Mac gate on 608294d38 (2026-11-24): after "please store Pavel
+        # Lindqvist's number: +1 555 0182" was saved, "btw new cnotact pavel duarte, +44 20 7946 0182?" went out
+        # as a save of the earlier contact with the earlier number; the name passed because "pavel" is in both.
+        earlier_numbers = [
+            digits for text in [value for _intent, value in earlier_turn_call_values(source_context)]
+            + [str(item.get("content") or "") for item in _earlier_user_turns(source_context, question)]
+            for digits in _numbers_in(text)
+        ]
+        here_numbers = _numbers_in(str(question or "")) + _numbers_in(read_this_turn)
         copied: list[str] = []
+        id_values = set(_id_values_of(arguments))
         for value in dict.fromkeys(_string_values_of(arguments)):
+            numbers = [] if value in id_values else _numbers_in(value)
+            if numbers and all(
+                _same_number_in(digits, earlier_numbers) and not _same_number_in(digits, here_numbers)
+                for digits in numbers
+            ):
+                copied.append(value)
+                continue
             words = _words_of(value)
             if len(words) < 2 or " ".join(words) not in earlier:
                 continue
@@ -730,6 +772,17 @@ def _a_personal_tool(intent: str) -> bool:
     return str(intent or "") in personal
 
 
+def _earlier_user_turns(source_context: dict[str, Any] | None, question: str) -> list[dict[str, Any]]:
+    """This chat's earlier messages from the person as they were written (the history the model was shown), never
+    this one."""
+    this = str(question or "").strip()
+    return [
+        item for item in list((source_context or {}).get("conversation_history") or [])
+        if isinstance(item, dict) and str(item.get("role") or "") == "user"
+        and str(item.get("content") or "").strip() != this
+    ]
+
+
 def _earlier_user_messages(source_context: dict[str, Any] | None, question: str) -> list[str]:
     """This chat's earlier messages from the person, as words (the history the model was shown), never this one."""
     this = " ".join(_words_of(question))
@@ -741,6 +794,22 @@ def _earlier_user_messages(source_context: dict[str, Any] | None, question: str)
         if len(words.split()) >= 3 and words != this:
             said.append(words)
     return said
+
+
+def _id_values_of(value: Any) -> list[str]:
+    """The string values filed under an id key ("contact_id", "reminder_id", "ids"): a reference to a saved thing,
+    which an earlier turn may well have named, never a number the person typed."""
+    if isinstance(value, dict):
+        found = []
+        for key, inner in value.items():
+            if str(key).casefold().rstrip("s").endswith("id"):
+                found.extend(_string_values_of(inner))
+            else:
+                found.extend(_id_values_of(inner))
+        return found
+    if isinstance(value, (list, tuple)):
+        return [item for inner in value for item in _id_values_of(inner)]
+    return []
 
 
 def _string_values_of(value: Any) -> list[str]:

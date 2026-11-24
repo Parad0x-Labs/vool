@@ -117,6 +117,9 @@ def receipt_for(intent: str, *, ok: bool, status: str, response_text: str, detai
     if not clean_intent or not _consequential(clean_intent, facts):
         return None
     status_word = str(status or "").lower()
+    if ok and status_word == "unchanged":
+        # The call ran and changed nothing (a save of what is already saved): there is no action to receipt.
+        return None
     checked: bool | None = None
     if not ok:
         state = "waiting" if any(word in status_word for word in _WAITING_WORDS) and facts.get("executed") is not True else "failed"

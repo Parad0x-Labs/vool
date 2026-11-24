@@ -73,7 +73,10 @@ def test_a_save_of_a_saved_contact_with_nothing_new_is_answered_as_its_lookup(se
     answered = _model_call("contacts.save", arguments, session_id=f"chat-save-nothing-{seed}")
 
     assert answered.status != "pending_approval" and "approval_request" not in (answered.details or {}), answered.details
-    assert answered.ok and answered.tool_name == "contacts.search", (answered.tool_name, answered.response_text)
+    # Answered under the call that was sent: the tool loop stops a turn whose result names another call (Mac gate on
+    # 608294d38: "Internal tool result did not match the requested operation").
+    assert answered.ok and answered.tool_name == "contacts.save", (answered.tool_name, answered.response_text)
+    assert answered.details.get("answered_as") == "contacts.search" and answered.details.get("executed") is False
     assert phone in answered.response_text, answered.response_text
     assert _contacts() == before
 
