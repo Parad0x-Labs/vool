@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 from collections import OrderedDict
 from contextvars import ContextVar
 
@@ -59,6 +60,16 @@ EXTRACTIVE_FALLBACK_MARKER = "extractive fallback"
 
 _SUMMARY_CACHE_MAX = 32
 _SUMMARY_CACHE: OrderedDict[str, str] = OrderedDict()
+_SUMMARY_CACHE_LOCK = threading.Lock()
+
+# A chat turn waits at most this long for a summary that is not written yet; the summary keeps being
+# written off the turn and the next turn reads it from the cache. Measured 2026-11-24 on sls's iMac
+# (24 GB, qwen3:4b summarizing): one mail turn waited 47 s, 44 s and 48 s on three summaries, 140 s of a
+# 400 s turn, before any model could answer.
+SUMMARY_TURN_WAIT_S = 2.0
+# While the summary is being written, the turn carries the newest of the summarized messages
+# verbatim, within the same budget the carried remainder has.
+_PENDING_SUMMARY_CHARS = 1500
 
 _UNSET = object()
 _PICKED_MODEL: object = _UNSET
@@ -363,9 +374,8 @@ def _cached_summary(
     project_id: str = "",
 ) -> str:
     key = _cache_key(messages, model)
-    cached = _SUMMARY_CACHE.get(key)
+    cached = _cache_get(key)
     if cached is not None:
-        _SUMMARY_CACHE.move_to_end(key)
         return cached
     summary = summarize_messages(
         messages,
@@ -377,17 +387,69 @@ def _cached_summary(
         # Caching an excerpt taken while the model was unreachable would outlive the outage
         # and keep serving the degraded summary after the model came back.
         return summary
-    _SUMMARY_CACHE[key] = summary
-    _SUMMARY_CACHE.move_to_end(key)
-    while len(_SUMMARY_CACHE) > _SUMMARY_CACHE_MAX:
-        _SUMMARY_CACHE.popitem(last=False)
+    with _SUMMARY_CACHE_LOCK:
+        _SUMMARY_CACHE[key] = summary
+        _SUMMARY_CACHE.move_to_end(key)
+        while len(_SUMMARY_CACHE) > _SUMMARY_CACHE_MAX:
+            _SUMMARY_CACHE.popitem(last=False)
     return summary
+
+
+def _cache_get(key: str) -> str | None:
+    with _SUMMARY_CACHE_LOCK:
+        cached = _SUMMARY_CACHE.get(key)
+        if cached is not None:
+            _SUMMARY_CACHE.move_to_end(key)
+        return cached
+
+
+def _pending_summary(messages: list[dict]) -> str:
+    """What a turn carries while the summary of ``messages`` is still being written: the newest of
+    them verbatim, within a fixed budget, marked as an excerpt so nothing reads it as a summary."""
+    newest: list[dict] = []
+    used = 0
+    for message in reversed(messages):
+        content = " ".join(str(message.get("content", "")).split())[:_FALLBACK_MSG_CHARS]
+        if not content:
+            continue
+        if used + len(content) > _PENDING_SUMMARY_CHARS:
+            break
+        newest.append(message)
+        used += len(content)
+    return redact_secrets(_extractive_summary(list(reversed(newest)), reason="summary still being written"))
+
+
+def _summary_for_turn(
+    messages: list[dict],
+    *,
+    model: str | None,
+    session_id: str = "",
+    project_id: str = "",
+) -> str:
+    """The summary of ``messages`` without ever holding the turn on a model.
+
+    A cached summary is used at once. Otherwise the summary is written off the turn, one at a time,
+    and waited on for at most SUMMARY_TURN_WAIT_S; a turn it does not finish for carries the newest
+    messages verbatim instead, and a later turn reads the finished summary from the cache.
+    """
+    cached = _cache_get(_cache_key(messages, model))
+    if cached is not None:
+        return cached
+    from core.off_turn import run_bounded
+
+    return run_bounded(
+        "conversation-summary",
+        lambda: _cached_summary(messages, model=model, session_id=session_id, project_id=project_id),
+        wait_s=SUMMARY_TURN_WAIT_S,
+        fallback=_pending_summary(messages),
+    )
 
 
 def reset_summary_cache() -> None:
     """Drop the memoized summaries and the picked model (test isolation, model changes)."""
     global _PICKED_MODEL
-    _SUMMARY_CACHE.clear()
+    with _SUMMARY_CACHE_LOCK:
+        _SUMMARY_CACHE.clear()
     _PICKED_MODEL = _UNSET
 
 
@@ -437,7 +499,7 @@ def compress_if_needed(
     blocks: list[str] = []
     if summarized:
         blocks.append(
-            _cached_summary(
+            _summary_for_turn(
                 summarized,
                 model=model,
                 session_id=session_id,
