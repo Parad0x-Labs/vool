@@ -208,7 +208,7 @@ python -m tools.community_skills pack FOLDER --scratch SCRATCH-FOLDER --output N
 the package id ends in the plugin's id (`your-name/parcel-desk` for the plugin `parcel-desk`), the listing `title`
 equals `vool.name`, and the maker shown is your public name, never `vool.publisher`. A published plugin installs
 through the same review, switched off, and nothing about publishing loosens a rule: the same checks run at upload
-and again on the installer's computer. Details: [Publishing a plugin](../registry/AUTHOR-GUIDE.md#publishing-a-plugin).
+and again on the installer's computer. Details: the section "Publishing a plugin" in `docs/registry/AUTHOR-GUIDE.md` in the VOOL repository.
 
 A package may hold at most 4,096 files and 128 MB in all,
 64 MB per file.
