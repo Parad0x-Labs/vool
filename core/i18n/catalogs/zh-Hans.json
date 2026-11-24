@@ -2393,6 +2393,13 @@
     "addons.recall_help": "开启后，VOOL 每天读取一次技能宝典的公开列表，在那里被移除的附加组件在这里也会停止使用。不会发送任何关于你、你的聊天或附加组件的信息。",
     "addons.recall_last": "上次检查",
     "addons.recall_none": "当你拥有来自技能宝典的附加组件后开始运行。",
+    "addons.rating_average": "{average} 分（满分 5 分）· {count} 条评分",
+    "addons.rating_not_enough": "评分还不够（{count} 条）",
+    "addons.rating_downloads": "下载请求 {downloads}",
+    "addons.rating_rate": "为此附加组件评分",
+    "addons.rating_rate_note": "“打开技能宝典”会在浏览器中打开网站，并附上你已安装此附加组件的证明。请在那里登录并评分。VOOL 本身不会发送任何内容。",
+    "addons.rating_open": "打开技能宝典",
+    "addons.moderation_ratings_removed": "因违反规则被 VOOL 团队移除的评分：{count} 条",
     "addons.recall_failed": "上次检查未能完成。VOOL 会在一小时内重试。",
     "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
     "addons.registry_inspect": "下载以检查",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "没有收到回答。请再发送一次。",
     "phone.ui.ask_on_computer": "请在电脑上的 VOOL 中允许或拒绝此操作。"
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

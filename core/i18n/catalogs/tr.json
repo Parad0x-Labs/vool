@@ -2393,6 +2393,13 @@
     "addons.recall_help": "Bu açıkken VOOL, Beceri Kodeksinin herkese açık listesini günde bir kez okur; böylece orada kaldırılan bir eklenti burada da kullanılmaz. Sizinle, sohbetlerinizle veya eklentilerinizle ilgili hiçbir şey gönderilmez.",
     "addons.recall_last": "Son denetim",
     "addons.recall_none": "Beceri Kodeksinden bir eklentiniz olduğunda başlar.",
+    "addons.rating_average": "5 üzerinden {average} · {count} değerlendirme",
+    "addons.rating_not_enough": "Henüz yeterli değerlendirme yok ({count})",
+    "addons.rating_downloads": "{downloads} indirme isteği",
+    "addons.rating_rate": "Bu eklentiyi değerlendir",
+    "addons.rating_rate_note": "“Beceri Kodeksini aç”, web sitesini bu eklentiyi kurduğunuzun kanıtıyla birlikte tarayıcınızda açar. Orada oturum açın ve değerlendirmenizi verin. VOOL kendiliğinden hiçbir şey göndermez.",
+    "addons.rating_open": "Beceri Kodeksini aç",
+    "addons.moderation_ratings_removed": "Kuralları çiğnediği için VOOL ekibinin kaldırdığı değerlendirmeler: {count}",
     "addons.recall_failed": "Son denetim tamamlanamadı. VOOL bir saat içinde yeniden deneyecek.",
     "addons.registry_empty": "Bu belirli VOOL derlemesi ve arama için listelenmiş bir sürüm yok.",
     "addons.registry_inspect": "İncelemek için indir",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "Yanıt gelmedi. Yeniden gönder.",
     "phone.ui.ask_on_computer": "Buna bilgisayarındaki VOOL’da izin ver ya da reddet."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

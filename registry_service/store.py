@@ -171,8 +171,6 @@ class Store:
                 CREATE TABLE IF NOT EXISTS service_keys (name TEXT PRIMARY KEY, value BLOB NOT NULL);
                 CREATE TABLE IF NOT EXISTS upload_leases (id TEXT PRIMARY KEY,
                     account TEXT REFERENCES accounts(id) ON DELETE CASCADE, namespace TEXT NOT NULL, expires INTEGER NOT NULL);
-                CREATE TABLE IF NOT EXISTS account_downloads (account TEXT REFERENCES accounts(id) ON DELETE CASCADE,
-                    package_id TEXT NOT NULL, first INTEGER NOT NULL, PRIMARY KEY(account,package_id));
                 CREATE TABLE IF NOT EXISTS comments (id TEXT PRIMARY KEY, package_id TEXT NOT NULL,
                     account TEXT REFERENCES accounts(id) ON DELETE CASCADE, created INTEGER NOT NULL,
                     body TEXT NOT NULL, state TEXT NOT NULL);
@@ -237,6 +235,10 @@ class Store:
             # An earlier generic publish choice is not consent to the returned artifact checksum.
             db.execute("UPDATE submissions SET auto_consent=0 WHERE consent=0")
             db.execute("INSERT OR IGNORE INTO service_keys VALUES ('download-hmac',?)", (secrets.token_bytes(32),))
+            # Ratings, install passes and the record of team steps; this also drops the old table of signed-in downloads.
+            from registry_service.ratings import install_schema
+
+            install_schema(db)
             # The key behind the sign-in hashes. Without it a hash cannot be tried against a list of provider ids.
             db.execute("INSERT OR IGNORE INTO service_keys VALUES ('identity-hmac',?)", (secrets.token_bytes(32),))
             require(isinstance(_identity_secret(db), bytes) and len(_identity_secret(db)) == 32, "invalid private identity key")
@@ -561,7 +563,10 @@ class Store:
                         f"an account outside the team holds the name {name}")
             from registry_service.operations import apply
 
-            apply(db, value.get("operations", []), now=now)
+            apply(db, value.get("operations", []), now=now, sequence=value["sequence"])
+            from registry_service.ratings import marks_changed
+
+            marks_changed(db, self._marks(db), value, now=now)  # before the new marks replace the old ones
             db.execute("INSERT OR REPLACE INTO authority_marks VALUES (1,?,?)", (value["sequence"], canonical(envelope)))
             # A team's name is the team's: nobody else can choose it.
             db.executemany("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", [(name,) for name in value["teams"]])
@@ -1134,8 +1139,31 @@ class Store:
                 db.execute("INSERT INTO download_counts VALUES (?,1) ON CONFLICT(package_id) DO UPDATE SET requests=requests+1", (entry["metadata"]["id"],))
         return raw
 
+    def review_pass(self, sha256: str, ticket: str) -> str:
+        """The install pass that goes out with one served download. Made from the ticket; no row is written.
+
+        A ticket tried again gets the same pass, so a retry never yields a second one. The ticket's own row is
+        gone 15 minutes later and a pass can't be used before the next day, so by then nothing stored links
+        a pass to a download.
+        """
+        from registry_service.ratings import PASS_KEY, make_pass
+
+        require(isinstance(ticket, str) and bool(re.fullmatch(r"[A-Za-z0-9_-]{118}", ticket)), "invalid download ticket")
+        token = base64.b64decode(ticket + "==", altchars=b"-_", validate=True)
+        require(len(token) == 88 and token[:32].hex() == sha256 and
+                hmac.compare_digest(token[56:], hmac.digest(self._ticket_key, token[:56], "sha256")),
+                "invalid download ticket signature")
+        _, entry = self.public_artifact(sha256)
+        with self.connection() as db:
+            key = db.execute("SELECT value FROM service_keys WHERE name=?", (PASS_KEY,)).fetchone()[0]
+        issued = int.from_bytes(token[32:40], "big") - 900  # when the ticket was handed out
+        return make_pass(key, entry["metadata"]["id"], sha256, issued // 86400, hashlib.sha256(token).digest())
+
     def prune(self, *, now: int) -> None:
         with self.connection() as db:
+            from registry_service.ratings import prune as prune_ratings
+
+            prune_ratings(db, now=now)
             db.execute("DELETE FROM sessions WHERE expires<=?", (now,))
             db.execute("DELETE FROM oauth WHERE expires<=?", (now,))
             db.execute("DELETE FROM download_tickets WHERE expires<=?", (now,))

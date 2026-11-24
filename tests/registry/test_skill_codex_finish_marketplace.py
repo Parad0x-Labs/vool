@@ -207,7 +207,7 @@ def test_native_browser_shows_editor_pick_metrics_release_notes_and_disclaimer(s
                 "button => getComputedStyle(button).paddingTop") == "9px"
             expect(page.locator("#pluginsBody .addon-facts dt")).to_contain_text(["Languages", "Checked for"])
             expect(page.locator("#pluginsBody .registry-editor-pick")).to_have_text("Editor's pick")
-            expect(page.locator("#pluginsBody")).to_contain_text("0 website stars")
+            expect(page.locator("#pluginsBody")).to_contain_text("Not enough ratings yet (0)")
             expect(page.locator("#pluginsBody")).to_contain_text("do not guarantee")
             page.get_by_text("Release notes", exact=True).click()
             expect(page.locator("#pluginsBody details[open]")).to_contain_text("Adds an unresolved questions section.")

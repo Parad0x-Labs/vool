@@ -2393,6 +2393,13 @@
     "addons.recall_help": "Коли це ввімкнено, VOOL раз на день читає загальнодоступний список кодексу навичок, тож видалений там додаток перестає використовуватися тут. Відомості про вас, ваші чати чи додатки не надсилаються.",
     "addons.recall_last": "Остання перевірка",
     "addons.recall_none": "Почне працювати, коли у вас з'явиться додаток із кодексу навичок.",
+    "addons.rating_average": "{average} з 5 · оцінок: {count}",
+    "addons.rating_not_enough": "Оцінок поки недостатньо ({count})",
+    "addons.rating_downloads": "Запитів завантаження: {downloads}",
+    "addons.rating_rate": "Оцінити цей додаток",
+    "addons.rating_rate_note": "«Відкрити кодекс навичок» відкриває сайт у браузері з підтвердженням, що ви встановили цей додаток. Увійдіть там і поставте оцінку. VOOL сам нічого не надсилає.",
+    "addons.rating_open": "Відкрити кодекс навичок",
+    "addons.moderation_ratings_removed": "Оцінок, вилучених командою VOOL за порушення правил: {count}",
     "addons.recall_failed": "Останню перевірку не вдалося завершити. VOOL спробує ще раз протягом години.",
     "addons.registry_empty": "Немає опублікованих версій для цієї конкретної збірки VOOL і вашого пошуку.",
     "addons.registry_inspect": "Завантажити для перегляду",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "Відповідь не надійшла. Надішліть ще раз.",
     "phone.ui.ask_on_computer": "Дозвольте або відхиліть це у VOOL на комп’ютері."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

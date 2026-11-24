@@ -18,7 +18,7 @@ from core.registry.categories import TAXONOMY, public_taxonomy
 from core.registry.codec import HEX, MAX_DOCUMENT, RegistryError, decode, require, version_key
 from core.registry.media import KINDS
 from core.registry.requirements import public_requirements
-from registry_service import community, reports
+from registry_service import community, ratings, reports
 from registry_service.auth import Auth
 from registry_service.authority import HEADER, precheck_request, verify_request
 from registry_service.curation import labels, load_curation, picture_approvals
@@ -141,9 +141,12 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         owned = await run_in_threadpool(store.owned, viewer, set(packages.values())) if viewer else set()
         marks = await run_in_threadpool(store.marks)
         curated = current_curation(marks)
+        hidden = ratings.delisted(marks)
         for envelope in catalog.current["entries"]:
             value = envelope["signed"]
             info = value["metadata"]
+            if info["id"] in hidden:
+                continue  # delisted by the team: off every list here, while installed copies keep working
             try:
                 approved = entry(info["id"], info["version"])
                 boundaries = await run_in_threadpool(store.public_inspection, approved["artifact_sha256"])
@@ -289,6 +292,48 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
     async def downloads_allowed(package_id):
         require(package_id not in await run_in_threadpool(reports.paused, store, now=now()), reports.PAUSED)
+        require(package_id not in ratings.delisted(await run_in_threadpool(store.marks)), ratings.DELISTED)
+
+    # ---- ratings, the team's notices and appeals ----
+
+    async def rateable(package_id):
+        """Ratings are about add-ons people can find in the list now."""
+        require(listed(package_id) and package_id not in ratings.delisted(await run_in_threadpool(store.marks)),
+                "this add-on is not listed")
+
+    async def rating_list(request):
+        if request.method == "GET":
+            query = request.query_params
+            require(set(query) <= {"id", "after"} and len(query.multi_items()) == len(query), "unknown ratings query")
+            await rateable(query.get("id"))
+            return JSONResponse(await run_in_threadpool(ratings.listing, store, query.get("id"), optional_account(request),
+                                                        after=query.get("after"), now=now()))
+        who = account(request, mutation=True)
+        if request.method == "DELETE":
+            return JSONResponse(await run_in_threadpool(ratings.delete, store, who, request.query_params.get("id")))
+        value = await json_body(request)
+        await rateable(value.get("id"))
+        result = await run_in_threadpool(ratings.put, store, who, value, now=now())
+        return JSONResponse(result, status_code=400 if result["state"] == "refused" else 200)
+
+    async def rating_report(request):
+        who = account(request, mutation=True)
+        return JSONResponse(await run_in_threadpool(ratings.report, store, who, request.path_params["identifier"], now=now()))
+
+    async def rating_summary(request):
+        # For VOOL's cards. A route of its own: the app reads /presentation strictly, so nothing is added there.
+        require(not request.query_params, "unknown ratings query")
+        return JSONResponse(await run_in_threadpool(ratings.summaries, store, now=now()))
+
+    async def moderation_notices(request):
+        return JSONResponse(await run_in_threadpool(ratings.notices, store, request.query_params.get("id")))
+
+    async def appeal_list(request):
+        if request.method == "GET":
+            return JSONResponse(await run_in_threadpool(ratings.appeals, store, account(request)))
+        who = account(request, mutation=True)
+        return JSONResponse(await run_in_threadpool(ratings.appeal, store, who, await json_body(request), now=now()),
+                            status_code=201)
 
     async def github_import(request):
         require(github is not None, "GitHub import is not configured")
@@ -380,8 +425,10 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         value = await json_body(request)
         package_id, version = value.get("id"), value.get("version")
         entry(package_id, version)
-        return JSONResponse(await run_in_threadpool(store.star, account(request, mutation=True), package_id,
-                                                   value.get("starred"), now=now()))
+        who = account(request, mutation=True)
+        with store.connection() as db:
+            require(not ratings.banned(db, who), "starring is turned off for this account")
+        return JSONResponse(await run_in_threadpool(store.star, who, package_id, value.get("starred"), now=now()))
 
     async def ticket(request):
         approved = entry(request.query_params.get("id"), request.query_params.get("version"))
@@ -397,12 +444,12 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         entry(admission["metadata"]["id"], admission["metadata"]["version"])
         await downloads_allowed(admission["metadata"]["id"])  # also tickets handed out before the pause
         raw = await run_in_threadpool(store.download, sha256, request.query_params.get("ticket", ""), now=now())
-        # A signed-in website download makes the account eligible to comment.
-        who = optional_account(request)
-        if who:
-            await run_in_threadpool(community.record_download, store, who, admission["metadata"]["id"], now=now())
+        # Every served download carries an install pass. Who asked is not looked at and nothing is recorded:
+        # VOOL keeps the pass with the installed copy, and it is seen again only if the person rates the add-on.
+        review_pass = await run_in_threadpool(store.review_pass, sha256, request.query_params.get("ticket", ""))
         return Response(raw, media_type="application/vnd.vool.registry+json", headers={"X-Content-SHA256": sha256,
-                        "Content-Disposition": 'attachment; filename="package.vool.json"'})
+                        "Content-Disposition": 'attachment; filename="package.vool.json"',
+                        ratings.PASS_HEADER: review_pass})
 
     async def auth_begin(request):
         link = ""
@@ -498,6 +545,11 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         await signed(request)
         return JSONResponse(await run_in_threadpool(pending, store, now=now()))
 
+    async def authority_rating_queue(request):
+        # Held ratings and open appeals, as ids and counts. A route of its own, so the older answer keeps its shape.
+        await signed(request)
+        return JSONResponse(await run_in_threadpool(ratings.pending, store))
+
     async def failure(request, exc):
         answer = {"error": str(exc) if isinstance(exc, RegistryError) else "invalid request"}
         if isinstance(exc, RegistryError) and exc.fix:
@@ -512,6 +564,11 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         Route(PREFIX + "/comments", comment_list, methods=["GET", "POST"]),
         Route(PREFIX + "/comments/{identifier}/report", comment_report, methods=["POST"]),
         Route(PREFIX + "/reports", skill_reports, methods=["GET", "POST"]),
+        Route(PREFIX + "/ratings", rating_list, methods=["GET", "PUT", "DELETE"]),
+        Route(PREFIX + "/ratings/summary", rating_summary),
+        Route(PREFIX + "/ratings/{identifier}/report", rating_report, methods=["POST"]),
+        Route(PREFIX + "/moderation/notices", moderation_notices),
+        Route(PREFIX + "/appeals", appeal_list, methods=["GET", "POST"]),
         Route(PREFIX + "/imports", github_import, methods=["POST"]),
         Route(PREFIX + "/publisher-link", publisher_link, methods=["POST"]),
         Route(PREFIX + "/me", me), Route(PREFIX + "/profile", profile, methods=["PUT"]),
@@ -532,6 +589,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         Route(PREFIX + "/authority/catalog", authority_catalog, methods=["POST"]),
         Route(PREFIX + "/authority/marks", authority_marks, methods=["POST"]),
         Route(PREFIX + "/authority/moderation", authority_moderation),
+        Route(PREFIX + "/authority/moderation/ratings", authority_rating_queue),
     ] if authority is not None else []), exception_handlers={RegistryError: failure, ValueError: failure, TypeError: failure, KeyError: failure})
 
     async def response_policy(request, call_next):

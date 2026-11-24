@@ -201,7 +201,7 @@ in `docs/registry/assets/` and supplied picture URLs, without constructing arbit
 | POST `/reports` | JSON `{id,reason,note?}`, session/CSRF | 201 `{status:"received"}`; invalid note/reason, own/repeat report or quota: 400 `{error}`. |
 
 Comments require a namespace and an authenticated website download. Reasons: `no_public_name`,
-`not_downloaded`, `muted`. Five attempts/day, refusals included; new-account comments are held.
+`not_rated` (the account has no rating on that add-on), `muted`. Five attempts/day, refusals included; new-account comments are held.
 Reports from three different people, each with an account at least 14 days old and not muted, hold a
 comment. Filters are heuristic. Report eligibility reasons: `signed_out`,
 `own_skill`, `already_reported`, `daily_limit`. Read reason choices from the API; “other” needs
@@ -212,6 +212,28 @@ account deletion) pause downloads for 48 hours without independently revoking ad
 paused by reports alone. `already_reported` and `daily_limit` also apply to a person who deleted their
 account and signed in again. Public pages expose no
 private report text, counts or reporter identities.
+
+## Ratings, team notices and appeals
+
+All paths are under `/registry/api`. A refusal is HTTP 400 `{"error": sentence}`; show the sentence. Writes need the session cookie, same origin and `X-Vool-CSRF`. `/catalog` rows and `/presentation` are unchanged.
+
+**Rate page.** VOOL opens `https://vool.dev/codex/skills/review#id=publisher%2Fname&pass=PASS` when the person presses Rate this add-on. Read `id` and `pass` from the fragment, remove the fragment from the address bar and history at once (`history.replaceState`), keep the pass in memory only, ask the person to sign in, and send the pass only in `PUT /ratings`. Never put the pass in a query string, storage, a log or an analytics call. A person who opens the page without a fragment can edit or delete a rating they already have, and is told to press Rate in VOOL for a first one.
+
+| Method and path | Request | Success | Refusals |
+| --- | --- | --- | --- |
+| `GET /artifacts/{sha256}?ticket=` | as before | as before, plus header `X-Vool-Review-Pass` (135 URL-safe characters) | as before; `this add-on is no longer listed` |
+| `GET /ratings?id=publisher/name&after=RATING_ID` | optional session | `{summary:{shown, average, count, distribution, scope, frozen, removed_by_team}, ratings:[{id, author, stars, body, version, proof:"installed", created, updated, text_removed?}], next, can_rate}`; 50 per page, newest first, `next` is the `after` value for the following page or null. `average` and `distribution` (counts for 1 to 5 stars) are null while `shown` is false. `author` is the public name or `VOOL user`. Signed in: `can_rate_reason` (`banned`, `own_addon`, `frozen`, `removed`) when `can_rate` is false, `pass_needed: true` when the viewer has no rating yet, and `mine:{id, state:"published"\|"held"\|"voided", stars, body, version, show_name, created, updated, case?, reason?, sentence?}` | `this add-on is not listed`, `unknown ratings query`, `invalid cursor` |
+| `PUT /ratings` | JSON `{id, stars, body?, pass?, show_name?}`; `pass` is required for a first rating and moves an existing rating to the version the pass names | 200 `{id, state:"published"\|"held", counted, reason?}`; `held` means a person will look, `counted:false` on a new account means it joins the average after 7 days | `invalid rating fields`, `stars must be 1 to 5`, `rating text must be text`, `this add-on is not listed`, `install pass required`, `this install pass can't be read; press Rate in VOOL again`, `install pass is for another add-on`, `install pass not valid yet; you can rate from YYYY-MM-DD`, `install pass expired`, `install pass already used`, `you cannot rate your own add-on`, `ratings are closed for this add-on`, `rating is turned off for this account`, `rating limit reached`, `the VOOL team removed this rating; you can ask for another look`; text the filter refuses answers 400 `{state:"refused", reason}` and nothing is stored |
+| `DELETE /ratings?id=publisher/name` | session | `{status:"deleted"}` | `rating not found`, `the VOOL team removed this rating; you can ask for another look` |
+| `POST /ratings/{id}/report` | session, empty body | `{status:"reported"}` | `rating not found`, `you cannot report your own rating`, `the creator of an add-on cannot report its ratings`, `new accounts can report a rating after 14 days`, `reporting is turned off for this account`, `you have sent the most reports allowed for now; you can send more later` |
+| `GET /ratings/summary` | none | `{ratings:[{id, shown, average, count, removed}]}`, best first; what VOOL's cards read. Ignore unknown fields | `unknown ratings query` |
+| `GET /moderation/notices?id=publisher/name` | none | `{notices:[{case, action, reason, sentence, date, affected}]}`, newest first. `sentence` is the public wording of `reason`; show it. Works for delisted and removed add-ons too. No actor and no evidence are ever returned | `this add-on is not listed` |
+| `POST /appeals` | JSON `{case, text}`; `case` from a notice or from `mine.case`; text 1 to 1000 characters | 201 `{id, state:"open"}` | `invalid appeal fields`, `case not found`, `this is not your case; only the creator or the person who wrote the rating can ask`, `you already asked for another look; the team will answer`, `you have asked for the most looks allowed for now; you can ask again later`, `describe the problem in the note`, `the note is at most 1000 characters`, and the note refusals of reports |
+| `GET /appeals` | session | `{appeals:[{id, case, state:"open"\|"upheld"\|"rejected", answer?}]}` | sign-in errors |
+
+Page wording to show: under 5 counted ratings "Not enough ratings yet (n)" and no stars; `removed_by_team` above zero "n ratings removed by the VOOL team for breaking the rules"; `frozen` "New ratings are closed while the VOOL team looks into this"; a rating's `version` as "Installed · reviewed version 1.2.0"; `text_removed` "Text removed by the VOOL team". State on the rules page that a rating proves an install download, not use. No session of any account, team members included, can remove, hide, restore or freeze anything: those are signed team steps.
+
+Notice actions: `rating-void`, `review-text-remove`, `ratings-void-account`, `ratings-void-window`, `ratings-freeze`, `ratings-unfreeze`, `account-ban`, `account-unban`, `rating-restore`, `delisted`, `relisted`, `removed`, and the older `skill-pause`, `skill-resume`, `reports-close`, `comment-publish`, `comment-remove`. Reason codes: `fake`, `automated`, `self_rating`, `paid`, `abusive`, `off_topic`, `harmful`, `stolen`, `misleading`, `creator_request`, `mistake_reversed`.
 
 ## Native handoff, operators and activation
 

@@ -2393,6 +2393,13 @@
     "addons.recall_help": "عند تشغيل هذا الخيار، يقرأ VOOL قائمة دليل المهارات العامة مرة في اليوم، فتتوقف هنا أي إضافة حُذفت من هناك. لا يُرسَل أي شيء عنك أو عن محادثاتك أو إضافاتك.",
     "addons.recall_last": "آخر تحقق",
     "addons.recall_none": "يبدأ عندما تكون لديك إضافة من دليل المهارات.",
+    "addons.rating_average": "{average} من 5 · عدد التقييمات: {count}",
+    "addons.rating_not_enough": "لا توجد تقييمات كافية بعد ({count})",
+    "addons.rating_downloads": "طلبات التنزيل: {downloads}",
+    "addons.rating_rate": "قيّم هذه الإضافة",
+    "addons.rating_rate_note": "«فتح دليل المهارات» يفتح الموقع في متصفحك مع ما يثبت أنك ثبّتَّ هذه الإضافة. سجّل الدخول هناك وأعطِ تقييمك. لا يرسل VOOL أي شيء بنفسه.",
+    "addons.rating_open": "فتح دليل المهارات",
+    "addons.moderation_ratings_removed": "تقييمات حذفها فريق VOOL لمخالفتها القواعد: {count}",
     "addons.recall_failed": "تعذّر إكمال آخر تحقق. سيحاول VOOL مرة أخرى خلال ساعة.",
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
     "addons.registry_inspect": "تنزيل للفحص",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "لم تصل أي إجابة. أرسلها مرة أخرى.",
     "phone.ui.ask_on_computer": "اسمح بهذا أو ارفضه في VOOL على حاسوبك."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

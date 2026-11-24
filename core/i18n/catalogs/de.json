@@ -2393,6 +2393,13 @@
     "addons.recall_help": "Wenn dies eingeschaltet ist, liest VOOL einmal täglich die öffentliche Liste des Fertigkeiten-Codex. Ein dort entferntes Add-on wird dann hier nicht mehr verwendet. Es wird nichts über dich, deine Chats oder deine Add-ons gesendet.",
     "addons.recall_last": "Zuletzt geprüft",
     "addons.recall_none": "Beginnt, sobald du ein Add-on aus dem Fertigkeiten-Codex hast.",
+    "addons.rating_average": "{average} von 5 · {count} Bewertungen",
+    "addons.rating_not_enough": "Noch nicht genug Bewertungen ({count})",
+    "addons.rating_downloads": "{downloads} Downloadanfragen",
+    "addons.rating_rate": "Dieses Add-on bewerten",
+    "addons.rating_rate_note": "„Fertigkeiten-Codex öffnen“ öffnet die Website in Ihrem Browser, mit dem Nachweis, dass Sie dieses Add-on installiert haben. Melden Sie sich dort an und geben Sie Ihre Bewertung ab. VOOL selbst sendet nichts.",
+    "addons.rating_open": "Fertigkeiten-Codex öffnen",
+    "addons.moderation_ratings_removed": "Vom VOOL-Team wegen Regelverstößen entfernte Bewertungen: {count}",
     "addons.recall_failed": "Die letzte Prüfung konnte nicht abgeschlossen werden. VOOL versucht es innerhalb einer Stunde erneut.",
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
     "addons.registry_inspect": "Zur Prüfung herunterladen",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "Es kam keine Antwort. Sende es noch einmal.",
     "phone.ui.ask_on_computer": "Erlaube oder lehne das in VOOL auf deinem Computer ab."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

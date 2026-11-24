@@ -9,7 +9,7 @@ from core.registry.codec import DOWNLOADS_PAUSED, RegistryError
 from registry_service import community, reports
 from registry_service.api import PREFIX
 from registry_service.operations import pending
-from tests.registry.helpers import NOW
+from tests.registry.helpers import NOW, rated
 from tests.registry.test_skill_codex import account, service
 from tests.registry.test_skill_codex_authority import DAY, ORIGIN, creator, draft
 from tests.registry.test_skill_codex_authority import world as world
@@ -217,7 +217,7 @@ def test_deleted_reporters_leave_a_pause_the_team_can_still_trace_and_mute(world
 def test_a_comment_is_held_by_three_people_with_accounts_two_weeks_old(tmp_path):
     store, catalog, *_ = service(tmp_path, [("alice/notes", {}, NOW - 100)])
     bob = account(store, "2", "bob", created=NOW - 30 * DAY)[0]
-    community.record_download(store, bob, "alice/notes", now=NOW)
+    rated(store, bob, "alice/notes", now=NOW)
     comment = community.post_comment(store, bob, "alice/notes", "Clear and short", now=NOW)
     assert comment["state"] == "published"
 

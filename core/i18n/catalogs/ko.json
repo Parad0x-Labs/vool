@@ -2393,6 +2393,13 @@
     "addons.recall_help": "이 기능을 켜면 VOOL이 하루에 한 번 스킬 코덱스의 공개 목록을 읽어, 그곳에서 삭제된 추가 기능이 여기에서도 더 이상 사용되지 않습니다. 사용자, 채팅, 추가 기능에 관한 정보는 전송되지 않습니다.",
     "addons.recall_last": "마지막 확인",
     "addons.recall_none": "스킬 코덱스의 추가 기능이 있으면 시작됩니다.",
+    "addons.rating_average": "5점 중 {average} · 평가 {count}개",
+    "addons.rating_not_enough": "아직 평가가 충분하지 않습니다 ({count}개)",
+    "addons.rating_downloads": "다운로드 요청 {downloads}회",
+    "addons.rating_rate": "이 애드온 평가하기",
+    "addons.rating_rate_note": "‘스킬 코덱스 열기’를 누르면 이 애드온을 설치했다는 증명과 함께 브라우저에서 웹사이트가 열립니다. 그곳에서 로그인하고 평가를 남기세요. VOOL은 직접 아무것도 보내지 않습니다.",
+    "addons.rating_open": "스킬 코덱스 열기",
+    "addons.moderation_ratings_removed": "규칙 위반으로 VOOL 팀이 삭제한 평가: {count}개",
     "addons.recall_failed": "마지막 확인을 마치지 못했습니다. VOOL이 한 시간 안에 다시 시도합니다.",
     "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
     "addons.registry_inspect": "확인용으로 다운로드",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "답변이 오지 않았습니다. 다시 보내세요.",
     "phone.ui.ask_on_computer": "컴퓨터의 VOOL에서 허용하거나 거부하세요."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

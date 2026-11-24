@@ -2393,6 +2393,13 @@
     "addons.recall_help": "Khi bật, mỗi ngày VOOL đọc danh sách công khai của bộ sưu tập kỹ năng một lần, nên tiện ích đã bị gỡ ở đó sẽ không còn được dùng ở đây. Không có thông tin nào về bạn, cuộc trò chuyện hay tiện ích của bạn được gửi đi.",
     "addons.recall_last": "Lần kiểm tra gần nhất",
     "addons.recall_none": "Bắt đầu khi bạn có một tiện ích từ bộ sưu tập kỹ năng.",
+    "addons.rating_average": "{average} trên 5 · {count} lượt đánh giá",
+    "addons.rating_not_enough": "Chưa đủ lượt đánh giá ({count})",
+    "addons.rating_downloads": "{downloads} yêu cầu tải xuống",
+    "addons.rating_rate": "Đánh giá tiện ích này",
+    "addons.rating_rate_note": "“Mở bộ sưu tập kỹ năng” mở trang web trong trình duyệt kèm bằng chứng rằng bạn đã cài tiện ích này. Đăng nhập ở đó và đánh giá. VOOL không tự gửi gì cả.",
+    "addons.rating_open": "Mở bộ sưu tập kỹ năng",
+    "addons.moderation_ratings_removed": "Số đánh giá bị nhóm VOOL gỡ vì vi phạm quy tắc: {count}",
     "addons.recall_failed": "Lần kiểm tra gần nhất chưa hoàn tất. VOOL sẽ thử lại trong vòng một giờ.",
     "addons.registry_empty": "Không có phiên bản nào được liệt kê phù hợp với bản dựng VOOL cụ thể này và tìm kiếm của bạn.",
     "addons.registry_inspect": "Tải xuống để kiểm tra",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "Không có câu trả lời. Hãy gửi lại.",
     "phone.ui.ask_on_computer": "Cho phép hoặc từ chối việc này trong VOOL trên máy tính."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

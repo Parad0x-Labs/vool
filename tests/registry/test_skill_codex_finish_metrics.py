@@ -43,7 +43,7 @@ def test_nonzero_website_metrics_reach_real_native_browser_and_repository(served
             page = browser.new_page(viewport={"width":1280, "height":960})
             open_codex(page, address)
             assert browse(page).ok
-            expect(page.locator("#pluginsBody")).to_contain_text("2 website stars · 3 download requests")
+            expect(page.locator("#pluginsBody")).to_contain_text("3 download requests")
             expect(page.locator("#pluginsBody .registry-editor-pick")).to_have_text("Editor's pick")
             expect(page.get_by_role("button", name="Browse Skill Codex", exact=True)).to_be_enabled()
             page.get_by_text("Release notes", exact=True).click()

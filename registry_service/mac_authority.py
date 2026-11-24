@@ -595,10 +595,12 @@ class Authority:
         self.state["totp_last"] = counter
         self.save()
 
-    def _marks(self) -> dict:
+    def _marks(self, operations: list | None = None) -> dict:
         marks = self.state["marks"]
         value = marks_document({"schema": MARKS_SCHEMA, "sequence": marks["sequence"] + 1, "issued_at": self.now(),
-                                **{key: marks[key] for key in ("tested", "highlighted", "suspended", "teams")}},
+                                **{key: marks[key] for key in ("tested", "highlighted", "suspended", "teams")},
+                                **{key: marks[key] for key in ("delisted", "withdrawals") if key in marks},
+                                **({"operations": operations} if operations else {})},
                                now=self.now())
         self.call("POST", "/authority/marks", add_signature({"signed": value, "signatures": []}, self.admission_key))
         marks["sequence"] = value["sequence"]
@@ -615,8 +617,20 @@ class Authority:
         return max(versions, key=lambda entry: version_key(entry["metadata"]["version"]))["artifact_sha256"]
 
     @_exclusive
-    def act(self, action: str, target: str, *, members: list[str] | None = None) -> str:
+    def act(self, action: str, target: str, *, members: list[str] | None = None, reason: str = "") -> str:
         marks = self.state["marks"]
+        if action == "step":
+            # One step about ratings or an account, written as its line in the team's steps file.
+            from registry_service.ratings import FORMS, step_from_words
+
+            words = target.split()
+            require(bool(words) and words[0] in FORMS, "this is not a rating step; use one of: " + ", ".join(sorted(FORMS)))
+            self._marks([step_from_words(words[0], words[1:])])
+            return "Done."
+        if action in {"delist", "remove"} and (reason or action == "delist"):
+            from registry_service.ratings import reason_code
+
+            reason_code(reason)
         if action == "team-admit":
             # Kept on this Mac only: it lets the next run check and sign these bytes, and changes no mark.
             name, _, sha = target.partition("@")
@@ -628,7 +642,7 @@ class Authority:
             self.state["team_admits"] = sorted([*self.state.get("team_admits", []), target])
             self.save()
             return "Done. The next run checks these bytes and signs them if they pass."
-        if action in {"mark", "unmark", "highlight", "unhighlight", "remove"}:
+        if action in {"mark", "unmark", "highlight", "unhighlight", "remove", "delist", "relist"}:
             parts = target.split("/")
             require(len(parts) == 2 and all(IDENTITY.fullmatch(part) for part in parts), "name the skill as publisher/name")
         else:
@@ -656,9 +670,21 @@ class Authority:
         elif action == "team":
             require(members and all(member.isdigit() for member in members), "give each member's GitHub account number")
             marks["teams"] = {**marks["teams"], target: sorted(set(members))}
+        elif action == "delist":
+            # Off the list; installed copies keep working, and nothing is revoked.
+            require(self._listed(target), "that skill is not in the Skill Codex")
+            require(all(item["id"] != target for item in marks.get("delisted", [])), "already done")
+            marks["delisted"] = sorted([*marks.get("delisted", []), {"id": target, "reason": reason}], key=lambda item: item["id"])
+        elif action == "relist":
+            kept = [item for item in marks.get("delisted", []) if item["id"] != target]
+            require(len(kept) < len(marks.get("delisted", [])), "nothing to undo")
+            marks["delisted"] = kept
         elif action == "remove":
             removed = [envelope for envelope in self.state["entries"] if envelope["signed"]["metadata"]["id"] == target]
             require(removed, "that skill is not in the Skill Codex")
+            if reason:
+                marks["withdrawals"] = sorted([*(item for item in marks.get("withdrawals", []) if item["id"] != target),
+                                               {"id": target, "reason": reason}], key=lambda item: item["id"])
             self.state["entries"] = [envelope for envelope in self.state["entries"] if envelope not in removed]
             self.state["revoked"] = sorted(set(self.state["revoked"]) | {item["signed"]["artifact_sha256"] for item in removed})
             for field in ("tested", "highlighted"):
@@ -721,7 +747,8 @@ def unlock_root(directory: Path, passphrase: str) -> Ed25519PrivateKey:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Skill Codex signing authority (runs on the owner's Mac)")
     parser.add_argument("command", choices=["setup", "run", "status", "targets", "mark", "unmark", "highlight",
-                                            "unhighlight", "remove", "suspend", "unsuspend", "team", "team-admit"])
+                                            "unhighlight", "remove", "suspend", "unsuspend", "team", "team-admit",
+                                            "delist", "relist", "step"])
     parser.add_argument("target", nargs="?", default="")
     parser.add_argument("--dir", required=True, type=Path)
     parser.add_argument("--server", default="")
@@ -732,6 +759,7 @@ def main(argv=None) -> int:
     parser.add_argument("--model", default="")
     parser.add_argument("--cap", type=float, default=20.0)
     parser.add_argument("--github-id", action="append", default=[])
+    parser.add_argument("--reason", default="", help="for delist, remove and nothing else: a reason code from the fixed list")
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--every", type=int, default=300)
     args = parser.parse_args(argv)
@@ -776,7 +804,7 @@ def main(argv=None) -> int:
         if args.command == "targets":
             print(authority.set_targets(json.loads(args.file.read_text())))
         else:
-            print(authority.act(args.command, args.target, members=args.github_id))
+            print(authority.act(args.command, args.target, members=args.github_id, reason=args.reason))
         return 0
     except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
         print("Refused: " + (str(exc) if isinstance(exc, RegistryError) else type(exc).__name__))

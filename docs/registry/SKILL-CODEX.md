@@ -82,11 +82,11 @@ Where a skill has no approved icon, show the placeholder tile instead: [assets/s
 
 | Request | Contract |
 |---|---|
-| `GET /comments?id=publisher/name` | `{comments:[{id, author, created, body}], can_comment}`. A signed-in viewer also receives `mine:[{id, state, created, body}]`, which includes their own held comments, and, when `can_comment` is false, `can_comment_reason`: `no_public_name`, `not_downloaded` or `muted`. Signed out, there is no reason code (`GET /me` says the viewer is signed out). |
+| `GET /comments?id=publisher/name` | `{comments:[{id, author, created, body}], can_comment}`. A signed-in viewer also receives `mine:[{id, state, created, body}]`, which includes their own held comments, and, when `can_comment` is false, `can_comment_reason`: `no_public_name`, `not_rated` or `muted`. Signed out, there is no reason code (`GET /me` says the viewer is signed out). |
 | `POST /comments` | `{id, body}`. Returns HTTP 201 `{id, state, reason}` with state `published` or `held`, or HTTP 400 `{state: "refused", reason}`. |
 | `POST /comments/{id}/report` | `{status: "reported"}`. One report per account; authors cannot report themselves. Reports from three different people hold the comment for an operator. A report counts only from an account at least 14 days old that is not muted; every report is kept for the operator either way. |
 
-Only a signed-in account with a public name, which downloaded that package through the website while signed in, can comment. Native-app and anonymous downloads do not count. Each account can make five comment attempts per day, refused attempts included. A refused comment's text is not stored.
+Only a signed-in account with a public name that has rated that add-on can comment (a first rating needs an install pass, see Ratings). A download alone does not count, signed in or not, and the service keeps no list of who downloaded what. Each account can make five comment attempts per day, refused attempts included. A refused comment's text is not stored.
 
 The server filter in `registry_service/moderation.py` refuses links, domains (also spelled out, such as "example dot com slash page", "(dot)" and "[dot]"), email addresses, @handles, phone numbers, crypto addresses, seed or key requests, giveaways and other scam phrases, promotions, cursing, slurs, sexual content and illegal sales, including spaced, dotted, leetspeak and zero-width-character obfuscation. It holds for review: text mostly outside Latin script (the term lists are English), shouting, character floods, and every comment from an account younger than one day. Three reports hide a published comment until an operator acts.
 
@@ -101,6 +101,30 @@ vool-registry comment-remove --config CONFIG --target COMMENT_ID   # keeps no te
 vool-registry mute --config CONFIG --target NAMESPACE                # hides their comments
 vool-registry unmute --config CONFIG --target NAMESPACE
 ```
+
+## Ratings
+
+A person who installed an add-on from the Skill Codex can give it 1 to 5 stars and an optional text of up to 1000 characters: one rating per account per add-on, which they can change or delete. Nobody else can rate.
+
+What a rating proves: its writer's VOOL fetched that exact package through the install route. Every package download answers with an install pass in the `X-Vool-Review-Pass` header. VOOL keeps the pass in the install receipt only when the install succeeds, and hands it to the website (after the `#` of the Rate page address) only when the person presses **Rate this add-on**. The pass names the add-on, the package checksum and the day; it works from the next day for 180 days, once.
+
+What it does not prove: that the add-on was used. A script can download a package and get a pass. The pass adds a cost and a day's wait to each rating; the account rules below and the team's steps carry the rest.
+
+| Rule | Value |
+| --- | --- |
+| Who cannot rate | the add-on's creator, a member of the team that publishes it, a banned account |
+| Counted in the average | published ratings from accounts at least 7 days old (or with a GitHub account at least 30 days old) |
+| Held for a person's look | text from accounts under 30 days old, text another account already posted, ratings from a muted account, a burst (more new ratings on one add-on in 24 hours than 10, or than three times its usual day), a rating three people with accounts 14 days old reported |
+| Average | shown from 5 counted ratings; under that the page says "Not enough ratings yet (n)" |
+| Sorting score | `(10 × m + sum) / (10 + n)`, `m` = 3.5 until the registry holds 50 counted ratings, then their mean; three 5s score 3.85, three hundred at 4.4 score 4.37; an add-on under 5 counted ratings sorts last |
+| Versions | each rating shows the version its pass named; once the newest major version has 5 counted ratings the headline covers that major only (`scope: current_major`) |
+| Daily guard | 20 new ratings per account per 24 hours; no weekly or monthly limit |
+
+Routes are in `WEBSITE-HANDOVER.md`; team steps and appeals in `OPERATIONS.md`.
+
+Kept: the rating a person chose to publish (account, add-on, stars, text, version, checksum, times); for a used pass its hash, the add-on and the day, with no account; reports of a rating (account, rating, time); the record of team steps.
+
+Not collected, by decision: IP addresses, user agents, device ids, install lists, usage counts, and the list of passes handed out. A pass is computed from the download ticket and no row is written when it is issued, so the service cannot say who installed an add-on they did not rate. The table that linked signed-in accounts to downloads (`account_downloads`) is dropped at the first start of this version. The download number stays one counter per package.
 
 ## Skill reports
 

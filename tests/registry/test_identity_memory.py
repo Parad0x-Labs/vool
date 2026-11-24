@@ -9,7 +9,7 @@ from core.registry.codec import RegistryError
 from registry_service import community, reports
 from registry_service.api import PREFIX
 from registry_service.store import DAILY_SUBMISSIONS, Store
-from tests.registry.helpers import NOW
+from tests.registry.helpers import NOW, rated
 from tests.registry.test_skill_codex import METADATA, SKILL, OwnerOnlyGitHub, account, mutation, service
 from tests.registry.test_skill_codex_authority import DAY, ORIGIN, creator, draft
 from tests.registry.test_skill_codex_authority import world as world
@@ -148,7 +148,7 @@ def test_a_muted_person_who_deletes_and_signs_in_again_is_still_muted(world):
     # Linking the returning sign-in to another account brings the mute to that account too.
     delete(world.http, token, csrf)
     carol, _, _ = creator(world, "103", "carol")
-    community.record_download(world.store, carol, "alice/notes", now=world.clock.t)
+    rated(world.store, carol, "alice/notes", now=world.clock.t)
     assert community.comments(world.store, "alice/notes", carol)["can_comment"] is True
     world.store.identity("github", "102", now=world.clock.t, link_account=carol, since=OLD)
     assert community.comments(world.store, "alice/notes", carol)["can_comment_reason"] == "muted"
@@ -181,7 +181,7 @@ def test_daily_upload_comment_and_report_limits_continue_across_delete_and_sign_
             assert client.post(PREFIX + "/drafts", json=body(index), headers=mutation(csrf)).status_code == 201
         assert client.post(PREFIX + "/drafts", json=body(10), headers=mutation(csrf)).json() == {
             "error": "daily submission quota reached"}
-        community.record_download(store, who, "pub0/skill", now=NOW)
+        rated(store, who, "pub0/skill", now=NOW)
         for index in range(community.COMMENTS_PER_DAY):
             community.post_comment(store, who, "pub0/skill", f"Note number {index}", now=NOW)
         for index in range(reports.REPORTS_PER_DAY):
@@ -192,7 +192,7 @@ def test_daily_upload_comment_and_report_limits_continue_across_delete_and_sign_
         assert again != who
         assert client.post(PREFIX + "/drafts", json=body(11), headers=mutation(csrf)).json() == {
             "error": "daily submission quota reached"}
-        community.record_download(store, again, "pub0/skill", now=NOW)
+        rated(store, again, "pub0/skill", now=NOW)
         with pytest.raises(RegistryError, match="daily comment limit reached"):
             community.post_comment(store, again, "pub0/skill", "One more", now=NOW)
         assert reports.status(store, "pub10/skill", again, now=NOW)["can_report_reason"] == "daily_limit"

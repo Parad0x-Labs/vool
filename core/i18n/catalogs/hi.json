@@ -2393,6 +2393,13 @@
     "addons.recall_help": "इसे चालू करने पर VOOL दिन में एक बार कौशल कोडेक्स की सार्वजनिक सूची पढ़ता है, ताकि वहाँ से हटाया गया ऐड-ऑन यहाँ इस्तेमाल होना बंद हो जाए। आपके, आपकी चैट या आपके ऐड-ऑन के बारे में कुछ नहीं भेजा जाता।",
     "addons.recall_last": "पिछली जाँच",
     "addons.recall_none": "यह तब शुरू होता है जब आपके पास कौशल कोडेक्स का कोई ऐड-ऑन हो।",
+    "addons.rating_average": "5 में से {average} · रेटिंग: {count}",
+    "addons.rating_not_enough": "अभी पर्याप्त रेटिंग नहीं हैं ({count})",
+    "addons.rating_downloads": "डाउनलोड अनुरोध: {downloads}",
+    "addons.rating_rate": "इस ऐड-ऑन को रेट करें",
+    "addons.rating_rate_note": "“कौशल कोडेक्स खोलें” आपके ब्राउज़र में वेबसाइट खोलता है, इस प्रमाण के साथ कि आपने यह ऐड-ऑन इंस्टॉल किया है। वहाँ साइन इन करें और अपनी रेटिंग दें। VOOL खुद कुछ नहीं भेजता।",
+    "addons.rating_open": "कौशल कोडेक्स खोलें",
+    "addons.moderation_ratings_removed": "नियम तोड़ने पर VOOL टीम द्वारा हटाई गई रेटिंग: {count}",
     "addons.recall_failed": "पिछली जाँच पूरी नहीं हो सकी। VOOL एक घंटे के भीतर फिर कोशिश करेगा।",
     "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई सूचीबद्ध संस्करण नहीं मिला।",
     "addons.registry_inspect": "जाँच के लिए डाउनलोड करें",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "कोई जवाब नहीं आया। इसे फिर से भेजें।",
     "phone.ui.ask_on_computer": "इसे अपने कंप्यूटर पर VOOL में अनुमति दें या मना करें।"
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2393,6 +2393,13 @@
     "addons.recall_help": "オンにすると、VOOL は1日1回スキルコーデックスの公開リストを読み込み、そこで削除されたアドオンはここでも使われなくなります。あなた自身、チャット、アドオンに関する情報は送信されません。",
     "addons.recall_last": "最終確認",
     "addons.recall_none": "スキルコーデックスのアドオンを入れると始まります。",
+    "addons.rating_average": "5 点中 {average} · 評価 {count} 件",
+    "addons.rating_not_enough": "評価がまだ足りません（{count} 件）",
+    "addons.rating_downloads": "ダウンロード要求 {downloads}",
+    "addons.rating_rate": "このアドオンを評価する",
+    "addons.rating_rate_note": "「スキルコーデックスを開く」を押すと、このアドオンをインストールした証明と一緒にブラウザでウェブサイトが開きます。そこでサインインして評価してください。VOOL からは何も送信されません。",
+    "addons.rating_open": "スキルコーデックスを開く",
+    "addons.moderation_ratings_removed": "ルール違反のため VOOL チームが削除した評価：{count} 件",
     "addons.recall_failed": "前回の確認を完了できませんでした。VOOL は1時間以内にもう一度試します。",
     "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
     "addons.registry_inspect": "確認用にダウンロード",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "回答が届きませんでした。もう一度送ってください。",
     "phone.ui.ask_on_computer": "パソコンの VOOL で許可または拒否してください。"
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

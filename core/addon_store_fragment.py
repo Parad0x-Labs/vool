@@ -32,6 +32,7 @@ def render_addon_store_fragment() -> str:
 .skill-publish{margin-top:12px;padding:14px 16px;border:1px solid var(--border,#38414b);border-radius:6px;font-size:13px;line-height:1.55}.skill-publish h4{margin:0 0 8px;font-size:13px}.skill-publish p{margin:8px 0}.skill-publish ul{margin:6px 0 10px;padding-inline-start:18px}.skill-publish li{margin:4px 0}.skill-publish li small{display:block;color:var(--muted);font-size:11px;overflow-wrap:anywhere}.skill-publish-quote{display:block;margin-top:4px;padding:4px 6px;border:1px solid var(--border,#38414b);border-radius:4px;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}.skill-publish li,.skill-publish-quote,.skill-publish-text{unicode-bidi:plaintext;text-align:start}.skill-publish .addon-facts{margin:6px 0 10px}.skill-publish .addon-actions{margin:12px 0 0}
 .skill-publish-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font-size:11px;margin:10px 0;padding:10px;border:1px solid var(--border,#38414b);border-radius:4px;background:var(--bg,#101319)}#pluginsBody a.skill-publish-open{display:inline-block;padding:9px 13px;border-radius:4px;text-decoration:none;font-size:12px}#pluginsBody a.skill-publish-open:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .addon-icon.skill-pic{position:relative;overflow:hidden;background:var(--field,#1d2129);color:var(--muted)}.addon-icon.skill-pic::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px var(--border,#38414b);pointer-events:none}.addon-icon.skill-pic img{width:100%;height:100%;object-fit:cover;display:block;animation:skill-pic-in .2s ease-out}@keyframes skill-pic-in{from{opacity:0}}@media (prefers-reduced-motion:reduce){.addon-icon.skill-pic img{animation:none}}.addon-icon.skill-missing svg{width:50%;height:50%;opacity:.7}.addon-card-head h3{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}.addon-icon.design{background:#483a33;color:#f4d5bf}.addon-icon.security{background:#353d35;color:#d0dfbe}.addon-card-head small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+.registry-figures{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}.registry-figure{display:inline-flex;align-items:center;gap:5px}.registry-figure svg{width:13px;height:13px;flex:none}.registry-rating{color:var(--ink)}.registry-moderation{margin:0}.registry-rate{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
 .addon-card-footer{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px;font-size:11px;color:var(--muted)}
 .addon-state{font-size:11px;color:var(--muted)}.addon-state.good{color:var(--accent,#48d6be)}
 .addon-risk-note{font-size:12px;line-height:1.6;padding:12px;border:1px solid #76563d}.addon-risk-note button{margin:0 0 0 10px}.addon-override{padding-top:16px;border-top:1px solid var(--border)}.addon-override summary{font-weight:650;color:var(--ink)}.addon-override label{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--ink);margin:18px 0}.addon-override input{margin-top:4px;flex:none}.addon-override .addon-risk-button{border-color:#9d7043;color:var(--warning,#ffbd67)}
@@ -216,6 +217,31 @@ function registryFacts(e){
  add(tr('registry_tested','Checked for'),Object.entries(builds).map(([version,list])=>'VOOL '+version+' ('+list.join(', ')+')').join('; '));
  return facts;
 }
+// Ratings come from people who installed the add-on, read from the Skill Codex with the rest of the list. The
+// download number is a figure of its own with its own icon: a download is not a rating. All text is set as text.
+const SVG_NS='http://www.w3.org/2000/svg';
+function figureIcon(path,filled){const s=document.createElementNS(SVG_NS,'svg');s.setAttribute('viewBox','0 0 16 16');s.setAttribute('aria-hidden','true');s.setAttribute('focusable','false');const p=document.createElementNS(SVG_NS,'path');p.setAttribute('d',path);if(filled)p.setAttribute('fill','currentColor');else{p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');}s.append(p);return s;}
+function figure(svg,text,cls){const s=node('span',undefined,'registry-figure '+cls);s.append(svg,node('span',text));return s;}
+function ratingRow(card,e){
+ const r=e.rating&&typeof e.rating==='object'?e.rating:null,row=node('p',undefined,'addon-meta registry-figures');
+ if(r&&r.shown===true&&typeof r.average==='number'&&Number.isInteger(r.count))row.append(figure(figureIcon('M8 1.5l2 4.2 4.5.6-3.3 3.1.8 4.6L8 11.8 4 14l.8-4.6L1.5 6.3 6 5.7z',true),fill(tr('rating_average','{average} out of 5 · {count} ratings'),{average:r.average.toFixed(1),count:r.count}),'registry-rating'));
+ else if(r&&Number.isInteger(r.count))row.append(node('span',fill(tr('rating_not_enough','Not enough ratings yet ({count})'),{count:r.count}),'registry-figure registry-rating-few'));
+ if(Number.isInteger(e.download_requests))row.append(figure(figureIcon('M8 2v8M4.5 7L8 10.5 11.5 7M3 13.5h10',false),fill(tr('rating_downloads','{downloads} download requests'),{downloads:e.download_requests}),'registry-downloads'));
+ if(row.childNodes.length)card.append(row);
+ if(r&&Number.isInteger(r.removed)&&r.removed>0)card.append(node('p',fill(tr('moderation_ratings_removed','Ratings removed by the VOOL team for breaking the rules: {count}'),{count:r.removed}),'addon-meta registry-moderation'));
+}
+// Rating happens on the Skill Codex website, like reporting. VOOL makes the link, with the install pass of this one
+// add-on after the #, only when the person presses the button; it sends nothing itself.
+let rateState=null;
+function rateControl(e){
+ const wrap=node('div',undefined,'registry-rate'),label=tr('rating_rate','Rate this add-on');
+ const b=button(label,()=>action(async()=>{const r=await post({action:'registry_rate',id:e.id});rateState={id:e.id,url:r.url};}),'skill-publish-btn');
+ b.setAttribute('aria-label',label+': '+(e.title||e.id));wrap.append(b);
+ if(rateState&&rateState.id===e.id&&typeof rateState.url==='string'&&rateState.url.startsWith('https://')){
+  const open=link(tr('rating_open','Open Skill Codex'),rateState.url);open.className='addon-primary skill-publish-open';
+  wrap.append(node('p',tr('rating_rate_note','Open Skill Codex opens the website in your browser with proof that you installed this add-on. Sign in there and give your rating. VOOL sends nothing itself.'),'addon-meta'),open);}
+ return wrap;
+}
 function renderRegistry(host,query){
  hero(host,tr('registry_title','Skills and plugins from their creators'),tr('registry_intro','Automated checks cover package compatibility and known threat patterns for the listed VOOL builds. They do not guarantee that a skill is free of malicious behavior. Community skills are provided as is, without warranty. Inspect the files and use them at your own risk.'));
  if(registryReview){
@@ -248,10 +274,11 @@ function renderRegistry(host,query){
  rows.forEach((e,i)=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head'),name=node('h3',e.title||e.id);name.id='registry-skill-'+i;card.setAttribute('aria-labelledby',name.id);head.append(skillPicture(e),name);card.append(head,node('p',e.summary),node('small',(e.title?e.id+' · ':'')+catLabel(e)+' · '+e.version+' · '+e.license),registryFacts(e));
   if(e.editors_pick)card.append(node('small',tr('registry_editors_pick',"Editor's pick"),'addon-meta registry-editor-pick'));
   else if(e.featured)card.append(node('small',tr('registry_featured','Featured'),'addon-meta'));
-  if(Number.isInteger(e.stars)&&Number.isInteger(e.download_requests))card.append(node('p',fill(tr('registry_metrics','{stars} website stars · {downloads} download requests'),{stars:e.stars,downloads:e.download_requests}),'addon-meta'));
+  ratingRow(card,e);
   releaseNotes(card,e);
   if(stoppedSkills.has(e.id)){const[kind,text]=STOPPED.get(stoppedSkills.get(e.id)),note=node('p',text(),'addon-meta '+kind);note.setAttribute('role','status');card.append(note);}
   else card.append(button(tr('registry_inspect','Download for inspection'),()=>action(()=>unlessStopped(e.id,async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});})),'addon-primary'));
+  if(e.rate_ready)card.append(rateControl(e));
   card.append(reportRow(e));grid.append(card);});
 }
 function releaseNotes(host,e){if(typeof e.release_notes==='string'&&e.release_notes){const details=node('details');details.append(node('summary',tr('registry_release_notes','Release notes')),node('p',e.release_notes));host.append(details);}}

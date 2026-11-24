@@ -22,6 +22,7 @@ from tests.registry.helpers import (
     TARGET,
     evidence_fixture,
     prepublication_fixture,
+    rated,
     signed,
     trust_fixture,
 )
@@ -130,7 +131,7 @@ def test_filter_refuses_empty_oversized_and_control_text(text):
 # -- comments ----------------------------------------------------------------------------------
 
 
-def test_only_signed_in_downloaders_comment_and_held_text_stays_private(tmp_path):
+def test_only_people_who_rated_comment_and_held_text_stays_private(tmp_path):
     store, catalog, app, *_ = service(tmp_path, [("alice/notes", {}, NOW - 100)])
     bob, bob_token, bob_csrf = account(store, "2", "bob")
     with TestClient(app, base_url=ORIGIN) as client:
@@ -139,9 +140,9 @@ def test_only_signed_in_downloaders_comment_and_held_text_stays_private(tmp_path
                            headers=mutation(bob_csrf)).status_code == 400  # no session cookie
         client.cookies.set("vool_registry", bob_token)
         refused = client.post(PREFIX + "/comments", json={"id": "alice/notes", "body": "Nice"}, headers=mutation(bob_csrf))
-        assert refused.status_code == 400 and "download this skill" in refused.json()["error"]
+        assert refused.status_code == 400 and "rate this add-on" in refused.json()["error"]
         assert client.get(PREFIX + "/comments", params={"id": "alice/notes"}).json()["can_comment"] is False
-        # An anonymous download does not count; a signed-in website download does.
+        # A download does not count, signed in or not, and leaves no row about the account. A rating does.
         client.cookies.clear()
         ticket = client.get(PREFIX + "/download", params={"id": "alice/notes", "version": "1.0.0"}).json()
         client.get(ticket["url"])
@@ -149,6 +150,8 @@ def test_only_signed_in_downloaders_comment_and_held_text_stays_private(tmp_path
         assert client.get(PREFIX + "/comments", params={"id": "alice/notes"}).json()["can_comment"] is False
         ticket = client.get(PREFIX + "/download", params={"id": "alice/notes", "version": "1.0.0"}).json()
         assert client.get(ticket["url"]).status_code == 200
+        assert client.get(PREFIX + "/comments", params={"id": "alice/notes"}).json()["can_comment_reason"] == "not_rated"
+        rated(store, bob, "alice/notes", now=NOW)
         assert client.get(PREFIX + "/comments", params={"id": "alice/notes"}).json()["can_comment"] is True
         posted = client.post(PREFIX + "/comments", json={"id": "alice/notes", "body": "Saved me an hour."},
                              headers=mutation(bob_csrf))
@@ -177,7 +180,7 @@ def test_new_accounts_limits_reports_mutes_and_operator_actions(tmp_path):
     nameless, _, _ = account(store, "4", None)
     bob, _, _ = account(store, "2", "bob")
     for who in (fresh, nameless, bob):
-        community.record_download(store, who, "alice/notes", now=NOW)
+        rated(store, who, "alice/notes", now=NOW)
     assert community.post_comment(store, fresh, "alice/notes", "Helpful", now=NOW)["state"] == "held"
     with pytest.raises(RegistryError, match="public name"):
         community.post_comment(store, nameless, "alice/notes", "Helpful", now=NOW)
@@ -454,7 +457,7 @@ def test_operator_moderation_commands_act_on_the_private_store(tmp_path, capsys)
 
     store, catalog, *_ = service(tmp_path, [("alice/notes", {}, NOW - 100)])
     fresh, _, _ = account(store, "3", "fresh", created=NOW - 60)
-    community.record_download(store, fresh, "alice/notes", now=NOW)
+    rated(store, fresh, "alice/notes", now=NOW)
     held = community.post_comment(store, fresh, "alice/notes", "Helpful skill", now=NOW)
     config = tmp_path / "service.json"
     config.write_text(json.dumps({"schema": "vool.registry.service.v1", "private_dir": str(tmp_path / "private")}))
@@ -602,8 +605,8 @@ def test_comment_reason_codes_tell_the_page_why_commenting_is_closed(tmp_path):
     bob, _, _ = account(store, "2", "bob")
     assert "can_comment_reason" not in community.comments(store, "alice/notes")
     assert community.comments(store, "alice/notes", nameless)["can_comment_reason"] == "no_public_name"
-    assert community.comments(store, "alice/notes", bob)["can_comment_reason"] == "not_downloaded"
-    community.record_download(store, bob, "alice/notes", now=NOW)
+    assert community.comments(store, "alice/notes", bob)["can_comment_reason"] == "not_rated"
+    rated(store, bob, "alice/notes", now=NOW)
     open_ = community.comments(store, "alice/notes", bob)
     assert open_["can_comment"] is True and "can_comment_reason" not in open_
     community.mute(store, "bob", True, now=NOW)

@@ -2393,6 +2393,13 @@
     "addons.recall_help": "Когда эта настройка включена, VOOL раз в день читает общедоступный список кодекса навыков, и удалённое там дополнение перестаёт использоваться здесь. Сведения о вас, ваших чатах и дополнениях не отправляются.",
     "addons.recall_last": "Последняя проверка",
     "addons.recall_none": "Начнёт работать, когда у вас появится дополнение из кодекса навыков.",
+    "addons.rating_average": "{average} из 5 · оценок: {count}",
+    "addons.rating_not_enough": "Оценок пока недостаточно ({count})",
+    "addons.rating_downloads": "Запросов скачивания: {downloads}",
+    "addons.rating_rate": "Оценить это дополнение",
+    "addons.rating_rate_note": "«Открыть кодекс навыков» открывает сайт в браузере с подтверждением, что вы установили это дополнение. Войдите там и поставьте оценку. VOOL сам ничего не отправляет.",
+    "addons.rating_open": "Открыть кодекс навыков",
+    "addons.moderation_ratings_removed": "Оценок, удалённых командой VOOL за нарушение правил: {count}",
     "addons.recall_failed": "Последнюю проверку не удалось завершить. VOOL повторит попытку в течение часа.",
     "addons.registry_empty": "Нет опубликованных версий для этой конкретной сборки VOOL и вашего поиска.",
     "addons.registry_inspect": "Скачать для просмотра",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "Ответ не пришёл. Отправьте ещё раз.",
     "phone.ui.ask_on_computer": "Разрешите или отклоните это в VOOL на компьютере."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

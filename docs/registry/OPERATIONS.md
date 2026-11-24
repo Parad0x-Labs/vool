@@ -259,6 +259,34 @@ What pauses a skill: `scam`, `harmful` or `stolen` reports from three different 
 
 Check the list every day while the registry is open: a pause from reports gives you 48 hours to confirm it.
 
+## Ratings, listing and account steps
+
+These are signed team steps like the others: a line in `team-steps.txt` on the GitHub signer, or a command on the signing Mac. No website session can do any of them. Every step writes one row in the service's `moderation_log` (marks number, step digest, action, target, reason code, time, rows affected) in the same transaction, and the public reads the action, reason sentence, date and count from `GET /moderation/notices`. The record holds no actor yet: who committed a line is in the signer repository's history.
+
+Reason codes (required where shown; any other word stops the whole file): `fake`, `automated`, `self_rating`, `paid`, `abusive`, `off_topic`, `harmful`, `stolen`, `misleading`, `creator_request`, `mistake_reversed`.
+
+| Line in `team-steps.txt` | What it does | How to undo |
+| --- | --- | --- |
+| `delisted publisher/name REASON` | Off the catalog, the public directory and VOOL's Browse; no new downloads; ratings closed. Nothing is revoked, so installed copies keep working | delete the line |
+| `removed publisher/name REASON` | As `removed` before (revoked; installed copies stop at their next list check), and the notice carries the reason. The reason is optional so older lines still read | deleting the line lets a higher version in; revoked versions stay revoked |
+| `review-text-remove RATING_ID REASON` | Removes the words of one rating; its stars stay. The words are kept 30 days for a second look, then erased | `rating-restore RATING_ID` within 30 days |
+| `rating-void RATING_ID REASON` | Takes one rating out of the list and the average; it counts in "ratings removed by the VOOL team". Its writer cannot rewrite or delete it | `rating-restore RATING_ID` |
+| `ratings-void-account PUBLISHER-or-HANDLE REASON` | Voids every rating of one account | `rating-restore` each id |
+| `ratings-void-window publisher/name 2026-01-31T00 2026-01-31T12 REASON` | Voids every rating on that add-on created from the first hour up to, not including, the second (UTC) | `rating-restore` each id |
+| `ratings-freeze publisher/name REASON` | No new ratings or edits on that add-on | `ratings-unfreeze publisher/name` |
+| `account-ban PUBLISHER-or-HANDLE REASON` | No ratings, comments or stars from that account; its ratings read as removed, its reports stop counting, its stars are deleted. Uploads are stopped with `suspended` | `account-unban PUBLISHER-or-HANDLE` (deleted stars do not return) |
+| `rating-restore RATING_ID` | Publishes a rating that was voided or held, and puts back removed words while they are kept | `rating-void` again |
+
+These are one-shot while the line stays, like the other moderation lines; `delisted` and `removed` describe the complete wanted set, like `tested`. An account without a public name is named by the 12-character handle the operator views show. Rating ids are in `authority/state.json` under `moderation_ratings` (held ratings, open appeals: ids and counts only) and in the public `GET /ratings` list.
+
+On the signing Mac: `python -m registry_service.mac_authority step "rating-void RATING_ID fake" --dir DIR` takes any of the rating and account lines; `delist publisher/name --reason REASON`, `relist publisher/name` and `remove publisher/name --reason REASON` do the listing steps. Each asks for the authenticator code.
+
+Operator views on the server (read only): `python -m registry_service.cli ratings-held --config FILE` lists ratings waiting for a look with their text, reports and repeats; publish one with `rating-restore`, remove one with `rating-void`.
+
+Appeals: the creator or the rater presses "Ask for another look" on the website. `python -m registry_service.cli appeals-open --config FILE` lists open appeals with the step they are about; `appeal-close --config FILE --target APPEAL_ID --outcome upheld|rejected` answers one and erases its text. Closing changes nothing else: to undo a step, use the undo in the table.
+
+Upgrade order: the service first, then the signer, then the app. An older service refuses marks that carry `delisted` or `withdrawals`; an older signer keeps working against the new service, because the older moderation answer keeps its shape and the new list is a route of its own (`GET /authority/moderation/ratings`). Shipped apps accept marks with the two new lists: they read only the curation part.
+
 ## Native activation and release limits
 
 Ship the reviewed public trust anchor as `core/registry/trusted-root.json` in the actual v0.7.1 release, or install an operator-controlled anchor explicitly through local configuration. The native client verifies the existing packaged `BUILD_MANIFEST.json`: exact SHA/version, clean/release verdict, native verification and architecture. It does not accept a target, trust root or fetch URL from website input. Current released-manifest discovery covers macOS; other platform identity formats require their own real release integration before claiming support.

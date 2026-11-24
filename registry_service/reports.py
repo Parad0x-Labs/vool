@@ -112,10 +112,10 @@ def _looks_secret(note: str) -> bool:
     return any(sum(listed[start:start + 12]) >= 11 for start in range(max(1, len(listed) - 11)))
 
 
-def _note(value: object, reason: str) -> str:
+def _note(value: object, reason: str, *, limit: int = MAX_NOTE) -> str:
     require(isinstance(value, str), "the note must be text")
     note = unicodedata.normalize("NFC", value).strip()
-    require(len(note) <= MAX_NOTE, f"the note is at most {MAX_NOTE} characters")
+    require(len(note) <= limit, f"the note is at most {limit} characters")
     require(all(unicodedata.category(char) not in {"Cc", "Cf", "Co", "Cs"} or char in "\n\t" or char in _ALLOWED_FORMAT
                 for char in note), "the note must be plain text")
     require(bool(note) or reason != "other", "describe the problem in the note")

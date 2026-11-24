@@ -2393,6 +2393,13 @@
     "addons.recall_help": "כשהאפשרות פועלת, VOOL קורא פעם ביום את הרשימה הציבורית של קודקס המיומנויות, כך שתוסף שהוסר שם מפסיק לשמש כאן. לא נשלח שום דבר עליך, על הצ׳אטים שלך או על התוספים שלך.",
     "addons.recall_last": "נבדק לאחרונה",
     "addons.recall_none": "מתחיל כשיש לך תוסף מקודקס המיומנויות.",
+    "addons.rating_average": "{average} מתוך 5 · דירוגים: {count}",
+    "addons.rating_not_enough": "עדיין אין מספיק דירוגים ({count})",
+    "addons.rating_downloads": "בקשות הורדה: {downloads}",
+    "addons.rating_rate": "דירוג התוסף הזה",
+    "addons.rating_rate_note": "״פתיחת קודקס המיומנויות״ פותח את האתר בדפדפן, עם הוכחה שהתקנת את התוסף הזה. מתחברים שם ונותנים דירוג. VOOL לא שולח דבר בעצמו.",
+    "addons.rating_open": "פתיחת קודקס המיומנויות",
+    "addons.moderation_ratings_removed": "דירוגים שצוות VOOL הסיר בגלל הפרת הכללים: {count}",
     "addons.recall_failed": "הבדיקה האחרונה לא הושלמה. VOOL ינסה שוב בתוך שעה.",
     "addons.registry_empty": "אין גרסאות רשומות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
     "addons.registry_inspect": "הורדה לבדיקה",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "לא הגיעה תשובה. שלח שוב.",
     "phone.ui.ask_on_computer": "אשר או דחה את זה ב-VOOL במחשב שלך."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

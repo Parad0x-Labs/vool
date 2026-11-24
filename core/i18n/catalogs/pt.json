@@ -2393,6 +2393,13 @@
     "addons.recall_help": "Com esta opção ativada, o VOOL lê uma vez por dia a lista pública do códice de habilidades, para que um complemento removido lá deixe de ser usado aqui. Nada sobre você, suas conversas ou seus complementos é enviado.",
     "addons.recall_last": "Última verificação",
     "addons.recall_none": "Começa quando você tiver um complemento do códice de habilidades.",
+    "addons.rating_average": "{average} de 5 · {count} avaliações",
+    "addons.rating_not_enough": "Ainda não há avaliações suficientes ({count})",
+    "addons.rating_downloads": "{downloads} pedidos de download",
+    "addons.rating_rate": "Avaliar este complemento",
+    "addons.rating_rate_note": "“Abrir o códice de habilidades” abre o site no seu navegador com a prova de que você instalou este complemento. Entre na sua conta e dê a sua avaliação. O VOOL não envia nada por conta própria.",
+    "addons.rating_open": "Abrir o códice de habilidades",
+    "addons.moderation_ratings_removed": "Avaliações removidas pela equipe do VOOL por violarem as regras: {count}",
     "addons.recall_failed": "A última verificação não pôde ser concluída. O VOOL tentará de novo dentro de uma hora.",
     "addons.registry_empty": "Nenhuma versão publicada corresponde a esta compilação exata do VOOL e à sua busca.",
     "addons.registry_inspect": "Baixar para inspecionar",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "Não chegou nenhuma resposta. Envie outra vez.",
     "phone.ui.ask_on_computer": "Permita ou recuse isto no VOOL no seu computador."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -69,7 +69,8 @@ def load_service(config: dict, *, now: int):
 
 
 MODERATION = ("comments-held", "comment-publish", "comment-remove", "mute", "unmute", "pictures-pending",
-              "reports-open", "reports-close", "skill-pause", "skill-resume", "reporter-mute")
+              "reports-open", "reports-close", "skill-pause", "skill-resume", "reporter-mute",
+              "ratings-held", "appeals-open", "appeal-close")
 
 
 def moderate(args) -> int:
@@ -113,6 +114,20 @@ def moderate(args) -> int:
         elif args.command == "reporter-mute":
             reports.mute_reporter(store, args.target, now=int(time.time()))
             print("Done.")
+        elif args.command == "ratings-held":
+            # Read only: a rating is published, removed or restored by a signed team step, never from here.
+            from registry_service import ratings
+
+            print(json.dumps(ratings.held(store), indent=2))
+        elif args.command == "appeals-open":
+            from registry_service import ratings
+
+            print(json.dumps(ratings.appeals_open(store), indent=2))
+        elif args.command == "appeal-close":
+            from registry_service import ratings
+
+            ratings.appeal_close(store, args.target, args.outcome)
+            print("Done. The person reads the answer on their account page. To undo the step itself, use a team step.")
         elif args.command == "comments-held":
             print(json.dumps(community.held(store), indent=2))
         elif args.command in {"comment-publish", "comment-remove"}:
@@ -225,6 +240,7 @@ def main(argv=None) -> int:
     parser.add_argument("--port", type=int, default=8791)
     parser.add_argument("--target", default="", help="comment id, report id, account namespace or skill id (publisher/name) "
                         "for moderation commands; for pictures-pending, a new folder to write the waiting pictures into")
+    parser.add_argument("--outcome", default="", help="for appeal-close: upheld or rejected (--target is the appeal id)")
     parser.add_argument("--github-id", default="", help="for team-upload, the team member's GitHub account id")
     parser.add_argument("--packages", nargs="+", type=Path, default=[], help="for team-upload, the skill package files to upload")
     args = parser.parse_args(argv)

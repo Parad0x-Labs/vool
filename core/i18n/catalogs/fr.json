@@ -2393,6 +2393,13 @@
     "addons.recall_help": "Quand cette option est activée, VOOL lit une fois par jour la liste publique du codex des compétences : un module retiré là-bas n'est alors plus utilisé ici. Rien n'est envoyé sur vous, vos discussions ou vos modules.",
     "addons.recall_last": "Dernière vérification",
     "addons.recall_none": "Commence dès que vous avez un module du codex des compétences.",
+    "addons.rating_average": "{average} sur 5 · {count} avis",
+    "addons.rating_not_enough": "Pas encore assez d'avis ({count})",
+    "addons.rating_downloads": "{downloads} demandes de téléchargement",
+    "addons.rating_rate": "Noter ce module",
+    "addons.rating_rate_note": "« Ouvrir le codex des compétences » ouvre le site dans votre navigateur, avec la preuve que vous avez installé ce module. Connectez-vous et donnez votre note. VOOL n'envoie rien lui-même.",
+    "addons.rating_open": "Ouvrir le codex des compétences",
+    "addons.moderation_ratings_removed": "Avis retirés par l'équipe VOOL pour non-respect des règles : {count}",
     "addons.recall_failed": "La dernière vérification n'a pas pu aboutir. VOOL réessaiera dans l'heure.",
     "addons.registry_empty": "Aucune version listée ne correspond à cette compilation précise de VOOL et à votre recherche.",
     "addons.registry_inspect": "Télécharger pour inspecter",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "Aucune réponse n’est arrivée. Renvoyez-le.",
     "phone.ui.ask_on_computer": "Autorisez ou refusez ceci dans VOOL sur votre ordinateur."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

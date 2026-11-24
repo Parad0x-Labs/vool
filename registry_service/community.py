@@ -1,4 +1,4 @@
-"""Comments from people who downloaded a skill, with server-side moderation.
+"""Comments from people who rated a skill they installed, with server-side moderation.
 
 The website never decides what is published. Refused text is not stored; held
 comments stay invisible to everyone but their author until an operator acts.
@@ -37,7 +37,8 @@ def report_counts(db, account: str, package_id: str, *, now: int) -> bool:
     row = db.execute("SELECT created FROM accounts WHERE id=?", (account,)).fetchone()
     if not row or row[0] > now - REPORT_ACCOUNT_AGE:
         return False
-    return not db.execute("SELECT 1 FROM muted_accounts WHERE account=?", (account,)).fetchone()
+    return not db.execute("SELECT 1 FROM muted_accounts WHERE account=? UNION SELECT 1 FROM banned_accounts WHERE account=?",
+                          (account, account)).fetchone()
 
 
 def people(reporters) -> int:
@@ -59,11 +60,6 @@ def people(reporters) -> int:
                 apart.append(group)
         groups = [*apart, merged]
     return len(groups)
-
-
-def record_download(store, account: str, package_id: str, *, now: int) -> None:
-    with store.connection() as db:
-        db.execute("INSERT OR IGNORE INTO account_downloads VALUES (?,?,?)", (account, package_id, now))
 
 
 def comments(store, package_id: object, viewer: str | None = None) -> dict:
@@ -93,8 +89,12 @@ def _eligibility(db, account: str, package_id: str) -> tuple[str, str] | None:
         return "no_public_name", "choose a public name on your profile before commenting"
     if db.execute("SELECT 1 FROM muted_accounts WHERE account=?", (account,)).fetchone():
         return "muted", "commenting is turned off for this account"
-    if not db.execute("SELECT 1 FROM account_downloads WHERE account=? AND package_id=?", (account, package_id)).fetchone():
-        return "not_downloaded", "download this skill while signed in before commenting"
+    if db.execute("SELECT 1 FROM banned_accounts WHERE account=?", (account,)).fetchone():
+        return "muted", "commenting is turned off for this account"
+    # No list of who downloaded what is kept. A rating is the one thing that says a person got the add-on:
+    # it took an install pass, and the person chose to publish it.
+    if not db.execute("SELECT 1 FROM ratings WHERE account=? AND package_id=?", (account, package_id)).fetchone():
+        return "not_rated", "rate this add-on from VOOL before commenting"
     return None
 
 

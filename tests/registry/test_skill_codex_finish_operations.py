@@ -6,6 +6,7 @@ import pytest
 from core.registry.codec import RegistryError, canonical, decode
 from core.registry.publisher import add_signature
 from registry_service import community, reports
+from tests.registry.helpers import rated
 from tests.registry.test_skill_codex_authority import creator, rows, upload_with_icon
 from tests.registry.test_skill_codex_github_signer import FOLDER, checkout, on_github, run, signer, team_steps
 from tests.registry.test_skill_codex_github_signer import world as world
@@ -17,7 +18,7 @@ def prepared(world):
     upload_with_icon(world, token, csrf, "1.0.0", ICON)
     run(world)
     bob, _, _ = creator(world, "102", "bob", account_age=0)
-    community.record_download(world.store, bob, "alice/notes", now=world.clock.t)
+    rated(world.store, bob, "alice/notes", now=world.clock.t)
     comment = community.post_comment(world.store, bob, "alice/notes", "It made the notes clearer.", now=world.clock.t)
     assert comment["state"] == "held"
     return alice, bob, comment["id"]

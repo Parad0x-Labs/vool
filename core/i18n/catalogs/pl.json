@@ -2393,6 +2393,13 @@
     "addons.recall_help": "Gdy ta opcja jest włączona, VOOL raz dziennie odczytuje publiczną listę kodeksu umiejętności, więc usunięty tam dodatek przestaje być tutaj używany. Nie są wysyłane żadne informacje o Tobie, Twoich czatach ani dodatkach.",
     "addons.recall_last": "Ostatnie sprawdzenie",
     "addons.recall_none": "Zaczyna działać, gdy masz dodatek z kodeksu umiejętności.",
+    "addons.rating_average": "{average} na 5 · ocen: {count}",
+    "addons.rating_not_enough": "Jeszcze za mało ocen ({count})",
+    "addons.rating_downloads": "Żądań pobrania: {downloads}",
+    "addons.rating_rate": "Oceń ten dodatek",
+    "addons.rating_rate_note": "„Otwórz kodeks umiejętności” otwiera stronę w przeglądarce z dowodem, że ten dodatek został u Ciebie zainstalowany. Zaloguj się tam i wystaw ocenę. VOOL sam niczego nie wysyła.",
+    "addons.rating_open": "Otwórz kodeks umiejętności",
+    "addons.moderation_ratings_removed": "Oceny usunięte przez zespół VOOL za łamanie zasad: {count}",
     "addons.recall_failed": "Ostatniego sprawdzenia nie udało się dokończyć. VOOL spróbuje ponownie w ciągu godziny.",
     "addons.registry_empty": "Żadna opublikowana wersja nie pasuje do tej dokładnej kompilacji VOOL i wyszukiwania.",
     "addons.registry_inspect": "Pobierz do sprawdzenia",
@@ -5484,7 +5491,7 @@
     "phone.ui.no_answer_came": "Nie przyszła żadna odpowiedź. Wyślij to jeszcze raz.",
     "phone.ui.ask_on_computer": "Zezwól na to lub odmów w VOOL na komputerze."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -14,7 +14,7 @@ from starlette.testclient import TestClient
 from core.registry.codec import DOWNLOADS_PAUSED, RegistryError
 from registry_service import cli, community, reports
 from registry_service.api import PREFIX
-from tests.registry.helpers import NOW, TARGET
+from tests.registry.helpers import NOW, TARGET, rated
 from tests.registry.test_skill_codex import DAY, ORIGIN, mutation, service
 from tests.registry.test_skill_codex import account as signed_in
 
@@ -195,7 +195,7 @@ def test_the_same_accounts_cannot_pause_a_skill_again_after_an_operator_looked(t
 def test_operators_mute_the_account_behind_a_report_without_learning_who_it_is(tmp_path):
     store, catalog, *_ = service(tmp_path, SKILLS)
     readers = [account(store, str(10 + index), f"reader{index}")[0] for index in range(3)]
-    community.record_download(store, readers[0], "bob/plain", now=NOW)
+    rated(store, readers[0], "bob/plain", now=NOW)
     assert community.post_comment(store, readers[0], "bob/plain", "Clear and short", now=NOW)["state"] == "published"
     file(store, readers[0])
     file(store, readers[0], "broken", package_id="bob/plain")

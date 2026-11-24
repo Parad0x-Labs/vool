@@ -114,3 +114,14 @@ def catalog_fixture(raw, policy, keys, *, sequence=1, revoked=(), root_version=1
              "issued_at": NOW, "expires": NOW + 3600,
              "entries": entries, "revoked": list(revoked), "authorization": signed(authorization, keys["admission"])}
     return signed(value, keys["catalog"])
+
+
+def rated(store, account, package_id, *, now, stars=4):
+    """The account has a rating on this add-on, as someone who installed it and rated it would."""
+    import secrets
+
+    with store.connection() as db:
+        version, sha256 = db.execute("SELECT version, sha256 FROM public_versions WHERE package_id=?", (package_id,)).fetchone()
+        db.execute("INSERT OR IGNORE INTO ratings (id,account,package_id,stars,body,version,artifact_sha256,proof,state,"
+                   "show_name,created,updated) VALUES (?,?,?,?,'',?,?,'installed','published',1,?,?)",
+                   (secrets.token_hex(16), account, package_id, stars, version, sha256, now, now))

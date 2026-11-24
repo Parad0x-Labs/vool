@@ -105,7 +105,7 @@ def verify_request(root: dict, header: str, method: str, path: str, body: bytes,
 
 def marks_document(value: dict, *, now: int) -> dict:
     """The hand-made marks, as the Mac signs them. Everything not listed is unmarked."""
-    require(isinstance(value, dict) and set(value) - {"operations", "curation"} == {"schema", "sequence", "issued_at", "tested", "highlighted",
+    require(isinstance(value, dict) and set(value) - {"operations", "curation", "delisted", "withdrawals"} == {"schema", "sequence", "issued_at", "tested", "highlighted",
                                                        "suspended", "teams"} and value["schema"] == MARKS_SCHEMA,
             "invalid marks document")
     require(type(value["sequence"]) is int and value["sequence"] > 0 and type(value["issued_at"]) is int and
@@ -133,6 +133,12 @@ def marks_document(value: dict, *, now: int) -> dict:
     from registry_service.operations import validate
 
     validate(value.get("operations", []))
+    # Add-ons hidden from the list (installed copies keep working) and add-ons removed, each with its reason.
+    from registry_service.ratings import listed_reasons
+
+    for field in ("delisted", "withdrawals"):
+        if field in value:
+            listed_reasons(value[field], field)
     if "curation" in value:
         validate_curation(value["curation"])
     return value
