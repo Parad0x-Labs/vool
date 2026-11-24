@@ -6,6 +6,7 @@ sites there, and can the page reach anything it should not.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
@@ -315,8 +316,88 @@ def test_a_private_window_is_the_engines_own_private_kind_and_keeps_the_engines_
     lasting, made_from_outside, tab_sides = browser._call(sides(window))
     assert made_from_outside == [] and list(tab_sides.values()) == [window.side] and window.side != lasting
     # What VOOL put into the engine to have the window opened is gone again.
-    assert not (window.tmp / "private").exists()
+    assert list(window.tmp.glob("private*")) == []
     assert [w.url for w in window.workers() if "private" in w.url] == []
+
+
+async def _sides(window):
+    """What the engine itself says: its lasting side, the sides made from outside, and the
+    side of every open tab."""
+    session = await window.engine.browser.new_browser_cdp_session()
+    try:
+        named = await session.send("Target.getBrowserContexts")
+        tabs = [t for t in (await session.send("Target.getTargets"))["targetInfos"] if t["type"] == "page"]
+    finally:
+        await session.detach()
+    return named["defaultBrowserContextId"], named["browserContextIds"], [t.get("browserContextId") for t in tabs]
+
+
+async def _side_of(window, page):
+    session = await window.engine.new_cdp_session(page)
+    try:
+        return (await session.send("Target.getTargetInfo"))["targetInfo"].get("browserContextId")
+    finally:
+        await session.detach()
+
+
+def test_a_private_tab_is_never_the_ordinary_one_that_opened_at_the_same_moment(browser, site):
+    browser.open("", private=True)
+    window = browser._private[0]
+    lasting = browser._call(_sides(window))[0]
+    assert window.side and window.side != lasting
+
+    async def both_at_once():
+        # The person opens an ordinary window from the private one in the very moment
+        # VOOL asks the engine for a private tab.
+        return await asyncio.gather(window._tab(), window.engine.new_page())
+
+    for _ in range(3):
+        private, ordinary = browser._call(both_at_once())
+        assert private is not ordinary
+        assert browser._call(_side_of(window, ordinary)) == lasting
+        assert browser._call(_side_of(window, private)) == window.side
+        browser._call(private.goto("chrome://newtab/"))
+        assert private.url != start.address(window) and "Incognito" in browser._call(private.evaluate("document.body.innerText"))
+        browser._call(ordinary.close())
+        browser._call(private.close())
+    assert list(window.tmp.glob("private*")) == []
+
+
+def test_a_private_window_whose_engine_makes_no_tab_gives_none_and_never_an_ordinary_one(browser, site, monkeypatch):
+    from core.vool_browser import private_side
+
+    browser.open("", private=True)
+    window = browser._private[0]
+    assert window.side
+    as_it_was = browser._call(_sides(window))
+    # From here on the engine turns the part away: what it is handed is not one it can load.
+    monkeypatch.setitem(private_side._FILES, "manifest.json", "{")
+    with pytest.raises(desk_module.DeskFault, match="private_tab_unavailable") as refused:
+        browser._call(window._tab())
+    # Whoever reads the failure is told the step; a person is shown the pane's own sentence.
+    assert "load the part" in str(refused.value.__cause__)
+    # No tab was opened in its place, in any side, and nothing of the part is left.
+    assert browser._call(_sides(window)) == as_it_was
+    assert list(window.tmp.glob("private*")) == []
+    assert window.alive()
+
+
+def test_an_engine_that_will_not_open_its_private_window_gives_one_that_keeps_nothing_all_the_same(browser, site, monkeypatch):
+    from core.vool_browser import private_side
+
+    monkeypatch.setitem(private_side._FILES, "manifest.json", "{")
+    base, hits = site
+    browser.open(base + "/quiet", private=True)
+    assert _wait(lambda: asked(hits) == ["/quiet"])
+    window = browser._private[0]
+    # Not the engine's own private window, so no private side is named. The one tab is in
+    # a side made from outside, which keeps nothing; none is in the lasting side.
+    lasting, made_from_outside, tab_sides = browser._call(_sides(window))
+    assert window.side == "" and len(made_from_outside) == 1 and tab_sides == made_from_outside
+    # A further tab VOOL opens there is in that same side.
+    again = browser._call(window._tab())
+    assert browser._call(_side_of(window, again)) == made_from_outside[0] != lasting
+    assert list(window.tmp.glob("private*")) == []
 
 
 def test_the_engines_once_per_profile_is_set_back_and_nothing_else_in_the_settings_is_touched(tmp_path):

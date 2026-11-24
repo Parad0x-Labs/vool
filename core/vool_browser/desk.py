@@ -522,11 +522,8 @@ class _Window:
         profile."""
         from . import private_side
 
-        tab = await private_side.tab(self)
-        if tab is not None:
-            with contextlib.suppress(Exception):
-                self.side = await private_side.side_of(self)
-            self.fresh = tab
+        with contextlib.suppress(private_side.NotMade):
+            self.fresh, self.side = await private_side.tab(self)
             return
         # The engine would not open its private window for VOOL's part. A side of the
         # engine that keeps nothing is private all the same; it does not look it, and
@@ -539,13 +536,16 @@ class _Window:
     async def _tab(self) -> Any:
         """A new tab in this window. In the engine's private window the engine handle's
         own way to a tab would open an ordinary window, so the engine is asked from
-        inside, as for the window itself."""
+        inside, as for the window itself. When the engine does not make the tab there
+        is none: an ordinary tab is not what was asked for, and is not handed back in
+        its place."""
         if self.private and self.side:
             from . import private_side
 
-            tab = await private_side.tab(self)
-            if tab is not None:
-                return tab
+            try:
+                return (await private_side.tab(self))[0]
+            except private_side.NotMade as why:
+                raise DeskFault("private_tab_unavailable") from why
         return await self.context.new_page()
 
     async def _reopened_tabs(self) -> None:
