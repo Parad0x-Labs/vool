@@ -39,7 +39,7 @@ from typing import Any
 from core.runtime_paths import active_data_dir
 from core.secret_env import child_env
 
-from .engine import QUIET_FLAGS, UNATTENDED_UI_FLAGS, find_engine_binary, refuse_real_profile_target
+from .engine import MAKER_UPDATE_HOST, QUIET_FLAGS, UNATTENDED_UI_FLAGS, find_engine_binary, refuse_real_profile_target
 
 ENGINE_START_TIMEOUT = 30.0
 #: While a window is open, how often the desk looks whether today's site lists are due.
@@ -199,14 +199,52 @@ def default_preferences() -> dict[str, Any]:
         "privacy_sandbox": {"m1": {"topics_enabled": False, "fledge_enabled": False, "ad_measurement_enabled": False}},
         "browser": {"check_default_browser": False, **({} if _SYSTEM_SPELL_CHECK else {"enable_spellchecking": False})},
         **({} if _SYSTEM_SPELL_CHECK else {"spellcheck": {"dictionaries": []}}),
-        # Read by the engine on macOS only. There the engine asks, in a bubble on a new
-        # tab, whether a page that stands in for its own new tab page may stay, and once
-        # per profile it takes whatever stands in at that moment as agreed to. This says
-        # that moment has not been yet, so it comes when the first new tab is shown, with
-        # VOOL's start page loaded. A page the person adds later is still asked about.
-        "ack_existing_ntp_extensions": False,
+        # Read by the engine on macOS only; see ``start_page_is_agreed_to``.
+        _AGREED_ONCE: False,
         "bookmark_bar": {"show_on_all_tabs": True},
     }
+
+
+#: On macOS the engine asks, in a bubble on a new tab ("Did you mean to change this
+#: page?"), whether a page that stands in for its own new tab page may stay. It keeps the
+#: answer with the page as it was put in, and once per profile it takes whatever stands in
+#: at that moment as agreed to; this setting records that the moment has been.
+_AGREED_ONCE = "ack_existing_ntp_extensions"
+_ASKS_ABOUT_THE_START_PAGE = sys.platform == "darwin"
+
+
+def start_page_is_agreed_to(profile: Path) -> bool:
+    """Have the engine take VOOL's start page as agreed to at this start too. True when
+    the profile's settings were changed. Runs before the engine starts.
+
+    VOOL puts its start page into the engine afresh at every start, and the engine keeps
+    no answer for a page put in afresh. So from the second start on it would ask about
+    VOOL's own page each time the person opens a new tab. This says the engine's once per
+    profile has not been yet: the engine then takes what stands in when its first tab is
+    made, with the start page loaded, as agreed to, and writes that down itself. A page
+    the person adds while the browser is open is still asked about then. The setting is
+    the engine's own bookkeeping and none of the person's choices; nothing else in the
+    file is changed, and a file that cannot be read is left alone.
+    """
+    target = profile / "Default" / "Preferences"
+    try:
+        kept = json.loads(target.read_text(encoding="utf-8"))
+        mode = target.stat().st_mode & 0o777
+    except (OSError, ValueError):
+        return False
+    if not isinstance(kept, dict) or kept.get(_AGREED_ONCE, False) is False:
+        return False
+    kept[_AGREED_ONCE] = False
+    temp = target.with_suffix(".vool-tmp")
+    try:
+        temp.write_text(json.dumps(kept, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        temp.chmod(mode)
+        temp.replace(target)
+    except (OSError, ValueError):
+        with contextlib.suppress(OSError):
+            temp.unlink()
+        return False
+    return True
 
 
 def _laid_over(under: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
@@ -268,6 +306,11 @@ def _route_flags() -> list[str]:
         "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1",
         "--disable-quic",
         "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+        # The engine does not apply its rule for the maker's update address (see the quiet
+        # list) to what it hands to a route, so that one name is kept off the route. Past
+        # the route the engine is given no address for any name (the rule above), so the
+        # request has nowhere to go and the name is never looked up on this machine.
+        f"--proxy-bypass-list={MAKER_UPDATE_HOST}",
     ]
 
 
@@ -299,9 +342,12 @@ class _Window:
         self.profile = profile
         self.private = private
         self.context: Any = None
-        # The engine's own lasting side. In the lasting browser the windows are made there;
-        # a private window is made in a private side of the engine, which is ``context``.
+        # The engine as started. ``context`` is the same thing, except when the engine
+        # would not open its own private window and a side of it that keeps nothing was
+        # made in its place.
         self.engine: Any = None
+        # The engine's name for its private side, once this window is its private window.
+        self.side = ""
         self.driver: Any = None
         self.tmp: Path | None = None
         self.closed = asyncio.Event()
@@ -337,6 +383,8 @@ class _Window:
         self.route = _route_flags()
         self.profile.mkdir(parents=True, exist_ok=True, mode=0o700)
         await seed_profile(self.profile)
+        if _ASKS_ABOUT_THE_START_PAGE:
+            start_page_is_agreed_to(self.profile)
         continues, their_pages = on_start_up(self.profile)
         with contextlib.suppress(OSError):
             downloads_dir().mkdir(parents=True, exist_ok=True)
@@ -367,21 +415,10 @@ class _Window:
         self.engine = self.context
         self.engine.on("close", lambda _ctx: self.closed.set())
         try:
-            if self.private:
-                # A private window is the engine's own kind: nothing of it is written to the
-                # profile, and its new tab is the engine's local page for such windows,
-                # whichever search the engine holds. Nothing about how pages look is set.
-                self.context = await self.engine.browser.new_context(
-                    no_viewport=True, color_scheme="null", reduced_motion="null", forced_colors="null", contrast="null")
             # The engine handle would otherwise catch every download into a hidden folder
             # under a made-up name. Downloads here belong to the person: the browser saves
             # them itself, under their real names, in the downloads folder.
-            session = await self.engine.browser.new_browser_cdp_session()
-            await session.send("Browser.setDownloadBehavior", {"behavior": "default"})
-            if self.private:
-                for side in (await session.send("Target.getBrowserContexts")).get("browserContextIds") or []:
-                    await session.send("Browser.setDownloadBehavior", {"behavior": "default", "browserContextId": side})
-            await session.detach()
+            await self._downloads_are_the_engines_own()
             # No window exists yet, so no page has loaded. The lists of harmful sites are
             # put in force first: every tab, a reopened one too, loads under today's lists.
             # A protection that will not load does not keep the browser from opening; the
@@ -407,7 +444,10 @@ class _Window:
                     await extensions.apply(self)
             # The first window. When the person chose to continue where they left off, the
             # engine brings their tabs back into it by itself.
-            self.fresh = await self.context.new_page()
+            if self.private:
+                await self._private_window()
+            else:
+                self.fresh = await self.context.new_page()
             if continues:
                 await self._reopened_tabs()
             if continues and not their_pages:
@@ -421,7 +461,7 @@ class _Window:
             # starts with, so VOOL opens them, the first in the tab just made and in front.
             first_of_theirs: Any = None
             for url in their_pages:
-                page = self.fresh or await self.context.new_page()
+                page = self.fresh or await self._tab()
                 self.fresh = None
                 first_of_theirs = first_of_theirs or page
                 with contextlib.suppress(Exception):
@@ -444,10 +484,52 @@ class _Window:
             def watch(page: Any) -> None:
                 page.on("close", lambda _page: self._last_tab_closed())
 
-            for side in (self.context, self.engine):
+            for side in {self.context, self.engine}:
                 side.on("page", watch)
                 for page in side.pages:
                     watch(page)
+
+    async def _downloads_are_the_engines_own(self) -> None:
+        session = await self.engine.browser.new_browser_cdp_session()
+        try:
+            for side in ("", *((await session.send("Target.getBrowserContexts")).get("browserContextIds") or [])):
+                await session.send("Browser.setDownloadBehavior", {"behavior": "default", **({"browserContextId": side} if side else {})})
+        finally:
+            with contextlib.suppress(Exception):
+                await session.detach()
+
+    async def _private_window(self) -> None:
+        """The first window of a private start: the engine's own private window, which
+        looks private and whose new tab is the engine's page for such windows, on the
+        computer, whichever search the engine holds. Nothing of it is written to the
+        profile."""
+        from . import private_side
+
+        tab = await private_side.tab(self)
+        if tab is not None:
+            with contextlib.suppress(Exception):
+                self.side = await private_side.side_of(self)
+            self.fresh = tab
+            return
+        # The engine would not open its private window for VOOL's part. A side of the
+        # engine that keeps nothing is private all the same; it does not look it, and
+        # its new tab is an empty page. Nothing about how pages look is set.
+        self.context = await self.engine.browser.new_context(
+            no_viewport=True, color_scheme="null", reduced_motion="null", forced_colors="null", contrast="null")
+        await self._downloads_are_the_engines_own()
+        self.fresh = await self.context.new_page()
+
+    async def _tab(self) -> Any:
+        """A new tab in this window. In the engine's private window the engine handle's
+        own way to a tab would open an ordinary window, so the engine is asked from
+        inside, as for the window itself."""
+        if self.private and self.side:
+            from . import private_side
+
+            tab = await private_side.tab(self)
+            if tab is not None:
+                return tab
+        return await self.context.new_page()
 
     async def _reopened_tabs(self) -> None:
         """Wait for the tabs the engine brings back into its first window. They are all
@@ -483,7 +565,7 @@ class _Window:
 
     def _last_tab_closed(self) -> None:
         # An ordinary window the person opened from the private one counts as part of it.
-        sides = [side for side in (self.context, self.engine) if side is not None]
+        sides = {side for side in (self.context, self.engine) if side is not None}
         if sides and not [p for side in sides for p in side.pages if not p.is_closed()]:
             self.closed.set()
 
@@ -510,7 +592,7 @@ class _Window:
                 with contextlib.suppress(Exception):
                     await showing[-1].bring_to_front()
             return
-        page = blank or await self.context.new_page()
+        page = blank or await self._tab()
         for _ in range(3):
             try:
                 # No address asked for: the window shows its start page, not an empty tab.
@@ -521,7 +603,7 @@ class _Window:
                 # engine's own error page, which is what a browser does. A tab that
                 # never left its empty start was cut off before it began: go again.
                 if page.is_closed():
-                    page = await self.context.new_page()
+                    page = await self._tab()
                 elif page.url != "about:blank":
                     break
                 else:

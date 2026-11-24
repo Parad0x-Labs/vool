@@ -254,49 +254,132 @@ def test_a_private_window_is_the_engines_own_private_kind_and_keeps_the_engines_
     browser.open("", private=True)
     window = browser._private[0]
 
-    async def sides():
-        session = await window.engine.browser.new_browser_cdp_session()
+    async def sides(of):
+        session = await of.engine.browser.new_browser_cdp_session()
         try:
-            private_sides = (await session.send("Target.getBrowserContexts"))["browserContextIds"]
+            named = await session.send("Target.getBrowserContexts")
             tabs = [t for t in (await session.send("Target.getTargets"))["targetInfos"] if t["type"] == "page"]
         finally:
             await session.detach()
-        return private_sides, [tab.get("browserContextId") for tab in tabs]
+        return named["defaultBrowserContextId"], named["browserContextIds"], {t["targetId"]: t.get("browserContextId") for t in tabs}
 
-    # The engine says so itself: the one tab is in a private side of it, which keeps
-    # nothing, and not in the side that writes to a profile.
-    private_sides, tab_sides = browser._call(sides())
-    assert len(tab_sides) == 1 and tab_sides[0] in private_sides, (private_sides, tab_sides)
-    urls = [p.url for p in window.context.pages if not p.is_closed()]
-    assert len(urls) == 1 and urls[0].startswith(("chrome://newtab", "chrome://new-tab-page")), urls
-    assert urls[0] != start.address(window)
+    # The engine says so itself: the one tab is in a side of it that is neither the one
+    # writing to a profile nor one made from outside, which leaves its own private side.
+    lasting, made_from_outside, tab_sides = browser._call(sides(window))
+    assert made_from_outside == [] and len(tab_sides) == 1, (made_from_outside, tab_sides)
+    private_side = next(iter(tab_sides.values()))
+    assert private_side and private_side != lasting and window.side == private_side
+    first = [p for p in window.engine.pages if not p.is_closed()]
+    assert len(first) == 1 and first[0].url.startswith(("chrome://newtab", "chrome://new-tab-page")), first
+    assert first[0].url != start.address(window)
+    # The page is the engine's own for a private window, and says what such a window is.
+    said = browser._call(first[0].evaluate("document.body.innerText"))
+    assert "Incognito" in said and catalog_for("en").text("live.home_title") != browser._call(first[0].title())
 
-    async def new_tab(side):
-        page = await side.new_page()
+    async def new_tab(make):
+        page = await make()
         await page.goto("chrome://newtab/")
         return page
 
-    # A further tab there is the same page of the engine's, whichever search it holds.
-    again = browser._call(new_tab(window.context))
+    # A further tab VOOL opens there is in the same side and is the same page of the
+    # engine's, whichever search it holds.
+    again = browser._call(new_tab(window._tab))
+    assert again is not first[0]
     assert again.url.startswith(("chrome://newtab", "chrome://new-tab-page")) and again.url != start.address(window)
+    assert "Incognito" in browser._call(again.evaluate("document.body.innerText"))
+    assert set(browser._call(sides(window))[2].values()) == {private_side}
     # An ordinary window the person opens from the private one gets VOOL's start page:
     # no new tab there is fetched from a search company either.
-    ordinary = browser._call(new_tab(window.engine))
+    ordinary = browser._call(new_tab(window.engine.new_page))
     assert ordinary.url == start.address(window)
     assert browser._call(ordinary.title()) == catalog_for("en").text("live.home_title") != browser._call(again.title())
-    # It is part of the private window: that is over once no tab is left on either side.
+    assert sorted(browser._call(sides(window))[2].values()) == sorted([private_side, private_side, lasting])
+    # It is part of the private window: that is over once no tab is left of either kind.
     browser._call(again.close())
-    browser._call(next(p for p in window.context.pages if not p.is_closed()).close())
+    browser._call(first[0].close())
     assert window.alive() and window.profile.exists()
     browser._call(ordinary.close())
     assert _wait(lambda: not window.profile.exists())
 
-    # Opened on an address, a private window shows that page and no tab beside it.
+    # Opened on an address, a private window shows that page, in its private side, and no
+    # tab beside it.
     base, hits = site
     browser.open(base + "/quiet", private=True)
     assert _wait(lambda: asked(hits) == ["/quiet"])
-    assert [p.url for p in browser._private[-1].context.pages if not p.is_closed()] == [base + "/quiet"]
-    assert [p.url for p in browser._private[-1].engine.pages if not p.is_closed()] == []
+    window = browser._private[-1]
+    assert [p.url for p in window.engine.pages if not p.is_closed()] == [base + "/quiet"]
+    lasting, made_from_outside, tab_sides = browser._call(sides(window))
+    assert made_from_outside == [] and list(tab_sides.values()) == [window.side] and window.side != lasting
+    # What VOOL put into the engine to have the window opened is gone again.
+    assert not (window.tmp / "private").exists()
+    assert [w.url for w in window.workers() if "private" in w.url] == []
+
+
+def test_the_engines_once_per_profile_is_set_back_and_nothing_else_in_the_settings_is_touched(tmp_path):
+    kept = tmp_path / "Default" / "Preferences"
+    kept.parent.mkdir()
+    theirs = {"homepage": "https://example.org/caf\u00e9", "bookmark_bar": {"show_on_all_tabs": False},
+              "partition": {"per_host_zoom_levels": {"x": {"example.org": {"zoom_level": 1.2000000000000002}}}},
+              "profile": {"name": "\u017dygimantas", "created_by_version": "158.0.8127.38"},
+              "ack_existing_ntp_extensions": True, "last": [1, "13439983276464462", None, True]}
+    kept.write_text(json.dumps(theirs), encoding="utf-8")
+    kept.chmod(0o600)
+
+    assert desk_module.start_page_is_agreed_to(tmp_path) is True
+    now = json.loads(kept.read_text(encoding="utf-8"))
+    assert now.pop("ack_existing_ntp_extensions") is False
+    assert now == {key: value for key, value in theirs.items() if key != "ack_existing_ntp_extensions"}
+    assert list(now) == [key for key in theirs if key != "ack_existing_ntp_extensions"]
+    assert kept.stat().st_mode & 0o777 == 0o600 and sorted(p.name for p in kept.parent.iterdir()) == ["Preferences"]
+
+    # Already as wanted, or never written by the engine: the file is not written again.
+    as_left = kept.read_bytes(), kept.stat().st_mtime_ns
+    assert desk_module.start_page_is_agreed_to(tmp_path) is False
+    kept.write_text(json.dumps({"homepage": "https://example.org/"}), encoding="utf-8")
+    as_left = kept.read_bytes(), kept.stat().st_mtime_ns
+    assert desk_module.start_page_is_agreed_to(tmp_path) is False
+    assert (kept.read_bytes(), kept.stat().st_mtime_ns) == as_left
+    # A file that cannot be read as settings is left exactly as it is; so is no file.
+    for broken in (b"{not settings", b"[1, 2]", b""):
+        kept.write_bytes(broken)
+        assert desk_module.start_page_is_agreed_to(tmp_path) is False and kept.read_bytes() == broken
+    kept.unlink()
+    assert desk_module.start_page_is_agreed_to(tmp_path) is False and not kept.exists()
+
+
+@pytest.mark.parametrize("engine_asks", [True, False])
+def test_a_used_profile_starts_with_the_once_per_profile_still_ahead_where_the_engine_asks(
+    browser, site, monkeypatch, engine_asks
+):
+    """The engine that asks about a page standing in for its new tab page is the macOS one.
+    What it is told at the start is the same file on every system, so that is checked here;
+    that the engine then writes its agreement down is checked on a Mac."""
+    monkeypatch.setattr(desk_module, "_ASKS_ABOUT_THE_START_PAGE", engine_asks)
+    browser.open("")
+    kept = browser._main.profile / "Default" / "Preferences"
+    browser.stop()
+    # As the engine leaves it once its moment has been, with a choice of the person's beside it.
+    used = json.loads(kept.read_text(encoding="utf-8"))
+    used["ack_existing_ntp_extensions"] = True
+    used["bookmark_bar"] = {"show_on_all_tabs": False}
+    kept.write_text(json.dumps(used), encoding="utf-8")
+
+    told: list = []
+    build = start.build
+
+    def build_and_look(locale=""):
+        # The start page is written after the settings are settled and before the engine starts.
+        told.append(json.loads(kept.read_text(encoding="utf-8")).get("ack_existing_ntp_extensions"))
+        return build(locale)
+
+    monkeypatch.setattr(start, "build", build_and_look)
+    browser.open("")
+    assert told == [not engine_asks]
+    first = next(p for p in browser.context_for_agent().pages if not p.is_closed())
+    assert first.url == start_page(browser)
+    browser.stop()
+    # The engine read the file VOOL wrote and kept the person's own choice.
+    assert json.loads(kept.read_text(encoding="utf-8"))["bookmark_bar"]["show_on_all_tabs"] is False
 
 
 def test_a_start_page_that_cannot_be_written_does_not_keep_the_browser_from_opening(browser, site, monkeypatch):

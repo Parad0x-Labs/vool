@@ -116,6 +116,8 @@ _QUIET_FEATURES = (
 #: push-message and component services are pointed here, so they cannot reach their
 #: makers' servers. Signing in to a website is ordinary browsing and is not affected.
 _NOWHERE = "http://127.0.0.1:9"
+#: The one name the engine's maker serves its settings-reset list from.
+MAKER_UPDATE_HOST = "tools.google.com"
 
 #: Quiet by default: page requests the person makes are the only traffic. Measured on
 #: the real engine through a recording relay (tests/test_desk_browser.py); each line
@@ -139,6 +141,13 @@ QUIET_FLAGS: tuple[str, ...] = (
     f"--gcm-checkin-url={_NOWHERE}",
     f"--gcm-registration-url={_NOWHERE}",
     "--gcm-mcs-endpoint=127.0.0.1:9",
+    # An engine that carries its maker's brand asks that maker's update address for a
+    # list each time its settings page is opened, and has no switch for it. The name is
+    # pointed at the address where nothing listens. The engine applies this on its direct
+    # way out only: a route VOOL sets keeps the name off itself (see ``desk``), and a relay
+    # set in the computer's own network settings is still asked for it. A page on that
+    # one name cannot be opened in this browser either.
+    f"--host-rules=MAP {MAKER_UPDATE_HOST} 127.0.0.1:9",
     "--disable-features=" + ",".join(_QUIET_FEATURES),
 )
 #: Used by the everyday window and by the hidden engine that does VOOL's own web lookups: the
@@ -210,6 +219,7 @@ def find_engine_binary() -> str | None:
 
 
 __all__ = [
+    "MAKER_UPDATE_HOST",
     "QUIET_FLAGS",
     "_FORBIDDEN_PROFILE_MARKERS",
     "find_engine_binary",

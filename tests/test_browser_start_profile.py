@@ -56,19 +56,43 @@ def reached(record: dict) -> tuple[list[str], list[str]]:
     naming it on a packet socket without writing; that sends nothing, so it is in neither.
     """
     kinds = {number: name for name, number in record["constants"]["logEventTypes"].items()}
+    # What a connection is made on is told by its source, not by what the step is called:
+    # an engine may write a packet socket's naming of an address as a plain connect.
+    made_on = {number: name for name, number in record["constants"]["logSourceType"].items()}
     address: dict[int, str] = {}
     opened: set[str] = set()
     wrote: set[int] = set()
     for event in record["events"]:
         kind, source = kinds.get(event["type"], ""), event["source"]["id"]
+        packets = "UDP" in made_on.get(event["source"].get("type"), "") or kind.startswith("UDP_")
         params = event["params"] if isinstance(event.get("params"), dict) else {}
         if "CONNECT" in kind and "address" in params:
             address[source] = str(params["address"])
-            if not kind.startswith("UDP_"):
+            if not packets:
                 opened.add(address[source])
         if kind.endswith("BYTES_SENT"):
             wrote.add(source)
     return sorted(opened), sorted({address.get(source, "unknown") for source in wrote})
+
+
+def test_asking_whether_an_address_can_be_routed_to_is_not_reaching_it_however_the_engine_writes_it_down():
+    # The same lookup as two engines write it: one names the step after the packet socket,
+    # the other writes a plain connect on a source that is a packet socket. A stream and a
+    # written packet beside them are still seen.
+    constants = {
+        "logEventTypes": {"UDP_CONNECT": 1, "SOCKET_CONNECT": 2, "TCP_CONNECT_ATTEMPT": 3, "UDP_BYTES_SENT": 4, "SOCKET_BYTES_SENT": 5},
+        "logSourceType": {"UDP_SOCKET": 10, "UDP_CLIENT_SOCKET": 11, "SOCKET": 12},
+    }
+
+    def step(kind, source, made_on, **params):
+        return {"type": constants["logEventTypes"][kind], "source": {"id": source, "type": constants["logSourceType"][made_on]}, "params": params}
+
+    lookup = [step("UDP_CONNECT", 1, "UDP_SOCKET", address="[2001:db8::1]:443"),
+              step("SOCKET_CONNECT", 2, "UDP_CLIENT_SOCKET", address="[2001:db8::1]:443")]
+    assert reached({"constants": constants, "events": lookup}) == ([], [])
+    stream = [step("TCP_CONNECT_ATTEMPT", 3, "SOCKET", address="192.0.2.7:443"), step("SOCKET_BYTES_SENT", 3, "SOCKET", byte_count=5)]
+    packet = [step("SOCKET_CONNECT", 4, "UDP_CLIENT_SOCKET", address="192.0.2.9:53"), step("UDP_BYTES_SENT", 4, "UDP_CLIENT_SOCKET", byte_count=40)]
+    assert reached({"constants": constants, "events": lookup + stream + packet}) == (["192.0.2.7:443"], ["192.0.2.7:443", "192.0.2.9:53"])
 
 
 def test_the_engine_itself_holds_the_starting_search_and_home_button_and_made_them_reaching_no_one(
