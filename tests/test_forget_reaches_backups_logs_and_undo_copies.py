@@ -17,7 +17,8 @@ from tests.test_blackbox_flight_recorder import _write
 from tests.test_forget_scrubs_run_history import CANARY, _remember, command
 from tests.test_forget_scrubs_run_history import isolated_pages as isolated_pages  # the fixture
 
-FORGET_LIST = "In this chat, the forgotten words now stay only in VOOL's forget list on this computer, so they are never used again."
+FORGET_LIST = ("In this chat, VOOL's forget list on this computer keeps only a locked fingerprint of the forgotten words, "
+               "so they are never used again.")
 NEEDLE = CANARY.lower().encode()
 
 
@@ -166,8 +167,7 @@ def test_a_sealed_backup_file_that_still_holds_the_words_is_said(isolated_pages)
     handled, reply = command(isolated_pages, chat, f"Forget {CANARY}.")
 
     assert handled and reply.startswith("Forget applied"), reply
-    assert reply.endswith("In this chat, the forgotten words now stay in VOOL's forget list on this computer, so they are "
-                          "never used again, and in an update backup, which could not be changed."), reply
+    assert reply.endswith(FORGET_LIST + " The words themselves stay in an update backup, which could not be changed."), reply
     assert sealed.exists()
 
 
@@ -272,7 +272,7 @@ def test_a_backup_with_a_chunk_and_an_undo_journal_still_restores_and_says_what_
     handled, reply = command(isolated_pages, "chunk-forget", f"Forget {CANARY}.")
 
     assert handled and reply.startswith("Forget applied"), reply
-    assert reply.endswith("and in an update backup, which could not be changed."), reply
+    assert reply.endswith("The words themselves stay in an update backup, which could not be changed."), reply
     copied = backup / "data" / "blackbox" / "journal.jsonl"
     assert _holding(backup) == ["data/blackbox/journal.jsonl"] and json.loads(copied.read_text())["mac"] == "x"
     restored = tmp_path / "restored-home" / "data"

@@ -5,6 +5,7 @@ import sqlite3
 
 import pytest
 
+from core.memory.forget_marks import forget_mark
 from core.vool_memory import VoolMemory
 
 
@@ -19,16 +20,16 @@ def _operation(memory, operation_id):
 def test_completed_journal_drops_only_the_redundant_token(tmp_path):
     with VoolMemory(runtime_home=tmp_path) as memory:
         operation = memory.begin_erasure("chat", "MINT84")
-        assert _operation(memory, operation) == ("mint84", "pending")
+        assert _operation(memory, operation) == (forget_mark("MINT84", memory._authority_home), "pending")
         memory.record_revocation("MINT84", chat_id="chat")
         memory.complete_erasure(operation)
         generation = memory.revocation_generation("chat")
         assert _operation(memory, operation) == ("", "complete")
-        assert memory.revoked_tokens("chat", include_pending=True) == ("mint84",)
+        assert memory.revoked_tokens("chat", include_pending=True) == (forget_mark("MINT84", memory._authority_home),)
         memory.complete_erasure(operation)
         assert memory.revocation_generation("chat") == generation
     with VoolMemory(runtime_home=tmp_path) as reopened:
-        assert reopened.revoked_tokens("chat", include_pending=True) == ("mint84",)
+        assert reopened.revoked_tokens("chat", include_pending=True) == (forget_mark("MINT84", reopened._authority_home),)
         assert _operation(reopened, operation) == ("", "complete")
 
 
@@ -36,7 +37,7 @@ def test_completed_journal_keeps_the_token_without_a_permanent_copy(tmp_path):
     with VoolMemory(runtime_home=tmp_path) as memory:
         operation = memory.begin_erasure("chat", "MINT84")
         memory.complete_erasure(operation)
-        assert _operation(memory, operation) == ("mint84", "complete")
+        assert _operation(memory, operation) == (forget_mark("MINT84", memory._authority_home), "complete")
 
 
 def test_repeating_completion_never_completes_a_later_pending_job(tmp_path):
@@ -48,6 +49,6 @@ def test_repeating_completion_never_completes_a_later_pending_job(tmp_path):
         generation = memory.revocation_generation("chat")
         memory.complete_erasure(old)
         assert memory.revocation_generation("chat") == generation
-        assert _operation(memory, pending) == ("mint84", "pending")
+        assert _operation(memory, pending) == (forget_mark("MINT84", memory._authority_home), "pending")
         with pytest.raises(RuntimeError, match="incomplete"):
             memory.revoked_tokens("chat", include_pending=True)

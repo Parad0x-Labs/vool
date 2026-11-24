@@ -232,10 +232,26 @@ def _authority_set(runtime_home=None, chat_id=None) -> dict[Path, dict]:
         directory = _directory(home)
         data = _read(directory)
         _check_leases(directory)
+        _load_mark_key(home)
         authorities[home] = data
         if data['version'] == 2:
             pending.update(_dependencies(home, chat_id) - authorities.keys())
     return authorities
+
+
+def _load_mark_key(home: Path) -> None:
+    """Read this home's forget list key, so the marks its ledger and its stores hold can be read here."""
+    from core.memory.forget_marks import home_key
+
+    home_key(home)
+
+
+def _make_mark_key(home: Path) -> None:
+    """Give an open authority its forget list key with the ledger, never during a forget: a forget that is refused
+    before its first durable write leaves the authority exactly as it found it."""
+    from core.memory.forget_marks import home_key
+
+    home_key(home, create=True)
 
 
 def _bind_homes(homes: set[Path], chat_id) -> None:
@@ -468,6 +484,9 @@ def prepare(runtime_home=None, *, allow_initialize=False, arm=True,
         if data['version'] == 1:
             _durable_write(directory / 'dependencies.json', {'version': 1, 'scopes': {}})
             _durable_write(directory / 'ledger.json', {**data, 'version': 2})
+            data = {**data, 'version': 2}
+        _make_mark_key(_home(runtime_home))
+        _ledger_to_marks(directory, data)
         _dependencies(_home(runtime_home))
         _check_leases(directory)
         if arm and directory not in _LEASES:
@@ -484,6 +503,27 @@ def prepare(runtime_home=None, *, allow_initialize=False, arm=True,
                 lease.close()
                 _POISONED.add(directory)
                 raise
+
+
+def _ledger_to_marks(directory: Path, data: dict) -> None:
+    """Rewrite a ledger that still holds forgotten words (written before the forget list kept fingerprints,
+    `core.memory.forget_marks`) with the fingerprints instead, each operation keeping its id, chat, kind and status.
+    Called under `serialized`. A ledger that cannot be rewritten keeps its words, and every reader still reads it."""
+    from core.memory.forget_marks import forget_mark, is_forget_mark
+
+    plain = [row for row in data['operations'].values() if not is_forget_mark(row['token'])]
+    if not plain:
+        return
+    try:
+        rewritten = {'version': data['version'], 'operations': {
+            operation_id: {**row, 'token': forget_mark(row['token'], directory.parent)} for operation_id, row in data['operations'].items()}}
+        _durable_write(directory / 'ledger.json', rewritten)
+        if _read(directory) != rewritten:
+            raise RuntimeError('forget list rewrite could not be verified')
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning('forget list still holds words: %s', type(exc).__name__)
 
 
 @_authority_errors
@@ -512,7 +552,7 @@ def _disarm(directory: Path) -> None:
 
 
 def begin(chat_id, token, runtime_home=None, *, _kind='forget') -> str:
-    from core.vool_memory import _normalize_forget_token
+    from core.memory.forget_marks import forget_mark
     directory = _directory(runtime_home)
     operation_id = uuid.uuid4().hex
     started = directory in _LEASES
@@ -524,7 +564,7 @@ def begin(chat_id, token, runtime_home=None, *, _kind='forget') -> str:
             else:
                 _check_leases(directory)
             data = _read(directory)
-            data['operations'][operation_id] = {'chat': str(chat_id or ''), 'token': _normalize_forget_token(token), 'status': 'pending'}
+            data['operations'][operation_id] = {'chat': str(chat_id or ''), 'token': forget_mark(token, runtime_home), 'status': 'pending'}
             if _kind != 'forget':
                 if _kind != 'admission':
                     raise ValueError('unknown forget operation kind')

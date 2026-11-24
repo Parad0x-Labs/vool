@@ -207,6 +207,17 @@
     "utcnow": "configuration",
     "today_iso": "configuration"
   },
+  "core/memory/forget_marks.py": {
+    "forget_mark": "transform",
+    "home_key": "authority",
+    "is_forget_mark": "transform",
+    "mark_in_text": "transform",
+    "text_in_mark": "transform",
+    "recall_subject_in_mark": "transform",
+    "terms_of_mark_in": "transform",
+    "mark_words_named": "transform",
+    "withdrawn_by_mark": "transform"
+  },
   "core/memory/learning.py": {
     "load_operator_dense_profile": "reader",
     "refresh_operator_dense_profile": "reader",

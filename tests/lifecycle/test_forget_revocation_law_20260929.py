@@ -145,8 +145,11 @@ def test_token_forget_gates_every_serving_carrier(fresh_profile):
 
     _forget(fresh_profile, chat, token)
 
+    from core.memory.forget_marks import forget_mark
+
+    # Recorded as the words' fingerprints, never the words (core.memory.forget_marks).
     assert cr.revoked_tokens_for_chat(chat) == (
-        " ".join(token.casefold().split()),
+        forget_mark(token, fresh_profile),
     ), {"note": "revocation must be durably recorded, chat-scoped"}
     assert cr.revoked_tokens_for_chat(foreign) == (), {
         "note": "foreign chat must carry no revocation"

@@ -86,20 +86,24 @@ def revoked_memory_recall_clauses(
     if not revoked_tokens:
         return ()
     from core.agent_runtime.answer_coverage import demand_units, turn_slices
+    from core.memory.forget_marks import is_forget_mark, recall_subject_in_mark
     from core.turn_ir import ClauseKind, parse_turn_ir
 
-    targets = tuple(subject for token in revoked_tokens if (subject := _recall_subject(token)) is not None)
+    # The forget list keeps fingerprints of its words (core.memory.forget_marks), the recall subject among them.
+    marks = tuple(str(token) for token in revoked_tokens if is_forget_mark(str(token)))
+    targets = tuple(subject for token in revoked_tokens
+                    if not is_forget_mark(str(token)) and (subject := _recall_subject(token)) is not None)
     claimed: list[str] = []
     for item in turn_slices(user_text):
         clauses = parse_turn_ir(item.text).clauses
         if len(clauses) != 1 or clauses[0].kind not in {ClauseKind.KNOW, ClauseKind.RECALL}:
             continue
         requested = _question_subject(clauses[0].request_text)
-        if requested and any(
+        if requested and (any(
             target.subject == requested.subject
             and (not target.relation or target.relation == requested.relation)
             for target in targets
-        ):
+        ) or any(recall_subject_in_mark(mark, requested.subject, requested.relation) for mark in marks)):
             # Arbitration is needed only after a revoked subject matches. In
             # particular, unrelated FX or tool requests must never run another
             # lane's admission probe while checking for a memory absence.

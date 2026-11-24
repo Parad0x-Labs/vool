@@ -31,9 +31,14 @@ def payload_is_withdrawn(payload: Any, revoked_tokens: Sequence[str]) -> bool:
     2026-11-12: "Forget the exact identifier I mentioned in this chat, but keep
     the budget note" withdrew the kept budget note through "chat").
     """
-    controls = ["Forget " + str(token) for token in revoked_tokens
-                if retraction_marker("Forget " + str(token), naming_the_saying=False) is not None]
-    if not controls:
+    from core.memory.forget_marks import is_forget_mark, withdrawn_by_mark
+
+    # The forget list keeps fingerprints of its words (core.memory.forget_marks): such an entry carries what this
+    # withdrawal compares, made from "Forget <words>" when the words were forgotten.
+    marks = [str(token) for token in revoked_tokens if is_forget_mark(str(token))]
+    controls = ["Forget " + str(token) for token in revoked_tokens if not is_forget_mark(str(token))
+                and retraction_marker("Forget " + str(token), naming_the_saying=False) is not None]
+    if not controls and not marks:
         return False
 
     def withdrawn(value: Any) -> bool:
@@ -43,6 +48,8 @@ def payload_is_withdrawn(payload: Any, revoked_tokens: Sequence[str]) -> bool:
             return any(withdrawn(item) for item in value)
         if not isinstance(value, str) or not value.strip():
             return False
+        if any(withdrawn_by_mark(value, mark) for mark in marks):
+            return True
         source = TemporalCandidate(key="source", body=value, role="user", seq=1)
         for control in controls:
             withdrawal = TemporalCandidate(key="withdrawal", body=control, role="user", seq=2)

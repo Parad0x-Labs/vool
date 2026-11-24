@@ -94,10 +94,12 @@ def test_pending_barrier_blocks_then_completed_token_survives_healthy_restart(tm
     with pytest.raises(RuntimeError):
         authority.snapshot("durable-authority", home)
     authority.complete(operation, home)
-    assert "mint84" in {token.lower() for token in authority.snapshot("durable-authority", home)}
+    from core.memory.forget_marks import forget_mark
+
+    assert forget_mark("MINT84", home) in authority.snapshot("durable-authority", home)
     state = _child(home, "reader")
     assert state["state"] == "readable"
-    assert "mint84" in {token.lower() for token in state["tokens"]}
+    assert forget_mark("MINT84", home) in state["tokens"]
 
 
 def test_normal_writer_exit_preserves_durable_revocation_without_orphaning_readers(tmp_path):
@@ -106,7 +108,9 @@ def test_normal_writer_exit_preserves_durable_revocation_without_orphaning_reade
     assert state["state"] == "readable"
     after_restart = _child(home, "reader")
     assert after_restart["state"] == "readable"
-    assert "mint84" in {token.lower() for token in after_restart["tokens"]}
+    from core.memory.forget_marks import forget_mark
+
+    assert forget_mark("MINT84", home) in after_restart["tokens"]
 
 
 def test_ungraceful_exit_leaves_a_barrier_readers_cannot_autoheal(tmp_path):

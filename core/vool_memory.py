@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from core.memory.forget_marks import forget_mark
 from core.memory.revocation import fenced_writer
 from core.runtime_paths import active_vool_home
 
@@ -329,6 +330,41 @@ class VoolMemory:
         self._conn.executescript(self.SCHEMA)
         self._migrate()
         self._conn.commit()
+        self._forget_list_to_marks()
+
+    def _forget_list_to_marks(self) -> None:
+        """Replace forgotten words kept by an older build in ``memory_revocations`` and ``memory_erasure_operations``
+        with their fingerprints (`core.memory.forget_marks`); the freed bytes are zeroed (``secure_delete``) and the
+        write-ahead log is emptied, so no copy of the words stays in the file. A store that cannot be rewritten keeps
+        its words, and every reader still reads them."""
+        from core.memory.forget_marks import forget_mark, home_key
+
+        try:
+            home_key(self._authority_home)  # the key this home's marks are read with
+            with self._lock:
+                revoked = self._conn.execute(
+                    "SELECT token, chat_id, revoked_at FROM memory_revocations WHERE token NOT LIKE 'fk1:%'").fetchall()
+                operations = self._conn.execute(
+                    "SELECT operation_id, token FROM memory_erasure_operations WHERE token != '' "
+                    "AND token NOT LIKE 'fk1:%'").fetchall()
+                if not revoked and not operations:
+                    return
+                for row in revoked:
+                    self._conn.execute(
+                        "INSERT INTO memory_revocations (token, chat_id, revoked_at) VALUES (?, ?, ?) "
+                        "ON CONFLICT(token, chat_id) DO UPDATE SET revoked_at = MAX(revoked_at, excluded.revoked_at)",
+                        (forget_mark(row["token"], self._authority_home), row["chat_id"], row["revoked_at"]))
+                    self._conn.execute("DELETE FROM memory_revocations WHERE token = ? AND chat_id = ?",
+                                       (row["token"], row["chat_id"]))
+                for row in operations:
+                    self._conn.execute("UPDATE memory_erasure_operations SET token = ? WHERE operation_id = ?",
+                                       (forget_mark(row["token"], self._authority_home), row["operation_id"]))
+                self._conn.commit()
+                self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except Exception as exc:
+            with contextlib.suppress(Exception):
+                self._conn.rollback()
+            LOGGER.warning("memory forget list still holds words: %s", type(exc).__name__)
 
     def _migrate(self) -> None:
         """Additively add ranking/temporal columns and backfill the FTS index.
@@ -2750,7 +2786,7 @@ class VoolMemory:
             self._conn.execute(
                 "INSERT INTO memory_erasure_operations "
                 "(operation_id, chat_id, token, started_at, status) VALUES (?, ?, ?, ?, 'pending')",
-                (operation_id, str(chat_id), _normalize_forget_token(token), time.time()),
+                (operation_id, str(chat_id), forget_mark(token, self._authority_home), time.time()),
             )
             self._conn.commit()
         return operation_id
@@ -2798,7 +2834,7 @@ class VoolMemory:
         with self._lock:
             return self._conn.execute(
                 "SELECT 1 FROM memory_erasure_operations WHERE chat_id = ? AND token = ? AND status != 'complete' LIMIT 1",
-                (str(chat_id), _normalize_forget_token(token)),
+                (str(chat_id), forget_mark(token, self._authority_home)),
             ).fetchone() is not None
 
     def erasure_incomplete(self, chat_id: str) -> bool:
@@ -2883,10 +2919,10 @@ class VoolMemory:
         Chat-scoped by design — forgetting a token here never revokes it in a
         foreign chat (F14-12 preservation control).
         """
-        # Stored in canonical form: the carriers gate with the same
-        # separator-insensitive normalization, so a hyphenated variant of a
-        # revoked token cannot slip past the gate (F14-07).
-        needle = _normalize_forget_token(token)
+        # Stored as its keyed fingerprints (core.memory.forget_marks), never the words: the carriers gate with the
+        # same separator-insensitive normalization, so a hyphenated variant of a revoked token cannot slip past the
+        # gate (F14-07).
+        needle = forget_mark(token, self._authority_home)
         scope = str(chat_id or "").strip()
         if not needle or not scope:
             return None

@@ -7929,7 +7929,9 @@ def forget_session_memory(
         # request after the log scrub had already run).
         current_store = "revocation_ledger"
         mem.record_revocation(token, chat_id=policy.chat_id)
-        if _normalize_forget_token(token) not in mem.revoked_tokens(policy.chat_id, strict=True):
+        from core.memory.forget_marks import forget_mark
+
+        if forget_mark(token, mem._authority_home) not in mem.revoked_tokens(policy.chat_id, strict=True):
             raise RuntimeError("revocation write could not be verified")
         _record_erasure_store(collected, "revocation_ledger", "verified")
         current_store = "dialogue_derivatives"

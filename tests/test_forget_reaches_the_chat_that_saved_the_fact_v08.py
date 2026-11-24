@@ -79,11 +79,11 @@ def test_a_fact_saved_from_one_chat_is_forgotten_from_another_and_leaves_the_cha
 def test_the_words_of_an_order_that_described_its_fact_go_on_the_forget_list(isolated_home):
     # Else the order itself is read back later as something the owner "mentioned" about the fact.
     from core.memory import revocation
-    from core.vool_memory import _normalize_forget_token
+    from core.memory.forget_marks import forget_mark
 
     _save(GLAZIER)
     assert _forget("Forget who my glazier is.").startswith("Forget applied. Removed 1 memory entry.")
-    assert _normalize_forget_token("who my glazier is") in set(revocation.snapshot(ASKED_IN, isolated_home))
+    assert forget_mark("who my glazier is", isolated_home) in set(revocation.snapshot(ASKED_IN, isolated_home))
     assert _facts() == []
 
 

@@ -39,8 +39,10 @@ def test_a_two_operand_forget_closes_its_admission(tmp_path, seed):
     rows = json.loads((home / ".forget-authority" / "ledger.json").read_text())["operations"]
     admissions = [row for row in rows.values() if row.get("kind") == "admission"]
     assert admissions and all(row["status"] == "complete" for row in admissions), admissions
-    # The forgotten list reads again, across every chat.
-    assert code.lower() in " ".join(revocation.revoked_tokens(None, home))
+    # The forgotten list reads again, across every chat, and holds the code (as fingerprints of the words).
+    from core.memory.carriers import carries
+
+    assert any(carries(token, code) for token in revocation.revoked_tokens(None, home))
 
 
 @pytest.mark.usefixtures("_hash_backend")

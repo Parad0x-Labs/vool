@@ -86,7 +86,9 @@ def test_completed_real_forget_stays_erased_when_carrier_ledger_select_fails(fre
 
     assert 'Kestrel' in read(), 'control: carrier did not carry the source'
     _forget(fresh_profile, chat, 'Kestrel ferry')
-    assert 'kestrel ferry' in cr.revoked_tokens_for_chat(chat)
+    from core.memory.forget_marks import forget_mark
+
+    assert forget_mark('Kestrel ferry', fresh_profile) in cr.revoked_tokens_for_chat(chat)
     # A rebuilt/replayed derivative remains bound by the durable revocation.
     # The ordinary sweep deletes raw turns, so replay the actual pre-forget body.
     if carrier != 'kernel':

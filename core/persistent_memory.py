@@ -3461,7 +3461,14 @@ def _judged_forgotten_named(
         still_held = {word for item in held for word in _folded_words(item)}
         asked = _folded_words(question)
         named = []
+        from core.memory.forget_marks import is_forget_mark, mark_words_named
+
         for token in live:
+            if is_forget_mark(token):
+                # The forget list keeps fingerprints of its words: each word's own parts _same_word compares.
+                if mark_words_named(token, still_held, asked):
+                    named.append(token)
+                continue
             own = [word for word in _folded_words(token)
                    if len(word) >= 4 and not any(_same_word(word, other) for other in still_held)]
             if any(_same_word(word, other) for word in own for other in asked):
@@ -4512,9 +4519,9 @@ def maybe_handle_memory_command(
                         _record_erasure_store(erasures, f"{owner}_revocation_ledger", "incomplete")
                         continue
                     operation_store.record_revocation(token, chat_id=resolved_session)
-                    from core.context_retrieval import _normalize_forget_token as normalize_revocation
+                    from core.memory.forget_marks import forget_mark
 
-                    if normalize_revocation(token) not in operation_store.revoked_tokens(resolved_session, strict=True):
+                    if forget_mark(token, operation_store._authority_home) not in operation_store.revoked_tokens(resolved_session, strict=True):
                         raise RuntimeError("owner revocation write could not be verified")
                     _record_erasure_store(erasures, f"{owner}_revocation_ledger", "verified")
                 except Exception as exc:
