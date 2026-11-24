@@ -110,8 +110,15 @@ def test_a_wrong_memory_report_carries_a_content_free_trace_and_saves_locally(tm
             assert status == 200, preview
             body = preview["issue"]["body"] if "issue" in preview else json.dumps(preview)
             assert "Remembered or recalled something wrong" in body, body
-            assert "## Trace" in body and "model call: this_computer" in body, body
-            assert MODEL in body, body
+            assert "## Trace" in body, body
+            # The trace says what ran. Some wordings ("note that I like ...") are the memory lane's own
+            # command and save with no model call (CI on 882ba9a05 drew one); the report must then
+            # name no model call and no model, and a model-path save must name both.
+            if "provider: runtime-fast-path" in body:
+                assert "model call:" not in body and MODEL not in body, body
+            else:
+                assert "model call: this_computer" in body, body
+                assert MODEL in body, body
             assert "## Environment" in body or "VOOL" in body, body
             # The save is an action with a checked result: the memory store holds the row the turn wrote.
             assert "action result: approval.action.profile.remember -> checked" in body, body

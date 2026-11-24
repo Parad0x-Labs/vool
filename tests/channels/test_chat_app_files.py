@@ -92,7 +92,9 @@ def test_chat_app_fetches_the_newest_picture_from_a_chosen_folder_only(owner_hom
     assert PICTURE in body and b'filename="beach.png"' in body
     wait_for(lambda: any('beach.png' in r for r in _replies(host)[before:]), timeout=30)
     assert 'old.png' not in str(host.uploads)  # the newest one
-    assert any(r['kind'] == 'bot.file_sent' for r in receipts(base))
+    # The receipt is written once the chat service has answered the upload, a moment after the fake
+    # service has the file; the reply naming it goes out before the upload (CI on 882ba9a05).
+    wait_for(lambda: any(r['kind'] == 'bot.file_sent' for r in receipts(base)), timeout=30)
 
     # Outside the chosen folder: no file, and the reply names the folder it may use.
     before = len(_replies(host))
