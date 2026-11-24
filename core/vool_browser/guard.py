@@ -295,7 +295,7 @@ async def _armed(window: Any, engine_id: str, host: str) -> bool:
     loop = asyncio.get_running_loop()
     deadline = loop.time() + ARM_SECONDS
     while loop.time() < deadline:
-        worker = next((item for item in window.context.service_workers if item.url.startswith(prefix)), None)
+        worker = next((item for item in window.workers() if item.url.startswith(prefix)), None)
         if worker is not None:
             with contextlib.suppress(Exception):
                 if await worker.evaluate(_PROBE, host) is True:

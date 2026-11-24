@@ -48,6 +48,29 @@ def kept_search(profile) -> str:
     return ""
 
 
+def reached(record: dict) -> tuple[list[str], list[str]]:
+    """From an engine's record of its connections: the addresses it tried to open a stream
+    to, and the addresses it wrote anything to, stream or single packets.
+
+    The engine also asks the system whether an address could be routed to at all, by
+    naming it on a packet socket without writing; that sends nothing, so it is in neither.
+    """
+    kinds = {number: name for name, number in record["constants"]["logEventTypes"].items()}
+    address: dict[int, str] = {}
+    opened: set[str] = set()
+    wrote: set[int] = set()
+    for event in record["events"]:
+        kind, source = kinds.get(event["type"], ""), event["source"]["id"]
+        params = event["params"] if isinstance(event.get("params"), dict) else {}
+        if "CONNECT" in kind and "address" in params:
+            address[source] = str(params["address"])
+            if not kind.startswith("UDP_"):
+                opened.add(address[source])
+        if kind.endswith("BYTES_SENT"):
+            wrote.add(source)
+    return sorted(opened), sorted({address.get(source, "unknown") for source in wrote})
+
+
 def test_the_engine_itself_holds_the_starting_search_and_home_button_and_made_them_reaching_no_one(
     browser, site, monkeypatch, tmp_path
 ):
@@ -73,14 +96,10 @@ def test_the_engine_itself_holds_the_starting_search_and_home_button_and_made_th
     binary = desk_module.engine_binary()
     assert start_profile.problem(binary) == ""
 
-    # Every connection the hidden run tried went to the one address on this machine where
-    # nothing listens. The record is the engine's own; it lists each attempt by address.
-    kinds = {number: name for name, number in seen["record"]["constants"]["logEventTypes"].items()}
-    tried = sorted({
-        str(event["params"]["address"]) for event in seen["record"]["events"]
-        if "CONNECT" in kinds.get(event["type"], "") and isinstance(event.get("params"), dict) and "address" in event["params"]
-    })
-    assert tried == ["127.0.0.1:9"], tried
+    # The record is the engine's own. Every stream the hidden run tried to open went to the
+    # one address on this machine where nothing listens, and it wrote to no address at all.
+    opened, written_to = reached(seen["record"])
+    assert (opened, written_to) == (["127.0.0.1:9"], []), (opened, written_to)
 
     # The starting profile holds settings files and nothing else of that run.
     start = start_profile.folder(binary)
@@ -90,6 +109,11 @@ def test_the_engine_itself_holds_the_starting_search_and_home_button_and_made_th
 
     # It lasts: the engine reads the same after a restart, and the person's own change wins.
     browser.stop()
+    # The same reading of the window's own record does see what an engine reaches: the
+    # page the person opened, on its address.
+    opened, written_to = reached(json.loads(record.read_text()))
+    there = base.removeprefix("http://")
+    assert there in opened and there in written_to, (opened, written_to)
     browser.open("")
     assert in_force(browser) == {"search": [DUCK], "home_button": True}
 

@@ -67,7 +67,7 @@ async def bring_last_used(window: Any) -> bool:
         loop = asyncio.get_running_loop()
         end = loop.time() + _WAIT
         while loop.time() < end:
-            worker = next((item for item in window.context.service_workers if item.url.startswith(prefix)), None)
+            worker = next((item for item in window.workers() if item.url.startswith(prefix)), None)
             if worker is not None:
                 return await asyncio.wait_for(worker.evaluate(_BRING_LAST_USED), _WAIT) is True
             await asyncio.sleep(0.05)

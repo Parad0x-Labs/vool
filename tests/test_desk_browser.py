@@ -627,12 +627,13 @@ def test_starting_settings_are_written_once_and_never_over_the_persons_own(home,
     assert written["profile"]["cookie_controls_mode"] == 1
     assert written["safebrowsing"]["enabled"] is False and written["search"]["suggest_enabled"] is False
     assert written["download"]["default_directory"] == str(desk_module.downloads_dir())
-    # The starting search is the engine's own writing: an entry of the person's, with no
-    # new-tab or suggestion address, in whichever settings file the engine keeps it.
+    # The starting search is the engine's own writing, in whichever settings file the engine
+    # keeps it. An engine that knows this search as one of its built-in ones holds it as
+    # that one, with that search's page for new tabs; the tests of the start page and of
+    # the private window show that no new tab is ever that page.
     kept = [json.loads(f.read_text()) for f in (target, target.with_name("Secure Preferences")) if f.is_file()]
     search = next(data for k in kept if (data := (k.get("default_search_provider_data") or {}).get("template_url_data")))
     assert search["url"] == desk_module.STARTING_SEARCH["url"]
-    assert (search["prepopulate_id"], search["new_tab_url"], search["suggestions_url"]) == (0, "", "")
     # The person switched a protection off in the browser: the next start keeps their choice.
     written["https_only_mode_enabled"] = False
     target.write_text(json.dumps(written))

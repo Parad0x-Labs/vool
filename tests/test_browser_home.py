@@ -177,17 +177,53 @@ def test_the_start_page_is_written_afresh_at_every_start_and_in_the_language_voo
     assert len(list(start._root().iterdir())) == 1
 
 
-def test_a_private_window_keeps_the_engines_own_page(browser, site):
+def test_a_private_window_is_the_engines_own_private_kind_and_keeps_the_engines_page(browser, site):
     browser.open("", private=True)
     window = browser._private[0]
-    assert window.home_id == ""
+
+    async def sides():
+        session = await window.engine.browser.new_browser_cdp_session()
+        try:
+            private_sides = (await session.send("Target.getBrowserContexts"))["browserContextIds"]
+            tabs = [t for t in (await session.send("Target.getTargets"))["targetInfos"] if t["type"] == "page"]
+        finally:
+            await session.detach()
+        return private_sides, [tab.get("browserContextId") for tab in tabs]
+
+    # The engine says so itself: the one tab is in a private side of it, which keeps
+    # nothing, and not in the side that writes to a profile.
+    private_sides, tab_sides = browser._call(sides())
+    assert len(tab_sides) == 1 and tab_sides[0] in private_sides, (private_sides, tab_sides)
     urls = [p.url for p in window.context.pages if not p.is_closed()]
     assert len(urls) == 1 and urls[0].startswith(("chrome://newtab", "chrome://new-tab-page")), urls
+    assert urls[0] != start.address(window)
+
+    async def new_tab(side):
+        page = await side.new_page()
+        await page.goto("chrome://newtab/")
+        return page
+
+    # A further tab there is the same page of the engine's, whichever search it holds.
+    again = browser._call(new_tab(window.context))
+    assert again.url.startswith(("chrome://newtab", "chrome://new-tab-page")) and again.url != start.address(window)
+    # An ordinary window the person opens from the private one gets VOOL's start page:
+    # no new tab there is fetched from a search company either.
+    ordinary = browser._call(new_tab(window.engine))
+    assert ordinary.url == start.address(window)
+    assert browser._call(ordinary.title()) == catalog_for("en").text("live.home_title") != browser._call(again.title())
+    # It is part of the private window: that is over once no tab is left on either side.
+    browser._call(again.close())
+    browser._call(next(p for p in window.context.pages if not p.is_closed()).close())
+    assert window.alive() and window.profile.exists()
+    browser._call(ordinary.close())
+    assert _wait(lambda: not window.profile.exists())
+
     # Opened on an address, a private window shows that page and no tab beside it.
     base, hits = site
     browser.open(base + "/quiet", private=True)
     assert _wait(lambda: asked(hits) == ["/quiet"])
-    assert [p.url for p in browser._private[1].context.pages if not p.is_closed()] == [base + "/quiet"]
+    assert [p.url for p in browser._private[-1].context.pages if not p.is_closed()] == [base + "/quiet"]
+    assert [p.url for p in browser._private[-1].engine.pages if not p.is_closed()] == []
 
 
 def test_a_start_page_that_cannot_be_written_does_not_keep_the_browser_from_opening(browser, site, monkeypatch):

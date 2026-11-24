@@ -12,6 +12,7 @@ Rules kept here:
   typed. The most visited sites and their icons come from the engine's own history;
 - it asks for no page content and holds no page script, and it cannot see other tabs;
 - a private window keeps the engine's own page, which says that the window is private.
+  An ordinary window the person opens from a private one gets this page.
 """
 from __future__ import annotations
 

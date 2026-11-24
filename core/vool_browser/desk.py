@@ -96,12 +96,14 @@ def downloads_dir() -> Path:
     return Path.home() / "Downloads" / "VOOL Downloads"
 
 
-#: The search a new profile starts with, kept as an entry of the person's own and not as
-#: one of the engine's built-in ones. Measured on the engine: with its built-in default it
-#: asks that search company's site for something at every start and builds each new tab
-#: from that company's servers; a built-in alternative makes every new tab a page fetched
-#: from the alternative. An entry of the person's own has no new-tab address, which makes
-#: the start silent. The engine itself puts it in force: see ``start_profile``.
+#: The search a new profile starts with. Measured on the engine: with its built-in default
+#: it asks that search company's site for something at every start and builds each new tab
+#: from that company's servers. The engine itself puts this one in force: see
+#: ``start_profile``. Some engines keep it as an entry of the person's own, with no new-tab
+#: address; a newer one recognises the address and holds its own built-in entry for that
+#: search instead, which names a page of that search's site for new tabs. No new tab here
+#: is that page either way: the lasting window's is VOOL's start page, and a private
+#: window's is the engine's own page for private windows.
 STARTING_SEARCH: dict[str, str] = {
     "name": "DuckDuckGo",
     "keyword": "duckduckgo",
@@ -255,8 +257,8 @@ def _route_flags() -> list[str]:
 def launch_flags(*, private: bool) -> list[str]:
     # A person is browsing: pages are not told this is an automated session.
     flags = [*UNATTENDED_UI_FLAGS, *QUIET_FLAGS, "--disable-blink-features=AutomationControlled", *_route_flags()]
-    if private:
-        flags.append("--incognito")
+    # The same for both kinds of window: the engine starts with no window, and VOOL then
+    # makes the first one, a private one in the engine's own private side.
     # VOOL loads its own site protection into every window after the start, and, into the
     # lasting window only, the browser plugins the person enabled. A private window gets
     # no plugin.
@@ -280,6 +282,9 @@ class _Window:
         self.profile = profile
         self.private = private
         self.context: Any = None
+        # The engine's own lasting side. In the lasting browser the windows are made there;
+        # a private window is made in a private side of the engine, which is ``context``.
+        self.engine: Any = None
         self.driver: Any = None
         self.tmp: Path | None = None
         self.closed = asyncio.Event()
@@ -335,13 +340,23 @@ class _Window:
         except Exception:
             await self.stop()
             raise DeskFault("engine_failed") from None
-        self.context.on("close", lambda _ctx: self.closed.set())
+        self.engine = self.context
+        self.engine.on("close", lambda _ctx: self.closed.set())
         try:
+            if self.private:
+                # A private window is the engine's own kind: nothing of it is written to the
+                # profile, and its new tab is the engine's local page for such windows,
+                # whichever search the engine holds. Nothing about how pages look is set.
+                self.context = await self.engine.browser.new_context(
+                    no_viewport=True, color_scheme="null", reduced_motion="null", forced_colors="null", contrast="null")
             # The engine handle would otherwise catch every download into a hidden folder
             # under a made-up name. Downloads here belong to the person: the browser saves
             # them itself, under their real names, in the downloads folder.
-            session = await self.context.browser.new_browser_cdp_session()
+            session = await self.engine.browser.new_browser_cdp_session()
             await session.send("Browser.setDownloadBehavior", {"behavior": "default"})
+            if self.private:
+                for side in (await session.send("Target.getBrowserContexts")).get("browserContextIds") or []:
+                    await session.send("Browser.setDownloadBehavior", {"behavior": "default", "browserContextId": side})
             await session.detach()
             # No window exists yet, so no page has loaded. The lists of harmful sites are
             # put in force first: every tab, a reopened one too, loads under today's lists.
@@ -351,12 +366,16 @@ class _Window:
                 from . import guard
 
                 await guard.apply(self)
-            if not self.private:
-                # VOOL's own start page takes the place of the engine's new tab page.
-                with contextlib.suppress(Exception):
-                    from . import home
+            # VOOL's own start page takes the place of the engine's new tab page. A private
+            # window keeps the engine's own page for such windows, which is on the computer;
+            # the start page is loaded there too, for an ordinary window the person opens
+            # from the private one: its new tab would otherwise be whatever page the search
+            # the engine holds gives for new tabs, fetched from that search's site.
+            with contextlib.suppress(Exception):
+                from . import home
 
-                    await home.apply(self)
+                await home.apply(self)
+            if not self.private:
                 # A plugin that will not load does not keep the browser from opening.
                 with contextlib.suppress(Exception):
                     from . import extensions
@@ -401,9 +420,10 @@ class _Window:
             def watch(page: Any) -> None:
                 page.on("close", lambda _page: self._last_tab_closed())
 
-            self.context.on("page", watch)
-            for page in self.context.pages:
-                watch(page)
+            for side in (self.context, self.engine):
+                side.on("page", watch)
+                for page in side.pages:
+                    watch(page)
 
     async def _reopened_tabs(self) -> None:
         """Wait for the tabs the engine brings back into its first window. They are all
@@ -438,9 +458,16 @@ class _Window:
         return page.url.startswith(_NEW_TAB) or page.url == (home.address(self) or None)
 
     def _last_tab_closed(self) -> None:
-        context = self.context
-        if context is not None and not [p for p in context.pages if not p.is_closed()]:
+        # An ordinary window the person opened from the private one counts as part of it.
+        sides = [side for side in (self.context, self.engine) if side is not None]
+        if sides and not [p for side in sides for p in side.pages if not p.is_closed()]:
             self.closed.set()
+
+    def workers(self) -> list[Any]:
+        """The background workers of what VOOL loaded into the engine. A private window's
+        engine has them in its lasting side or its private one."""
+        sides = [self.context, *([self.engine] if self.engine is not self.context else [])]
+        return [worker for side in sides if side is not None for worker in side.service_workers]
 
     def alive(self) -> bool:
         return self.context is not None and not self.closed.is_set()
@@ -481,6 +508,7 @@ class _Window:
     async def stop(self) -> bool:
         """Close the engine and, for a private window, remove every trace. True when clean."""
         context, self.context = self.context, None
+        engine, self.engine = self.engine, None
         if context is not None:
             # A tab VOOL was working in is not one of the person's: it is closed first, so
             # a start that continues where they left off does not bring it back as theirs.
@@ -489,6 +517,10 @@ class _Window:
                     await asyncio.wait_for(page.close(), STOP_TIMEOUT)
             with contextlib.suppress(Exception):
                 await asyncio.wait_for(context.close(), STOP_TIMEOUT)
+        if engine is not None and engine is not context:
+            # A private window was a side of the engine: the engine itself goes with it.
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(engine.close(), STOP_TIMEOUT)
         driver, self.driver = self.driver, None
         if driver is not None:
             with contextlib.suppress(Exception):
