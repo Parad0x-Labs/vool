@@ -937,6 +937,10 @@ def read_plugin_catalog() -> dict[str, Any]:
                 entry["enabled"] = entry["enabled"] and is_available(plugin_id, root=plugin_dir)
                 entry["registry_id"] = record.source.removeprefix("registry:")
                 entry["registry_available"] = is_available(plugin_id, root=plugin_dir)
+                from core.registry.client import installed_facts
+
+                # Rate button and the team's notice, for the installed card. Read from this device only.
+                entry["registry"] = installed_facts(entry["registry_id"])
             entry["origin"] = "bundled" if (bundled_root is not None and plugin_dir.parent == bundled_root) else "installed"
             entry["root"] = str(plugin_dir.parent.parent)
             plugins.append(entry)

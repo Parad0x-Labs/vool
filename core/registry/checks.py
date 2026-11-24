@@ -476,6 +476,66 @@ def plugin_findings(artifact: dict, *, official: bool = False) -> list[dict]:
     return _plugin(artifact, official=official) if artifact["metadata"]["kind"] == "plugin" else []
 
 
+LISTING_WORDS = "The listing's own text says it was checked or chosen. Only the Skill Codex can mark an add-on that way."
+LISTING_TEXT = "The description holds something a listing can't carry."
+
+
+def listing_findings(artifact: dict, *, official: bool = False) -> list[dict]:
+    """The rules for the listing block in a package's registry.json; [] for a package without one.
+
+    The shape first (description, links, compatibility), each problem with its field and its fix. Then the
+    description is read the way a page shows it, with the Markdown marks gone, by every rule a skill's own
+    text gets: a claim, a secret ask or a forged line split by stars or backticks is still that claim.
+    """
+    from core.registry import listing
+
+    present, value = listing.block(artifact["files"])
+    if not present:
+        return []
+    flat = lambda text, limit: " ".join(str(text).split())[:limit]  # noqa: E731
+
+    def finding(reason: str, where: str, fix: str, *, rule: str = "listing") -> dict:
+        return dict(_finding("quality", listing.FILE, reason, rule=rule), where=flat(where, 160), fix=flat(fix, 900))
+
+    findings = [finding(str(problem), problem.where, problem.fix) for problem in listing.problems(value)]
+    short = listing.tagline_problem(artifact["metadata"].get("summary"))
+    if short:
+        findings.append(finding(str(short), short.where, short.fix))
+    if artifact["metadata"]["kind"] == "plugin" and isinstance(value, dict) and isinstance(value.get("links"), dict):
+        block = artifact["manifest"].get("vool") if isinstance(artifact["manifest"].get("vool"), dict) else {}
+        if "homepage" in value["links"] and block.get("homepage") and value["links"]["homepage"] != block["homepage"]:
+            findings.append(finding(PLUGIN_MISMATCH, "listing.links.homepage", "Set listing.links.homepage to the "
+                                    "plugin's vool.homepage, letter for letter, or leave it out."))
+    if not isinstance(value, dict) or not isinstance(value.get("description"), str):
+        return findings
+    where = "listing.description"
+    lines = listing.plain_lines(listing.parse(value["description"]))
+    for item in skill_text_findings("\n".join(lines)):
+        quote = lines[item["line"] - 1] if item.get("line") and item["line"] <= len(lines) and item.get("quote") else ""
+        fix = SKILL_FIXES.get(str(item.get("rule") or ""), str(item["reason"])).replace("VOOL skills", "A listing")
+        findings.append(dict(finding(LISTING_TEXT, where, (f"\"{flat(quote, 80)}\": " if quote else "") + fix,
+                                     rule=str(item.get("rule") or "listing"))))
+    if not official:
+        said = None
+        for index, line in enumerate(lines):
+            mark = _BADGE_MARKS.search(unicodedata.normalize("NFKC", line))
+            match = _ENDORSED.search(line)
+            said = (mark.group(0) if mark else match.group(0) if match else _vouching(line) or
+                    (_vouching(line + " " + lines[index + 1]) if index + 1 < len(lines) else None))
+            if said:
+                break
+        if not said:
+            # A heading reads as the page speaking, like a name does.
+            for part in listing.parse(value["description"])["blocks"]:
+                if part["type"] == "heading":
+                    said = said or _vouching("".join(span["text"] for span in part["spans"]), card=True)
+        if said:
+            findings.append(finding(LISTING_WORDS, where, f"Take \"{flat(said, 60)}\" out of the description. Ticks, "
+                                    "medals, shields and stars are kept for the Skill Codex's own badges too.",
+                                    rule="endorsed"))
+    return findings
+
+
 def _code(artifact: dict, *, official: bool = False) -> list[dict]:
     from core.skill_package import _RUNNABLE_MANIFEST_KEYS, _looks_runnable
 
@@ -809,6 +869,7 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
             {name: text for name, text in texts.items() if name.endswith("SKILL.md")}, secret_lines, _IMPORT_RULES)
     findings["license"] += _license(artifact)
     findings["quality"] += _quality(artifact, texts, official=official)
+    findings["quality"] += listing_findings(artifact, official=official)
     if artifact["manifest"].get("requires"):
         findings["dependencies"].append(_finding("dependencies", ".codex-plugin/plugin.json",
                                                  "Skill Codex skills can't depend on other packages yet. Empty the requires list."))

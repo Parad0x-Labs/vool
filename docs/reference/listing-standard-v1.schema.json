@@ -1,0 +1,1068 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vool.dev/schemas/listing-standard-v1.schema.json",
+  "title": "VOOL Listing Standard v1",
+  "description": "One listing object for every skill and every plugin. The registry service builds it (GET /registry/api/listing?id=...) and the website and the VOOL app render the same object. x-by says who writes a field: author (in the package, covered by its checksum and signed admission), registry (computed by the service from the package, the store or the signed list), team (only the VOOL team, through signed steps). x-from names the field it comes from today, or NEW.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "id",
+    "name",
+    "tagline",
+    "category",
+    "subcategory",
+    "creator",
+    "version",
+    "compatibility",
+    "needs",
+    "access",
+    "pictures",
+    "license",
+    "source",
+    "counts",
+    "rating",
+    "badges",
+    "status",
+    "dates"
+  ],
+  "properties": {
+    "schema": {
+      "const": "vool.listing.v1",
+      "x-by": "registry",
+      "x-from": "NEW"
+    },
+    "kind": {
+      "enum": [
+        "skill",
+        "plugin"
+      ],
+      "x-by": "author",
+      "x-from": "metadata.kind (core/registry/artifact.py:99)"
+    },
+    "plugin_kinds": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 3,
+      "items": {
+        "enum": [
+          "tools",
+          "model_provider",
+          "scanner"
+        ]
+      },
+      "description": "Plugins only. What the plugin adds. Named plugin_kinds so it never collides with kind.",
+      "x-by": "registry",
+      "x-from": "manifest vool.kind (core/plugin_manifest.py:45)"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,63}/[a-z0-9][a-z0-9-]{0,63}$",
+      "description": "Stable publisher/name. Never changes; ratings, counts and reviews stay with it.",
+      "x-by": "author",
+      "x-from": "metadata.id (artifact.py:96-98)"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "pattern": "^[^<>\\u0000-\\u001f]+$",
+      "description": "Display name, plain text. Falls back to the name half of id when the author set none.",
+      "x-by": "author",
+      "x-from": "metadata.title (artifact.py:91-95); plugins: vool.name"
+    },
+    "tagline": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^[^\\u0000-\\u001f]+$",
+      "description": "Short description: one plain sentence shown on cards and in search. A package with a listing block keeps it to 20 to 140 characters with no < or >; an earlier package may carry up to 500. Always shown as text.",
+      "x-by": "author",
+      "x-from": "metadata.summary (artifact.py:102, limit 500 today); plugins: vool.description first sentence"
+    },
+    "description": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "text",
+        "tree"
+      ],
+      "description": "Long description for the detail page. Markdown subset: paragraphs, headings # to ###, bullet and numbered lists, **bold**, *italic*, `code`, fenced code blocks. No raw HTML, no images, no tables, no active links (a URL shows as text; real links go in links). The characters < and > are allowed only inside code. The service parses it to a small tree and both clients build DOM nodes from that tree with textContent; neither ever sets HTML from it. It gets the same text checks as SKILL.md. Left out for a package published without a listing block. tree is the same text already read into blocks; a client that prefers to read text itself must end with the same text nodes.",
+      "properties": {
+        "format": {
+          "const": "markdown-subset-1"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 80,
+          "maxLength": 6000
+        },
+        "tree": {
+          "$ref": "#/$defs/tree"
+        }
+      },
+      "x-by": "author",
+      "x-from": "NEW (listing.description in the package's registry.json; today only summary and SKILL.md exist)"
+    },
+    "category": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Slug from the fixed taxonomy (11 categories).",
+      "x-by": "author",
+      "x-from": "metadata.category (core/registry/categories.py:9-47)"
+    },
+    "subcategory": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Slug under that category (51 in all).",
+      "x-by": "author",
+      "x-from": "metadata.subcategory"
+    },
+    "category_label": {
+      "type": "string",
+      "maxLength": 60,
+      "x-by": "registry",
+      "x-from": "public_taxonomy() (categories.py:55-57)"
+    },
+    "subcategory_label": {
+      "type": "string",
+      "maxLength": 60,
+      "x-by": "registry",
+      "x-from": "public_taxonomy()"
+    },
+    "languages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(any|[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?)$"
+      },
+      "x-by": "author",
+      "x-from": "metadata.languages (core/registry/requirements.py:43-49)"
+    },
+    "creator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "display_name",
+        "origin",
+        "verified"
+      ],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+          "x-by": "registry",
+          "x-from": "first half of id; accounts.namespace"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "pattern": "^[^<>\\u0000-\\u001f]+$",
+          "x-by": "author",
+          "x-from": "NEW (profile field; falls back to namespace)"
+        },
+        "bio": {
+          "type": "string",
+          "maxLength": 500,
+          "x-by": "author",
+          "x-from": "profile.bio (registry_service/store.py:211)"
+        },
+        "links": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "github": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+            },
+            "x": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+            },
+            "mastodon": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://",
+              "maxLength": 200
+            },
+            "website": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://",
+              "maxLength": 200
+            }
+          },
+          "description": "What the creator wrote about themselves. Not proof.",
+          "x-by": "author",
+          "x-from": "profile.handles (store.py:212-222)"
+        },
+        "verified": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "publisher",
+            "providers"
+          ],
+          "properties": {
+            "publisher": {
+              "type": "boolean",
+              "description": "The account proved it owns this publisher name (GitHub repository owner match, or bytes the service built for it)."
+            },
+            "providers": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "github",
+                  "google",
+                  "apple"
+                ]
+              },
+              "description": "Sign-in providers linked to the creator's account. Names only, never ids."
+            }
+          },
+          "x-by": "registry",
+          "x-from": "namespace_owners.verified (store.py:313, 880); identities.provider (store.py:263-267, shown only to the owner today)"
+        },
+        "origin": {
+          "enum": [
+            "official",
+            "community"
+          ],
+          "x-by": "team",
+          "x-from": "curation official_namespaces and marks.teams (registry_service/curation.py:70)"
+        }
+      }
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[a-z0-9]+([.-][a-z0-9]+)*)?$",
+      "x-by": "author",
+      "x-from": "metadata.version (codec.VERSION)"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "x-by": "registry",
+      "x-from": "artifact_sha256 (registry_service/api.py:158)"
+    },
+    "package_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 25165824,
+      "x-by": "registry",
+      "x-from": "artifact_length"
+    },
+    "changelog": {
+      "type": "array",
+      "maxItems": 50,
+      "description": "Newest first. The registry builds it from each published version's notes, so it cannot be rewritten later.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "date"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "date": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "notes": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "^[^<>]*$"
+          }
+        }
+      },
+      "x-by": "registry",
+      "x-from": "metadata.release_notes of every public_versions row (artifact.py:81-84; today only the newest version's notes are shown)"
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checked_targets"
+      ],
+      "properties": {
+        "min_vool": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "description": "Oldest VOOL version the creator says it works on.",
+          "x-by": "author",
+          "x-from": "NEW"
+        },
+        "max_vool": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "description": "Optional. Leave out unless a newer VOOL is known not to work.",
+          "x-by": "author",
+          "x-from": "NEW"
+        },
+        "platforms": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "macos-arm64",
+              "macos-x86_64",
+              "linux-x86_64",
+              "windows-x86_64"
+            ]
+          },
+          "description": "Platforms the creator says it works on. Skills default to all four.",
+          "x-by": "author",
+          "x-from": "NEW"
+        },
+        "checked_targets": {
+          "type": "array",
+          "maxItems": 32,
+          "description": "Exact VOOL builds the registry's own checks signed this version for. The signer asserts these, never the creator. A format check, not a run of the add-on.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "version",
+              "commit",
+              "platform"
+            ],
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "commit": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{40}$"
+              },
+              "platform": {
+                "enum": [
+                  "macos-arm64",
+                  "macos-x86_64",
+                  "linux-x86_64",
+                  "windows-x86_64"
+                ]
+              }
+            }
+          },
+          "x-by": "registry",
+          "x-from": "admission targets (core/registry/trust.py:297-305, admission.py:112)"
+        },
+        "tested_targets": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "version",
+              "platform"
+            ],
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "platform": {
+                "type": "string"
+              },
+              "date": {
+                "type": "integer"
+              }
+            }
+          },
+          "description": "Builds a VOOL team member ran this exact version on. Present only with the Tested by VOOL badge.",
+          "x-by": "team",
+          "x-from": "NEW (extends marks.tested, registry_service/authority.py:113-121)"
+        }
+      }
+    },
+    "needs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "search_web",
+          "llm_cloud",
+          "chain_data",
+          "solana_rpc",
+          "wallet",
+          "browser",
+          "files"
+        ]
+      },
+      "description": "What the person must have set up in VOOL. Declared by the creator; the registry adds a notice when the text uses one that is not declared.",
+      "x-by": "author",
+      "x-from": "metadata.needs (requirements.py:18-26)"
+    },
+    "access": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network",
+        "credentials",
+        "permissions",
+        "tools",
+        "dependencies"
+      ],
+      "description": "What the package itself asks VOOL for, read from its manifest by the registry. Never taken from what the creator wrote in the listing.",
+      "properties": {
+        "network": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 253
+          },
+          "description": "Hosts the plugin may reach. Empty means no network."
+        },
+        "credentials": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "slot",
+              "label"
+            ],
+            "properties": {
+              "slot": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "help_url": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https://"
+              }
+            }
+          },
+          "description": "Keys the person will be asked for. Labels only, never values."
+        },
+        "permissions": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "tools": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "intent",
+              "effect"
+            ],
+            "properties": {
+              "intent": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "effect": {
+                "enum": [
+                  "read_only",
+                  "workspace_write",
+                  "network_send",
+                  "network_publish",
+                  "external_unpinned"
+                ]
+              },
+              "approval": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "uses_tools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "description": "Skills: VOOL tools named in allowed-tools."
+        },
+        "runs_programs": {
+          "type": "boolean",
+          "description": "True when the package starts a helper program (an MCP server or a subprocess tool)."
+        },
+        "paid_services": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "x-by": "registry",
+      "x-from": "manifest_authority() (core/registry/validation.py:9-43) and package_requirements() (requirements.py:82-92, which today reduces network to a boolean and drops tools)"
+    },
+    "pictures": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "PNG only, carried inside the package, each shown only after a person on the VOOL team approved that exact file for this add-on.",
+      "properties": {
+        "icon": {
+          "$ref": "#/$defs/picture",
+          "description": "Square, 128 to 1024 px, at most 256 KB. x-from: metadata.icon (core/registry/media.py:24)"
+        },
+        "banner": {
+          "$ref": "#/$defs/picture",
+          "description": "960 to 3000 px wide, 2.5 to 4 times as wide as tall, at most 1 MB. x-from: metadata.banner (media.py:25)"
+        },
+        "screenshots": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/picture"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "caption": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "pattern": "^[^<>\\u0000-\\u001f]*$"
+                  }
+                }
+              }
+            ]
+          },
+          "description": "Up to 5. 800 to 2560 px wide, 1.3 to 1.8 times as wide as tall (1280 x 800 works), at most 1 MB each. x-from: NEW (media.LIMITS gains a screenshot kind)"
+        },
+        "pending": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Only the creator sees this: pictures still waiting for a look."
+        }
+      },
+      "x-by": "author",
+      "x-from": "metadata.icon, metadata.banner; approval from curation approved_pictures (curation.py:79-81)"
+    },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "SPDX id where one exists. MIT on the automatic route."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Checksum of the LICENSE file in the package."
+        },
+        "text_url": {
+          "type": "string",
+          "description": "Registry path that serves the LICENSE file of this exact version."
+        }
+      },
+      "x-by": "author",
+      "x-from": "metadata.license (artifact.py:102) and the required LICENSE file (artifact.py:198); missing from the public index rows today"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "github",
+            "upload"
+          ]
+        },
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://github\\.com/"
+        }
+      },
+      "x-by": "registry",
+      "x-from": "metadata.source (artifact.py:108-117); url built by the registry, never typed by the creator"
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "homepage": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "maxLength": 200
+        },
+        "support": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "maxLength": 200
+        },
+        "docs": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "maxLength": 200
+        }
+      },
+      "description": "HTTPS only, no credentials in the address. Shown as text with the host visible; opening one is the person's own click.",
+      "x-by": "author",
+      "x-from": "NEW for skills; plugins: vool.homepage (plugin_manifest.py:45, 200)"
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installs",
+        "download_requests"
+      ],
+      "properties": {
+        "installs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Kept null: the service keeps no count of installs. Reserved."
+        },
+        "download_requests": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Served download tickets. Not people, not installs. Never used for ranking."
+        },
+        "saves": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The old one-click star, kept as a bookmark count. Never used for ranking."
+        }
+      },
+      "x-by": "registry",
+      "x-from": "download_counts.requests and stars (store.py:945-949); installs is NEW"
+    },
+    "rating": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shown",
+        "count"
+      ],
+      "properties": {
+        "shown": {
+          "type": "boolean",
+          "description": "False while fewer than 5 counted ratings exist; the page then says \"Not enough ratings yet\"."
+        },
+        "average": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Plain mean of counted ratings, one decimal. Null when shown is false."
+        },
+        "score": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Bayesian average used only for sorting: (10 x m + sum) / (10 + count), m = mean of all counted ratings in the registry (3.5 until 50 exist)."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Counted ratings behind the average."
+        },
+        "distribution": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": "Counted ratings with 1, 2, 3, 4 and 5 stars. Left out while shown is false."
+        },
+        "scope": {
+          "enum": [
+            "current_major",
+            "all_versions"
+          ],
+          "description": "current_major once the newest major version has 5 counted ratings of its own; before that all versions, and the page says so."
+        },
+        "frozen": {
+          "type": "boolean",
+          "description": "The team stopped new ratings on this add-on while it looks into them."
+        },
+        "removed_by_team": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Ratings the team removed for breaking the rules. Shown on the page as a plain sentence."
+        }
+      },
+      "x-by": "registry",
+      "x-from": "NEW (ratings table); replaces stars as the quality signal"
+    },
+    "badges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "editors_choice",
+        "tested_by_vool"
+      ],
+      "description": "Only the VOOL team sets these, through signed steps. A creator cannot write them, and package text that claims them is refused by the checks (core/registry/checks.py:64-66).",
+      "properties": {
+        "editors_choice": {
+          "type": "boolean",
+          "x-by": "team",
+          "x-from": "curation editors_picks (curation.py:72; label \"Editor's pick\" today)"
+        },
+        "tested_by_vool": {
+          "type": "boolean",
+          "description": "Bound to this exact sha256; a new version loses it until tested again.",
+          "x-by": "team",
+          "x-from": "marks.tested id@sha256 (api.py:188; label \"Tested by Parad0x Labs\" today)"
+        },
+        "tested_version": {
+          "type": "string",
+          "maxLength": 64,
+          "x-by": "team",
+          "x-from": "NEW (the version the mark names)"
+        },
+        "featured": {
+          "type": "boolean",
+          "x-by": "team",
+          "x-from": "curation featured"
+        },
+        "highlighted": {
+          "type": "boolean",
+          "x-by": "team",
+          "x-from": "marks.highlighted"
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "listed",
+            "downloads_paused",
+            "delisted",
+            "removed"
+          ],
+          "description": "listed: normal. downloads_paused: a person is looking into reports. delisted: hidden from Browse and search, installed copies keep working. removed: revoked, installed copies stop at the next list refresh."
+        },
+        "reason": {
+          "enum": [
+            "rule_breaking_ratings",
+            "misleading_listing",
+            "harmful",
+            "stolen",
+            "creator_request",
+            "under_review",
+            "other"
+          ]
+        },
+        "since": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notice": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Fixed sentence chosen by reason, never free text typed by an operator."
+        }
+      },
+      "x-by": "team",
+      "x-from": "paused_packages (store.py:104), signed revoked list and marks.suspended; delisted and reason are NEW"
+    },
+    "dates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "published_at",
+        "updated_at"
+      ],
+      "properties": {
+        "published_at": {
+          "type": "integer",
+          "minimum": 0,
+          "x-from": "first admission issued_at (api.py:171, 185)"
+        },
+        "updated_at": {
+          "type": "integer",
+          "minimum": 0,
+          "x-from": "newest admission issued_at (api.py:166)"
+        }
+      },
+      "x-by": "registry"
+    },
+    "notices": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "type": "string",
+          "x-from": "authority_notice (core/registry/rules.py:6-10)"
+        },
+        "native_control_overlaps": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "x-from": "rules.notices()"
+        },
+        "undeclared_needs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-from": "requirements.undeclared_needs() (private to the creator today)"
+        },
+        "moderation": {
+          "type": "array",
+          "maxItems": 100,
+          "description": "What the VOOL team did about this add-on or its ratings, newest first. No names and no evidence.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "case",
+              "action",
+              "reason",
+              "sentence",
+              "date",
+              "affected"
+            ],
+            "properties": {
+              "case": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string"
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sentence": {
+                "type": "string",
+                "description": "Fixed sentence chosen by the reason code."
+              },
+              "date": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+              },
+              "affected": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "x-by": "registry"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "plugin"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "plugin_kinds"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "picture": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "sha256",
+        "type",
+        "width",
+        "height",
+        "url"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "type": {
+          "const": "image/png"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "url": {
+          "type": "string",
+          "description": "Registry path only; never another site."
+        }
+      }
+    },
+    "span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "text"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "text",
+            "bold",
+            "italic",
+            "code"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 6000
+        }
+      }
+    },
+    "tree": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "blocks"
+      ],
+      "description": "The description read into blocks. Every text value is shown through a text node, never as markup.",
+      "properties": {
+        "format": {
+          "const": "markdown-subset-1"
+        },
+        "blocks": {
+          "type": "array",
+          "maxItems": 6000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "heading",
+                  "paragraph",
+                  "list",
+                  "code"
+                ]
+              },
+              "level": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3
+              },
+              "spans": {
+                "type": "array",
+                "maxItems": 6000,
+                "items": {
+                  "$ref": "#/$defs/span"
+                }
+              },
+              "ordered": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "array",
+                "maxItems": 6000,
+                "items": {
+                  "type": "array",
+                  "maxItems": 6000,
+                  "items": {
+                    "$ref": "#/$defs/span"
+                  }
+                }
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 6000
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -325,6 +325,32 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         require(not request.query_params, "unknown ratings query")
         return JSONResponse(await run_in_threadpool(ratings.summaries, store, now=now()))
 
+    async def listing_object(request):
+        # One object for the website and for VOOL. A route of its own: /catalog rows and /presentation keep their shape.
+        from registry_service.listing import badge_facts, document
+
+        query = request.query_params
+        require(set(query) == {"id"} and len(query.multi_items()) == 1, "unknown listing query")
+        package_id = query["id"]
+        await rateable(package_id)
+        viewer = optional_account(request)
+        row = next((item for item in await approved_rows(viewer) if item["id"] == package_id), None)
+        require(row is not None, "this add-on is not listed")
+        marks = await run_in_threadpool(store.marks)
+        namespace = package_id.split("/")[0]
+        row["origin"] = "official" if row["origin"] == "official" or namespace in marks["teams"] else "community"
+        kept = await run_in_threadpool(store.listing_facts, row["sha256"])
+        badge = badge_facts(await run_in_threadpool(store.badges), catalog.root, package_id, row["version"], row["sha256"],
+                            row["kind"], now=now())
+        if row.get("downloads_paused"):
+            badge = {"editors_choice": False, "tested_by_vool": False}  # a paused listing shows no badge
+        summary = (await run_in_threadpool(ratings.listing, store, package_id, None, now=now()))["summary"]
+        return JSONResponse(document(
+            row, kept, package_bytes=entry(package_id, row["version"])["artifact_length"],
+            versions=await run_in_threadpool(store.published_versions, package_id), rating=summary, badge=badge,
+            verified=await run_in_threadpool(store.creator_verified, namespace),
+            notices=(await run_in_threadpool(ratings.notices, store, package_id))["notices"]))
+
     async def moderation_notices(request):
         return JSONResponse(await run_in_threadpool(ratings.notices, store, request.query_params.get("id")))
 
@@ -578,6 +604,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         Route(PREFIX + "/ratings", rating_list, methods=["GET", "PUT", "DELETE"]),
         Route(PREFIX + "/ratings/summary", rating_summary),
         Route(PREFIX + "/ratings/{identifier}/report", rating_report, methods=["POST"]),
+        Route(PREFIX + "/listing", listing_object),
         Route(PREFIX + "/moderation/notices", moderation_notices),
         Route(PREFIX + "/appeals", appeal_list, methods=["GET", "POST"]),
         Route(PREFIX + "/imports", github_import, methods=["POST"]),
