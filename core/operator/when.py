@@ -23,6 +23,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
+from core.closing_words import CLOSING_COURTESY_WORDS
 from core.time_authority import CLOCK
 
 # Zone words users actually type. An IANA path always contains "/" (no English word does),
@@ -50,7 +51,10 @@ _TIME_END_WORDS = (
     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
     r"|morning|noon|midday|afternoon|evening|night|midnight"
     r"|this\s+(?:morning|afternoon|evening|night|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
-    r"|at|in|on|to|about|for|that|and|so|please"
+    r"|at|in|on|to|about|for|that|and|so"
+    # "at 8 pls", "at 8 thanks": a closing courtesy ends the time phrase, never a noun after it. Mac gate on
+    # e36daa6a9: "renew my library books tomorrow evening at 8 pls" was set for 18:00, the bare evening.
+    r"|" + "|".join(r"\s+".join(map(re.escape, word.split())) for word in CLOSING_COURTESY_WORDS) +
     r"|o'?clock"
     r"|of\s+(?:this|next)\s+month)\b"
 )

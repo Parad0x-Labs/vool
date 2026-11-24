@@ -46,6 +46,9 @@ DISCOURSE_MARKER_TOKENS = frozenset(
     }
 )
 
+#: Words that close a message politely: one list, kept in core.closing_words (imports nothing, so the time
+#: parser can read it without the agent runtime).
+
 #: Whole fragments (normalized: lowercase, punctuation folded) that are filler and nothing
 #: else. These name no operand, so the every-token rule cannot see them ("one", "thing",
 #: "question", "way" are nouns a real request may own -- they stay OUT of the token set and
