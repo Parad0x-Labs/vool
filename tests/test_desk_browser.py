@@ -7,7 +7,9 @@ private window really leave nothing, and can anything else on the machine reach 
 from __future__ import annotations
 
 import os
+import shutil
 import sqlite3
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from core.vool_browser import desk as desk_module
-from core.vool_browser import live
+from core.vool_browser import live, start_profile
 
 
 @pytest.fixture
@@ -74,6 +76,38 @@ def _quiet_test_engine(monkeypatch, home):
     monkeypatch.setattr(desk_module, "extra_engine_flags", CREDENTIAL_ISOLATION_FLAGS)
     folder = Path(home).parent / (Path(home).name + "-person") / "Downloads" / "VOOL Downloads"
     monkeypatch.setattr(desk_module, "downloads_dir", lambda: folder)
+    _keep_starting_profiles(monkeypatch)
+
+
+#: Starting profiles the engine made earlier in this test run, by folder name.
+_MADE: dict[str, Path] = {}
+#: The product's own way to a starting profile, for the tests that have the engine make one afresh.
+REAL_READY = start_profile.ready
+
+
+def _keep_starting_profiles(monkeypatch):
+    """Every test has a data folder of its own, so each would have the engine make the
+    starting profile again, which takes a hidden engine run. The engine makes it once per
+    engine and starting search in a test run; later tests begin with a copy of that one,
+    as a second profile on a person's computer does. tests/test_browser_start_profile.py
+    has the engine make it afresh."""
+    real = REAL_READY
+    # One attempt per run of the app is the product's rule; every test is a run of its own.
+    monkeypatch.setattr(start_profile, "_failed", {})
+
+    async def ready(binary):
+        target = start_profile.folder(binary)
+        kept = _MADE.get(target.name)
+        if kept is not None and not target.exists():
+            shutil.copytree(kept, target)
+        made = await real(binary)
+        if made is not None and kept is None:
+            store = Path(tempfile.mkdtemp(prefix="vool-start-kept-")) / target.name
+            shutil.copytree(made, store)
+            _MADE[target.name] = store
+        return made
+
+    monkeypatch.setattr(start_profile, "ready", ready)
 
 
 def start_page(browser) -> str:
@@ -494,25 +528,29 @@ def test_a_private_folder_left_by_a_crashed_run_is_removed_on_the_next_look(brow
 # -- safe defaults ---------------------------------------------------------------
 
 
-def test_starting_preferences_are_written_once_and_never_over_the_persons_own(home):
+def test_starting_settings_are_written_once_and_never_over_the_persons_own(home, monkeypatch):
+    import asyncio
     import json
 
+    _quiet_test_engine(monkeypatch, home)
     profile = desk_module.profile_dir()
-    assert desk_module.seed_preferences(profile) is True
+    assert asyncio.run(desk_module.seed_profile(profile)) is True
     target = profile / "Default" / "Preferences"
     written = json.loads(target.read_text())
     assert written["https_only_mode_enabled"] is True
     assert written["profile"]["cookie_controls_mode"] == 1
     assert written["safebrowsing"]["enabled"] is False and written["search"]["suggest_enabled"] is False
-    # The starting search is an entry of the person's own, with no new-tab or suggestion address.
-    search = written["default_search_provider_data"]["template_url_data"]
-    assert (search["prepopulate_id"], search["new_tab_url"], search["suggestions_url"]) == (0, "", "")
-    assert written["default_search_provider"]["guid"] == search["synced_guid"]
     assert written["download"]["default_directory"] == str(desk_module.downloads_dir())
+    # The starting search is the engine's own writing: an entry of the person's, with no
+    # new-tab or suggestion address, in whichever settings file the engine keeps it.
+    kept = [json.loads(f.read_text()) for f in (target, target.with_name("Secure Preferences")) if f.is_file()]
+    search = next(k["default_search_provider_data"]["template_url_data"] for k in kept if "default_search_provider_data" in k)
+    assert search["url"] == desk_module.STARTING_SEARCH["url"]
+    assert (search["prepopulate_id"], search["new_tab_url"], search["suggestions_url"]) == (0, "", "")
     # The person switched a protection off in the browser: the next start keeps their choice.
     written["https_only_mode_enabled"] = False
     target.write_text(json.dumps(written))
-    assert desk_module.seed_preferences(profile) is False
+    assert asyncio.run(desk_module.seed_profile(profile)) is False
     assert json.loads(target.read_text())["https_only_mode_enabled"] is False
 
 

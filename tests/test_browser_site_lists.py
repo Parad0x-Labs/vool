@@ -8,6 +8,7 @@ product ships its own.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -293,7 +294,7 @@ def plain_pages_allowed() -> None:
     """The person switched the plain-page warning off in their browser, so a test site without
     encryption opens. Their own choice is kept at every start."""
     profile = desk_module.profile_dir()
-    assert desk_module.seed_preferences(profile)
+    assert asyncio.run(desk_module.seed_profile(profile))
     target = profile / "Default" / "Preferences"
     chosen = json.loads(target.read_text())
     chosen["https_only_mode_enabled"] = False

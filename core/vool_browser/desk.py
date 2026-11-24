@@ -96,28 +96,16 @@ def downloads_dir() -> Path:
     return Path.home() / "Downloads" / "VOOL Downloads"
 
 
-#: The search a new profile starts with, written as the person's own entry and not as one
-#: of the engine's built-in ones. Measured on the engine: with its built-in default it asks
-#: that search company's site for something at every start and builds each new tab from
-#: that company's servers; a built-in alternative makes every new tab a page fetched from
-#: the alternative. An entry of the person's own, with no new-tab address, makes the start
-#: silent and the new tab a page that lives inside the engine.
-STARTING_SEARCH: dict[str, Any] = {
-    "short_name": "DuckDuckGo",
-    "keyword": "duckduckgo.com",
+#: The search a new profile starts with, kept as an entry of the person's own and not as
+#: one of the engine's built-in ones. Measured on the engine: with its built-in default it
+#: asks that search company's site for something at every start and builds each new tab
+#: from that company's servers; a built-in alternative makes every new tab a page fetched
+#: from the alternative. An entry of the person's own has no new-tab address, which makes
+#: the start silent. The engine itself puts it in force: see ``start_profile``.
+STARTING_SEARCH: dict[str, str] = {
+    "name": "DuckDuckGo",
+    "keyword": "duckduckgo",
     "url": "https://duckduckgo.com/?q={searchTerms}",
-    "suggestions_url": "",
-    "favicon_url": "",
-    "new_tab_url": "",
-    "alternate_urls": [],
-    "input_encodings": ["UTF-8"],
-    "prepopulate_id": 0,
-    "safe_for_autoreplace": False,
-    "is_active": 1,
-    "id": "7",
-    "date_created": "0",
-    "last_modified": "0",
-    "synced_guid": "b0a7c1f4-6d2e-4f6a-9d3b-0f5e6a7c8d91",
 }
 
 
@@ -151,19 +139,19 @@ def reopens_tabs(profile: Path) -> bool:
 
 
 def default_preferences() -> dict[str, Any]:
-    """What a new profile starts with. The person can change any of it in the browser.
+    """What VOOL writes into a new profile. The person can change any of it in the browser.
 
     The best of what other browsers offer, with the privacy they leave off: the site
     being visited keeps its cookies so sign-ins last, other sites' cookies are blocked,
     a plain unencrypted page warns before it opens, nothing typed in the address bar is
-    sent anywhere until Enter, the engine asks no search company for anything by itself,
-    and files land in a folder of their own. The bookmarks bar and the home button are
-    shown, as people expect of a browser; the home button leads to the new tab page until
-    the person gives it an address.
+    sent anywhere until Enter, and files land in a folder of their own. The bookmarks bar
+    is shown, as people expect of a browser.
+
+    The starting search and the home button are not here. The engine guards those and
+    throws away a value another program wrote; they come with the starting profile, which
+    the engine makes itself (``start_profile``).
     """
     return {
-        "default_search_provider_data": {"template_url_data": dict(STARTING_SEARCH)},
-        "default_search_provider": {"guid": STARTING_SEARCH["synced_guid"]},
         "https_only_mode_enabled": True,
         "enable_do_not_track": True,
         "profile": {
@@ -183,23 +171,48 @@ def default_preferences() -> dict[str, Any]:
         "safebrowsing": {"enabled": False, "enhanced": False, "scout_reporting_enabled": False},
         "signin": {"allowed": False},
         "privacy_sandbox": {"m1": {"topics_enabled": False, "fledge_enabled": False, "ad_measurement_enabled": False}},
-        "browser": {"check_default_browser": False, "show_home_button": True},
-        "homepage_is_newtabpage": True,
+        "browser": {"check_default_browser": False},
         "bookmark_bar": {"show_on_all_tabs": True},
     }
 
 
-def seed_preferences(profile: Path) -> bool:
-    """Write the starting preferences into a profile that has none. True when written.
+def _laid_over(under: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
+    """``over`` laid on ``under``, group by group, so neither side loses a setting the other lacks."""
+    merged = dict(under)
+    for key, value in over.items():
+        merged[key] = _laid_over(merged[key], value) if isinstance(value, dict) and isinstance(merged.get(key), dict) else value
+    return merged
 
+
+async def seed_profile(profile: Path) -> bool:
+    """Give a profile that has no settings yet its starting ones. True when written.
+
+    It begins as a copy of the starting profile, which holds the settings the engine made
+    itself (the starting search, the home button), with VOOL's own settings laid over it.
     Never touches a profile the person has already used: their own choices win.
     """
+    from . import start_profile
+
     target = profile / "Default" / "Preferences"
     if target.exists():
         return False
+    binary = engine_binary()
+    start = await start_profile.ready(binary) if binary else None
     target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    made_by_engine: dict[str, Any] = {}
+    if start is not None:
+        for name in start_profile.KEEP:
+            kept = start / "Default" / name
+            if not kept.is_file():
+                continue
+            if name == "Preferences":
+                with contextlib.suppress(OSError, ValueError):
+                    read = json.loads(kept.read_text(encoding="utf-8"))
+                    made_by_engine = read if isinstance(read, dict) else {}
+            else:
+                shutil.copy2(kept, target.parent / name)
     temp = target.with_suffix(".vool-tmp")
-    temp.write_text(json.dumps(default_preferences()), encoding="utf-8")
+    temp.write_text(json.dumps(_laid_over(made_by_engine, default_preferences())), encoding="utf-8")
     temp.replace(target)
     return True
 
@@ -285,7 +298,7 @@ class _Window:
         flags = launch_flags(private=self.private)
         self.route = _route_flags()
         self.profile.mkdir(parents=True, exist_ok=True, mode=0o700)
-        seed_preferences(self.profile)
+        await seed_profile(self.profile)
         reopens = reopens_tabs(self.profile)
         with contextlib.suppress(OSError):
             downloads_dir().mkdir(parents=True, exist_ok=True)
@@ -753,6 +766,6 @@ __all__ = [
     "plugins_changed",
     "profile_dir",
     "route_changed",
-    "seed_preferences",
+    "seed_profile",
     "stop_all",
 ]
