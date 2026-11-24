@@ -882,9 +882,9 @@ def _done_claim_prompt(reply: str) -> str:
         "person in its own memory. A promise to remind, ping, alert or tell the person of something at a later time "
         'is a reminder set: {"answer": "done"}.',
         'Answer {"answer": "none"} for everything else, including: information or an answer; what a calendar, list, '
-        "folder or account already holds; instructions or steps for the reader to follow; a poem, story, list or "
-        "other text written out in the reply; an offer, a plan or a question; a refusal or saying it cannot or did "
-        "not do it.",
+        "folder or account already holds; instructions or steps for the reader to follow; a poem, story, list, table or "
+        "other text written out in the reply, including the person's own items sorted, grouped or rewritten there; "
+        "an offer, a plan or a question; a refusal or saying it cannot or did not do it.",
         "",
         'Reply: "Dodano mleko i jajka do listy zakupów." -> {"answer": "done"}',
         'Reply: "Morgen hast du zwei Einträge: 9 Uhr Zahnarzt und 15 Uhr Training." -> {"answer": "none"}',
@@ -898,6 +898,7 @@ def _done_claim_prompt(reply: str) -> str:
         'Reply: "Shall I look up a taxi number near you?" -> {"answer": "none"}',
         'Reply: "Noted, I\'ll ping you on Friday at 4 to call the garage." -> {"answer": "done"}',
         'Reply: "Got it, the gym one is gone." -> {"answer": "done"}',
+        'Reply: "| Gang | Artikel | | Obst | Äpfel, Birnen | | Kühlregal | Joghurt | Gesamt: 3" -> {"answer": "none"}',
         "",
         f'Reply: "{body}" ->',
         'Reply with ONLY the JSON object: {"answer": "done"}, {"answer": "kept"} or {"answer": "none"}',

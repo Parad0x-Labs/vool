@@ -179,11 +179,17 @@ _PACK_RE = re.compile(
 # "turn it on" after a draft: the activation of THIS chat's pending draft, which needs no name.
 # Only the activation itself, optionally with a scope phrase or a courtesy word: "save it to my
 # notes" is about something else and must not reach back to a skill draft.
+#: What a reply to a fresh draft calls it: "it", "that skill", "the new plugin", "my skill".
+_THE_DRAFT = (r"(?:it|this|that|(?:the|this|that|my)\s+(?:new\s+)?(?:draft|skill|plugin)"
+              r"(?:\s+(?:draft|skill|plugin))?)")
+
 _ACTIVATE_PENDING_RE = re.compile(
     r"^\W*(?:(?:yes|yep|yeah|ok(?:ay)?|sure|great|perfect|good|looks\s+good)\b\W*)?(?:please\s+)?(?:"
-    r"(?:turn|switch)\s+(?:it|this|that)\s+on"
-    r"|(?:install|activate|enable|save|keep|use)\s+(?:it|this|that|the\s+(?:draft|skill|plugin)|this\s+(?:skill|plugin)|that\s+(?:skill|plugin))"
-    r"|go\s+live|make\s+it\s+(?:live|active)"
+    # "switch that skill on" and "turn on the skill" name the same draft as "turn it on". Mac gate on e36daa6a9:
+    # "ok, switch that skill on" matched nothing, the model wrote a copy of the draft to the Desktop and said it was on.
+    + r"(?:turn|switch)\s+" + _THE_DRAFT + r"\s+on|(?:turn|switch)\s+on\s+" + _THE_DRAFT
+    + r"|(?:install|activate|enable|save|keep|use)\s+" + _THE_DRAFT
+    + r"|go\s+live|make\s+it\s+(?:live|active)"
     r")(?:\s+(?:please|now|then|thanks|thank\s+you))?"
     r"(?:\s+(?:for|in)\s+(?:this\s+chat|this\s+project|all\s+of\s+vool|everything|all\s+chats))?\W*$",
     re.IGNORECASE,
@@ -419,13 +425,27 @@ def _first_noun(body: str) -> str:
     return "plugin" if plugin else ""
 
 
+#: "turn the aisle skill off", "switch my skill on": the particle after the skill noun is the same verb as
+#: "turn off the aisle skill". Mac gate on e36daa6a9: "turn the aisle skill off now" matched no skill shape and
+#: the reminder lane answered it.
+_SPLIT_TOGGLE_RE = re.compile(
+    r"\b(?P<verb>turn|switch)\s+(?P<object>(?:[`\"']?[\w'-]+[`\"']?\s+){0,5}?" + _SKILL_WORD + r")\s+(?P<particle>off|on)\b",
+    re.IGNORECASE,
+)
+
+
+def _joined_toggle(text: str) -> str:
+    """``text`` with a split on/off verb put back together ("turn the X skill off" -> "turn off the X skill")."""
+    return _SPLIT_TOGGLE_RE.sub(lambda m: f"{m.group('verb')} {m.group('particle')} {m.group('object')}", str(text or ""))
+
+
 def skill_request(text: str) -> dict[str, Any] | None:
     """``{"action": ..., "name": str, ...}``, or None when this is not one.
 
     ``scope`` is present only when the message names one, so a request that names no scope reads
     exactly as it always has.
     """
-    request = _skill_request_raw(text)
+    request = _skill_request_raw(_joined_toggle(text))
     if request is not None and not request.get("scope"):
         request.pop("scope", None)
     return request
@@ -1375,6 +1395,43 @@ def _skills_known_here(source_context: dict[str, Any] | None, session_id: str) -
     return have, keys, browse - {""}
 
 
+def _words_of(text: str) -> set[str]:
+    return {word for word in re.findall(r"[^\W\d_]{3,}", str(text or "").lower())}
+
+
+def _same_word(said: str, known: str) -> bool:
+    """One word the person said and one a skill states, the same up to its ending (aisle / aisles)."""
+    if said == known:
+        return True
+    shorter, longer = sorted((said, known), key=len)
+    return len(shorter) >= 4 and longer.startswith(shorter) and len(longer) - len(shorter) <= 3
+
+
+def _skill_meant_by(reference: str, source_context: dict[str, Any] | None, session_id: str) -> str:
+    """The one skill the person has whose name or description holds every word of ``reference``, else "".
+
+    People name a skill by what it does ("the aisle skill" for sort-grocery-list, "Sort a grocery list by store
+    aisle"), not only by its file name. Mac gate on e36daa6a9: "use the aisle skill you just made" got "I don't have
+    a skill called Aisle" right after that skill was made. Two or more fitting skills stay unresolved."""
+    from core.skill_tools import list_skills
+
+    said = _words_of(reference)
+    if not said:
+        return ""
+    try:
+        listed = list_skills("", keys=_turn_keys(source_context, session_id))
+    except Exception:
+        return ""
+    fits: dict[str, str] = {}
+    for section in ("chat_skills", "project_skills", "installed_skills", "staged_skills"):
+        for row in listed.get(section) or []:
+            name = str(row.get("name") or "")
+            stated = _words_of(name.replace("-", " ") + " " + str(row.get("description") or ""))
+            if name and all(any(_same_word(word, known) for known in stated) for word in said):
+                fits.setdefault(_plain_key(name), name)
+    return next(iter(fits.values())) if len(fits) == 1 else ""
+
+
 def _answer_named_skill(
     user_input: str, *, session_id: str, source_context: dict[str, Any] | None, plain: Any,
 ) -> dict[str, Any] | None:
@@ -1384,7 +1441,7 @@ def _answer_named_skill(
     "turn off the cover letter writer skill" got "the skill is now turned off" for a skill that was
     never added. A name the person has goes on to the model (or the remove lane) as before.
     """
-    match = _NAMED_SKILL_RE.match(" ".join(str(user_input or "").split()))
+    match = _NAMED_SKILL_RE.match(" ".join(_joined_toggle(user_input).split()))
     if not match:
         return None
     name = _clean_name(match.group("name"))
@@ -1393,6 +1450,8 @@ def _answer_named_skill(
         return None
     verb = " ".join(match.group("verb").lower().split())
     have, known, browse = _skills_known_here(source_context, session_id)
+    if key not in known and (meant := _skill_meant_by(name, source_context, session_id)):
+        key = _plain_key(meant)
     if key in known:
         if verb in ("use", "run", "try", "apply", "start"):
             return None
@@ -1928,6 +1987,11 @@ def maybe_handle_skill_request(
         return plain("\n\n".join(replies), reason="skill_import", execution=last)
 
     if action == "remove":
+        if not name:
+            # "turn off the aisle skill": the person named it by what it does. The one skill that fits is the one meant.
+            spoken = _NAMED_SKILL_RE.match(" ".join(_joined_toggle(user_input).split()))
+            if spoken is not None:
+                name = _skill_meant_by(_clean_name(spoken.group("name")), source_context, session_id)
         if not name:
             # "turn off the browser skill": a one-word name the name patterns cannot take. A name
             # VOOL knows gets the on/off page; one it does not gets the list of names it has.
