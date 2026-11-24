@@ -630,7 +630,7 @@ def test_starting_settings_are_written_once_and_never_over_the_persons_own(home,
     # The starting search is the engine's own writing: an entry of the person's, with no
     # new-tab or suggestion address, in whichever settings file the engine keeps it.
     kept = [json.loads(f.read_text()) for f in (target, target.with_name("Secure Preferences")) if f.is_file()]
-    search = next(k["default_search_provider_data"]["template_url_data"] for k in kept if "default_search_provider_data" in k)
+    search = next(data for k in kept if (data := (k.get("default_search_provider_data") or {}).get("template_url_data")))
     assert search["url"] == desk_module.STARTING_SEARCH["url"]
     assert (search["prepopulate_id"], search["new_tab_url"], search["suggestions_url"]) == (0, "", "")
     # The person switched a protection off in the browser: the next start keeps their choice.
