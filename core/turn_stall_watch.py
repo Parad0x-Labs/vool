@@ -9,8 +9,8 @@ cannot be used on the person's running app.
 
 This watch is plain Python: a timer thread reads the turn thread's current frame with
 ``sys._current_frames`` and logs its stack (file, line, function and code line only, never local
-values) when the turn has run past the threshold, and again at each later step, a few times at
-most. A turn that ends earlier logs nothing.
+values) when the turn has run past the threshold, and again at each later step, a few times, then
+every two minutes for up to an hour. A turn that ends earlier logs nothing.
 """
 
 from __future__ import annotations
@@ -29,6 +29,11 @@ _LOG = logging.getLogger(__name__)
 _DEFAULT_FIRST_S = 20.0
 _DEFAULT_EVERY_S = 20.0
 _MAX_DUMPS = 4
+#: After the first few dumps, a turn still running is named again at this slower step, this many times at most.
+#: Intel smoke on 3727b4e72: the last dump came 80 s into a turn that then ran past 15 minutes, and what it waited
+#: on for the other 13 had to be read off the model server's own log.
+_LATE_EVERY_S = 120.0
+_MAX_LATE_DUMPS = 30
 
 
 def _seconds(name: str, default: float) -> float:
@@ -64,7 +69,9 @@ def watch_turn(label: str = "turn") -> Iterator[None]:
 
     def watch() -> None:
         wait = first
-        for _ in range(_MAX_DUMPS):
+        for count in range(_MAX_DUMPS + _MAX_LATE_DUMPS):
+            if count >= _MAX_DUMPS:
+                wait = max(wait, _LATE_EVERY_S)
             if done.wait(wait):
                 return
             stack = stack_of(thread_id)

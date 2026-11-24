@@ -537,10 +537,13 @@ def test_a_timeout_mid_turn_keeps_the_steps_that_already_ran() -> None:
 
 def test_the_direct_render_return_says_why_the_loop_stopped() -> None:
     """This path returned success=True, mode=tool_executed and no stop reason at all, so a turn the
-    repeat guard cut short was indistinguishable from a completed one."""
+    repeat guard cut short was indistinguishable from a completed one.
+
+    The first repeat is answered with one more round in the same conversation (the call already ran and is not
+    run again); a model that asks for it yet again is the one the guard cuts short."""
 
     same_read = [_call("workspace.read_file", path="f00.py")]
-    result, _router, _events, _ws = _drive([list(same_read), list(same_read)])
+    result, _router, _events, _ws = _drive([list(same_read), list(same_read), list(same_read)])
 
     assert result.get("status") == "multi_step_executed", result.get("status")
     assert (result.get("details") or {}).get("loop_stop_reason") == "repeated_tool_request"

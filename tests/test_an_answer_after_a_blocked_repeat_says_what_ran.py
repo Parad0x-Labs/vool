@@ -164,7 +164,9 @@ def test_the_loop_marks_only_the_call_that_writes_the_answer_after_a_blocked_rep
 
     assert any(event.get("event_type") == "tool_repeat_blocked" for event in events), [e.get("event_type") for e in events]
     assert (result.get("details") or {}).get("loop_stop_reason") == "repeated_tool_request"
-    assert len(router.loop_contexts) == 3
+    # Three rounds, the round after the first repeat (asked once more in the same conversation, the router
+    # repeats again), then the answer-writing call.
+    assert len(router.loop_contexts) == 4
     for loop_context in router.loop_contexts:
         assert "tool_loop_terminal_synthesis" not in loop_context
     assert len(router.answer_contexts) == 1

@@ -4747,13 +4747,17 @@ async function openSession(id) {
   document.body.classList.remove('sidebar-open');
   loadSessions();
   refreshQueue(id);
-  await loadRecoveredLedger(); await loadActivityHistory(); renderPanel();
-  inputEl.focus();
   // Opening a chat is itself a wakeup for its queue: items another tab left pending (or that
   // a closed page never pumped) execute now, without a second manual send -- the open is the
   // user asking for this chat, ahead of the heartbeat's slower sweep. The pump's own slot
-  // discipline makes this a no-op while a turn already runs in the chat.
+  // discipline makes this a no-op while a turn already runs in the chat. It goes once the
+  // transcript is shown, not after the activity reads below: those are up to nine more
+  // requests (the chat's whole event ledger, then the runtime's session list), and behind them
+  // the open claimed its pending message 4.4 s after the click on a loaded CI runner (CI on
+  // 35d8d094b, test_opening_a_chat_pumps_its_pending_queue).
   if (!isChatBusy(id)) pumpQueue(id);
+  await loadRecoveredLedger(); await loadActivityHistory(); renderPanel();
+  inputEl.focus();
 }
 
 // A chat address typed or pasted into this tab (/chat#<chat>) opens that chat.

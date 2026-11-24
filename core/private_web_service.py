@@ -27,6 +27,18 @@ def _write_route(kind: str) -> None:
 
     policy_engine.set_operator_policy_values({"network.private_web.route": kind})
     private_web.refresh()
+    _close_browser_windows_on_the_old_route()
+
+
+def _close_browser_windows_on_the_old_route() -> None:
+    # A browser window keeps the way out it was started with. The module is only
+    # loaded when a window was ever opened, so a home that never used the browser
+    # pays nothing here.
+    import sys
+
+    desk = sys.modules.get("core.vool_browser.desk")
+    if desk is not None:
+        desk.route_changed()
 
 
 def _start_helper(kind: str) -> None:
@@ -51,6 +63,7 @@ def _start_helper(kind: str) -> None:
         _last_error[kind] = (str(exc) if plain else "") or "It could not be started on this computer."
     finally:
         private_web.refresh()
+        _close_browser_windows_on_the_old_route()
 
 
 def _stop_helpers(except_kind: str = "") -> None:

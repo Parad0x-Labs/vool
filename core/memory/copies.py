@@ -22,9 +22,9 @@ them is dropped with its turn, which can no longer be undone (the journal says s
 
 A copy that cannot be changed (a packed or sealed file, a table the scrub cannot rewrite) is not reported as
 forgotten, and it does not make every later forget fail either: it is named ``kept`` and the reply says so in
-plain words. So is the one record that keeps the words by design: the forget list (``memory_revocations`` and
-``.forget-authority``) holds the forgotten words so a later recall, import or model answer that carries them is
-refused. It cannot hold a digest instead, because a refusal must find the words inside any later text.
+plain words. The forget list (``memory_revocations`` and ``.forget-authority``) is named too: it keeps keyed
+fingerprints of the forgotten words, never the words (`core.memory.forget_marks`), so a later recall, import or
+model answer that carries them is still found and refused.
 
 Each file is first read once as bytes for the longest run of letters or digits in the words (folded the way the
 forget matcher folds them); only a file that may carry them is parsed. A word split across two overflow pages of
@@ -57,8 +57,8 @@ STORE_UNDO_COPIES = "file_undo_copies"
 STORE_FORGET_LIST = "forget_list"
 
 #: The reply's last sentence when only the forget list keeps the words.
-FORGET_LIST_NOTE = ("In this chat, the forgotten words now stay only in VOOL's forget list on this computer, "
-                    "so they are never used again.")
+FORGET_LIST_NOTE = ("In this chat, VOOL's forget list on this computer keeps only a locked fingerprint of the forgotten "
+                    "words, so they are never used again.")
 
 #: Where a store that could not be changed still holds the words, as the reply names it.
 _KEPT_PLACES = {
@@ -86,8 +86,8 @@ class _Unchangeable(Exception):
 
 
 def kept_note(erasures: dict[str, Any]) -> str:
-    """What this forget leaves holding the words, in plain words: always the forget list, and any copy that
-    could not be changed."""
+    """What this forget leaves, in plain words: the forget list's fingerprint of the words (never the words,
+    `core.memory.forget_marks`), and any copy that could not be changed and still holds them."""
     stores = erasures.get("stores", {})
     if stores.get(STORE_FORGET_LIST, {}).get("status") != "kept":
         return ""
@@ -95,8 +95,7 @@ def kept_note(erasures: dict[str, Any]) -> str:
     if not places:
         return FORGET_LIST_NOTE
     listed = places[0] if len(places) == 1 else ", ".join(places[:-1]) + " and " + places[-1]
-    return ("In this chat, the forgotten words now stay in VOOL's forget list on this computer, so they are never "
-            f"used again, and in {listed}, which could not be changed.")
+    return f"{FORGET_LIST_NOTE} The words themselves stay in {listed}, which could not be changed."
 
 
 def forget_copies(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
@@ -178,7 +177,12 @@ def _forget_files(store: str, listed: Callable[[], list[Path]], token: str, chat
 
 
 def _needle(token: str) -> str:
-    """The longest run of letters or digits in the words, folded as the forget matcher folds them."""
+    """The longest run of letters or digits in the words, folded as the forget matcher folds them; "" for a forget
+    list fingerprint, which names no letters to look for (every file is then read)."""
+    from core.memory.forget_marks import is_forget_mark
+
+    if is_forget_mark(token):
+        return ""
     runs = re.findall(r"[^\W_]+", fold_forget_text(token))
     return max(runs, key=len, default="")
 

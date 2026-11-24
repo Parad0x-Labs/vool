@@ -1272,7 +1272,14 @@ def _not_forgotten(text: str, said_at: str = "", state: tuple[tuple[str, ...], d
             if erased_at is not None and (not erased_at or not said_at or erased_at >= said_at):
                 return False
         stated = set(query_terms(fact))
+        from core.memory.forget_marks import is_forget_mark, terms_of_mark_in
+
         for token in tokens:
+            if is_forget_mark(token):
+                # The forget list keeps fingerprints of its words, its subject terms among them.
+                if terms_of_mark_in(token, stated):
+                    return False
+                continue
             subject = {t for t in query_terms(token) if t not in {"the", "my", "a", "an"}}
             if subject and subject <= stated:
                 return False

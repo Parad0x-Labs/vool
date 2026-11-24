@@ -258,6 +258,14 @@ def forget_needle_in(hay: Any, needle: str) -> bool:
     "Forget SeaLark" applied, a checkpoint and a session event still held "Sea ​ Lark").
     """
     needle = str(needle or "")
+    if needle.startswith("fk1:") or (isinstance(hay, str) and hay.startswith("fk1:")):
+        from core.memory.forget_marks import is_forget_mark, mark_in_text, text_in_mark
+
+        if is_forget_mark(needle):
+            # The forget list keeps fingerprints of the words, never the words (core.memory.forget_marks).
+            return hay == needle if is_forget_mark(hay) else mark_in_text(hay, needle)
+        if is_forget_mark(hay):
+            return text_in_mark(hay, needle)
     text = fold_forget_text(hay)
     if _needle_found(text, needle):
         return True

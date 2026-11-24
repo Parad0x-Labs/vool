@@ -385,8 +385,11 @@ def test_a_forget_leaves_no_terms_in_the_full_text_index_pages(isolated_pages):
     assert index_terms(b"lantern"), "the words nobody forgot must stay searchable"
     conn = sqlite3.connect(f"file:{memory_db}?mode=ro", uri=True)
     try:
-        # The revocation ledger keeps the token by design (it refuses the words later); nothing else does.
-        assert [row[0] for row in conn.execute("SELECT token FROM memory_revocations")] == ["silver birch"]
+        # The revocation ledger keeps the words' fingerprints (it refuses the words later), never the words.
+        from core.memory.forget_marks import forget_mark
+
+        assert [row[0] for row in conn.execute("SELECT token FROM memory_revocations")] == [
+            forget_mark("silver birch", isolated_pages)]
     finally:
         conn.close()
     assert _carriers_outside_the_revocation_ledger(Path(isolated_pages), "birch") == {}

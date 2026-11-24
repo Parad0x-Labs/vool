@@ -52,6 +52,7 @@ from ops.semantic_generalization_corpus import replay_texts
 # Imported rather than discovered -- see `_fixtures` for why this is not a conftest.
 from tests.semantic_phase0._fixtures import (
     block_outbound_network,
+    held_environment,
     keep_the_checkout_clean,
     make_agent_module,
     pin_the_signing_key_passphrase,
@@ -157,9 +158,8 @@ def _drive(make_agent, text: str, session_id: str, *, flag: str) -> dict:
     same turn then sees. Restored in `finally` so a raising turn cannot strand the process in a temp
     directory that is about to be deleted.
     """
-    os.environ["VOOL_SEMANTIC_REACH"] = flag
     previous_cwd = os.getcwd()
-    with tempfile.TemporaryDirectory(prefix="vool_replay_") as workdir:
+    with held_environment({"VOOL_SEMANTIC_REACH": flag}), tempfile.TemporaryDirectory(prefix="vool_replay_") as workdir:
         try:
             os.chdir(workdir)
             result = make_agent().run_once(
@@ -172,6 +172,7 @@ def _drive(make_agent, text: str, session_id: str, *, flag: str) -> dict:
             return {"__raised__": f"{type(exc).__name__}: {exc}"}
         finally:
             os.chdir(previous_cwd)
+
 
 
 def _comparable(result: dict) -> dict:

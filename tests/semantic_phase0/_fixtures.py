@@ -21,6 +21,7 @@ all the shipped code.
 """
 from __future__ import annotations
 
+import contextlib
 import os
 from unittest.mock import Mock
 
@@ -262,3 +263,22 @@ def pin_volatile_machine_observations():
         yield
     finally:
         machine_diagnostics.disk_usage = original
+
+
+@contextlib.contextmanager
+def held_environment(values: dict[str, str]):
+    """Set ``values`` for one driven turn and put back what was there before, set or not.
+
+    CI shard 3 on 4b39b40d5 (2026-11-24): the replay and shadow `_drive` helpers set these flags and
+    never put them back, so after a file that drove turns with REACH "0" every later file in the shard ran with it off and
+    test_semantic_shadow_runtime saw no recorder."""
+    previous = {name: os.environ.get(name) for name in values}
+    os.environ.update(values)
+    try:
+        yield
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value

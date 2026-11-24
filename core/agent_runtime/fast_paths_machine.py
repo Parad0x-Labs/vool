@@ -26,8 +26,8 @@ from core.execution.constants import (
     machine_display_intent,
     machine_file_search_intent,
     machine_folder_audit_intent,
+    machine_folder_search_arguments,
     machine_folder_search_intent,
-    machine_folder_search_wants_drives,
     machine_folder_size_intent,
     machine_host_state_intent,
     machine_kind_listing_ask,
@@ -3783,7 +3783,7 @@ def maybe_handle_direct_machine_read_request(
     if folder_search is not None:
         execution = execute_authorized_runtime_tool(
             "machine.find_folder",
-            {"name": folder_search[1], **({"drives": True} if machine_folder_search_wants_drives(user_input) else {})},
+            machine_folder_search_arguments(user_input, folder_search[1]),
             source_context=dict(source_context or {}),
         )
         if execution is not None:

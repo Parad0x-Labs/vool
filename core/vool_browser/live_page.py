@@ -24,7 +24,8 @@ _KEYS = (
     "failed", "back", "forward", "reload", "go", "asks", "check_send", "op_click", "op_type", "op_scroll",
     "seconds_left", "empty_title", "empty_body", "closed_body", "off_body", "driving", "elements",
     "no_elements", "send", "save_file", "file_ready", "more", "links", "fields", "buttons", "redirect",
-    "destination_refused",
+    "destination_refused", "window", "private_window", "engine_missing", "private_web_down", "invalid_address",
+    "note_window", "human_check", "show_tab", "route_warning", "route_turn_off", "route_keep", "route_missing", "harmful_site",
 )
 
 
@@ -38,6 +39,11 @@ def render(chat: str, locale: str, appearance: tuple[str, int] | None = None) ->
     labels["settings"] = cat.text("sidebar.settings")
     labels["web_off"] = cat.text("vcs.state.egress_refused")
     labels["close"] = cat.text("notif.close")
+    # Private web's own words are the ones Settings uses, so the two never say different things.
+    labels["route"] = cat.text("settings.row.private_web.label")
+    for name in ("off", "on", "starting", "down"):
+        labels["route_" + name] = cat.text("settings.private_web.state." + name)
+    labels["route_local_only"] = cat.text("settings.private_web.local_only")
     config = json.dumps({"chat": chat, "labels": labels}, ensure_ascii=False).replace("<", "\\u003c")
     return (
         _PAGE.replace("__PALETTE__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS)
@@ -105,6 +111,10 @@ button:disabled{opacity:.35;cursor:default}
 .chip[data-tone=bad] i{background:var(--bad)}
 @keyframes pulse{50%{opacity:.3}}
 #private{background:var(--accent-soft);color:var(--accent)}
+/* Private web: one button that shows the state and switches it */
+#route[data-state=on]{background:var(--accent-soft);color:var(--accent)}
+#route[data-state=starting]{color:var(--warn);animation:pulse 1s ease-in-out infinite}
+#route[data-state=down]{color:var(--bad)}
 .menu-wrap{position:relative}
 .menu{position:absolute;inset-inline-end:0;top:38px;min-width:230px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:5px;box-shadow:0 10px 30px var(--shadow);z-index:20}
 .menu button,.menu a{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:7px;text-align:start;color:var(--text);text-decoration:none;font-size:13px}
@@ -181,12 +191,16 @@ main{flex:1;display:flex;min-height:0;gap:0}
   <form class="omni" id="omni" autocomplete="off"><span id="lock">__I_globe__</span><input id="address" type="text" inputmode="url" spellcheck="false" autocomplete="off"><button id="open" type="submit"></button></form>
   <span class="chip" id="private" hidden></span>
   <span class="chip" id="state"><i></i><span id="status" role="status" aria-live="polite"></span></span>
+  <button class="tb" id="route" type="button" aria-pressed="false" data-state="off" hidden>__I_shield__</button>
   <button class="tb" id="list" type="button" aria-pressed="false">__I_list__</button>
   <button class="tb" id="takeover" type="button">__I_hand__</button>
   <span class="menu-wrap"><button class="tb" id="moreBtn" type="button" aria-haspopup="true" aria-expanded="false">__I_more__</button>
     <div class="menu" id="menu" role="menu" hidden>
       <button id="resume" type="button" role="menuitem">__I_hand__<span></span></button>
       <button id="download" type="button" role="menuitem">__I_download__<span></span></button>
+      <hr>
+      <button id="fullWindow" type="button" role="menuitem">__I_globe__<span></span></button>
+      <button id="privateWindow" type="button" role="menuitem">__I_lock__<span></span></button>
       <hr>
       <a id="settings" href="/settings#permissions" target="_top" role="menuitem">__I_settings__<span></span></a>
       <a id="wallet" href="/settings#wallet" target="_top" role="menuitem">__I_wallet__<span></span></a>
@@ -201,6 +215,8 @@ main{flex:1;display:flex;min-height:0;gap:0}
   <div class="acts"><span class="timer" id="timer"></span><button class="btn" id="refuse" type="button"></button><button class="btn primary" id="approve" type="button"></button></div>
 </section>
 <section class="notice" id="redirect" hidden><span class="grow" id="redirectUrl"></span><button class="btn" id="reviewRedirect" type="button"></button></section>
+<section class="notice" id="routeNote" hidden><span class="grow" id="routeText" role="status"></span><button class="btn" id="routeOff" type="button" hidden></button><button class="btn primary" id="routeKeep" type="button" hidden></button><a class="btn" id="routeSetup" href="/settings#permissions" target="_top" hidden></a></section>
+<section class="notice" id="humanCheck" hidden><span class="grow" id="humanCheckText"></span><button class="btn" id="showTab" type="button"></button></section>
 <section class="notice" id="driving" hidden><span class="grow" id="drivingText"></span><button class="btn" id="handBack" type="button"></button></section>
 <section class="notice" id="ready" hidden><span class="grow" id="readyText"></span><a class="btn primary" id="save" download style="display:inline-flex;align-items:center;text-decoration:none" hidden></a></section>
 <main>
@@ -225,15 +241,17 @@ $('title').textContent=L.browser; document.title=L.browser;
 [['back',L.back],['forward',L.forward],['reload',L.reload],['list',L.elements],['takeover',L.takeover],['moreBtn',L.more]].forEach(([id,t])=>{$(id).title=t;$(id).setAttribute('aria-label',t);});
 $('open').textContent=L.go; $('address').placeholder=L.address; $('address').setAttribute('aria-label',L.address);
 $('resume').lastChild.textContent=L.resume; $('download').lastChild.textContent=L.download; $('settings').lastChild.textContent=L.settings;
+$('fullWindow').lastChild.textContent=L.window; $('privateWindow').lastChild.textContent=L.private_window;
 $('wallet').lastChild.textContent=L.wallet; $('stop').lastChild.textContent=L.stop; $('private').textContent=L.private;
 $('approve').textContent=L.approve; $('refuse').textContent=L.refuse; $('reviewRedirect').textContent=L.open; $('handBack').textContent=L.resume;
 $('drivingText').textContent=L.driving; $('readyText').textContent=L.file_ready; $('save').textContent=L.save_file; $('sideTitle').textContent=L.elements;
-$('note').textContent=L.note; $('frame').alt=L.browser; $('chat').value=cfg.chat;
+$('routeOff').textContent=L.route_turn_off; $('routeKeep').textContent=L.route_keep; $('routeSetup').textContent=L.settings;
+$('note').textContent=L.note; $('frame').alt=L.browser; $('humanCheckText').textContent=L.human_check; $('showTab').textContent=L.show_tab; $('chat').value=cfg.chat;
 
 async function post(path,extra={}) {
   try {
     const r=await fetch('/api/browser/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat:$('chat').value,...extra})});
-    const j=await r.json(); error=r.ok?'':(j.error==='web_off'?L.web_off:j.error==='destination_refused'?L.destination_refused:L.failed); await poll(); return j;
+    const j=await r.json(); error=r.ok?'':({web_off:L.web_off,destination_refused:L.destination_refused,harmful_site:L.harmful_site,engine_missing:L.engine_missing,private_web_down:L.private_web_down,invalid_address:L.invalid_address}[j.error]||L.failed); await poll(); return j;
   } catch(e) { error=L.failed; paintStatus(); }
 }
 // The pane's own steps run at once; the server still answers a form, upload or download with a review.
@@ -252,6 +270,9 @@ function paint(j){
   current=j; pending=j.pending; const s=j.state; const busy=s==='running';
   paintStatus();
   $('private').hidden=!j.private;
+  // In the person's own window the page is the real one, scripts and sign-ins included.
+  $('note').textContent=j.in_window?L.note_window:L.note;
+  $('humanCheck').hidden=!(j.in_window&&j.result&&j.result.human_check);
   // Address bar mirrors the page unless the owner is typing in it.
   if(document.activeElement!==$('address')) $('address').value=j.url||'';
   $('lock').innerHTML=''; $('lock').appendChild(icon(j.url&&j.url.startsWith('https:')?'lock':'globe'));
@@ -367,7 +388,45 @@ $('moreBtn').onclick=e=>{e.stopPropagation();const open=$('menu').hidden;$('menu
 function closeMenu(){$('menu').hidden=true;$('moreBtn').setAttribute('aria-expanded','false');}
 document.addEventListener('click',e=>{if(!$('menu').hidden&&!$('menu').contains(e.target))closeMenu();});
 $('stop').onclick=()=>{closeMenu();post('stop');};
+// The everyday browser: a real window of its own. What is typed in the address field goes with it.
+$('fullWindow').onclick=()=>{closeMenu();post('window',{action:'open',url:$('address').value.trim()});};
+$('privateWindow').onclick=()=>{closeMenu();post('window',{action:'private',url:$('address').value.trim()});};
+$('showTab').onclick=()=>{post('window',{action:'show'});};
 $('download').onclick=()=>{closeMenu();const v=$('address').value.trim();if(v)post('propose',{op:'download',args:{url:v}});};
+// Private web: the button shows the route's state and switches it. Turning it on takes one
+// click. Turning it off is less private, so it says what changes and asks once.
+let route=null, routeAsk='', routeBusy=false;
+function paintRoute(){
+  const r=route; $('route').hidden=!r; if(!r) return;
+  const active=r.route!=='off', state=r.local_only?'off':r.state;
+  $('route').dataset.state=state; $('route').setAttribute('aria-pressed',String(active)); $('route').disabled=routeBusy||!!r.local_only;
+  const words=r.local_only?L.route_local_only:(L['route_'+r.state]||'')+(r.detail&&r.state!=='on'?' '+r.detail:'');
+  $('route').title=L.route+': '+words; $('route').setAttribute('aria-label',L.route+': '+words);
+  const text=routeAsk==='off'?L.route_warning:routeAsk==='missing'?L.route_missing:(active&&r.state!=='on'?L.route+': '+words:'');
+  $('routeNote').hidden=!text; $('routeText').textContent=text;
+  $('routeOff').hidden=$('routeKeep').hidden=routeAsk!=='off'; $('routeSetup').hidden=routeAsk!=='missing';
+}
+async function readRoute(){
+  try{const r=await fetch('/api/private-web',{cache:'no-store'});const j=await r.json();if(r.ok&&j.ok){route=j;if(j.route!=='off'){try{localStorage.setItem('vool.route',j.route);}catch(e){}}}}catch(e){}
+  paintRoute();
+}
+async function setRoute(kind){
+  routeBusy=true; routeAsk=''; paintRoute();
+  try{const r=await fetch('/api/private-web/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({route:kind})});const j=await r.json();if(r.ok&&j.ok)route=j;}catch(e){}
+  routeBusy=false; await readRoute(); poll();
+}
+$('route').onclick=()=>{
+  if(!route||routeBusy) return;
+  if(route.route!=='off'){routeAsk=routeAsk==='off'?'':'off';paintRoute();return;}
+  let kind='tor'; try{kind=localStorage.getItem('vool.route')||'tor';}catch(e){}
+  if(!['tor','wireguard','system_vpn'].includes(kind)) kind='tor';
+  // A route that cannot work on this computer is not switched on: that would only stop the web.
+  if((kind==='tor'&&!route.tor_available)||(kind==='wireguard'&&!(route.vpn_file&&route.vpn_helper_available))){routeAsk=routeAsk==='missing'?'':'missing';paintRoute();return;}
+  setRoute(kind);
+};
+$('routeOff').onclick=()=>setRoute('off');
+$('routeKeep').onclick=()=>{routeAsk='';paintRoute();};
+readRoute(); setInterval(()=>{if(!routeBusy&&!document.hidden)readRoute();},3000);
 // Review.
 $('approve').onclick=()=>{if(pending)post('decide',{id:pending.id,approve:true});};
 $('refuse').onclick=()=>{if(pending)post('decide',{id:pending.id,approve:false});};

@@ -71,7 +71,9 @@ def test_real_invalid_store_row_is_not_reported_as_no_match(tmp_path):
     mem = VoolMemory(runtime_home=str(profile))
     row = mem._conn.execute('SELECT content FROM memory_nodes WHERE node_id = ?', (node.node_id,)).fetchone()
     assert row and 'MINT-84' in row['content']
-    assert 'mint 84' not in mem.revoked_tokens(chat)
+    from core.memory.carriers import carries
+
+    assert not any(carries(token, 'mint 84') for token in mem.revoked_tokens(chat))
     # Restore only the synthetic corruption to prove the retained source is recallable.
     mem._conn.execute('UPDATE memory_nodes SET timestamp = ? WHERE node_id = ?', (node.timestamp, node.node_id))
     mem._conn.commit()

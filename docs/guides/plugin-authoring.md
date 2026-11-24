@@ -13,13 +13,14 @@ description, public HTTPS homepage and licence.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | One or more of `tools`, `model_provider`, `scanner`. |
+| `kind` | One or more of `tools`, `model_provider`, `scanner`, `browser`. |
 | `tools` | Existing runtime contracts: intent, description, input schema, handler, effects and permissions. |
 | `mcpServers` | Bundled commands, arguments and declared credential environment names. |
 | `network` | Exact lower-case public HTTPS hosts, or an empty list. |
 | `credentials` | Slot labels, help URLs and environment names; never key values. |
 | `model_provider` | HTTPS base URL, header or path authentication, model list and pricing source. |
 | `scanner` | HTTPS base URL, test/scan paths, input template and validated response mapping. |
+| `browser` | `extension`: the folder inside the package that holds a standard browser extension. |
 
 Tool intents belong to the package namespace and have one shape: `PLUGIN-ID.TOOL` (the plugin's id, a dot, the tool's name), the tool part in
 lowercase letters, digits and `_` (for example `parcel-desk.lookup`). An MCP tool's own name uses
@@ -116,6 +117,45 @@ Skills & plugins wallet, only after the owner ticked this plugin in Settings, on
 limits the owner set for it (per payment, per day or other period, payments per period, end
 date), and only on the owner's own turn at this computer. Anything else pays nothing and the
 tool's text says so. What the service delivers comes back as the tool's text, still untrusted.
+
+## Browser plugins
+
+A browser plugin changes what the VOOL browser window does on web pages: block adverts, tidy a
+site, add a button. Its package is an ordinary plugin with kind `browser` and one extra folder
+holding a standard browser extension, the same format the major browsers load (version 3).
+
+The quickest start is **Make a browser plugin** in the Plugins section: give it a name and VOOL
+writes a working plugin into `my-browser-plugins` beside your installed plugins.
+
+```
+calm-reading/
+  .codex-plugin/plugin.json   name, version, kind ["browser"], "browser": {"extension": "extension"}
+  extension/manifest.json     which pages it runs on and what it asks the browser for
+  extension/page.js           the script that runs on those pages
+  README.txt
+```
+
+Change `extension/page.js`, or give the folder to VOOL in chat and say what the plugin should
+do. Then review the folder under **Install from a folder**, install it and enable it. After a
+change, raise the version in both json files and tick **Review an update to an installed
+plugin**. The open browser window picks up an enabled plugin at once.
+
+What VOOL checks at review, before anything is installed:
+
+- the extension is version 3 of the format and names no update address: updates come only
+  through a new review;
+- it does not ask for `nativeMessaging`, `debugger`, `proxy`, `vpnProvider`, `management`,
+  `privacy`, `passwordsPrivate`, `webAuthenticationProxy`, `certificateProvider`, `platformKeys`,
+  `contentSettings`, `desktopCapture`, the `enterprise` group or `downloads`, and it does not
+  replace the start page or search (`chrome_settings_overrides`, or `newtab` under
+  `chrome_url_overrides`). These reach saved sign-ins,
+  the browser's connection and safety settings, other plugins, the screen and programs outside
+  the browser, or save files without the person.
+
+The review lists the sites the extension can read and change, and says so plainly when that is
+every site. A browser plugin is never loaded in a private window. VOOL loads a copy of the
+approved package each time the window starts, so the extension cannot change its own code.
+A package can be both a browser plugin and a tools plugin; each part follows its own rules.
 
 ## Test and publish
 

@@ -113,7 +113,16 @@ def summary(plugin) -> dict:
             "executable_runtime_refusal": refusal, "executable_runtime_refusal_key": message_key(refusal) if refusal else "",
             "tools": [{"intent": tool.intent, "description": tool.description,
                        "side_effect_class": tool.side_effect_class,
-                       "permission_actions": list(tool.permission_actions)} for tool in plugin.contracts]}
+                       "permission_actions": list(tool.permission_actions)} for tool in plugin.contracts],
+            # A browser plugin: what its extension asks for, read from the package itself.
+            **({"browser": _browser_facts(plugin)} if "browser" in block else {})}
+
+
+def _browser_facts(plugin) -> dict:
+    from core.plugin_manifest import browser_extension
+
+    facts = browser_extension(plugin.vool["browser"], plugin.root)
+    return {key: facts[key] for key in ("name", "version", "access", "sites", "every_site")}
 
 
 def message_key(message: str) -> str:
@@ -265,6 +274,25 @@ def prepare_github(repository: str, revision: str, folder: str, *, approved: boo
         return result
     finally:
         _remove(stage)
+
+
+def browser_starter(name) -> dict:
+    """Write a starter browser plugin the person can change, beside the installed plugins.
+
+    Nothing is installed: the answer names the folder, and the person reviews it like any other.
+    """
+    from core.plugin_catalog import configured_plugins_root
+    from core.vool_browser import extensions
+
+    if not isinstance(name, str) or not name.strip() or len(name) > 80:
+        raise lifecycle.LifecycleError("Give your browser plugin a short name.")
+    drafts = configured_plugins_root() / "my-browser-plugins"
+    try:
+        drafts.mkdir(parents=True, exist_ok=True)
+        folder = extensions.write_starter(drafts, name)
+    except OSError:
+        raise lifecycle.LifecycleError("VOOL could not write the plugin folder. Nothing was changed.") from None
+    return {"ok": True, "folder": str(folder), "id": folder.name}
 
 
 def install(review_id: str, *, accepted: bool, digest: str, findings_seen=0) -> dict:
@@ -425,6 +453,11 @@ def _refresh(plugin_id: str) -> None:
     if record and record.stage != lifecycle.STAGE_UNINSTALLED:
         plugin_tools.register_plugin(load_manifest(Path(record.root) / ".codex-plugin" / "plugin.json"))
     plugin_catalog.invalidate_storage_listing()
+    # An open VOOL browser window follows what was just enabled, switched off or removed.
+    desk = sys.modules.get("core.vool_browser.desk")
+    if desk is not None:
+        with contextlib.suppress(Exception):
+            desk.plugins_changed()
 
 
 def enable(plugin_id: str, *, accepted: bool, approval_digest: str) -> dict:
@@ -537,6 +570,8 @@ def handle(action: str, body: dict) -> dict:
                 raise lifecycle.LifecycleError("Choose a supported plugin action.")
             set_plugin_tools_setting(body["enabled"])
             return {"ok": True, "enabled": plugin_tools_on()}
+        if action == "plugin_browser_starter":
+            return browser_starter(body.get("name"))
         if action == "plugin_notice_dismiss":
             from core.plugin_migration import dismiss_selection_notice
 

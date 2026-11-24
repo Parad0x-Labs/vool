@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextvars
 import ipaddress
+import json
 import re
 from copy import deepcopy
 from pathlib import Path, PurePosixPath
@@ -107,7 +108,8 @@ HANDLER = _object({"kind": {"enum": ["subprocess", "mcp"]}, "entry": _text(), "a
 TOOL = _object({"intent": {**_text(145), "pattern": INTENT}, "description": {**_text(2000), "minLength": 12}, "handler": HANDLER, "input_schema": {"type": "object"}, "side_effect_class": _text(), "approval_requirement": _text(), "permission_actions": {"type": "array", "items": _text(100)}, "claim": {"type": "object"}, "mutation": {"type": "object"}, "trust": _object({"side_effect_class": _text(), "permission_actions": {"type": "array", "items": _text(100)}}, ("side_effect_class", "permission_actions"))}, ("intent", "description", "handler", "input_schema"))
 PROVIDER = _object({"base_url": _text(2000), "auth_placement": {"enum": ["header", "path"]}, "credential_slot": {**_text(80), "pattern": IDENTITY}, "auth_path": _text(500), "model_list_path": _text(500), "pricing_source": _text(2000), "api_path": _text(500), "x402": {"type": "boolean"}}, ("base_url", "auth_placement", "credential_slot", "model_list_path", "pricing_source"))
 SCANNER = _object({"base_url": _text(2000), "credential_slot": {**_text(80), "pattern": IDENTITY}, "test_path": _text(500), "scan_path": _text(500), "input_template": {"type": "object"}, "response_schema": {"type": "object"}, "response_map": {"type": "object", "additionalProperties": _text(200)}}, ("base_url", "credential_slot", "test_path", "scan_path", "input_template", "response_schema", "response_map"))
-VOOL = _object({"id": {**_text(80), "pattern": IDENTITY}, "version": {**_text(100), "pattern": SEMVER}, "name": _text(120), "publisher": _text(120), "description": _text(2000), "homepage": _text(2000), "license": _text(100), "kind": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"enum": ["tools", "model_provider", "scanner"]}}, "tools": {"type": "array", "maxItems": 128, "items": TOOL}, "mcpServers": {"type": "object", "propertyNames": {"pattern": IDENTITY}, "additionalProperties": SERVER}, "network": {"type": "array", "maxItems": 32, "items": _text(253)}, "credentials": {"type": "object", "propertyNames": {"pattern": IDENTITY}, "additionalProperties": CREDENTIAL}, "model_provider": PROVIDER, "scanner": SCANNER, "paid_services": {"type": "array", "maxItems": 8, "items": _text(2000)}}, ("id", "version", "name", "publisher", "description", "homepage", "license", "kind", "network", "credentials"))
+BROWSER = _object({"extension": _text(200)}, ("extension",))
+VOOL = _object({"id": {**_text(80), "pattern": IDENTITY}, "version": {**_text(100), "pattern": SEMVER}, "name": _text(120), "publisher": _text(120), "description": _text(2000), "homepage": _text(2000), "license": _text(100), "kind": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"enum": ["tools", "model_provider", "scanner", "browser"]}}, "tools": {"type": "array", "maxItems": 128, "items": TOOL}, "mcpServers": {"type": "object", "propertyNames": {"pattern": IDENTITY}, "additionalProperties": SERVER}, "network": {"type": "array", "maxItems": 32, "items": _text(253)}, "credentials": {"type": "object", "propertyNames": {"pattern": IDENTITY}, "additionalProperties": CREDENTIAL}, "model_provider": PROVIDER, "scanner": SCANNER, "browser": BROWSER, "paid_services": {"type": "array", "maxItems": 8, "items": _text(2000)}}, ("id", "version", "name", "publisher", "description", "homepage", "license", "kind", "network", "credentials"))
 LEGACY_PROVENANCE = _object({"origin": {"type": "string"}, "staged_by": {"type": "string"}})
 MANIFEST_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "title": "Plugin package manifest", "type": "object", "required": ["name"], "properties": {"name": _text(200), "version": {"type": "string"}, "vool": {"oneOf": [VOOL, LEGACY_PROVENANCE]}}}
 
@@ -281,6 +283,86 @@ def _in_words(error: str, raw) -> str:
     return error
 
 
+#: Extension access no browser plugin may have: programs outside the browser, the engine's own
+#: control channel, the browser's connection (it would step around Private web), other plugins,
+#: the browser's privacy and per-site settings, saved sign-ins and certificates, the screen
+#: outside the browser, and silent file saving.
+BROWSER_REFUSED_ACCESS = frozenset({
+    "nativeMessaging", "debugger", "proxy", "vpnProvider", "management", "privacy", "passwordsPrivate",
+    "contentSettings", "desktopCapture",
+    "webAuthenticationProxy", "certificateProvider", "platformKeys", "enterprise.platformKeys",
+    "enterprise.deviceAttributes", "enterprise.hardwarePlatform", "enterprise.networkingAttributes",
+    "downloads", "downloads.open", "downloads.shelf", "downloads.ui",
+})
+
+
+def _names(value, where: str = "") -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or any(not isinstance(item, str) or not item or len(item) > 300 for item in value) or len(value) > 256:
+        _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", where, "Make it a list of at most 256 non-empty texts, each at most 300 characters.")
+    return list(value)
+
+
+def _every_site(pattern: str) -> bool:
+    if pattern == "<all_urls>":
+        return True
+    rest = pattern.split("://", 1)[-1]
+    return rest.split("/", 1)[0] in ("*", "")
+
+
+def browser_extension(block: dict, root: Path) -> dict:
+    """The extension a browser plugin carries: read, checked, and what it asks for. Grants nothing.
+
+    The extension is the open format the major browsers share (version 3 of it). VOOL's browser
+    loads it only while the plugin is enabled, and never in a private window.
+    """
+    text = str(block.get("extension") or "")
+    relative = PurePosixPath(text)
+    if not text or relative.is_absolute() or ".." in relative.parts or "\\" in text or "\x00" in text or ":" in text:
+        _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", "vool.browser.extension",
+            "Name the extension folder inside the package, such as extension; no absolute path, .., backslash or colon.")
+    try:
+        folder = inside(root, text)
+        data = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = None
+    if data is None:
+        _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", "vool.browser.extension",
+            f"{_shown(text)}/manifest.json is missing or is not JSON. Put the extension's manifest.json in that folder.")
+    if not isinstance(data, dict) or not isinstance(data.get("name"), str) or not isinstance(data.get("version"), str):
+        _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", "manifest.json", "The extension's manifest.json needs a name and a version, both text.")
+    if data.get("manifest_version") != 3:
+        _no("This browser plugin uses an older extension format that VOOL's browser does not load. Ask its maker for an update.",
+            "manifest.json manifest_version", "Set manifest_version to 3.")
+    if "update_url" in data:
+        _no("This browser plugin would fetch its own updates from outside VOOL. It was not installed.",
+            "manifest.json update_url", "Take update_url out; a new version reaches people as a new plugin version.")
+    access = _names(data.get("permissions"), "manifest.json permissions") + _names(data.get("optional_permissions"), "manifest.json optional_permissions")
+    if set(access) & BROWSER_REFUSED_ACCESS:
+        _no("This browser plugin asks for access no browser plugin may have, such as saved sign-ins, the browser's connection or programs outside the browser. It was not installed.",
+            "manifest.json permissions", "Take out " + ", ".join(sorted(set(access) & BROWSER_REFUSED_ACCESS)) + ". No browser plugin may have them.")
+    # The start page and the search are the person's. An extension names a page to stand in
+    # for the engine's new tab page in one part of its manifest, and a home page, pages to
+    # open at start or a search in another.
+    pages = data.get("chrome_url_overrides", {})
+    if not isinstance(pages, dict):
+        _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", "manifest.json chrome_url_overrides", "Make it an object, or take it out.")
+    if "newtab" in pages or "chrome_settings_overrides" in data:
+        _no("This browser plugin would replace the browser's start page or search. It was not installed.",
+            "manifest.json chrome_url_overrides / chrome_settings_overrides",
+            "Take out the newtab page and chrome_settings_overrides. The start page and the search stay the person's.")
+    sites = _names(data.get("host_permissions"), "manifest.json host_permissions") + _names(data.get("optional_host_permissions"), "manifest.json optional_host_permissions")
+    scripts = data.get("content_scripts") or []
+    if not isinstance(scripts, list) or any(not isinstance(row, dict) for row in scripts):
+        _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", "manifest.json content_scripts", "Make it a list of objects, each with its matches.")
+    for row in scripts:
+        sites += _names(row.get("matches"), "manifest.json content_scripts matches")
+    return {"name": data["name"][:120], "version": data["version"][:60], "folder": text,
+            "access": sorted(set(access)), "sites": sorted(set(sites)),
+            "every_site": any(_every_site(pattern) for pattern in sites)}
+
+
 def validate_manifest(raw: dict, *, root: Path) -> dict:
     schema = "The published schema is docs/reference/plugin-manifest.schema.json."
     errors = validate_schema(raw, MANIFEST_SCHEMA)
@@ -427,6 +509,12 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
                             "workspace_write, network_send or network_publish.")
     with _Part():
         paid_services(extension, hosts)
+    with _Part():
+        if ("browser" in extension["kind"]) != ("browser" in extension):
+            _no(SETUP, "vool.browser", 'Declare vool.browser exactly when "browser" is in vool.kind: both or neither.')
+    if "browser" in extension:
+        with _Part():
+            browser_extension(extension["browser"], root)
     for kind in ("model_provider", "scanner"):
         block = extension.get(kind)
         with _Part():

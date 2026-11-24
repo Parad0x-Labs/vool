@@ -16,7 +16,7 @@ from core.command_registry.spec import (
     OperatorAuthority,
 )
 
-ACTIONS = ("settings", "propose", "decide", "takeover", "stop")
+ACTIONS = ("settings", "propose", "decide", "takeover", "stop", "window")
 
 
 @dataclass
@@ -63,6 +63,7 @@ def propose(inp, ctx): return _run("propose", inp, ctx)
 def decide(inp, ctx): return _run("decide", inp, ctx)
 def takeover(inp, ctx): return _run("takeover", inp, ctx)
 def stop(inp, ctx): return _run("stop", inp, ctx)
+def window(inp, ctx): return _run("window", inp, ctx)
 
 
 def register(reg) -> None:
@@ -70,7 +71,7 @@ def register(reg) -> None:
 
     cat = catalog_for("en")
     reg.add_group(GroupSpec("browser", cat.text("live.browser")))
-    labels = {"settings": "browser", "propose": "open", "decide": "approve", "takeover": "takeover", "stop": "stopped"}
+    labels = {"settings": "browser", "propose": "open", "decide": "approve", "takeover": "takeover", "stop": "stopped", "window": "window"}
     for action in ACTIONS:
         reg.add(CommandSpec(
             command_id="browser." + action, group="browser", description=cat.text("live." + labels[action]),

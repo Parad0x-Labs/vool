@@ -157,7 +157,10 @@ def test_the_answer_after_a_blocked_repeat_says_what_the_command_showed(served: 
         calls = [call for call in provider.calls if call["lane"] == "answer" and call["t"] >= started]
         loop_calls = [call for call in calls if "sandbox__run_command" in call["tools"]]
         answer_calls = [call for call in calls if not call["tools"] and OBSERVATION_HEADER in call["full"]]
-        assert len(loop_calls) == 2, [call["tools"] for call in calls]
+        # Two rounds, then the round after the first repeat (asked again in the same conversation; this model
+        # repeats once more), then the answer-writing call.
+        assert len(loop_calls) == 3, [call["tools"] for call in calls]
+        assert "so it was not run again" in loop_calls[2]["full"]
         assert len(answer_calls) == 1, [call["tools"] for call in calls]
         # Inside the loop the model is still told to continue; the answer-writing call is told the
         # command already ran and its reply is the final answer.

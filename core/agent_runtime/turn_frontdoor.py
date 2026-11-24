@@ -2912,11 +2912,14 @@ def _explicit_path_in(text: str) -> str:
     return explicit_path_in(text)
 
 
-def _drives_asked(text: str) -> dict[str, bool]:
-    """A folder search reaches the plugged-in drives only when the person names one."""
-    from core.execution.constants import machine_folder_search_wants_drives
+def _drives_asked(text: str) -> dict[str, Any]:
+    """What the ask adds to a folder search: the plugged-in drives only when the person names one, and
+    files too when nothing in it says the thing is a folder (machine_folder_search_arguments)."""
+    from core.execution.constants import machine_folder_search_arguments
 
-    return {"drives": True} if machine_folder_search_wants_drives(text) else {}
+    extras = machine_folder_search_arguments(text, "")
+    extras.pop("name", None)
+    return extras
 
 
 _CREATE_FOLDER_RE = re.compile(

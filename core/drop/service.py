@@ -1515,11 +1515,12 @@ class DropHome:
         memory part runs again and a failure keeps the home withheld."""
         from core.context_namespace import chat_namespace_deleted_for_identity
         from core.memory import revocation
-        from core.vool_memory import VoolMemory, _normalize_forget_token
+        from core.memory.forget_marks import forget_mark
+        from core.vool_memory import VoolMemory
 
         try:
             # Raises while any forget in this home is still pending.
-            if _normalize_forget_token(sid) not in revocation.snapshot(None, self.home):
+            if forget_mark(sid, self.home) not in revocation.snapshot(None, self.home):
                 return False
             if not chat_namespace_deleted_for_identity(sid):
                 return False

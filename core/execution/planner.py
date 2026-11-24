@@ -55,8 +55,8 @@ from .constants import (
     machine_diagnostics_intent,
     machine_disk_scope,
     machine_display_intent,
+    machine_folder_search_arguments,
     machine_folder_search_intent,
-    machine_folder_search_wants_drives,
     machine_largest_intent,
 )
 from .models import WorkflowPlannerDecision
@@ -3377,8 +3377,7 @@ def plan_tool_workflow(
             return WorkflowPlannerDecision(
                 handled=True,
                 reason="planned_machine_folder_search",
-                next_payload={"intent": "machine.find_folder", "arguments": {
-                    "name": folder_search[1], **({"drives": True} if machine_folder_search_wants_drives(text) else {})}},
+                next_payload={"intent": "machine.find_folder", "arguments": machine_folder_search_arguments(text, folder_search[1])},
             )
         if git_payload is not None:
             reason, next_payload = git_payload

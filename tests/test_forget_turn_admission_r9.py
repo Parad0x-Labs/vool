@@ -131,8 +131,10 @@ def test_run_once_completed_forget_retires_only_its_admission(tmp_path, user_tex
     rows = json.loads((home / ".forget-authority" / "ledger.json").read_text())["operations"]
     admissions = [row for row in rows.values() if row.get("kind") == "admission"]
     assert admissions and all(row["status"] == "complete" for row in admissions)
+    from core.memory.forget_marks import forget_mark
+
     tokens = revocation.snapshot(chat, home)
-    assert "mint84" in tokens
+    assert forget_mark("MINT84", home) in tokens
     assert all(row["token"] not in tokens for row in admissions)
     assert not revocation.authorize_payload("My locker code is MINT84.", chat, home)
     assert revocation.authorize_payload("The bicycle is blue.", chat, home)
@@ -159,7 +161,9 @@ def test_admission_cannot_complete_after_only_one_of_two_forgets(tmp_path):
         revocation.snapshot(chat, home)
     _, second = maybe_handle_memory_command("Forget BLUE62.", session_id=chat, source_context=context)
     _finish_forget_turn_admission({"response": second}, user_text=text, session_id=chat, source_context=context)
-    assert {"mint84", "blue62"} <= set(revocation.snapshot(chat, home))
+    from core.memory.forget_marks import forget_mark
+
+    assert {forget_mark("MINT84", home), forget_mark("BLUE62", home)} <= set(revocation.snapshot(chat, home))
 
 
 @pytest.mark.usefixtures("_hash_backend")
@@ -187,7 +191,9 @@ assert _preadmit_forget_turn('Forget MINT84.', session_id=chat, source_context=c
     result = agent.run_once("Forget MINT84.", session_id_override=chat,
                             source_context={"chat_id": chat, "runtime_home": str(home), "client_turn_id": "retry-new-turn"})
     assert result["response"].startswith("Forget applied"), result
-    assert "mint84" in revocation.snapshot(chat, home)
+    from core.memory.forget_marks import forget_mark
+
+    assert forget_mark("MINT84", home) in revocation.snapshot(chat, home)
 
 
 @pytest.mark.usefixtures("_hash_backend")
@@ -212,5 +218,7 @@ def test_cancelled_forget_does_not_leave_a_barrier_for_the_next_turn(tmp_path):
     result = agent.run_once("Forget BLUE62.", session_id_override=chat,
                             source_context={"chat_id": chat, "runtime_home": str(home), "client_turn_id": "next-after-cancel"})
     assert result["response"].startswith("Forget applied"), result
-    assert "mint84" not in revocation.snapshot(chat, home)
+    from core.memory.forget_marks import forget_mark
+
+    assert forget_mark("MINT84", home) not in revocation.snapshot(chat, home)
     assert revocation.authorize_payload("My locker code is MINT84.", chat, home)

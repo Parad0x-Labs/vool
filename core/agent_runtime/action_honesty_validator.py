@@ -2452,6 +2452,11 @@ _UNANSWERED_BROWSER_RESPONSES.update({
         "I can't open {url}: the browser only opens public web addresses, never ones on this computer "
         "or your local network, so I did not open it on this turn."
     ),
+    "harmful_site": (
+        "{url} is on a list of sites known to steal sign-ins or spread harmful software, so I did not "
+        "open it on this turn, and I never open such a site. You can still open it yourself in the VOOL "
+        "browser window, where a warning lets you go on."
+    ),
     "page_failed": (
         "I tried to open {url} after you allowed it, but the page did not load (the address may be "
         "wrong, or the site may be down), so I did not open it on this turn."

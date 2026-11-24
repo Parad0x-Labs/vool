@@ -43,6 +43,7 @@ def test_unarmed_failed_admission_preserves_source_and_readability(tmp_path, mon
 
 def test_persisted_admission_reaches_running_reader_and_restart(tmp_path):
     from core.memory import revocation as authority
+    from core.memory.forget_marks import forget_mark
 
     home = tmp_path / "runtime"
     authority.prepare(home, allow_initialize=True, arm=False)
@@ -62,11 +63,11 @@ def test_persisted_admission_reaches_running_reader_and_restart(tmp_path):
         process.stdin.flush()
         state = _read_child_line(process)
         assert state["state"] == "readable"
-        assert "mint84" in {token.lower() for token in state["tokens"]}
+        assert forget_mark("MINT84", home) in state["tokens"]
     finally:
         process.communicate("exit\n", timeout=20)
     assert process.returncode == 0
-    assert "mint84" in {token.lower() for token in _child(home, "reader")["tokens"]}
+    assert forget_mark("MINT84", home) in _child(home, "reader")["tokens"]
 
 
 def test_ordinary_reader_termination_does_not_invent_a_forget(tmp_path):
@@ -176,7 +177,9 @@ def test_owner_revocation_snapshot_preserves_executor_reads_and_order(tmp_path, 
             memory.record_revocation("ZULU9", chat_id="owner-snapshot")
             patch.setattr(vool_memory.time, "time", lambda: 20.0)
             memory.record_revocation("ALPHA8", chat_id="owner-snapshot")
-        expected = ("zulu9", "alpha8")
+        from core.memory.forget_marks import forget_mark
+
+        expected = (forget_mark("ZULU9", memory._authority_home), forget_mark("ALPHA8", memory._authority_home))
         assert memory.revoked_tokens("owner-snapshot") == expected
         assert memory.revoked_tokens("") == ()
         assert memory.revoked_tokens(None) == ()
@@ -199,11 +202,14 @@ def test_owner_revocation_snapshot_withholds_unscoped_pending_erasure(tmp_path, 
         memory.record_revocation("MINT84", chat_id="pending-chat")
         memory.record_revocation("BLUE62", chat_id="healthy-chat")
         operation = memory.begin_erasure("pending-chat", "MINT84")
-        assert memory.revoked_tokens("healthy-chat", include_pending=True) == ("blue62",)
+        from core.memory.forget_marks import forget_mark
+
+        mint, blue = (forget_mark(word, memory._authority_home) for word in ("MINT84", "BLUE62"))
+        assert memory.revoked_tokens("healthy-chat", include_pending=True) == (blue,)
         with pytest.raises(RuntimeError, match="incomplete"):
             memory.revoked_tokens(unscoped, include_pending=True)
         memory.complete_erasure(operation)
-        assert set(memory.revoked_tokens(unscoped, include_pending=True)) == {"mint84", "blue62"}
+        assert set(memory.revoked_tokens(unscoped, include_pending=True)) == {mint, blue}
 
 
 def test_common_reader_gate_withholds_when_owner_revocation_read_fails(tmp_path, monkeypatch):

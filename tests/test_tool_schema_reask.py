@@ -379,4 +379,5 @@ def test_recovery_cannot_reexecute_work_from_an_earlier_round(wire, tmp_path, mo
     assert result["details"]["tool_steps"] == ["workspace.read_file"]
     assert sum(event.get("event_type") == "tool_executed" for event in events) == 1
     assert result["details"]["loop_stop_reason"] == "repeated_tool_request"
-    assert len(wire.bodies) == 3
+    # The first repeat is asked once more in the same conversation (not run again); the wire repeats it again.
+    assert len(wire.bodies) == 4

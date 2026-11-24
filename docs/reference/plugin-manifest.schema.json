@@ -59,12 +59,13 @@
             "kind": {
               "type": "array",
               "minItems": 1,
-              "maxItems": 3,
+              "maxItems": 4,
               "items": {
                 "enum": [
                   "tools",
                   "model_provider",
-                  "scanner"
+                  "scanner",
+                  "browser"
                 ]
               }
             },
@@ -380,6 +381,20 @@
                 "input_template",
                 "response_schema",
                 "response_map"
+              ],
+              "additionalProperties": false
+            },
+            "browser": {
+              "type": "object",
+              "properties": {
+                "extension": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "extension"
               ],
               "additionalProperties": false
             },
