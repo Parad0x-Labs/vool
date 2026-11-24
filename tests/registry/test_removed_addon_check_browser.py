@@ -72,19 +72,30 @@ def test_the_person_turns_the_daily_check_on_and_off_from_the_skill_codex_tab(tm
         page = browser.new_page(viewport={"width": 1280, "height": 960})
         switch = open_tab(page)
         switch.wait_for()
-        assert not switch.is_checked() and posted == [], "off, and opening the tab posts nothing"
+        page.wait_for_function("document.querySelector('.registry-recall input').checked === true")
+        assert posted == [], "on with no choice saved, and opening the tab posts nothing"
         assert "Nothing about you, your chats or your add-ons is sent." in page.locator("#pluginsBody").inner_text()
+        page.get_by_text("It starts once you have an add-on from the Skill Codex.", exact=True).wait_for()
+        assert recall.status()["enabled"] is True
+
+        switch.uncheck()
+        page.wait_for_function("document.querySelector('.registry-recall input').checked === false")
+        assert posted == [{"action": "registry_recall", "enabled": False}]
         assert recall.status()["enabled"] is False
 
+        switch = open_tab(page)  # a fresh load reads the saved choice: off stays off
+        switch.wait_for()
+        page.wait_for_function("document.querySelector('.registry-recall input').checked === false")
+        assert len(posted) == 1
+
         switch.check()
-        page.get_by_text("It starts once you have an add-on from the Skill Codex.", exact=True).wait_for()
-        assert posted == [{"action": "registry_recall", "enabled": True}]
-        assert recall.status()["enabled"] is True
+        page.wait_for_function("document.querySelector('.registry-recall input').checked === true")
+        assert posted[-1] == {"action": "registry_recall", "enabled": True} and recall.status()["enabled"] is True
 
         switch = open_tab(page)  # a fresh load reads the saved choice
         switch.wait_for()
         page.wait_for_function("document.querySelector('.registry-recall input').checked === true")
-        assert len(posted) == 1
+        assert len(posted) == 2
 
         switch.uncheck()
         page.wait_for_function("document.querySelector('.registry-recall input').checked === false")

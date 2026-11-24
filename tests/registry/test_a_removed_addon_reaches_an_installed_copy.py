@@ -82,7 +82,16 @@ def offered(plugin_id):
     return any(skill.plugin_id == plugin_id for skill in loaded_skills())
 
 
-def test_off_by_default_it_asks_nothing_and_a_removal_does_not_arrive(device):
+def test_with_no_choice_saved_the_check_is_on_and_a_removal_arrives(device):
+    assert recall.status() == {"status": "ok", "enabled": True, "installs": 1, "last_checked": None, "last_failed": None}
+    assert device["calls"] == [], "reading the choice makes no request"
+    device["remove"]()
+    assert recall.check(now=NOW + 60) == {"status": "ok", "removed_listed": 1}
+    assert len(device["calls"]) == 1 and not plugin_lifecycle.is_available(device["plugin_id"])
+
+
+def test_turned_off_it_asks_nothing_and_a_removal_does_not_arrive(device):
+    recall.set_enabled(False)
     device["remove"]()
     assert recall.status() == {"status": "ok", "enabled": False, "installs": 1, "last_checked": None, "last_failed": None}
     assert recall.check(now=NOW + DAY) == {"status": "off"}
@@ -173,6 +182,7 @@ def test_a_clock_set_back_does_not_silence_the_check(device):
     ({"action": "registry_recall", "enabled": True}, OWN_PAGE, "203.0.113.9", 403),
 ])
 def test_only_the_owners_own_page_can_change_the_choice(device, body, headers, host, status):
+    recall.set_enabled(False)
     assert handle_addon_post(body, headers, host)[0] == status
     assert recall.status()["enabled"] is False
 

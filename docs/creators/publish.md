@@ -127,8 +127,8 @@ The team can remove a skill, or suspend its creator. Then:
 
 - Every version leaves the list, and new uploads of that skill are refused.
 - On a person's VOOL, a removed skill stops being used once VOOL reads the public list again. That happens
-  when they press **Browse Skill Codex**, or once a day if they turned on **Check once a day for removed
-  add-ons** on the Skill Codex tab. The switch is off until the owner turns it on, and the check sends
+  when they press **Browse Skill Codex**, or once a day by itself. The switch **Check once a day for removed add-ons** on the Skill Codex tab is
+  on unless the owner turns it off, and the check sends
   nothing about the person: *Nothing about you, your chats or your add-ons is sent.*
 - Copies people already downloaded and public history cannot be erased from other computers.
 - A suspended creator reads `this creator can't publish right now`.
