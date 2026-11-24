@@ -205,8 +205,8 @@ and the skill stays listed. Reports are private: no page shows how many a skill 
 
 ### What do the marks on a listing mean?
 
-Tested, Highlighted, Editor's pick and Featured are set by the VOOL team by hand. Stars and downloads never
-set them. [The team's marks](publish.md#the-teams-marks)
+The two badges, Tested by VOOL and Editor's Choice, are given by the VOOL team on one exact version, signed by two team members; Featured and Highlighted only order the list. Stars and downloads never
+set them. [The team's badges](publish.md#the-teams-badges)
 
 ### Does VOOL track installs?
 

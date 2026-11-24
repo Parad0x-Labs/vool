@@ -14383,8 +14383,8 @@ function renderPlugins(d, query) {
     if (pl.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = _pluginCardText(pl, 'description'); card.appendChild(de); }
     // The team badges VOOL verified for this exact package, and for an add-on from the Skill Codex its Rate
     // button and the team's notice. The store fragment draws them, the same way as on its own cards.
-    if (window.VoolAddons && window.VoolAddons.teamBadges) window.VoolAddons.teamBadges(pl).forEach((chip) => h.appendChild(chip));
-    if (window.VoolAddons && window.VoolAddons.installedExtras) card.appendChild(window.VoolAddons.installedExtras(pl.registry, shownName));
+    if (globalThis.VoolAddons && globalThis.VoolAddons.teamBadges) globalThis.VoolAddons.teamBadges(pl).forEach((chip) => h.appendChild(chip));
+    if (globalThis.VoolAddons && globalThis.VoolAddons.installedExtras) card.appendChild(globalThis.VoolAddons.installedExtras(pl.registry, shownName));
     const act = document.createElement('div'); act.className = 'p-actions';
     const off = pl.enabled === false;
     const nSk = (pl.skills || []).length;
@@ -14490,7 +14490,7 @@ function renderSkills(d, query) {
     if (s.first_party) h.appendChild(_firstPartyBadge());
     card.appendChild(h);
     if (s.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = s.description; card.appendChild(de); }
-    if (window.VoolAddons && window.VoolAddons.installedExtras) card.appendChild(window.VoolAddons.installedExtras(s.registry, s.title || s.name));
+    if (globalThis.VoolAddons && globalThis.VoolAddons.installedExtras) card.appendChild(globalThis.VoolAddons.installedExtras(s.registry, s.title || s.name));
     // Each skill turns on and off on its own, through the one disable store the skill picker
     // reads (POST /api/skills/enable), with the same status line and button as a plugin card.
     if (typeof s.enabled === 'boolean') {

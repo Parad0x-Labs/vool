@@ -85,22 +85,64 @@ Keep the same id and send a higher version number; you can add a line of release
 refused, for example `Version 1.0.0 is not higher than 1.0.0, which is already listed. Use a higher version number.`
 Stars, comments and the download count stay with the skill across versions.
 
-## The team's marks
+## The team's badges
 
-These are set by the VOOL team by hand. Stars, downloads and the creator never set them, and a package
-cannot claim one in its own name or text.
+Two badges exist, and only the VOOL team gives them:
 
-| Mark | What it means today |
+| Badge | What it means |
 | --- | --- |
-| **Tested** (shown as "Tested by Parad0x Labs") | The team tested this exact version. An update drops the mark until the team tests the new version. |
-| **Highlighted** | The team put the skill in the Highlighted spot. |
-| **Editor's pick** | The team picked the skill. |
-| **Featured** | The team features the skill in the listing. |
-| **Official** | The skill is published under the team's own name. Nobody else can choose that name. |
+| **Tested by VOOL** | The team installed and used this exact version on the VOOL builds it names. |
+| **Editor's Choice** | The team picked this exact version as one of the best of its kind. |
 
-A listing also shows that the automatic checks passed. That is not a statement that a person reviewed the skill.
+- A badge belongs to one exact version. When you publish an update, the badge does not move to it; the team
+  checks the new version and signs again.
+- A badge has an end date, and the team can withdraw it.
+- Two appointed team members sign every badge with their own keys. VOOL and the website draw a badge only from
+  that signed document, so nothing you write (a name, a description, a tick, a picture) can show one, and a
+  package cannot ask for one in its own files.
+- A badge name in any of VOOL's 17 languages, and ticks, medals, shields and stars, are refused in names and
+  descriptions.
 
-Coming next: two badges, "Editor's Choice" and "Tested by VOOL", and ratings from people who installed the skill.
+The team also orders the list (Featured, Highlighted) and publishes its own work under its own name. Those are
+not badges. A listing also shows that the automatic checks passed. That is not a statement that a person
+reviewed it.
+
+## Ratings and reviews
+
+- A person who installed your skill or plugin from the Skill Codex can give it 1 to 5 stars and, if they wish, a
+  text. One rating per person per add-on; they can change it or delete it.
+- Only installers can rate: VOOL keeps a one-use pass from the install, and the person spends it when they rate,
+  from the day after the install. A pass shows a download through the install route. It does not show how much
+  the person used the add-on.
+- There is no monthly limit on ratings from real installs.
+- You cannot rate your own add-on, and you cannot remove a rating. If a rating breaks the rules, report it.
+- Under 5 counted ratings the page says *Not enough ratings yet* and shows no average.
+- The team can remove faked ratings, close ratings for a while, delist an add-on or remove it. The page then says
+  so, with the reason. If that happens to you, press **Ask for another look**.
+
+## Your listing page
+
+A package may carry a `listing` block in its `registry.json`, for a skill and for a plugin. Add it after `init`
+or `plugin-init`; `lint` refuses what an upload would refuse, with the field and the fix.
+
+```json
+"listing": {
+  "description": "# Meeting notes\n\nTurns the notes of a meeting into **decisions**, *owners* and dates...",
+  "links": {"homepage": "https://example.org/notes", "support": "https://example.org/help", "docs": "https://example.org/guide"},
+  "compatibility": {"min_vool": "0.8.0", "platforms": ["macos-arm64", "linux-x86_64"]}
+}
+```
+
+| Field | Rule | Why |
+| --- | --- | --- |
+| `description` | 80 to 6000 characters. Paragraphs, headings `#` to `###`, lists, bold, italic, code. | It is shown as text on every screen, so it cannot carry anything that runs or loads. |
+| HTML, pictures, tables in the description | Refused. `<` and `>` only inside code. | Same reason. Use the icon and banner for pictures. |
+| A Markdown link (text in square brackets, then the address in round brackets) | Shown as those characters, not as a link. | Put addresses under `links`, where the person sees the full address before opening it. |
+| `links` | `homepage`, `support`, `docs`: https addresses. For a plugin, `homepage` equals `vool.homepage`. | The listing and the plugin must say the same thing. |
+| `compatibility` | `min_vool`, optional `max_vool`, `platforms`. | It is what you say works; the builds the Skill Codex checked are shown beside it. |
+| `summary`, when a `listing` block is present | 20 to 140 characters, no `<` or `>`. | It is the one line on the card. |
+
+To change the block, publish a new version. Screenshots are coming next.
 
 Pictures: a skill may carry a square icon and a wide banner, PNG only. A person looks at every new picture
 before it shows; until then the skill shows the standard tile.
@@ -155,4 +197,4 @@ Each skill has one number: how many times it was downloaded. That is all that is
 package. Who downloaded is not recorded, and VOOL reports no installs. The count is of downloads served,
 so it is not a count of different people.
 
-Browsing and installing need no account. Signing in is for publishing, starring, commenting and reporting.
+Browsing and installing need no account. Signing in is for publishing, rating, commenting and reporting.
