@@ -13,7 +13,7 @@ import time
 import pytest
 
 from core import request_trust as rt
-from tests.mobile.test_phone_quick_setup import home, phone  # noqa: F401 (fixtures)
+from tests.mobile.test_phone_quick_setup import home, phone
 
 _REMOTE = {rt.HTTP_INGRESS_KEY: True, rt.OWNER_LOCAL_KEY: False}
 

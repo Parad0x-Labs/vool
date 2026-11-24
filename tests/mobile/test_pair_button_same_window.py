@@ -6,7 +6,7 @@ The page below drops script-opened windows the same way, so the button must show
 """
 import os
 
-from test_phone_listener_served import desktop, http  # noqa: F401 (fixture)
+from test_phone_listener_served import desktop, http
 
 DROP_SCRIPT_WINDOWS = "window.__opened = []; window.open = (...a) => { window.__opened.push(a); return null; };"
 

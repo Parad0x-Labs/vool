@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.mobile.test_phone_quick_setup import home, phone  # noqa: F401 (fixtures)
+from tests.mobile.test_phone_quick_setup import home, phone
 
 
 class _Store:

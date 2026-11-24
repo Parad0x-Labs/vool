@@ -1625,7 +1625,8 @@ def _action_files_fetch(params: dict[str, Any], *, service: MobileCompanionServi
                  "done": not data or offset + len(data) >= int(record["size_bytes"])}
 
 
-from core.request_trust import REMOTE_COMPUTER_ONLY_ACTIONS as _COMPUTER_ONLY_APPROVAL_ACTIONS  # noqa: E402
+from core.request_trust import REMOTE_COMPUTER_ONLY_ACTIONS as _COMPUTER_ONLY_APPROVAL_ACTIONS
+
 #: What a phone may grant when it answers its own approval: this action, or the rest of the same request
 #: or task. A project-wide grant stays on the computer.
 _PHONE_APPROVAL_SCOPES = frozenset({"once", "task", "request"})

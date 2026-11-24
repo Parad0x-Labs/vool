@@ -9,9 +9,13 @@ answer by its text, and the same fixed sentence, erased with a deleted chat week
 from __future__ import annotations
 
 from core.finalization import AVAILABILITY_ERASED, erase_finalization_payload, payload_availability_for_hash
-
-from tests.foundation.test_a8_privacy_pass001 import (  # noqa: F401 (fixture)
-    _append_event, _finalize_under_request, _history, _runtime, _sha, a8_env,
+from tests.foundation.test_a8_privacy_pass001 import (
+    _append_event,
+    _finalize_under_request,
+    _history,
+    _runtime,
+    _sha,
+    a8_env,
 )
 
 SENTENCE = "Manual mode requires approval for this exact action. Review the details, then allow or deny this request."

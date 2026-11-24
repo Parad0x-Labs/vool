@@ -5,7 +5,7 @@ the largest, with a few plain reasons to use it, a code that opens the download 
 """
 import os
 
-from test_phone_listener_served import desktop, http  # noqa: F401 (fixture)
+from test_phone_listener_served import desktop, http
 
 
 def _browser(driver):
@@ -24,7 +24,7 @@ def test_phone_card_leads_and_holds_get_the_app_then_pair(desktop):
             for width in (1280, 390):
                 page = browser.new_page(viewport={"width": width, "height": 900})
                 outside = []
-                page.on("request", lambda req: outside.append(req.url) if not req.url.startswith(base) and not req.url.startswith("data:") else None)
+                page.on("request", lambda req, outside=outside: outside.append(req.url) if not req.url.startswith(base) and not req.url.startswith("data:") else None)
                 page.goto(base + "/settings#phone")
                 nav = page.locator('[data-group="phone"]')
                 if nav.is_visible():
