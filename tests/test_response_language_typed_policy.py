@@ -422,3 +422,56 @@ def test_english_turn_keeps_its_existing_prompt_shape() -> None:
         if str(message.get("role") or "").casefold() == "system"
     ]
     assert not any("Respond in" in content for content in system_messages)
+
+
+def test_a_turn_with_no_exclusive_letters_still_keeps_the_persons_language() -> None:
+    """Most non-English turns carry no letter only one language uses; the reply still follows them."""
+    from core.response_language_policy import SAME_LANGUAGE_INSTRUCTION
+
+    for text in (
+        "Kada išvyksta paskutinis autobusas namo šiandien?",  # Lithuanian with no deciding letter
+        "Necesito saber cuánto cuesta el billete para mañana",  # Spanish without inverted marks
+        "Kannst du mir sagen, wann der nächste Zug fährt",  # German without the sharp s
+    ):
+        policy = response_language_policy_for_text(text)
+        assert policy.to_dict() == {"expected_language": "none", "reason": "insufficient_evidence"}, text
+        request = _build_router_request(text)
+        system = [str(m.get("content") or "") for m in request.messages if str(m.get("role") or "").casefold() == "system"]
+        assert any(SAME_LANGUAGE_INSTRUCTION in content for content in system), text
+    # A translation names its own output; a quoted subject commits to nothing.
+    assert response_language_provider_instruction({"expected_language": "none", "reason": "translation_request"}) == ""
+    assert response_language_provider_instruction({"expected_language": "none", "reason": "quoted_subject"}) == ""
+
+
+def test_the_tool_round_that_writes_the_answer_carries_the_persons_language() -> None:
+    """After tool work the answer is the tool round's respond.direct message, so that call needs the line too.
+
+    Measured in the app on 2026-11-24: a plugin asked for in Lithuanian ran correctly and the answer came
+    back in English; no tool-round prompt carried any language line, for any language.
+    """
+    from core.memory_first_router import MemoryFirstRouter
+    from core.response_language_policy import SAME_LANGUAGE_INSTRUCTION
+
+    def tool_round(text: str):
+        router = MemoryFirstRouter(registry=mock.Mock())
+        return router._build_request(
+            task=SimpleNamespace(task_id="language-tool-round"),
+            classification={},
+            interpretation=SimpleNamespace(raw_text=text, normalized_text=text),
+            context_result=SimpleNamespace(report=SimpleNamespace(to_dict=lambda: {})),
+            persona=SimpleNamespace(),
+            output_mode="tool_intent",
+            task_kind="tool_intent",
+            surface="openclaw",
+            source_context={},
+        )
+
+    def system(request) -> str:
+        return "\n".join(str(m.get("content") or "") for m in request.messages if str(m.get("role") or "").casefold() == "system")
+
+    assert "Respond in Lithuanian." in system(tool_round("Paaiškink, kaip veikia duomenų bazių indeksas ir kodėl jis greitas."))
+    assert SAME_LANGUAGE_INSTRUCTION in system(tool_round("Me guardas una copia de esta nota para el lunes"))
+    english = system(tool_round("Please save a copy of this note for Monday and tell me where it went."))
+    assert "Respond in" not in english and SAME_LANGUAGE_INSTRUCTION not in english
+    # The JSON of a tool round is never measured as prose.
+    assert tool_round("Paaiškink, kaip veikia duomenų bazių indeksas.").metadata.get("response_language_policy") in (None, {})

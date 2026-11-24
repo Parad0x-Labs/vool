@@ -2297,7 +2297,11 @@ class MemoryFirstRouter:
         # principal/session resolution, never from caller-supplied metadata.
         from core.operator_profile import principal_for_request
 
-        language_policy = (
+        # The person's language is decided for the calls that write words the person reads: the
+        # plain answer, and the tool round, whose respond.direct message IS the answer after tool
+        # work. Only a plain answer is measured afterwards (a tool round's JSON is not prose), so
+        # the tool round carries the decision on the wire alone, through the provider line below.
+        turn_language_policy = (
             response_language_policy_for_text(
                 str(
                     getattr(interpretation, "raw_text", "")
@@ -2313,9 +2317,10 @@ class MemoryFirstRouter:
                     or ""
                 ),
             ).to_dict()
-            if output_mode == "plain_text"
+            if output_mode in {"plain_text", "tool_intent"}
             else {}
         )
+        language_policy = turn_language_policy if output_mode == "plain_text" else {}
         if isinstance(source_context, dict):
             source_context["response_language_policy"] = language_policy
         chat_truth = dict(
@@ -2425,7 +2430,7 @@ class MemoryFirstRouter:
         # provider call, in the same bounded guidance channel as the contracts above — the
         # output-language decision must reach the wire, not only the post-hoc validator. English
         # keeps its proven post-hoc guard + one bounded repair and adds no prompt bytes.
-        _language_provider_instruction = response_language_provider_instruction(language_policy)
+        _language_provider_instruction = response_language_provider_instruction(turn_language_policy)
         if _language_provider_instruction:
             system_prompt = f"{system_prompt}\n\n{_language_provider_instruction}"
         # PB01 hook 1 — LEARNED GUIDANCE DELIVERY: the validated steps/preconditions of the
