@@ -17,7 +17,7 @@ refusal a skill can run into are listed in [Skill tools and limits](skill-tools-
 
 From a VOOL source checkout (`export VOOL_SRC=/full/path/to/vool`), in a folder of your own:
 
-The `new`, `try`, `zip` and `call` commands came after VOOL 0.7.7: a `vool-community` command from
+The `new`, `try`, `zip`, `stage` and `call` commands came after VOOL 0.7.7: a `vool-community` command from
 0.7.7 or earlier has only `init`, `lint`, `pack`, `check` and `submission-link`. Run every command
 on this page from the checkout as shown. `python -m tools.community_skills --help` lists the commands the checkout has.
 
@@ -248,8 +248,8 @@ import this skill /full/path/to/aisle-sorter.zip
 ```
 
 Add `for this chat`, `for this project` or `for all of VOOL` to choose where it works (the
-default is all of VOOL). VOOL replies that the zip `holds the skill aisle-sorter, staged for all
-of VOOL`, shows the instructions, and says it is not on yet. In Manual mode the import first
+default is all of VOOL). VOOL replies `This file holds the skill "Aisle sorter", ready for all of VOOL.`,
+shows the instructions, and ends with `It is not on yet: say turn it on.` In Manual mode the import first
 shows a **Permission needed** bar: click **Allow once**.
 
 ### Route B: folder install with `stage` and `skill.install`
@@ -280,7 +280,9 @@ to replace an installed skill of the same name), `scope` (`chat`, `project` or `
 turn-on. Inside VOOL it still waits for **Allow once**, in Manual and Auto mode; the card shows
 the check code and lists any tools the skill asks for. It installs the bytes `stage` checked or
 nothing: if `SKILL.md` in the drafts changed since, it refuses with `This draft changed after it
-was made, so it was not turned on. Make or stage it again, and try again.`
+was made, so I did not turn it on: it is no longer the version that was shown. Ask me to make or show it again.`
+If you passed `sha256` yourself and it no longer matches, the refusal reads `The skill file changed after I
+showed it to you, so I did not turn it on. Ask me to show it again.`
 
 ```text
 skill.install path=aisle-sorter
@@ -512,8 +514,11 @@ Built-in and Browse skills cannot be removed this way.
 
 ## 9. Publish
 
-Adding a skill to the shared library (Skill Codex) is not open to every author yet. Until it is,
-share a skill as its zip file: anyone can import it with *import this skill* (section 3, Route A).
+There are two ways to share a skill. Send its zip file: anyone can import it with *import this
+skill* (section 3, Route A). Or publish it to the Skill Codex, the shared library anyone can browse
+from the website and from inside VOOL: a skill you made in VOOL has a **Publish to Skill Codex**
+button under **Skills & Plugins → My add-ons → Skills**, and a signed-in account at least 14 days
+old can publish. Who can publish, the checks and the badges: [Publish and share](../creators/publish.md).
 
 **A skill with `allowed-tools`** works on every route that can check the names, and is refused on
 the one that cannot:

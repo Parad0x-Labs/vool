@@ -6,17 +6,26 @@ description: Languages, accessibility, activity history, receipts, and how model
 
 ## Interface languages
 
-VOOL's interface is available in multiple languages; newer strings may still show in
-English until a translation lands. Language selection is a presentation
-concern only: permission decisions, spending authority and error codes are
+VOOL's screens come in 17 languages: English, Arabic, Chinese (Simplified), French, German,
+Hebrew, Hindi, Japanese, Korean, Lithuanian, Polish, Portuguese, Russian, Spanish, Turkish,
+Ukrainian and Vietnamese. Choose one with the app language menu at the top of **Settings**.
+Translations are machine-made, and newer text may still show in English until a translation
+lands.
+
+The app language changes the screens only. The language VOOL answers in is a separate
+setting: **Settings → General → Answer language**. Asking in a message ("answer in Polish")
+still wins for that message.
+
+Language selection is a presentation concern only: permission decisions, spending authority and error codes are
 **language-independent by construction** — a translated error message can never widen or
 narrow what the English authority decided.
 
 ## Accessibility
 
 * Keyboard shortcuts for the main flows (see [Keyboard shortcuts](shortcuts.md)).
-* Light and dark presentation in the docs and app surfaces, following your system preference
-  with a manual override.
+* Light and dark: **Settings → Appearance → Theme and text size** offers Light, Dark or
+  "Same as this computer", and a larger text size for the conversation.
+* Switches in Settings say **On** or **Off** in words as well as colour.
 * Errors are stated as text, not colour alone; destructive actions always require an explicit
   confirmation rather than a single misclick.
 

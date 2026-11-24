@@ -87,10 +87,11 @@ a page, waits for your approval.
 
 ## Privacy
 
-* Requests go only to X's own API address, through the same outbound door as the rest of
-  VOOL. Local Only mode stops them, and your keys never follow a redirect.
-* If you send web traffic through **Private web** (Tor or a VPN), X requests use that
-  route too. When the route is down, nothing is sent to X.
+* Requests go only to X's own API address, the same way the rest of VOOL goes online. An
+  Offline chat, or a computer set to keep everything on this machine, stops them, and your
+  keys never follow a redirect.
+* If you send web traffic through **Private web** (Tor or your own VPN, in
+  **Settings → Privacy & Permissions**), X requests use that route too. When the route is down, nothing is sent to X.
 * The X settings answer only this computer. Another device on your network cannot read or
   change them.
 * A request that waits for approval, and its answer, are kept encrypted on this computer.

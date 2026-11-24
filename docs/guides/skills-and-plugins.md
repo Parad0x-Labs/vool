@@ -1,187 +1,200 @@
 ---
-description: Extend VOOL with skills and plugins.
+description: Extend VOOL with skills and plugins, from Browse, the Skill Codex or your own folder.
 ---
 
 # Skills and plugins
 
-A **skill** is a packaged set of instructions for a recurring task. A **plugin** adds tools,
-a model provider or an add-on scanner. Plugins may also bundle skills.
+A **skill** is a page of written instructions for a task you do again and again. It runs no
+code and never gives VOOL new permissions. A **plugin** adds something new: tools VOOL can
+call, a model service, an extra scanner, or a browser plugin. Plugins may also bring skills.
 
-## Bundled versus externally installed
+Everything here lives on one page: open **Home → Skills & Plugins**. It has four tabs:
 
-VOOL ships with a **native skill library** — the skills that come with the app itself — and,
-in current builds, the **VOOL Database** plugin. You can also install skills and plugins of
-your own.
+| Tab | What it is for |
+| --- | --- |
+| **Browse** | Skills that come with VOOL, plus a short list of public skills from other makers. |
+| **Skill Codex** | Skills and plugins published by their creators, with ratings, badges and team notices. |
+| **My add-ons** | What is installed on this computer: **Skills** and **Plugins**, each with its own on and off switch. |
+| **Security** | The checks VOOL runs before anything is added, and any scanner plugin you chose. |
 
-| | Bundled (ships with VOOL) | Externally installed |
-| --- | --- | --- |
-| Where it lives | Inside the app | Your plugins folder (managed from the plugins window in VOOL, not from Settings) |
-| Updates | With the app | When you update the pack |
-| Can be disabled | No button in the app's windows yet | Yes — from the plugins window |
-| Grants permissions | **No** | **No** |
+## What a skill or plugin can never do
 
-Two rules hold for both sources:
+The Skill Codex page says it plainly: *Skills contribute instructions. VOOL native rules, owner
+settings, spending limits, currency handling, permissions and approvals always take precedence.*
+The same holds for plugins:
 
-* **Skills teach; they never grant.** A skill's declared tools are a *narrowing* signal (the
-  workflow's tool budget), never a grant of anything. The permission controller does not read
-  skills.
-* **One inventory.** The catalogue the console shows and the packs the runtime loads are the
-  same list. A skill appearing in a list is not proof it can load — each entry carries its
-  live state (available, disabled, prerequisite missing, invalid contract) and the reason.
+* A skill or plugin never overrides VOOL's own rules, your settings or your spending limits.
+* It never approves anything for you. Tools still ask where they would ask anyway.
+* A plugin can't spend money, use your wallet, read your own model keys or another plugin's keys.
+* Nothing starts by itself. A skill is used only when a message asks for it, and a plugin stays
+  off until you switch it on.
 
-## Finding skills
+## Skills from Browse
 
-Skills & Plugins lists VOOL's own skills first. **Browse** comes with 75 ready VOOL
-skills. Each one is a set of instructions, bundled with the app, so Browse lists them
-without a lookup online. 22 of them use VOOL tools (your email, notes, files, PDFs, wallet and
-more) on the turns they are picked: a skill's tools only narrow what VOOL already offers for
-your request, a tool that is off stays off, and every call asks as it always does. Its
-**Source & technical details** list the tools it uses. The **Skill Codex** tab lists VOOL team
-skills first. Review a skill before you enable it.
+**Browse** lists VOOL's own skills first: 75 skills written by the VOOL team that come inside
+the app, so Browse shows them without going online. 22 of them use VOOL tools (your email,
+notes, files, PDFs, wallet and more) on the turns they are picked. Open a skill's **Source &
+technical details** to see the tools it uses. Below them are two public skills from other
+makers.
 
-How a skill from Browse is added depends on who made it:
+How a skill is added depends on who made it.
 
-* **Skills made by VOOL** (the 75 above): press **Add this skill**. VOOL checks on your
-  computer that the file is the exact one it shipped with and reads it for risky
-  instructions, then shows you the result. No key is needed and nothing is sent anywhere.
-  If the file does not match, VOOL refuses it and says so.
-* **Skills from other makers** (other publishers, or a GitHub link you paste): press
-  **Download and scan**. VOOL downloads the public skill at a fixed version and checks it on
-  your computer. If you enabled a scanner plugin, it also receives the skill's contents and
-  its report is added beside VOOL's own. Read the result, then choose whether to add the
-  skill: if either check reports a problem, VOOL adds it only after you accept the risks for
-  that version. No key is needed unless your scanner plugin asks for one.
+**Skills made by VOOL**
 
-You can also make your own skill in chat with no key at all: see
-[Make your own skill](make-your-own-skill.md).
+1. Open the skill and press **Add this skill**.
+2. VOOL checks on your computer that the file is exactly the one it shipped, then reads it for
+   risky instructions. No key is needed and nothing is sent anywhere.
+3. If the check is clean, press **Add and turn on**. If it flagged something, read it; to go
+   ahead, tick *I read what VOOL's local check flagged and still want to add this exact
+   version.* and press **Add it anyway**. **Reject** throws it away.
 
-You can also ask in any chat: *which skills do I have?* lists them, and *how do I add a
-skill?* explains both ways.
+If the file does not match, VOOL says *This VOOL skill's file doesn't match the copy that came
+with VOOL, so it was not added. Update or reinstall VOOL to repair it.*
+
+**Skills from other makers** (a skill on Browse from someone else, or a GitHub link you paste
+into **Search skills, or paste a GitHub link…**)
+
+1. Press **Check compatibility**, then **Download and scan**. VOOL downloads the public skill at
+   one fixed version and checks it on this device. If you turned on a scanner plugin, it also
+   gets the skill's text and its report is shown beside VOOL's.
+2. Read the result. A clean skill is added with **Accept and enable**. If either check found a
+   problem, VOOL adds it only after you tick that you accept the risks and press **Accept risks
+   and enable this version**.
+
+An installed skill from Browse shows **Checked on this device** on its card.
+
+## The Skill Codex
+
+The Skill Codex is the shared library where anyone can publish skills, and from VOOL 0.8 also
+plugins. Press **Browse Skill Codex** to load the list. That one request goes to the public
+list; no account, chats, local files or keys are sent. You need no account to browse or install.
+
+Each listing card has **View details**, which opens the full page for that add-on:
+
+* **About**: the creator's own description. VOOL shows it as plain text with headings, lists
+  and bold, never as a web page, so it can't run anything or load pictures.
+* **What it needs**: the websites it can reach, the service keys it asks for and the tools it adds.
+* **Versions and changes**, and **Details**: version, which VOOL versions it works with
+  (**Works with**), platforms, package checksum and how many download requests it had.
+* **Links**: the creator's home page, support and guide. *The creator wrote these addresses.
+  VOOL has not checked the sites.*
+* **Ratings and reviews**, and **Notices from the VOOL team**, when there are any.
+
+### Ratings
+
+Only people who installed an add-on from the Skill Codex can rate it. On an installed add-on,
+**Rate this add-on** then **Open Skill Codex** opens the website in your browser with proof that
+you installed it; you sign in there and give 1 to 5 stars. VOOL sends nothing itself. Until an
+add-on has 5 ratings, its page says *Not enough ratings yet* and shows no average. Reviews from
+people who installed it show which version they had.
+
+### Badges
+
+Two badges can appear, and only the VOOL team gives them:
+
+* **Tested by VOOL**: *The VOOL team installed and used this exact version.*
+* **Editor's Choice**: *Picked by the VOOL team as one of the best of its kind.*
+
+A badge belongs to one exact version, so an update shows none until the team checks it again.
+Every badge runs out after a while (Tested by VOOL after about six months, Editor's Choice after
+about a year) and the team can withdraw one sooner. A name, a tick or a star in an add-on's own
+text never counts as a badge. **Editor's pick** and **Featured** only order the list.
+
+### Installing from the Skill Codex
+
+* **A skill**: open it to see its exact files and text, then press **Install without enabling**
+  or **Install and enable**.
+* **A plugin**: VOOL shows its review sheet first: what it is, who published it, the websites
+  and keys it needs, and every file in the package (files that can run as a program are marked).
+  Press **Install and keep disabled**. To switch it on, open **My add-ons → Plugins** and review
+  its access (see below).
+
+Before anything is kept, VOOL runs its own safety checks on the downloaded files. If they fail,
+you see *This skill didn't pass VOOL's own safety checks, so VOOL didn't keep or install it.*
+You can report it with **Report this skill**, which opens the Skill Codex website in your browser.
+
+### When an add-on is removed
+
+**Check once a day for removed add-ons** is on unless you turn it off. While you have at least
+one add-on from the Skill Codex, VOOL reads the public list once a day, so an add-on the VOOL
+team removed stops being used here. Nothing about you, your chats or your add-ons is sent. If a
+check can't finish, VOOL tries again within the hour. A removed add-on's page says *The VOOL
+team removed this add-on from the Skill Codex, so VOOL no longer uses it.* An add-on that is only
+no longer listed keeps working. Skills shared as a zip and plugins from a folder or GitHub are
+not covered: you remove those yourself.
 
 ## Turning a skill on or off
 
-Open **Skills & Plugins**, then **My add-ons**, then **Skills**. Each skill shows **On** or
-**Off** with an **Enable** or **Disable** button. A skill you turn off is not used in any chat
-until you turn it on again. Its files are kept.
+Open **My add-ons → Skills**. Each skill shows **On** or **Off** with an **Enable** or
+**Disable** button. A skill you turn off is not used in any chat until you turn it on again,
+and its files are kept. Skills that come with VOOL sit on the **Built-in skills** card under
+**Plugins**; turn them on or off one by one under **Skills**.
 
-The **Built-in skills** card under **Plugins** has no button of its own: turn its skills on or
-off one by one under **Skills**.
+You can also ask in any chat: *which skills do I have?* lists them by where they came from
+(made by you, built in, added from Browse, added from a file, in your project folder) and
+says whether each is on, off or not available here, with the reason.
+
+## Whose skill it is matters
+
+* **A skill you made in VOOL** (see [Make your own skill](make-your-own-skill.md)) can bring the
+  tools it lists, and it is picked when your message fits it.
+* **A skill VOOL wrote on its own** (for example while reading a web page or someone else's
+  skill) gets the tools it lists only after you click Allow on the card that lists those tools
+  for that exact version. Auto mode asks for that card too.
+* **A skill from anyone else** (Browse, the Skill Codex, GitHub, a zip, a connected server) is
+  used only when your message asks for it, and its tool list can only narrow what VOOL already
+  offers. When you turn one on, VOOL says which parts of it are ignored.
 
 ## Seeing which skill shaped an answer
 
-When a skill's instructions were part of how VOOL wrote an answer, a short line under the
-answer says so, for example **Skill used: Browser**. It appears right after the answer, while
-the chat is open; answers loaded later from your history do not show it yet. Answer-style rules
-that ride along on most answers are not named there.
+When a skill's instructions were part of an answer, a short line under it says so, for example
+**Skill used:** Browser. It shows while the chat is open; answers loaded later from your
+history don't show it.
 
-## Skills for building VOOL
+## Plugins
 
-The library also holds the skills the VOOL team builds VOOL with: code review, test runs,
-release checks, pipeline repair and similar. They are not listed in chat or on the Skills page,
-and they do not steer everyday answers. Developers can show and use them by starting VOOL with
-`VOOL_DEVELOPER_SKILLS=1`.
+Open **My add-ons → Plugins**. VOOL comes with two: **Built-in skills** and **VOOL Database**
+(small databases of its own on this computer, changed with a backup first). Once you have a browser
+plugin, the list is split into **Web browser** and **Tools and services**.
 
-## Availability states
+To add one:
 
-A skill can show as unavailable with a typed reason: a missing prerequisite (for example, the
-database skill needs the database plugin enabled), an unavailable capability on this machine,
-an invalid contract, or disabled by you. Reasons are shown per entry, and disabling is
-per-entry and persistent across restarts.
+1. Choose **Install from a folder** or **Install from public GitHub source** (a project, a folder
+   inside it and an exact version), or install it from the Skill Codex.
+2. VOOL shows every file and checks them on this device. Press **Install and keep disabled**.
+   Nothing runs yet.
+3. If it needs a service key, paste it into the plugin's card and press **Save key**. Saving sends
+   nothing. **Test connection** sends one request when you press it.
+4. Press **Review access and enable**. The sheet lists what it may do, the websites it can reach,
+   its keys and any helper program it runs. Press **Accept and enable**, or **Keep disabled**.
 
-## Duplicate identities
+**Let chats use plugin tools** turns all plugin tools on or off at once. Model and scanner
+plugins work either way.
 
-If two packs declare the same plugin identity (a bundled pack and an installed copy, say),
-the bundled one is kept **deterministically** and the dropped copy is reported in the
-catalogue — never silently shadowed.
+**Disable** stops a plugin at once, including calls that are running. **Uninstall** switches it
+off first, then removes its files; **Also remove saved keys** is ticked unless you untick it.
+An update (**Review an update to an installed plugin**) is reviewed again and installs switched
+off. If any file of a plugin changes after review, it switches off until you review it again.
 
-## Installing your own
+### Browser plugins
 
-Install from the in-app catalogue, or point VOOL at a plugins folder of your own. Packs carry
-a manifest (`plugin.json`) declaring their tools; a manifest whose permission declarations do
-not match its declared behaviour class is refused at load.
+A browser plugin is an ordinary browser extension packed as a VOOL plugin. It runs in the VOOL
+browser window (the Chrome-family browser already on your computer, with its own separate
+profile) only while it is enabled, and never in a private window. Its access sheet says which
+sites it can read and change. VOOL refuses a browser plugin that would update itself from
+outside VOOL, replace the start page or search, or ask for saved sign-ins.
 
-{% hint style="danger" %}
-Review the entire package before verification. A review is evidence about specific bytes,
-not a safety certificate or a grant of permissions.
-{% endhint %}
+**Make a browser plugin** writes a small working plugin into a folder on this computer. Change
+it yourself or ask VOOL in chat to write it for you, then review and install it like any other.
 
-## Plugins in Add-ons
+## Good to know
 
-Open **Add-ons → My add-ons → Plugins**. Review a local folder or a public GitHub folder at
-an exact commit. Installation captures the complete package and keeps it disabled. Signed
-store plugins use the existing registry chain and also install disabled. Review the access
-sheet separately before enabling tools or services. Saving a service key causes no request;
-connection tests and model-list refreshes are explicit actions.
+* A check describes the exact files it read. It is not a promise that an add-on is safe, and a
+  listing is not a recommendation.
+* Some plugins that run their own programs stay off on a computer that can't keep them walled off
+  from your saved keys; VOOL says so on the plugin. Plugins that only connect a service still work.
+* UsePod and Eyebrow are no longer part of VOOL. A key you saved for either in an older VOOL stays
+  on this computer and is not used.
 
-Disable removes tools and stops running calls. Uninstall disables first, removes owned files
-and scratch, defaults to deleting saved keys, and retains history. Updates and re-installs
-require a new review and start disabled. An update from another repository or publisher
-does not keep the saved keys. UsePod and Eyebrow are no longer part of VOOL, and VOOL
-offers no plugin for either. A saved UsePod or Eyebrow key stays on this computer and VOOL
-does not use it; Add-ons says so until you close the notice. Chats that used a UsePod model
-have no model selected after the upgrade, and Auto won't switch to a cloud model in those
-chats; a notice says so until you close it.
-
-See [Plugin authoring](plugin-authoring.md) and [Add-on checks](addon-security.md).
-
-## Complete package approval
-
-Verification covers every package file and directory, including handler executables,
-vendored libraries, dependency locks, references, assets and executable mode bits.
-Adding, removing, renaming or changing any of these invalidates approval. Symlinks,
-hardlinks, special files, privileged modes, unstable reads and oversized distributions
-are refused. The current capture limits are 4,096 entries, 64 MiB per file and 128 MiB
-per package. There are no ignored cache or state directories inside a package.
-
-Previously stored metadata-only approvals do not activate packages in this version.
-Review the full distribution, explicitly verify it again, then enable it. Updates remain
-disabled until verified and enabled; approval is never silently migrated.
-Managed add-ons also need a fresh authenticated store review when an older receipt
-does not bind the complete distribution; ordinary verification cannot replace that receipt.
-
-`requires` names installed plugin dependencies. Verification pins their recursive approval digests;
-each dependency must already be verified and enabled. A changed, updated, disabled or
-revoked dependency makes its dependants unavailable, including through cached tools.
-Admission rechecks enabled and revoked state for the whole captured closure after hashing.
-Re-verifying a dependency does not silently approve its new bytes for the parent: review
-and re-verify every parent too. Each `approval_digest` binds its package digest and dependency
-approvals, so a changed transitive dependency changes that approval even when the parent's
-own files stay identical. Cyclic dependency approval cannot activate. The dependency closure
-is limited to 64 packages.
-
-Each registered invocation checks lifecycle state again and captures private read-only
-copies of the package and its pinned dependency closure. The tool contract must match the
-captured manifest. The registered handler launches from that capture; editing the source
-after capture cannot replace that handler or its bundled files. Execution observations
-include package, recursive approval, and dependency digests. Registered packages require actual kernel confinement even if a
-local low-level caller selected a weaker override.
-Hosts without safe no-follow descriptor capture or kernel confinement refuse registered
-packages. Invocation timeouts are bounded to 1–300 seconds; the invocation's owned
-process group is stopped before its execution copy is removed.
-
-Keep persistent output, caches and logs in `PLUGIN_SCRATCH`, not beside executable code.
-Read-only tools receive no write grant. Other tools may write scratch but cannot modify
-their execution copy. `VOOL_PLUGIN_DEPENDENCIES` is a JSON mapping from declared dependency
-identities to the captured dependency directories. Bundle other third-party libraries
-and their locks inside the package; a lockfile alone does not attest an external environment.
-The runtime interpreter and system libraries remain part of the trusted platform, rather
-than being represented as reviewed third-party package bytes. This integrity check does
-not certify behavior, attest arbitrary code downloaded or loaded from outside the approved
-distribution, broker every internal effect or replace native wallet approval.
-
-On macOS, plugin code runs in the macOS sandbox. Keys reach a handler only over its private
-input, never its environment, because any program of the same user, plugin code included,
-can read another program's starting environment on a Mac. A connection server that needs a key in its
-environment runs only in the optional isolated Linux runtime, which you provision yourself;
-VOOL never starts a VM or downloads an image. Without it, that plugin stays off and says why.
-Linux uses bwrap, including a private process namespace and `/proc`.
-
-On macOS a tool that declares network can reach only a private proxy VOOL starts for each
-call, and the proxy connects only to the declared hosts. On Linux and in the isolated runtime
-plugin processes have no network. Native provider and scanner requests use their separate
-declared-host HTTPS transport on every platform.
-
-## Writing a skill
-
-* To make a skill by asking in chat, see [Make your own skill](make-your-own-skill.md).
-* To write, lint, install and test a SKILL.md file yourself, see [Build and test a skill](build-and-test-a-skill.md).
+For the details of each check, see [Add-on checks](addon-security.md). To build your own, see
+[Make your own skill](make-your-own-skill.md) and [Build for VOOL](../creators/README.md).

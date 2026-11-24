@@ -7,7 +7,8 @@ description: Common questions about VOOL — whether it works offline, where you
 ## Does VOOL work offline?
 
 Yes, with a local model, for your chats and files. Cloud models need a network
-connection by definition. Live facts such as weather or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in Local Only.
+connection by definition. Live facts such as weather or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in an Offline chat.
+To keep a chat fully on this computer, choose **Offline** in the model menu.
 
 ## Do I need a cloud key?
 
@@ -32,10 +33,20 @@ first open. The steps are in [Install](../getting-started/install.md#first-open-
 
 ## Can I use my own model?
 
-Yes. Any runtime exposing an OpenAI-compatible local endpoint. See
+Yes. Any model in Ollama on this computer, or any server with an OpenAI-compatible address,
+added as a custom endpoint in **Settings → API Keys**. See
 [Supported models](../reference/models.md).
 
 ## Is it free?
 
 The application is free during the beta. Cloud model usage is billed by your
-provider, to your account.
+provider, to your account. VOOL Auto never picks a paid model by itself.
+
+## Which systems does it run on?
+
+Macs with Apple Silicon, Intel Macs (macOS 14 or newer) and Linux x86_64. See
+[Install](../getting-started/install.md).
+
+## Which version do these docs describe?
+
+VOOL v0.8. What changed is in the [Changelog](changelog.md).

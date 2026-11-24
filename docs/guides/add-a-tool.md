@@ -9,9 +9,8 @@ someone needs it — not only when they type the tool's exact intent token. This
 the **card**: the small block that says *when a person needs your tool*, in the words a person
 would actually type.
 
-> Card routing is planned for 0.8, not released yet. The validator, the router and the
-> test described here are already in the code you have; nothing here ships in a released build
-> until the changelog says so.
+> Card routing is on by default in VOOL 0.8. The validator, the router and the test described
+> here are the ones the app uses.
 
 ## What a card is
 
@@ -185,7 +184,7 @@ PY
 ```
 
 `match_cards` reads no policy and no trust, so it is safe to call from a script. What you
-want to see: real asks score above 0.42 (the seat floor) — or above 0.75 if only word overlap
+want to see: real asks score above 0.42 (the score that seats a card) — or above 0.75 if only word overlap
 can run — and the near misses in your `not_for` score higher than any example, so they veto.
 If an ask you care about scores low, add it (or its phrasing) to `examples`; if a wrong ask
 scores high, add it to `not_for`. Then re-run the snippet.

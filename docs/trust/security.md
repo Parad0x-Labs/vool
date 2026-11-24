@@ -12,8 +12,9 @@ description: How VOOL protects your files and API keys — workspace boundaries,
   are never read. See [Workspaces](../concepts/workspaces.md).
 * **The credential store** holds keys. Keys are not written into config files or logs.
 * **Tool confirmation** bounds changes. In Manual mode every change asks first; in Auto mode
-  everyday edits and commands can run automatically, while deleting, overwriting, installing,
-  spending and changing settings still ask. See [Tools](../concepts/tools.md).
+  ordinary project reads, edits and tests can run on their own, while deleting, publishing,
+  money, credentials and other risky actions still ask. Commands run in a sandbox with no
+  network. See [Permissions](../concepts/permissions.md).
 
 ## Your local network
 
@@ -26,13 +27,12 @@ time. That page must be on the public internet: addresses on this computer or yo
 network are refused, and each redirect is checked the same way. Web searches, research,
 the browser, quotes, payments and your paid keys work only on this computer.
 
-## Discord bridge
+## Chat bridges
 
-The Discord bridge answers only its owner. The first Discord user to send it a command
-becomes the owner. To choose the owner yourself, set `VOOL_DISCORD_OWNER_USER_ID` to your
-Discord user ID; do this for any channel other people can write in. Everyone else is told
-once that this VOOL is locked to its owner, and their messages are not processed. Even the
-owner's Discord messages get the same limits as another device on the network.
+A Telegram or Discord bridge answers only its owner; everyone else is told once that this VOOL is locked
+to its owner, and their messages are not processed. Even the owner's Discord messages get the
+same limits as another device on the network. See
+[Telegram and Discord](../guides/telegram-and-discord.md).
 
 ## Keys
 
@@ -50,8 +50,8 @@ expose your keys.
 
 ## Plugins
 
-A plugin runs with the runtime's access. That is what makes plugins useful and what makes
-them worth reading before installing. See [Skills and plugins](../guides/skills-and-plugins.md).
+Skills and plugins extend what VOOL can do, so read one before installing it. VOOL checks
+add-ons before they are turned on; see [Skills and plugins](../guides/skills-and-plugins.md).
 
 ## Reporting an issue
 
@@ -60,6 +60,6 @@ Report security issues privately through
 never in a public issue. Include the version, the platform, and the steps to reproduce.
 
 {% hint style="warning" %}
-The macOS apps are ad-hoc signed and not notarized; the Linux tarball is unsigned. See
-[Release status](release-status.md).
+The macOS apps are ad-hoc signed and not notarized; the Linux tarball is unsigned. Updates
+are signed and checked before they install. See [Release status](release-status.md).
 {% endhint %}

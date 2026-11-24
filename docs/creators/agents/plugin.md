@@ -191,10 +191,11 @@ With `--json`, a refusal is one object:
 | `message` | The sentence a person installing the plugin would read. It names the kind of fault, not the field. |
 | `where` | The manifest field at fault, for example `vool.network[0]`. Can be empty when the fault is not in one field. |
 | `fix` | What to write instead. Act on this. |
+| `problems` | Every problem the check found in this run, each with its own `message`, `where` and `fix`. The first three fields repeat the first one. |
 
 Without `--json` the same answer is two lines: `Refused: ` and the message, then `For the plugin's maker: ` with the field and the fix.
 
-Act on a refusal in this order: read `fix`; change the field named in `where`; run the check again. One refusal is reported per run, so repeat until exit 0. Look a message up in [errors.md](errors.md); every common mistake is in [../reference/plugin-refusals.md](../reference/plugin-refusals.md).
+Act on a refusal in this order: read `fix`; change the field named in `where`; run the check again. The check lists every problem it finds in one run under `problems`; fix them all, then run again until exit 0. Look a message up in [errors.md](errors.md); every common mistake is in [../reference/plugin-refusals.md](../reference/plugin-refusals.md).
 
 ## Tell the person
 

@@ -137,6 +137,23 @@ say **turn it on**. Share a skill while it is on: a skill you turned off cannot 
 The zip holds only the skill's instructions. VOOL refuses a zip that carries programs or other
 files.
 
+### Publish it to the Skill Codex
+
+To share a skill with everyone, open **Skills & Plugins**, then **My add-ons**, then **Skills**,
+and press **Publish to Skill Codex** on a skill you made. VOOL first checks it on your computer
+with the same checks the Skill Codex uses, and shows any problem with its line, for example a
+missing description, a key or password in the text, or a part that tells VOOL to get around its
+own rules. To fix one, ask VOOL in a chat to rewrite the skill, then press the button again.
+
+When it is ready, **Open Skill Codex** opens the website in your browser with the skill filled
+in. Only the skill's name, description and text go along: no chats, memory or keys, and VOOL
+sends nothing itself. On the website you sign in, pick a category, agree that anyone may use,
+copy, change and share it (MIT licence), and press Send. The Skill Codex checks it again before it
+is published.
+
+Only skills you made yourself can be published. For now the Skill Codex takes only a skill's
+text, so a skill with other files beside it stays on your computer.
+
 ## 9. Turn it off or remove it
 
 > Turn off the skill "Shopping list by aisle"
@@ -185,15 +202,15 @@ draft. If VOOL misses your skill later, change it and add the missing words.
   phrases (step 7), or name the skill in your message.
 * **VOOL uses your skill when you did not want it.** Make its trigger phrases more specific, or
   turn it off.
-* **"I need to know what it should do"**. VOOL could not tell what you asked for or which skill
-  you meant. Start with *make me a skill that ...*, or put the skill's name in quotes, exactly
-  as the skill list shows it.
+* **"I couldn't work out a name or purpose for that skill. Tell me what it should do."** VOOL
+  could not tell what you asked for. Start with *make me a skill that ...* and say what it
+  should do.
 * **"I can't keep a skill for this project"**. This chat is not part of a project. Say *for
   this chat* or *for all of VOOL* instead.
 * **"I did not import ..."** VOOL explains why. A skill zip may only hold the skill itself, plus
   an optional read-me and licence.
-* **"The draft changed after it was shown"**. The draft was replaced after you saw it, so VOOL
-  did not turn it on. Ask for it again.
+* **"This draft changed after it was made, so I did not turn it on"**. The draft was replaced
+  after you saw it, so VOOL did not turn it on. Ask for it again.
 
 For the file format, testing from a computer and publishing, see
 [Build and test a skill](build-and-test-a-skill.md).

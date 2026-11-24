@@ -1,7 +1,13 @@
+---
+description: Lend a small job (contact sheet, clean PDF, trimmed recording) to a friend's VOOL over Drop, with fixed limits and your approval.
+---
+
 # Lend a job to a friend
 
-**Not reviewed yet. Use test files only.** Lending uses Drop, whose session
-protocol has not had an independent security review. Both switches start off.
+{% hint style="warning" %}
+*Early test version. Use test files only.* Lending uses Drop, which has not had an
+independent security review yet. Both switches start off.
+{% endhint %}
 
 Your friend needs VOOL too. Their file is readable on the computer doing the
 work, so they must trust the person lending it. The shared folder carries sealed
@@ -20,8 +26,8 @@ messages; it is not a place to put the original file yourself.
   excerpt length (up to five minutes). Input recordings are limited to one hour.
   Original metadata is removed from the WAV result.
 
-Execution currently needs macOS process confinement. A computer without it
-does not offer these jobs. A guest can use a supported Drop installation without
+Jobs run only on a Mac, inside the macOS sandbox. A computer that cannot run them
+shows them as *Unavailable on this computer*. A guest can use a supported Drop installation without
 running a worker locally. Local-model summarising and translation are unavailable:
 this version does not include an independently isolated model executor. There is
 no cloud fallback or paid processing.
@@ -57,14 +63,14 @@ Each job runs in a fresh disposable worker home, offline, with its guest file
 and the fixed job program. It does not receive the lending person's chats,
 memory, contacts, accounts, credentials or other files. Content inside a document
 cannot select another job or grant tools. The worker home is removed after the
-attempt, including failure and timeout. Interrupted workers are supervised by
-recorded process identities and recovered after a restart. This is file removal,
-not a claim of secure physical erasure on an SSD.
+attempt, including failure and timeout. A job interrupted by a restart is cleaned
+up when VOOL starts again. This is ordinary file removal, not secure erasure of the
+disk.
 
 ## Waiting, refusal and expiry
 
-A job allowance is consumed when it is submitted/accepted, including a decline
-or failed attempt. Replaying a request does not restore it. Create a new
+A job from the allowance is used up when it is sent, even if it is then declined
+or fails. Replaying a request does not restore it. Create a new
 invitation if you want to allow another attempt.
 
 If the lending computer has not answered within 30 seconds, the guest sees
@@ -75,8 +81,8 @@ as a complete one.
 
 Revoking an invitation refuses new work and declines queued work. Revocation
 remains available while a worker runs; any resulting output is withheld. Turning
-lending off revokes its open host invitations. Expiry removes staged and received
-files when the daemon checks them. Keep the original file yourself.
+lending off revokes its open host invitations. When an invitation expires, VOOL removes the files
+it was holding for it. Keep the original file yourself.
 
 The current transfer transport is a shared folder. Direct guest pages for people
 without VOOL, routine lending and paid jobs are not part of this version.

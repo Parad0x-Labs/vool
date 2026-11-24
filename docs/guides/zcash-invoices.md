@@ -9,7 +9,7 @@ money. VOOL creates invoices and watches for payment with a view-only key: it ca
 payments and cannot spend anything.
 
 Zcash invoices are off by default and separate from VOOL's wallet and spending. Nothing here can
-move money out. There is no switch for them in Settings yet: setting them up means building a
+move money out. There is no switch for them in Settings: setting them up means building a
 small tool and starting VOOL with a few environment variables, so this page suits people who are
 comfortable with a terminal or run VOOL from source.
 
@@ -94,7 +94,7 @@ From the command line you can also run:
   one; the answer is unknown, never *unpaid*. The message calls this *Local Only*.
 
 The view-only wallet and the invoice records are kept in an owner-only folder in VOOL's data
-directory, one per network.
+directory. Invoices run on the Zcash main network.
 
 ## What can go wrong?
 
@@ -130,7 +130,6 @@ These environment variables are read by VOOL as it runs; set them before you sta
 
 | Variable | What it sets |
 | --- | --- |
-| `VOOL_ZCASH_NETWORK` | `mainnet` (the default) or `testnet`. A test-network key starts with `uviewtest1` and amounts are in TAZ |
 | `VOOL_ZCASH_CONFIRMATIONS` | Confirmations before an invoice counts as paid, 1 to 1000. Default 3 |
 | `VOOL_ZCASH_SERVER` | The Zcash server the watch tool syncs with. Default: the tool's own `zecrocks` |
 | `VOOL_ZCASH_CONNECTION` | `direct` (default), `tor`, or `socks5://host:port` |

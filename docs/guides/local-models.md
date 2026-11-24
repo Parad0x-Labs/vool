@@ -6,30 +6,27 @@ description: How to run AI models locally on your own computer with VOOL — ins
 
 ## Install a runtime
 
-VOOL uses Ollama by default to run local models; other local runtimes with an
-OpenAI-compatible endpoint also work. Ollama is a separate program, installed on its own
-from [ollama.com](https://ollama.com). The macOS app includes its own local-model runner,
-so on a Mac you can skip this step. On Linux and source installs, install Ollama, start
-it, and pull a model.
-
-```bash
-ollama serve
-ollama pull qwen3:4b
-```
-
-VOOL picks the local model for you by default — a Qwen model sized to your computer. On
-many computers that model is `qwen3:4b`; on computers with 32 GB of memory or more the
-default is a larger Qwen model.
+VOOL runs local models through Ollama. The Mac app includes it, so on a Mac you can skip this
+step. On Linux and source installs, install Ollama from [ollama.com](https://ollama.com) and
+start it. Another local server with an OpenAI-compatible address can be added as a custom
+endpoint in **Settings → API Keys** (see [Provider keys](provider-keys.md#a-custom-endpoint)).
 
 ## Point VOOL at it
 
-Open **Settings → Models & Providers**. Running local runtimes are detected automatically. Select a
-model and the mode indicator changes to Local.
+Open **Settings → Models & Providers** and choose **This Mac** (or **This computer**). VOOL
+lists the models it finds in Ollama, each with its state: **Ready**, **Not set up yet**,
+**Needs a quick check**, **Not a good fit** or **Check didn't finish**.
+
+If you have no model yet, VOOL suggests one sized to this computer's memory or graphics card
+and the free disk, for example **Download** *model* **(4.0 GB)**. Once that one is on the
+computer, a bigger model (smarter, but slower) can be offered too. Downloading needs an
+internet connection.
 
 ## Make it ready once
 
 A local model writes answers only after VOOL has checked it. Open
-**Settings → Models & Providers → Local models** and press **Use this model** next to the model.
+**Settings → Models & Providers → This Mac** (or **This computer**) and press **Use this model**
+next to the model.
 VOOL quietly checks, on your computer, that the model can use VOOL's tools well enough to answer
 for you. The check can take a minute or two; nothing is downloaded and nobody is contacted. When it
 passes, the model shows **Ready** and VOOL answers with it. Until then, VOOL does not let it write

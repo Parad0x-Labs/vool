@@ -6,8 +6,8 @@ description: Reporting a bug safely — redacted drafts, exact-byte approval, an
 
 ## The built-in bug reporter
 
-Use the in-app bug reporter (or the `python -m apps.vool_cli bug-report` CLI). It never sends anything by
-itself — the flow is deliberately three-stage:
+Press **Report a problem** at the bottom of the chat sidebar. The reporter
+never sends anything by itself. It works in three stages:
 
 1. **Draft** — a report is built locally from recent logs and diagnostics, redacted as it is
    built. *"Nothing is sent yet — a local draft is created first."*
@@ -17,18 +17,37 @@ itself — the flow is deliberately three-stage:
 3. **Approve** — sending requires your explicit approval of those exact bytes. If the payload
    changes, the approval no longer binds and you must approve again.
 
-After you approve, **Open on GitHub** opens a filled-in report page on the public
+Press **Approve these exact bytes** to approve, or **Withdraw approval** to take it back. After you
+approve, **Open on GitHub** opens a filled-in report page on the public
 [vool-reports](https://github.com/Parad0x-Labs/vool-reports) repository in your browser. Read it
-there once more and press Submit. VOOL itself sends nothing, and no GitHub token is needed.
-**Copy report** and **Save a local copy** need no approval at all: they hand you the same sanitized
-bytes and nothing leaves your machine. **My reports** lists your drafts and how each one left.
+there once more and press Submit. This way VOOL itself sends nothing, and no GitHub token is needed. If you
+saved a GitHub token in VOOL, **Send with my GitHub token** files the approved bytes for you instead.
+**Copy report** and **Save a local copy instead** need no approval at all: they hand you the same
+sanitized bytes and nothing leaves your machine. **My reports** lists your drafts and how each one
+left. Deleting one there removes the local copy; a report already filed on GitHub stays there.
 
-## Reporting a wrong answer
+## Report this answer
 
-Press **Report** or 👎 under any answer, or highlight the wrong part and press **Report**. The
-report quotes only that part (or the whole answer). Your question is left out unless you tick the
-box. The answer's receipt is included: model, provider, tokens, time, and which steps ran, never
-their content. An answer you asked VOOL to forget cannot be reported.
+Every saved answer has **Report** and a thumbs-down button beside Copy. To quote only part of an
+answer, highlight that part and press **Report** in the small bar that appears. Then:
+
+1. Choose **What was wrong?**: **Wrong or made up**, **Out of date**, **Didn't do what I asked**,
+   **Remembered or recalled something wrong**, **An action went wrong**, **Poor answer**,
+   **Unsafe or rude** or **Other**.
+2. Optionally fill in **Tell us more** and **What should it have said?**
+3. Press **Build the report**. You then get the same preview and approval as above.
+
+Use **Remembered or recalled something wrong** when VOOL used a wrong memory, or recalled
+something from another chat that is not right. To fix the memory itself, edit or forget the item in
+**Settings → Memory & Personalisation** (see [Memory](../concepts/memory.md)).
+
+The report quotes only the part you chose, or the whole answer. Your question is left out unless you
+tick **Include my question**. **Include the answer's receipt** is ticked to start with: it adds the
+model, provider, tokens, time and which steps ran, never their content (see
+[Receipts](../concepts/receipts.md)).
+
+An answer you asked VOOL to forget cannot be reported, and answers in a private chat have no
+**Report** button, because nothing about them is saved.
 
 ## What is added to help investigate
 

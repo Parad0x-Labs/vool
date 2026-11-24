@@ -90,6 +90,10 @@ PLATFORM_ONLY = {
     "machine.event_log_errors": "Windows",
 }
 
+#: Kept off the public page: tools for an operating system VOOL has no download for. They stay real
+#: contracts; only the page leaves them out. Names no published page shows are in tools/public_names.py.
+NOT_ON_PUBLIC_PAGE_SYSTEMS = {"Windows"}
+
 _EFFECT_WORDS = {
     "read_only": "reads",
     "workspace_write": "writes files",
@@ -167,6 +171,8 @@ def render() -> str:
         contract = contracts[name]
         if contract.source != "builtin" or public_names.unnamed(contract.tool_surface) \
                 or public_names.unnamed(contract.intent.split(".", 1)[0]):
+            continue
+        if PLATFORM_ONLY.get(contract.intent) in NOT_ON_PUBLIC_PAGE_SYSTEMS:
             continue
         if not contract.model_visible:
             hidden.append(name)

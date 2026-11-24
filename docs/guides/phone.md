@@ -1,5 +1,5 @@
 ---
-description: Use VOOL from your Android phone - get the VOOL Companion app, pair it with your computer, choose what the phone may do, and reach VOOL away from home.
+description: Use VOOL from your Android phone - get the VOOL Companion app, pair it with your computer, choose what the phone may do, approve its actions, and reach VOOL away from home.
 ---
 
 # Use VOOL from your phone
@@ -10,17 +10,25 @@ VOOL installed on your computer, and phone access stays off until you switch it 
 
 There is no iPhone app yet.
 
+To chat with VOOL from Telegram or Discord instead, see
+[Chat with VOOL from Telegram and Discord](telegram-and-discord.md).
+
 ## 1. Get the app
 
-On your Android phone, open the
-[latest VOOL release](https://github.com/Parad0x-Labs/vool/releases/latest) and download the
-VOOL Companion file, the one that ends in `.apk`. Open it to install. Android asks whether your
-browser may install apps: allow it for this install.
+On your computer, open **Settings → Phone and chat apps**. Under **1. Get the app** there is a
+code. Scan it with your phone's camera. The page that opens shows the right download for your
+phone.
+
+On Android, press **Download for Android**. When the download finishes, open it and allow the
+install if your phone asks.
+
+If the page says **The Android app is not ready to download yet.**, there is no Android download
+for this release yet.
 
 ## 2. Switch it on, on your computer
 
-Open **Settings → Phone and chat apps**. Choose your home or private network in the list, switch
-on **Use VOOL from my phone**, then press **Pair a phone**. A code appears on the screen.
+On the same page, choose your home or private network in the list, switch on **Use VOOL from my
+phone**, then press **Pair a phone**. A code appears on the screen.
 
 ## 3. Scan the code with your phone
 
@@ -42,11 +50,51 @@ then press Done.** Chat, chat history, attachments and alerts are on once you pr
   start in the phone's Wallet tab and are always approved on your computer, and your wallet PIN
   confirms the limits.
 
-Press **Done**, and VOOL says **Saved. Your phone is ready.** To change a single permission later,
-open **Advanced** under your phone.
+Press **Done**, and VOOL says **Saved. Your phone is ready.**
+
+To change a single permission later, open **Advanced** under your phone, then press **Save
+permissions**. There you can also switch on **Camera**, **Photos**, **Location**, **Voice** and
+**See protected media (VOOL Vault)**, and set when each permission **Expires**. Files, online
+lookups and payments stay on for 30 days at a time. Turn them on again when they run out.
 
 On a Mac, if VOOL says the folders are not open to it yet, allow VOOL in **System Settings →
 Privacy & Security → Files and Folders**, then press **Done** again.
+
+## Using the app
+
+The app has five tabs: **Chats**, **Approvals**, **Alerts**, **Wallet** and **Settings**.
+
+* **Chats:** talk to VOOL on your computer. Add a photo, your location or a file, or **Hold to
+  talk** for a voice note that your computer writes out as text. Voice notes are written out
+  only when your computer is a Mac with Apple's free Command Line Tools installed. Search
+  recent chats, and rename, archive or delete a chat. Deleting a chat deletes it on your
+  computer too.
+* **From your computer:** files VOOL sent to the phone. Press **Save** to keep one on the phone.
+* **Private camera:** photos and videos go straight to VOOL and are kept locked on your
+  computer, not in your phone's gallery. **Open private camera** works from the lock screen too.
+* **VOOL Vault:** see photos, videos and sound from your computer's protected library. They open
+  without a plain copy on the phone, and only while VOOL is unlocked.
+* **Alerts:** reminders, calendar alerts, finished tasks and payments. Your phone can mute or
+  delay notifications. The list keeps the record.
+* **Wallet:** balances (hidden until you show them), receipts, and payment proposals.
+
+## Approvals on the phone
+
+When a task your phone started needs your OK, it appears in **Approvals**. Press **Allow once**
+or **Deny**. When you allow it, the task finishes on your computer.
+
+* The phone answers only approvals for its own requests, and only for files you let it use.
+* Payments are always approved on your computer.
+
+## Keeping it safe
+
+* The app locks when you leave it and after a few minutes without use. Unlock with your
+  fingerprint, face or phone passcode. Your phone needs a screen lock.
+* The Vault, Wallet and Approvals stay out of screenshots, screen recordings and the app switcher.
+  **Allow screen recording** in the app's Settings lifts this for a short while, for a demo.
+* **Freeze payments** on your computer stops all phone payments. If your computer is lost,
+  **My computer is lost** in the app freezes payments when your computer can be reached, then
+  forgets this phone's connection. Completed payments cannot be undone.
 
 ## Away from home
 
@@ -59,6 +107,10 @@ computer must be on, with VOOL open.
 If the private route cannot start, your home network still works. Switch **Also use VOOL away
 from home** off and on to try again.
 
+If you run a server of your own, **Connect away from home (advanced)** passes sealed messages
+through it instead. Your server can see when the phone and computer connect. Pair at home first.
+
 ## Stop using the phone
 
-Switch off **Use VOOL from my phone**. That closes phone access.
+Press **Unpair this phone** to disconnect one phone, or switch off **Use VOOL from my phone** to
+close phone access.

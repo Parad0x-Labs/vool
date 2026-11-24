@@ -69,7 +69,7 @@ OK: word-tally 1.0.0 would be offered for review. Tools: word-tally.sha256. Reac
 
 ## 3. The check command
 
-`python -m tools.plugin_check FOLDER [--json]` reads the folder by the same rules the Add-ons page uses.
+`python -m tools.plugin_check FOLDER [--json]` reads the folder by the same rules the Skills & Plugins page uses.
 Nothing is installed, started or sent anywhere.
 
 | Exit code | Meaning |
@@ -123,7 +123,7 @@ At the top: `name` and `version`. Everything VOOL needs sits in the `vool` block
 | `description` | What it does, in a sentence or two. |
 | `homepage` | A full `https://` address where people can read about it. |
 | `license` | The licence name, for example `MIT`. Put the full text in `LICENSE`. |
-| `kind` | What the plugin adds: one or more of `tools`, `model_provider`, `scanner`. |
+| `kind` | What the plugin adds: one or more of `tools`, `model_provider`, `scanner`, `browser`. A `browser` plugin also names its extension folder under `browser`: see [Browser plugins](../guides/plugin-authoring.md#browser-plugins). |
 | `network` | Every website the plugin reaches, each as one exact host such as `api.example.com`. An empty list means it reaches none. |
 | `credentials` | The keys the plugin needs from the owner. Each slot has a `label` the owner sees, a `help_url` where they get the key, and an `env` name of your own, such as `ACME_API_KEY`. Never a key itself. |
 | `mcpServers` | Programs in the folder that serve tools: `command` (a path inside the folder), `args`, and `env` (only your own key names). |
@@ -148,7 +148,7 @@ network access works on each system: [Writing a plugin](../guides/plugin-authori
 
 ## 5. Install it and read the review sheet
 
-In VOOL open **Add-ons > My add-ons > Plugins**.
+In VOOL open **Skills & Plugins > My add-ons > Plugins**.
 
 1. Press **Install from a folder**, choose your folder, press **Review folder**.
 2. VOOL shows **Files in this package**, each file that *can run as a program*, the note *Not reviewed by the
@@ -184,7 +184,7 @@ Three things to know while you develop:
 
 ## 7. Share it
 
-Plugins are shared in two ways:
+Plugins are shared in three ways:
 
 - **A folder.** Send the folder; the other person uses **Install from a folder**.
 - **A public GitHub folder at an exact commit.** Push the folder to a public repository. The other person
@@ -193,7 +193,6 @@ Plugins are shared in two ways:
   *Download the public package for review and check its contents on this device*. VOOL checks every file
   against that commit, then shows the same review. A commit never changes, so what they review is what you
   published.
-
 - **The Skill Codex.** Everyone can find and install it from the website and from inside VOOL.
 
 Publish a plugin to the Skill Codex with three commands, then upload the packed file:

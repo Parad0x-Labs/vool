@@ -4,7 +4,9 @@ description: Chats, private chats, and the files and long pastes you bring into 
 
 # Chats and attachments
 
-A chat is one conversation with VOOL. Chats are kept on your computer. A chat can be linked to
+A chat is one conversation with VOOL. Chats are kept on your computer. More of what you can
+do in a chat (goals, queued messages, search, pins, council) is in
+[Chat features](../guides/chat-features.md). A chat can be linked to
 a project folder, so its tools work in that folder (see [Workspaces](workspaces.md)), and you
 can bring files into it as attachments.
 
@@ -17,9 +19,14 @@ it goes with the message you send next. The line under the box shows the limits:
 * Text and code files, and PNG, JPEG, GIF and WebP images. PDF, Word (DOCX), archives such as
   ZIP, and video join them when this computer has what it needs to read them. The file picker
   only offers what this computer can read.
+* A PDF's text is read in a locked-down sandbox with no network and no access to your home
+  folder. On Linux this needs bubblewrap or a kernel with Landlock (stock Ubuntu 24.04 has
+  it); on a system with neither, VOOL asks you to install bubblewrap or paste the text
+  instead. It never reads the file without a sandbox. Scanned PDFs (pictures of pages) are
+  read with the Mac's own text recognition, so on Macs only.
 
-What the model gets is limited too: up to 120,000 characters of one file and 240,000 of all
-files in a message. A longer file is cut at the end of a line, and the record says where. If
+What the model gets is limited too: up to 120,000 characters of a text file (160,000 for a PDF,
+office document or archive) and 240,000 of all files in a message. A longer file is cut at the end of a line, and the record says where. If
 the model you use cannot read images, the chip says so, and the image is not sent to it.
 
 Before an image is stored, its hidden details are removed: camera and location data (EXIF,
@@ -63,6 +70,7 @@ stays private after VOOL restarts.
 
 ## Taking a chat with you
 
-**Export** in the chat header saves the whole chat as text or Markdown, every message, with
-attached files listed by name and never their contents. To move a chat to another computer,
+**Export** in the chat header saves the whole chat as Markdown, plain text or a PDF document,
+every message, with attached files listed by name and never their contents. You can choose
+whether to include the time each answer arrived. To move a chat to another computer,
 or keep a signed copy, see [Backup and recovery](../help/backup-and-recovery.md).

@@ -8,8 +8,8 @@ Some websites and AI services charge per request. Instead of a login, they answe
 *Payment Required* and an offer: an amount, a coin, who gets paid, on which network. x402 is a
 standard for that offer. VOOL's wallet can pay it, and every money decision stays yours.
 
-In this release, websites that ask for x402 payment in USDC on Base can be paid from your Crypto
-Pilot wallet: one approval with your PIN, within your limits. The website's payment service pays
+In this release, websites that ask for x402 payment in USDC on Base can be paid from your
+wallet: one approval with your PIN, password or Touch ID, within your limits. The website's payment service pays
 the network fee. No live mainnet payment has been made with this yet. See
 [Release status](../trust/release-status.md).
 
@@ -20,12 +20,12 @@ anyone a card number or an account, and without the risk of paying for the same 
 
 ## Before you start
 
-* **Crypto is on** and you have a Crypto Pilot wallet on Base: **Settings → Crypto**. See
-  [Wallet](wallet.md).
+* **Crypto is on** and you have a wallet on Base: **Settings → Crypto**. Crypto is off until you
+  turn it on. See [Wallet](wallet.md).
 * **Web lookups is on** in **Settings → Privacy & Permissions**. A paid request asked from a chat
   is refused while it is off, and nothing is paid.
 * The payment channel **x402 on Base, through the x402 Foundation SDK** is on. It is on unless
-  you turned it off.
+  you turned it off (see [Payment channels](#payment-channels)).
 
 ## How a payment goes
 
@@ -33,7 +33,8 @@ When a request VOOL makes meets a 402 offer:
 
 1. VOOL turns the offer into one payment proposal, bound to the exact request that met it. It
    shows the amount, the coin, who gets paid and the network. Nothing is signed yet.
-2. You approve it in the wallet with your PIN or password.
+2. You approve it in the wallet with your PIN, password or Touch ID. A request asked from chat can
+   only propose the payment; the chat never approves it.
 3. The amount is held against your spending limits at the moment you approve, so a payment can
    never be approved without counting.
 4. VOOL signs exactly the approved payment, once, and sends the same request once, with the
@@ -43,21 +44,20 @@ When a request VOOL makes meets a 402 offer:
 ### The most one paid request may cost
 
 An offer above the automatic cap is not paid and no proposal is made
-([`wallet_x402_cap_exceeded`](../ERROR_BOOK.md#wallet-x402-cap-exceeded)). The cap is 100,000 of
-the coin's smallest units unless changed, which is 0.10 USDC. The wallet panel shows it as
-*Most one paid web request may cost*. It is changed only with the `VOOL_WALLET_X402_CAP_MINOR`
-setting when VOOL starts. Your spending limits apply on top of it; see
+([`wallet_x402_cap_exceeded`](../ERROR_BOOK.md#wallet-x402-cap-exceeded)). The cap is 0.10 USDC.
+It cannot be raised from Settings. Your wallet's spending caps apply on top of it; see
 [Spending limits and price guards](spending-limits.md).
 
 ## Payment channels
 
-**Settings → Crypto → Payment channels** lists every way the wallet can pay, each with its own
-switch, who built it and which networks it pays on:
+**Settings → Crypto → Advanced → Developer options: payment channels** lists every way the wallet
+can pay, each with its own switch, who built it and which networks it pays on. You do not need to
+change anything here for normal use:
 
 | Channel | What it pays |
 | --- | --- |
 | x402 on Base, through the x402 Foundation SDK | USDC offers on Base. The SDK builds the authorization, your wallet approves and signs it, and the site's payment service settles it and pays the network fee |
-| x402, built into VOOL | Offers on the test networks only (Developer options) |
+| x402, built into VOOL | Test networks only; not used on the main networks |
 | x402 on Solana, through Solana pay-kit | Not included in the downloads; shown as not usable on this install |
 | MPP on Solana, through Solana pay-kit | Not included in the downloads; shown as not usable on this install |
 
@@ -70,7 +70,7 @@ the one signature and the receipt are your wallet's, never the channel's.
 
 ## Agent spending
 
-**Settings → Crypto → Agent spending** lets VOOL pay small amounts to services you name without
+**Settings → Crypto → Agents & plugins → Agent spending** lets VOOL pay small amounts to services you name without
 asking you each time. It pays only from its own small wallet, which you fill from yours with an
 ordinary approved transfer. Your own wallets are never used without you.
 
@@ -93,7 +93,7 @@ computer, so other software running as you could spend its balance.
 
 ## Pay-per-answer AI
 
-**Settings → Crypto → Pay-per-answer AI** adds an AI service that charges a small fee per answer,
+**Settings → Crypto → Payments → Pay-per-answer AI** adds an AI service that charges a small fee per answer,
 in USDC on Base: a name, its `https://` address, the model name exactly as the service lists it,
 and the most one answer may cost. Adding one asks for your PIN or password.
 
@@ -126,10 +126,19 @@ VOOL is built so that the worst case is an unknown outcome, never a double payme
 
 A proposed payment that ends without being sent keeps a receipt that says so.
 
-## Test networks
+## Skills and plugins that pay
 
-Base Sepolia and the other test networks are for developers, in **Settings → Crypto → Developer
-options**. Test-network accounts, balances and receipts stay separate from mainnet.
+A plugin that pays for a service never uses your own wallets. It pays only from the separate
+**Skills & plugins wallet**, and only after you tick it and set its limits; see
+[Wallet](wallet.md).
+
+## Good to know
+
+* VOOL adds no service fee to these payments in this version. The website's payment service pays
+  the network fee.
+* Payments run on the main networks only.
+* **Freeze**: type *freeze* in chat and no payment goes through until you lift it; see
+  [Wallet](wallet.md).
 
 ## What to do next
 

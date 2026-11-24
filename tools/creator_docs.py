@@ -288,7 +288,8 @@ def names_kept_back() -> str:
          "or a name VOOL's own tools start with. The sentence shown:", "",
          "> " + plugin_migration.RESERVED_NAME, "",
          "Ids of packs VOOL ships: " + (", ".join(_code(item) for item in shipped) or "none") + ".", "",
-         f"Names VOOL's own tools start with ({len(tool_names)}): " + ", ".join(_code(item) for item in tool_names) + ".", "",
+         f"Names VOOL's own tools start with ({len(tool_names)}): " + ", ".join(_code(item) for item in tool_names)
+         + ". A few more names are kept for VOOL's own use.", "",
          *_table(("Id", "Answer"), [(_code(a), b) for a, b in id_examples])],
         ["## Plugin name, maker and key labels", "",
          "`vool.name`, `vool.publisher`, `interface.displayName` and each key slot's `label` are plain text. "

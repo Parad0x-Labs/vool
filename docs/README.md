@@ -1,5 +1,5 @@
 ---
-description: VOOL is a desktop AI assistant that runs AI models locally on your computer or connects to cloud models with your own key. Free and private. Downloads for Mac (Apple Silicon and Intel) and Linux; Windows is experimental from source.
+description: VOOL is a desktop AI assistant that runs AI models locally on your computer or connects to cloud models with your own key. Free and private. Downloads for Mac (Apple Silicon and Intel) and Linux.
 ---
 
 # VOOL
@@ -10,11 +10,10 @@ API key. It keeps a readable record of every action it takes.
 
 It is free. With a local model, your chats and files need no internet connection; live facts
 such as weather or prices come from public web services only while Web lookups is on. There are
-downloads for Macs (Apple Silicon and Intel) and Linux x86_64; Windows is experimental and
-installs from source.
+downloads for Macs (Apple Silicon and Intel) and Linux x86_64.
 
-These docs cover installing VOOL, connecting a model, and the concepts behind how it
-handles your files, your memory, and your keys.
+These docs are for VOOL v0.8. They cover installing VOOL, connecting a model, everyday use,
+and the concepts behind how it handles your files, your memory, and your keys.
 
 ## How it measures up
 
@@ -38,6 +37,8 @@ Every run, the setup and the weak spots are published: [memory benchmarks](https
 | Get VOOL running | [Install](getting-started/install.md) |
 | Understand the first screen | [First run](getting-started/first-run.md) |
 | Point it at a model | [Connect a model](getting-started/connect-a-model.md) |
+| Learn what the chat can do | [Chat features](guides/chat-features.md) |
+| Use email, calendar, reminders and prices | [Everyday assistant](guides/everyday-assistant.md) |
 | Control what spending can happen | [Spending limits](guides/spending-limits.md) |
 | Know what leaves your machine | [Local and cloud](concepts/local-and-cloud.md) |
 
@@ -46,7 +47,7 @@ Every run, the setup and the weak spots are published: [memory benchmarks](https
 * **A desktop application.** It installs on your computer — not a browser tab, not a
   hosted service.
 * **Works offline for chats and files.** With a local model selected, your chats and files need
-  no internet connection. Live facts such as weather or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in Local Only.
+  no internet connection. Live facts such as weather or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in an Offline chat.
 * **Local by default.** With a local model selected, prompts and files are processed
   on your machine.
 * **Model-agnostic.** Local runtimes and cloud providers are both selectable. You supply
@@ -64,11 +65,12 @@ are not notarized yet, so macOS asks you to confirm the first time you open one;
 ## Two ways to answer, stated plainly
 
 VOOL answers in two ways, and the chat header always shows which way the next request
-runs — for example **AUTO** with **Local first**:
+runs. VOOL Auto shows one of three run modes: **Local first**, **Computer + web** (no cloud
+AI) or **Offline** (nothing leaves this computer).
 
 1. **Local** — the work stays on this computer.
 2. **Cloud** — the selected context is sent directly to the provider you selected,
-   from your machine, using your key.
+   from your machine, using your key. VOOL Auto never picks a paid model by itself.
 
 There is no Parad0x-operated relay in between. The detail
 is in [Data handling](trust/data-handling.md).

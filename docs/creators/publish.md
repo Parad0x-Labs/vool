@@ -117,8 +117,9 @@ reviewed it.
 - There is no monthly limit on ratings from real installs.
 - You cannot rate your own add-on, and you cannot remove a rating. If a rating breaks the rules, report it.
 - Under 5 counted ratings the page says *Not enough ratings yet* and shows no average.
-- The team can remove faked ratings, close ratings for a while, delist an add-on or remove it. The page then says
-  so, with the reason. If that happens to you, press **Ask for another look**.
+- The team can remove faked ratings, close ratings for a while, delist an add-on or remove it. The listing page in
+  VOOL then says so under **Notices from the VOOL team**, with the reason, for example *These ratings were made by a
+  script.* You can ask the team for another look.
 
 ## Your listing page
 
@@ -142,7 +143,7 @@ or `plugin-init`; `lint` refuses what an upload would refuse, with the field and
 | `compatibility` | `min_vool`, optional `max_vool`, `platforms`. | It is what you say works; the builds the Skill Codex checked are shown beside it. |
 | `summary`, when a `listing` block is present | 20 to 140 characters, no `<` or `>`. | It is the one line on the card. |
 
-To change the block, publish a new version. Screenshots are coming next.
+To change the block, publish a new version.
 
 Pictures: a skill may carry a square icon and a wide banner, PNG only. A person looks at every new picture
 before it shows; until then the skill shows the standard tile.

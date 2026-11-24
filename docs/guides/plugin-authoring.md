@@ -52,7 +52,7 @@ name, a word or mark that says the plugin was checked or chosen (Official, Verif
 Editor's Choice, a tick, a star), hidden characters, look-alike letters or a link. The refusal
 names which of the three it is. Put your own name in `publisher`; the template ships "Your name".
 
-Install through the Plugins section, review the entire distribution, then install disabled.
+Install through **Skills & Plugins → My add-ons → Plugins**, review the entire distribution, then install disabled. Once a browser plugin is installed, the list there is split into **Web browser** and **Tools and services**.
 Connect your own key in its card and accept the separate access sheet to enable it. Saving
 a key makes no request. Keys live under `plugin.<id>.<slot>` and are resolved only for that
 plugin's invocation. Wildcards, IP addresses, localhost and private destinations are refused.
@@ -171,8 +171,13 @@ native providers or scanners to other hosts. Installation inside Claude Code and
 requires testing in those applications.
 
 Share a plugin as its folder, or as a folder in a public GitHub repository at an exact commit
-(Add-ons, Plugins, "Review from GitHub": repository, the full 40-character commit, the folder).
-From VOOL 0.8 a plugin can also be published in the Skill Codex (section "Publishing a plugin" in `docs/registry/AUTHOR-GUIDE.md`). Check a folder before you share it
+(**Skills & Plugins → My add-ons → Plugins → Install from public GitHub source**: the GitHub
+project, the folder inside it and the version to check). From VOOL 0.8 anyone can also publish a
+plugin in the Skill Codex (section "Publishing a plugin" in `docs/registry/AUTHOR-GUIDE.md`). A
+person who installs it from there sees the same review sheet a folder gets, with every file, and
+it installs switched off until they accept its access sheet. Its listing page shows your
+description, links, versions and the websites, keys and tools it needs; ratings come only from
+people who installed it, and the team's badges cover one exact version and run out. Check a folder before you share it
 with `python -m tools.plugin_check FOLDER` (add `--json` for a tool or an agent): it prints the
 sentence a person installing would read and, for the maker, every field at fault and what to write
 instead. The guides for makers are in [docs/creators](../creators/README.md).

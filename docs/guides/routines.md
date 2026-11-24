@@ -1,8 +1,12 @@
+---
+description: Teach VOOL a folder task once, look at the exact list of changes, and run it again when you choose.
+---
+
 # My routines
 
 Show VOOL a task once in one folder, and it can do it again for you. Nothing changes until you have looked at the exact list of changes and chosen **Run**.
 
-Open **My routines** from the link beside Contacts, or with **Open My routines** in Settings.
+Open **My routines** from the link beside **Contacts** at the bottom of the chat sidebar, or with **Open My routines** in **Settings → Memory & Personalisation**.
 
 ## Teach a routine
 
@@ -36,7 +40,7 @@ You can choose **Every day** or **Every week** at a time. At that time VOOL work
 
 ## Receipts
 
-A routine can use a receipt's date, shop and amount. VOOL reads the document on this computer, only inside process confinement (the macOS sandbox, or bubblewrap on Linux). On a computer that cannot read receipts, files that need those values are left for you. A value that cannot be read with confidence is left empty, and that file is left for you too.
+A routine can use a receipt's date, shop and amount. VOOL reads the document on this computer, only inside a locked-down sandbox (the macOS sandbox, or bubblewrap on Linux). On a computer that cannot read receipts, files that need those values are left for you. A value that cannot be read with confidence is left empty, and that file is left for you too.
 
 ## Change, share or remove
 

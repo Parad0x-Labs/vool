@@ -6,7 +6,20 @@ description: How VOOL updates itself, what happens to your data, and version com
 
 ## How updates work
 
-From 0.7.5 on, VOOL updates itself: with "Go online on its own" on, it shows a notice and installs a new version with one press. Updating from 0.7.4 or 0.7.3 on a Mac: turn on "Go online on its own" (Settings > Privacy & Permissions) and press Check for updates once. From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac: download 0.7.7 and install it over your current version. Your chats and settings live in your profile, outside the app.
+VOOL updates itself on macOS and Linux: with **Go online on its own** on (Settings →
+Privacy & Permissions), it shows a notice and installs a new version with one press.
+
+Getting to v0.8:
+
+* **From 0.7.5, 0.7.6 or 0.7.7:** the update notice comes by itself when **Go online on its
+  own** is on. Press **Update**.
+* **From 0.7.4 or 0.7.3 on a Mac:** turn on **Go online on its own** and press **Check for
+  updates** once in the header update menu, then **Update**.
+* **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download v0.8 from the
+  [releases page](https://github.com/Parad0x-Labs/vool/releases) and install it over your
+  current version.
+
+Your chats and settings live in your profile, outside the app.
 
 With "Go online on its own" on, VOOL checks for a new version when it starts and once a
 day, and shows a notice without a Check press. With it off, VOOL fetches nothing and the
@@ -24,10 +37,12 @@ A signed update package runs a verified pipeline with automatic rollback:
 
 On Linux, the tarball install updates the same way. The new version is installed next to
 the running one, and `current` switches to it in one step. If the new version is not
-healthy, VOOL switches back to the previous one by itself. A manual **Roll back** is offered
-on the Mac and for source installs, but not yet for the Linux tarball install.
+healthy, VOOL switches back to the previous one by itself. A manual **Roll back to** *version*
+is offered on the Mac and for source installs, but not yet for the Linux tarball install. It
+keeps your current chats, memory, keys and settings.
 
-If any stage fails, the app is left as it was — the failure message names the stage
+If an update fails, VOOL puts the old version back, keeps checking for newer versions and
+skips only the one that failed. If any stage fails, the app is left as it was — the failure message names the stage
 (`verification_failed`, `insufficient_disk_space`, …) and each stage has its own recovery
 sentence.
 
@@ -43,7 +58,7 @@ sentence.
 
 ## Beta channel
 
-The current release line is a **beta** (see [Release status](../trust/release-status.md)).
+v0.8 is a **beta** (see [Release status](../trust/release-status.md)).
 Updates are signed by the pinned publisher key and checked before they install. The macOS
 app itself is ad-hoc signed and not notarized, so macOS may ask you to confirm the first
 launch of a new version.

@@ -148,7 +148,7 @@ The full contract of a tool, with every field, is in Python:
 
 <!-- BEGIN GENERATED TOOL TABLE (python -m tools.skill_tool_reference) -->
 
-147 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
+145 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
 
 ### chain
 
@@ -206,9 +206,7 @@ The full contract of a tool, with every field, is in Python:
 | Tool | What it does | Inputs | Reads or changes | Permission ids | Manual | Auto |
 | --- | --- | --- | --- | --- | --- | --- |
 | `machine.disk_usage` | Report free and total space for each local drive on this machine. | `drive?` | reads | none | runs | runs |
-| `machine.display_inspect` | **Windows only.** Report connected-display resolution and refresh rate from Windows (physical size only if EDID provides it). | none | reads | none | runs | runs |
 | `machine.ensure_directory` | Create a directory inside a safe local directory such as Desktop, Downloads, or Documents. *Only inside ~/Desktop, ~/Downloads and ~/Documents.* | `path` | writes files | none | asks | runs |
-| `machine.event_log_errors` | **Windows only.** List recent Critical/Error entries from the Windows Event Log (System and Application). | `limit?` | reads | `read_files` | runs | runs |
 | `machine.find_file` | Search the safe local folders (Desktop, Downloads, Documents) for FILES whose name matches a query. | `name` | reads | none | runs | runs |
 | `machine.find_folder` | Search the home folder (and plugged-in drives when drives is true) for folders whose name matches a query. | `name`, `drives?`, `any_kind?` | reads | none | runs | runs |
 | `machine.find_largest` | Measure the largest files and folders on a drive (bounded, read-only) with a delete-safety class per entry; partial sizes are marked, never fabricated. | `drive?`, `top?`, `kind?`, `cleanup_context?` | reads | none | runs | runs |

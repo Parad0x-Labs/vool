@@ -66,8 +66,9 @@ wallet or token price watch with `watch.add`, which checks only while VOOL is op
 
 ### What happens to a header setting VOOL does not read?
 
-Nothing, and VOOL tells you: *"priority" is a setting VOOL does not read, so it changes nothing.* The skill
-still loads. [A setting VOOL does not read](make-a-skill.md#a-setting-vool-does-not-read)
+Nothing, and VOOL tells you: *"author" is a setting VOOL does not read, so it changes nothing.* The skill
+still loads. Settings kept for VOOL's own skills (`id`, `task-families`, `type`, `priority`,
+`incompatible-with`) are not ignored: a zip that sets them is refused on import. [A setting VOOL does not read](make-a-skill.md#a-setting-vool-does-not-read)
 
 ### Can a skill include a script or other files?
 
@@ -167,7 +168,7 @@ and you are at the computer VOOL runs on. Phone and remote turns cannot use plug
 ### Can I charge for a plugin?
 
 A plugin never takes payment itself. If your service charges per call, list it in `vool.paid_services`:
-VOOL pays the service from the owner's wallet, only after the owner ticked your plugin and only inside the
+VOOL pays the service from the separate Skills & plugins wallet, never the owner's own wallets, only after the owner ticked your plugin and only inside the
 limits they set. A service that bills through an account works too: the owner saves that account's key in
 your plugin's key slot. Skills on the Skill Codex are free, under the MIT licence.
 [Rules: money](rules-and-why.md#money)

@@ -1,19 +1,66 @@
+---
+description: Keep receipts, manuals and equipment details in My things, match a label photo, and prepare return or repair drafts. Everything stays on this computer.
+---
+
 # My things
 
-Privacy and deletion review is still required before release.
+My things keeps details about what you bought and the equipment in your home: receipts,
+manuals, photos and notes. Files stay on this computer.
 
-Open **My things** from Home or Settings. You can keep details about purchases and household equipment, along with receipts, manuals, photos and notes. My things starts on with an empty list. It does not scan your files or add purchases automatically.
+Open **My things** from the link beside **Contacts** at the bottom of the chat sidebar, or in
+**Settings → Memory & Personalisation** under **My things**. It starts with an empty list. It
+never scans your files or adds purchases by itself.
 
-Add a thing yourself, or choose a receipt to review. Check the locally read words, correct the proposed details and fill anything missing before saving. A proposal is not a saved thing. Receipt proposals currently recognize explicit labelled fields; they do not infer a guarantee period from a purchase date.
+## Add a thing
 
-Choose a clear photo of a label to look for a saved model or serial number. A result shows the exact words that matched. If several things match, choose one. Nothing is selected just because it looks similar. You can keep the photo with the chosen thing by pressing **Attach a file**. If local reading is unavailable or unreliable, enter the details yourself. No vision model is selected or contacted.
+1. Choose **Add a thing**, or start from a receipt with **Review a receipt**.
+2. For a receipt, check the words VOOL read from it on this computer, correct the proposed
+   details and fill in anything missing. A proposal is not saved until you save it. Receipt
+   reading recognizes clearly labelled fields only; it does not work out a warranty from the
+   purchase date.
+3. Fill in what you know: **Name**, **Maker**, **Model**, **Serial number**, **Bought on**,
+   **Bought from**, **Price**, **Warranty ends**, **Notes** and **Specifications**.
+4. Use **Attach a file** to keep a receipt, manual, photo or note with it.
 
-Return and repair requests are drafts. Their request text currently uses English. Describe what happened, review the text, then download a ZIP containing the draft, saved facts, receipts and photos. Nothing is sent. Missing facts remain unknown. A warranty check only compares the saved warranty end date with today's date; it does not establish coverage or eligibility.
+## Match a label photo
 
-For a delivery check, save the order items one per line, read or enter the delivery note's text and tick what actually arrived. A name on a delivery note does not prove it was delivered. For a specification comparison, use explicit `detail: value` lines in the saved specifications and the words read from the box. Matching text does not establish overall compatibility.
+Choose **Match a photo** and pick a clear photo of a label. VOOL reads the words on this
+computer and looks for a saved model or serial number. A result shows the exact words that
+matched. If several things match, you choose one; nothing is picked because it only looks
+similar. If the words cannot be read reliably, enter the details yourself. No AI model is
+asked to look at the photo.
 
-You can attach a manual you already have. To preview a manual online, first turn on online access in the app, enter the manual's address and explicitly open it. The normal web permissions apply. Review the returned text and choose **Keep this manual** to attach it. An incomplete or binary download is refused; download a PDF yourself and attach that file instead. There is no background manual search.
+## Prepare a return or repair
 
-Your saved files and details use the app's existing encrypted private storage. Downloads are copies you choose to keep outside the records store. Deleting a saved thing removes its stored details and attached files; it cannot erase a ZIP you already downloaded. Export makes a ZIP of all saved things and their files. Turning My things off pauses access and local reading without deleting your records.
+Open a thing and use:
 
-Global Forget clears chat memory and its copies. Saved records follow their own deletion flow, as Contacts does. To remove a saved thing and its files, open it and confirm Delete. A proposed clarification of the general Forget reply still needs privacy review. Local photo and document reading uses private temporary files inside the app data directory and removes them when reading ends, including refused reads. PDF and legacy Office conversion use a separate local reader process so other operations cannot change their temporary folder or file permissions. Extracted words are saved encrypted with an attached file; erasure matching uses those saved words and filenames rather than reopening photos. Unreadable files cannot be searched by their content.
+* **Check warranty** compares the saved warranty end date with today. It does not tell you
+  whether something is covered.
+* **Describe what happened**, then **Prepare a return** or **Prepare a repair**. The request
+  text is written in English. **Download a draft packet** saves a ZIP with the draft, the
+  saved details, receipts and photos. *Draft only. Nothing has been sent.*
+* **Check delivery**: save the order items one per line, read or type the delivery note's
+  words, and tick what actually arrived. A name on a delivery note does not prove delivery.
+* **Compare details**: put `detail: value` lines in the saved specifications and the words on
+  the box. Matching words alone do not prove that something fits.
+
+## Manuals
+
+Attach a manual you already have. To get one from the web, type its address under **Manual
+web address** and choose **Open the manual online**. This needs **Web lookups** on in
+**Settings → Privacy & Permissions**. Read the text that comes back, then choose **Keep this manual** to
+attach it. A download that is incomplete or not a readable document is refused; download the
+PDF yourself and attach it instead. VOOL never searches for manuals in the background.
+
+## Good to know
+
+* Saved details and files are kept encrypted on this computer.
+* Deleting a thing removes its saved details and attached files. It cannot remove a ZIP you
+  already downloaded.
+* **Export** at the top of My things saves a ZIP of all saved things and their files.
+* Turning My things off (the switch beside **Export**) pauses it without deleting anything.
+* Forget in chat clears chat memory. Saved things are removed only by deleting them here, the
+  same way as [Contacts](contacts.md).
+* Photos and documents are read in a separate process on this computer, using temporary files
+  that are removed when reading ends. A file that cannot be read cannot be searched by its
+  words.

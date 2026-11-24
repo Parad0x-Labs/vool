@@ -1,97 +1,105 @@
+---
+description: The checks VOOL runs before a skill or plugin is added, and what they do and don't prove.
+---
+
 # Add-on checks
 
-Add-ons keeps browsing, inspection and installation separate. A scan describes particular bytes;
-it is not a safety guarantee, publisher endorsement, runtime permission or wallet approval.
-
-Browse lists VOOL's own skills first, including 75 VOOL skills bundled with the app (22 of them
-use VOOL tools, which only narrow what VOOL already offers), then the reviewed catalogue add-ons. Skill Codex lists VOOL team skills first, above editor's
-picks and featured skills.
+In **Skills & Plugins**, looking, checking and installing are separate steps. Nothing runs
+while you browse, and nothing is added until you decide. A check describes the exact files it
+read. It is not a safety guarantee, a recommendation of the maker, a permission or a wallet
+approval.
 
 ## Skills made by VOOL: the local check
 
-The 75 skills made by VOOL ship inside the app, each pinned by SHA-256 in VOOL's own directory and
-reviewed when VOOL is released. For these, **Add this skill** runs VOOL's local check only: no key,
-no scan allowance and no network request.
+The 75 skills made by VOOL on **Browse** come inside the app, each one pinned to its exact file.
+For these, **Add this skill** runs VOOL's local check only: no key, no scan allowance and no
+network request.
 
-1. VOOL reads the skill and licence from the app's own copy and refuses them unless their SHA-256
-   matches the pin (*This VOOL skill's file doesn't match the copy that came with VOOL, so it was
-   not added.*).
-2. VOOL's local check reads the skill for risky instructions and shows the result. A clean result
-   can be added with **Add and turn on**; anything it flags needs your separate, explicit OK for
-   that exact version. **Reject** discards it.
-3. Installation then follows the same lifecycle as other skills: the exact files are installed,
-   verified and enabled. The installed skill is checked against its pinned SHA-256 every time it is
-   loaded; a changed file makes it unavailable.
+1. VOOL reads the skill and its licence from the app's own copy and refuses them unless they are
+   exactly the shipped files (*This VOOL skill's file doesn't match the copy that came with VOOL,
+   so it was not added.*).
+2. The local check reads the skill for risky instructions and shows the result. A clean result
+   is added with **Add and turn on**. Anything it flags needs your separate OK for that exact
+   version (**Add it anyway**). **Reject** discards it.
+3. The installed skill is checked against its pinned file every time it loads. A changed file
+   makes it unavailable.
 
-The local check is a static reading of fixed bytes, not a guarantee of safety or answer quality.
 Skills from other makers never take this path.
 
-## Public skills
+## Public skills from other makers
 
-Choose a public GitHub skill at a fixed revision and approve downloading its contents. VOOL checks
-it on this device. Without an enabled scanner plugin, the page explains
-that the checks stayed on this device. No scanner key is required for that path.
+Pick a public skill on Browse, or paste a GitHub link. VOOL fixes it to one exact version and
+asks before downloading it. It then checks the skill on this device. No key is needed.
 
-An enabled scanner plugin also receives the public skill content when a scan is requested. This
-can consume its service allowance. Local chats, private workspace files and other credentials are
-not submitted. Saving a key and opening Add-ons make no connection test or scan request. There
-are no automatic request retries.
+* If you turned on a scanner plugin, it also receives the skill's public text when you ask for a
+  scan. This can use that service's allowance. Your chats, private files and keys are never sent.
+* Read the findings first, then decide. A clean result is added with **Accept and enable**. If
+  either check found a problem, VOOL adds it only after you accept the risks for that exact
+  version. Accepting changes neither the report nor what the skill may do.
+* A review older than 24 hours, files that changed after the check, or a different version than
+  the one you checked are refused, and VOOL asks you to check again.
 
-Read findings and accept installation separately. Report validation requires complete coverage
-and valid findings. A passing report has no findings or policy violations. A separately offered
-risk acceptance binds the reviewed version; it never changes the report or grants more access.
-Expired reviews, changed staging bytes, links and conflicting target folders are refused.
-Receipts bind the complete installed distribution. Changed files withdraw runtime availability.
-Skill guidance is inserted whole or explicitly omitted when it cannot fit the prompt budget.
+## Skills and plugins from the Skill Codex
 
-## Optional scanners
+The Skill Codex list is signed by the VOOL team, and VOOL refuses a list that does not verify.
+For each add-on you install from it, VOOL checks that the downloaded files are exactly the ones
+that were published, then runs its own safety checks on them on this device. If those fail, the
+add-on is not kept: *This skill didn't pass VOOL's own safety checks, so VOOL didn't keep or
+install it.*
 
-A remote scanner is optional. With no scanner plugin enabled, VOOL's own check on this device
-decides whether a skill can be installed; earlier versions required a remote scan instead.
+The checks refuse, among other things, text that:
 
-To add one, install a scanner plugin from its maker through the Plugins section, save your own
-key, review access and enable it. Its declaration names a path for an explicit connection test
-and a path for requested scanning, and the shared native plugin transport makes those requests.
-VOOL has no built-in scanner client or central scanner key setting, and offers no scanner plugin
-of its own. A saved Eyebrow key from an older VOOL stays on this computer and is not used. The
-ids `vool-plugin-eyebrow` and `vool-plugin-usepod` are reserved; another package that claims
-one is refused before review.
+* asks someone to install or run software, or links to a program to download;
+* uses short links, raw addresses or paste sites;
+* asks for a recovery phrase, key, password, card number or PIN, or holds a wallet address;
+* claims you already agreed, or speaks as VOOL;
+* tries to change VOOL's instructions or hide what the skill does, with hidden comments,
+  invisible characters or letters mixed from different alphabets;
+* says the Skill Codex or VOOL vouches for it.
 
-VOOL's own check on this device always runs. A scanner plugin's report is added beside it:
-either one finding an issue blocks installation, and a plugin report must name the exact
-content that was checked. A scanner plugin can never approve an installation on its own.
+Badges (**Tested by VOOL**, **Editor's Choice**) come only from a document signed by two VOOL team
+members, for one exact version, and each one runs out. Anything that does not verify shows no
+badge.
 
-An enabled scanner with a missing or rejected key fails plainly. VOOL never silently replaces
-that requested remote scan with a passing local result. Timeouts, service errors, redirects,
-oversized responses and incomplete reports leave installation unaccepted. A timed-out request
-may still have consumed service allowance.
+**Check once a day for removed add-ons** is on unless you turn it off. It reads the same public
+list once a day, so an add-on the team removed stops being used here, and a withdrawn badge
+disappears. Nothing about you is sent.
 
-## Executable packages and store review
+## Optional scanner plugins
 
-Plugins use a complete local-folder or pinned public GitHub package review, separate from the
-text-only skill importer. Installation runs no package code and keeps it disabled. Store plugins
-also require the existing signed receipt and full distribution digest. Enablement requires a
-separate access sheet covering tools, effects, exact hosts, credential slots and bundled servers.
+A remote scanner is optional. With none turned on, VOOL's own check on this device decides. To
+add one, install a scanner plugin from its maker under **My add-ons → Plugins**, save your own
+key, review its access and enable it. VOOL has no scanner of its own and no central scanner key.
 
-Executable code receives only its own declared keys at invocation. It cannot read another
-plugin's slots, owner paid model keys or wallet signing, cap, approval or receipt authority.
-Its output stays untrusted. Changed bytes withdraw consent; disable stops calls. Unsupported
-confinement refuses execution. See [Plugin authoring](plugin-authoring.md) for runtime limits.
+VOOL's own check always runs. A scanner plugin's report is added beside it: if either one finds
+a problem, nothing is installed without your OK, and a scanner can never approve an installation
+on its own. A scanner with a missing or rejected key fails plainly; VOOL never replaces that scan
+with a passing result. A timeout, a service error or an incomplete report leaves the skill not
+installed, and VOOL never retries by itself. A timed-out request may still have used allowance.
 
-If VOOL cannot read its plugin records, packs it has no record for stop offering skills, apart
-from those shipped with VOOL, and the damaged file is kept beside the new one. If it cannot read
-your on and off choices, every plugin counts as off until you turn one on again.
+## Plugins
 
-## Local API and transport
+A plugin is code, so it gets a full review of every file in its folder, separate from the skill
+checks.
 
-`GET /api/addons` reads inventory. Mutations at `POST /api/addons` require owner-local access,
-JSON, same-origin browser requests and action-specific fields. The plugin on/off and lifecycle
-doors (`POST /api/plugins/enable`, `POST /api/plugins/lifecycle`) apply the same JSON and
-same-origin rule. Public source downloads use
-exact revisions and bounded verified blobs. Native services require declared public HTTPS hosts,
-validate TLS, pin resolved public addresses, refuse redirects, bound responses and stop when
-the plugin is disabled.
+* Installing runs none of its code and keeps it switched off.
+* **Review access and enable** shows everything it may use: its tools and what each one does,
+  the exact websites, its service keys and any helper program. You accept that sheet before it
+  switches on.
+* A plugin gets only the keys it declared, when a tool runs. It can't read another plugin's keys,
+  your own model keys, or anything to do with the wallet, spending limits, approvals or receipts.
+* It can reach only the websites it listed. A plugin that tries any other site, or a device on
+  your own network, is stopped.
+* If any file changes after review, the plugin switches off until you review it again. **Disable**
+  stops running calls at once.
+* On a computer that can't keep a plugin's programs walled off, VOOL won't start them, and says so.
 
-Local fake HTTPS services can verify transport and error handling without paid calls. They do
-not establish live service reliability, billing, model competence or installation inside other
-applications. Those require separate verification.
+What a plugin sends back is treated as untrusted. For the full limits, see
+[Plugin authoring](plugin-authoring.md).
+
+## Good to know
+
+* If VOOL cannot read its record of installed plugins, plugins it has no record for stop offering
+  skills (apart from those that come with VOOL). If it cannot read your on and off choices, every
+  plugin counts as off until you turn one on again.
+* A key saved for Eyebrow in an older VOOL stays on this computer and is not used.

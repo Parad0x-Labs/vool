@@ -1,5 +1,5 @@
 ---
-description: The five modes, what each lets VOOL do without asking, and what every approval button covers.
+description: The five modes, what VOOL may do alone, what every approval button covers, phone and chat app rights, and the preview before a cloud model sees your files.
 ---
 
 # Permissions
@@ -22,6 +22,20 @@ Pick the mode in the menu next to the message box. A new chat starts in **Manual
 
 A mode, a skill or a plugin can only narrow what is offered. None of them grants an action the
 mode does not allow.
+
+## What VOOL may do alone
+
+Separate from the mode, one setting says how often VOOL stops to ask for ordinary steps. You pick it
+during setup, and you can change it in **Settings → Privacy & Permissions → What VOOL may do alone**:
+
+| Choice | What it means |
+| --- | --- |
+| Just do routine work | Fewest questions. Routine steps on this computer run without asking. This is the starting setting. |
+| Ask before risky changes | Routine work runs; anything that deletes or changes a lot asks first. |
+| Ask me first | It stops and asks before every action. Slowest, safest. |
+
+Whatever you pick, sending a message, posting, anything private and spending money always ask you
+first. The mode still sets the outer limit: a choice here never allows what the mode does not.
 
 ## Answering a permission request
 
@@ -62,16 +76,54 @@ holds VOOL's own data. While bypass is on, a banner shows its scope and when it 
 Bypass never grants access outside the workspace and cannot let a model widen its own
 permissions. Payments still ask, and secrets and security settings stay out of reach.
 
+## Phones and chat apps
+
+A paired phone or a connected chat app can only do what you switched on for it in
+**Settings → Phone and chat apps**, for example **Use tools on my computer**, **Look things up
+online**, or for a chat app **Reminders, calendar, notes and contacts**. That switch is your answer
+for what it covers, so an action from that phone or app that the switch covers is not asked again on
+the computer screen, where the person holding the phone cannot see it.
+
+Money, secrets, VOOL's own settings and actions whose effect VOOL cannot identify are never covered
+by a phone or chat app right. Payments from a phone go through its Wallet tab and are approved on the
+computer. A phone limited to chosen folders can only reach files inside them. See
+[Phone](../guides/phone.md).
+
+## Before a cloud model sees your files
+
+When a request to a cloud model would carry files from your project, VOOL first shows
+**See what leaves your computer**: the destination, the size, and the exact sections it would send,
+such as files attached here, remembered information and tool results. Nothing is sent until you
+choose:
+
+* **Send as shown** sends exactly what you see.
+* **Send only these parts** lets you leave sections out.
+* **Replace names and details** swaps personal details for placeholders before sending.
+* **Use a local model instead** answers on this computer.
+* **Don't send** stops it.
+
+The preview also appears, whatever the setting, when the request holds sensitive content, when a
+project rule says to ask, or when privacy rules kept part of it on your computer. The setting is
+**Show me what leaves before cloud models see my files** in
+**Settings → Privacy & Permissions → Before files go to cloud**. It is on to start with. The same
+place holds **Project cloud rules**: for each folder in a project, **Stays on this computer**,
+**Ask each time** or **May go to cloud**.
+
+After an answer, the line under it says where it was answered and how much text went online. See
+[Check your VOOL](../guides/check-your-vool.md#where-each-answer-was-answered).
+
 ## Payments and spending
 
 Approving an action never approves a payment. Payments go through the wallet's own proposal and
-approval, with its limits, in every mode. Paid model calls are held by your spend caps and price
-guards before the provider is contacted. See [Wallet](../guides/wallet.md) and
+approval, with its limits, in every mode. Paid model calls are held by your spending limits and price
+guards before the provider is contacted; see [Check your VOOL](../guides/check-your-vool.md#ai-spending). See [Wallet](../guides/wallet.md) and
 [Spending limits and price guards](../guides/spending-limits.md).
 
 ## When an action is refused
 
-A refused action changed nothing, and the message says what was refused and why. The codes
+A refused action changed nothing, and the message says what was refused and why. The receipt
+under the answer shows it as **Not done**, or **Waiting for your OK** while it waits for you (see
+[Receipts](receipts.md)). The codes
 you may see are [`permission_denied`](../ERROR_BOOK.md#permission-denied),
 [`confinement_refusal`](../ERROR_BOOK.md#confinement-refusal) for a change outside the allowed
 folder, and [`tool_unavailable`](../ERROR_BOOK.md#tool-unavailable) for a tool this mode does

@@ -10,11 +10,6 @@ Expected: the app is not notarized yet. Check the checksum first, then open **Sy
 Settings → Privacy & Security** and click **Open Anyway**. On macOS 14 you can instead
 Control-click VOOL and choose **Open**.
 
-## Windows
-
-There is no Windows download in this release. Windows installs from source and is
-experimental; see the [install guide](../getting-started/install.md#install-from-source).
-
 ## No local models are listed
 
 1. Confirm the local model runtime is installed — on Linux, install
@@ -22,18 +17,50 @@ experimental; see the [install guide](../getting-started/install.md#install-from
    (see [Run a local model](../guides/local-models.md#install-a-runtime)).
 2. Confirm the runtime is running.
 3. Confirm at least one model is pulled.
-4. Confirm the port matches what VOOL expects.
+4. Open **Settings → Models & Providers → This Mac** (or **This computer**). If it says it
+   can't see the models, make sure Ollama is open, then reopen Settings.
 
-```bash
-curl http://localhost:11434/api/tags
-```
+## A local model is listed but does not answer
 
-If that returns nothing, the runtime is not up.
+VOOL checks each local model once before it answers with it. Press **Use this model** next to
+it. **Check didn't finish** means Ollama was not open or the computer was slow: press **Try
+again**. **Not a good fit** means the model cannot use VOOL's tools well enough; use the model
+VOOL suggests, or a cloud model.
 
-## Responses are slow
+## A PDF will not open on Linux
+
+VOOL reads PDFs only inside a sandbox. It uses bubblewrap where it can start, and otherwise
+the kernel's Landlock sandbox (stock Ubuntu 24.04 has it). On a system with neither, install
+bubblewrap, or paste the text into the chat instead.
+
+## Live facts (weather, prices, news) are not looked up
+
+Turn on **Web lookups** in **Settings → Privacy & Permissions**, and make sure the chat is not
+set to **Offline** in the model menu.
+
+## Responses are slow, or the computer is slow
 
 Usually model size against available memory. See
 [Run a local model](../guides/local-models.md).
+
+You can also ask VOOL in any chat:
+
+* "Why is my Mac so slow?" or "what's using my memory?" shows how much memory is in use right
+  now and what is using the most.
+* "Free up memory" or "unload models" lets go of models held in memory and shows the numbers
+  before and after.
+* "Clear my temp files" shows what it would remove and asks before it removes anything.
+
+**Settings → Usage &
+Budgets → Memory kept free for your other apps** sets how much memory VOOL always leaves for
+your other apps.
+
+## Reporting a problem
+
+**Settings → About & Diagnostics** has **Check VOOL** (VOOL Doctor), **This build**, your
+exact version to copy into a problem report, and **What VOOL can do right now**, which lists
+the models on this computer, the online connection, web search and plugins, each with
+whether it was checked. Something not checked yet says so; that does not mean it is broken.
 
 ## An error shows a code
 

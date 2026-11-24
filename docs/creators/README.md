@@ -14,7 +14,7 @@ If you are an AI agent, read [agents/README.md](agents/README.md) instead.
 **A skill** is text. It tells VOOL how to do a task you do again and again.
 It runs no code, holds no keys and is used only when a message asks for that task.
 
-**A plugin** is code from someone else. It adds a tool, a model service or a scanner to VOOL.
+**A plugin** is code from someone else. It adds a tool, a model service or a scanner to VOOL, or it is a browser plugin: a browser extension that runs in the VOOL browser window.
 It runs walled off, with only the websites and keys it listed and the owner agreed to, and it is off until the owner switches it on.
 
 ## Which one do I need?
@@ -28,6 +28,7 @@ It runs walled off, with only the websites and keys it listed and the owner agre
 | Look something up in a service VOOL does not know (a parcel, a ticket, a stock level) | Plugin |
 | Run my own program on text or a file and use the result | Plugin |
 | Offer chat models from another model service | Plugin |
+| Change how web pages look or work in the VOOL browser window (block adverts, tidy a site) | Plugin (browser): see [Browser plugins](../guides/plugin-authoring.md#browser-plugins) |
 | Do something every morning by itself | Neither starts by itself. A skill can set a reminder: see [the FAQ](faq.md#can-my-skill-run-every-morning) |
 
 Rule of thumb: if words are enough, write a skill. If it needs new code or a new service, build a plugin.
@@ -56,7 +57,7 @@ From the root of a VOOL source checkout:
 2. In `word-tally/.codex-plugin/plugin.json` set your own `name`, `vool.id`, `vool.name`, `vool.publisher`,
    `vool.homepage` and the tool's `intent` (`word-tally.<tool>`). Replace `bin/server` with your program.
 3. Check it: `python -m tools.plugin_check word-tally`. It prints `OK: ...` or the field to fix.
-4. In VOOL open **Add-ons > My add-ons > Plugins**, press **Install from a folder**, **Review folder**, then **Install and keep disabled**.
+4. In VOOL open **Skills & Plugins > My add-ons > Plugins**, press **Install from a folder**, **Review folder**, then **Install and keep disabled**.
 5. Press **Review access and enable**, read the sheet, press **Accept and enable**, then ask for the tool in a chat.
 
 Full walk-through: [Make a plugin](make-a-plugin.md).

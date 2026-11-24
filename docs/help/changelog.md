@@ -6,25 +6,41 @@ description: Notable changes to VOOL.
 
 Entries are added as builds go out to testers. Newest first.
 
-## 0.8.0 — in testing, not released yet
+## 0.8
 
-The first part of 0.8, about the two things a chat app must never do: forget what you just said, and
-die instead of answering.
+The version these docs describe. Installers are on the
+[GitHub releases page](https://github.com/Parad0x-Labs/vool/releases).
+The first part of 0.8 is about the two things a chat app must never do: forget what you just
+said, and fail instead of answering.
 
-* **The chat remembers the conversation.** Follow-up messages ("why cant you?", "what context?", "and in NY?") are answered with the recent turns of your chat in front of the answering model.
-* **A selected model that cannot run no longer dead-ends the chat.** When the model you picked is blocked before it even starts, VOOL says so in one line and answers anyway through Auto, naming the model that answered. Your selector is not changed.
-* **A free model you picked runs without a spending reservation.** The runtime's own "free pin" clearance no longer blocks the model it cleared.
-* **Routing stops re-trying what it already refused.** The lane picker no longer puts a model the authorship gate will refuse at the front of the queue; a rejected cloud key rests for 10 minutes instead of failing on every turn.
-* **The double-checker checks again after a fallback.** An answer served by a fallback model still gets its independent second look.
-* **"What time in NY?" answers New York.** The clock lane knows "ny" and "nyc", and a two-city ask answers every named city in one reply.
-* **A connected email account works in chat.** The green "connected" state in Settings is what enables reading the mailbox in chat.
-* **"Go fetch data online" keeps what it fetched.** Research steps stay attached to the turn even when the writing model failed, and a refusal tells the truth about the evidence it kept.
-* **Toggles in Settings read plainly.** On is "On" with a green light; off is "Off" with a red light.
-* **PDFs open on Linux.** VOOL reads a PDF's text in a locked-down sandbox: no network, no home folder. It uses bubblewrap where it can start, and the kernel's own Landlock sandbox where it cannot (stock Ubuntu 24.04). Only on a system with neither does it ask you to install bubblewrap or paste the text instead.
+The new features of 0.8 are on [What's new in 0.8](../guides/whats-new-0-8.md).
 
-### Updating
+**Fixes**
+* **The chat remembers the conversation.** Follow-up messages such as "why can't you?" or "and in NY?" are answered with the recent turns of your chat in view. Before, some follow-ups were answered from your latest words alone.
+* **A model you picked that cannot run no longer stops the chat.** If the model you chose is blocked before it starts (for example a cloud model your settings do not allow), VOOL says so in one line and answers through VOOL Auto, naming the model that answered. Your choice in the model menu is not changed.
+* **Free models stay free.** A free OpenRouter model you pick runs without a spending check. A model that is not really free is still refused, with the real reason.
+* **No more repeating the same failure.** VOOL no longer keeps trying a model it is not allowed to use. A cloud key the provider rejects rests for 10 minutes instead of failing on every message. A model you pinned as your only choice is always still tried.
+* **Answers are still double-checked after a fallback.** When the planned model fails and another one answers, the answer still gets its independent second look.
+* **"What time in NY?" answers New York.** VOOL knows "ny" and "nyc", and "time in Riga and NY now" answers every city you named in one reply. A misspelled city is still declined rather than guessed.
+* **A connected email account works in chat.** Adding an email account in Settings (shown as connected) is now what lets VOOL read it in chat. Before, a connected mailbox could still answer "I cannot access your email directly".
+* **Looking things up online keeps what it found.** The lookups stay with the answer even when the writing model failed, the answer is checked against what was actually found, and a refusal says truthfully what was found.
+* **Switches in Settings read plainly.** A switch that is on says "On" with a green light, and one that is off says "Off" with a red light.
+* **PDFs open on Linux.** VOOL reads a PDF's text in a locked-down sandbox with no network and no access to your home folder: bubblewrap where it can start, and otherwise the kernel's own Landlock sandbox, which stock Ubuntu 24.04 has. Only on a system with neither does VOOL ask you to install bubblewrap or paste the text instead. It never reads the file without a sandbox.
+
+**Skills**
+* **Skills from other people stay in their place.** A skill you imported, downloaded or added is used only when your message asks for it, and it can only narrow the tools VOOL offers. Only a skill you made in VOOL can offer tools. Turning one on says what is ignored.
+* **A skill VOOL wrote by itself gets no extra tools on its own.** It gets the tools it lists only after you press Allow on the card that shows its check code and those tools. Auto mode asks for that card too.
+* **The safety check is more precise.** VOOL's own Browse skills pass it. It also refuses skills that claim you already agreed, fake a source line, hide data in a link, ask for card numbers, PINs or passwords, say "disregard everything before", or carry a sign-in link or a web address dressed up as VOOL's.
+* A skill that did not come in through an import is checked each time it loads. One that fails stays off, and "which skills do I have?" says why. Hidden comments in a skill never reach the model.
+* "Which skills do I have?" says where each one came from: made by you, built in, added from Browse, added from a file, or in your project folder.
+* A skill named in another alphabet (for example Cyrillic or Chinese) can be made and turned on; a lookalike of a built-in name is still refused.
+* A draft skill stays in the chat it was made in and is tied to the exact text you were shown. Another chat cannot turn it on, and if it changes before you turn it on, it is not turned on.
+* Plainer refusals for a skill that copies another one, names tools VOOL does not have, or comes in a zip with extra files. The import preview shows a skill's text as plain text.
+* Skill authors can install a skill from a folder again, and VOOL's developer skills no longer join everyday requests because of words like "test" or "feature".
+
+**Updating**
 * **From 0.7.5, 0.7.6 or 0.7.7:** the update notice comes by itself when "Go online on its own" is on. Press Update.
-* **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.8.0 and install it over your current version. Your chats and settings stay in your profile.
+* **From 0.7.4 or older on Linux, or 0.7.2 and older on a Mac:** download 0.8 and install it over your current version. Your chats and settings stay in your profile.
 
 ## 0.7.7-beta — 2026-11-02
 
@@ -192,7 +208,7 @@ live in your profile, outside the app.
 Known limits in this beta:
 
 * Skill Codex is not open yet. Browsing, installing and sharing skills start once it opens.
-* A forgotten item is no longer recalled or listed, but its text can stay in VOOL's local memory file. Removing it from that file is planned for 0.7.3, not released yet.
+* A forgotten item is no longer recalled or listed, but its text can stay in VOOL's local memory file. Removing it from that file came in 0.7.3.
 * On Intel Macs, local models run on the processor and are slow. A long memory answer can time out, so use a cloud model there for now.
 * Paying websites through Solana pay-kit is not included in the downloads.
 * No live mainnet payment has been made yet with x402 or pay-per-answer AI services.
@@ -252,7 +268,7 @@ Downloads for Apple Silicon Macs, Intel Macs and Linux x86_64 are on the
 * **Chain data in chat.** Add your own Helius, Alchemy or Solscan key for read-only chain
   data in chat. With no key, no network call is made.
 * **X.** Draft posts in chat, with a guided setup that checks your keys read-only.
-* **Report a wrong answer.** Report and 👎 on every answer; you see the report text, with
+* **Report a wrong answer.** Report and thumbs-down on every answer; you see the report text, with
   private details removed, before it is sent.
 * **Skill Codex** is on the Add-ons page. Browsing is not open yet in this release.
 * **More languages.** 16 languages besides English.

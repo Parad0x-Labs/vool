@@ -1,20 +1,19 @@
 ---
-description: Spending limits, price guards, and what happens when a paid call is interrupted.
+description: Spending limits and price guards for paid AI models and wallet payments.
 ---
 
 # Spending limits and price guards
 
 VOOL never spends money on your behalf without an explicit ceiling you control. This page
-describes the layers that guard paid model calls and paid resources, and what happens when a
-paid call is interrupted part-way.
+describes the layers that guard paid model calls and paid resources.
 
 ## Two prices, one rule
 
 * **Catalog price** — what a provider currently advertises for a model. VOOL discovers it; it
   is information, not permission.
-* **Your accepted price** — the ceiling you approved for that provider and model in Settings.
-  A discovered price above your ceiling is refused **before** the provider is contacted. The
-  refusal says exactly that: the model did not run, nothing was sent, nothing was charged.
+* **Your accepted price** — the price you confirmed when you picked that paid model. If the
+  provider later advertises a higher price, VOOL stops and asks you again **before** the provider
+  is contacted. Nothing is sent and nothing is charged until you decide.
 
 ## Spend caps
 
@@ -22,14 +21,13 @@ For paid calls, VOOL reserves money against caps before every call:
 
 | Cap | Meaning |
 | --- | --- |
-| Per call | A single call's projected cost ceiling. |
-| Per task | The most one task may spend across its calls. |
-| Daily / monthly | Whole-period ceilings on paid usage. |
+| Per call | A single call's projected cost ceiling. Default 0.25 USD. |
+| Per task | The most one task may spend across its calls. Default 1 USD. |
+| Daily / monthly | Whole-period ceilings on paid usage. Defaults 5 USD a day, 25 USD a month. |
 
-A call that would cross a cap is refused before it is sent. The refusal names the cap that
-refused it (`per_task_spend_cap_exceeded` and its siblings) and the wording is deliberately
-pre-send: *"running it would exceed your spend cap"* — never a claim that the provider was
-contacted.
+A call that would cross a cap is refused before it is sent. The message names the cap and says
+*running it would exceed your spend cap*: the provider was never contacted. Paid models run only
+when you pick one yourself; VOOL never falls back to a paid model on its own.
 
 ## A pinned model is never silently substituted
 
@@ -38,26 +36,12 @@ with a cheaper model. The turn fails with the model you picked named, the actual
 and the sentence *"no other model was substituted."* Pick a different model yourself, or raise
 the cap deliberately.
 
-## Paid, but the answer never arrived
-
-If a paid call was charged but its answer did not arrive, the outcome is **unknown** — VOOL
-will not pretend it failed or succeeded:
-
-* No answer is invented in its place, and no refund is assumed.
-* The payment is kept on record as unresolved.
-* Settings lists it under **Paid calls waiting for an answer**, where **Resume** asks for the
-  same answer once, **without paying again**.
-
-This is why retrying blindly is never suggested for these cases: a plain re-send could pay
-twice. Resume is the one supported path.
-
 ## Automatic wallet payments (x402)
 
-Websites that ask for x402 payment in USDC on Base or Base Sepolia can be paid from your
-Crypto Pilot wallet, one PIN approval within these caps; no live mainnet payment has been
-made with this yet. The pay-per-call option in the model marketplace in Settings pays from
-the Solana Mainnet wallet, one approval per call within these caps, and has not yet been
-tested on a real chain.
-Wallet-paid resources (see [Wallet](../guides/wallet.md)) carry their own automatic-payment
-cap. A resource asking for more than the cap is simply not paid; you can raise the cap
-deliberately or pay the resource through an explicit proposal with your approval.
+Websites that ask for x402 payment in USDC on Base can be paid from your wallet, one approval
+each, within your wallet's spending caps. No live mainnet payment has been made with this yet.
+
+Wallet payments have their own caps (per payment, per day, per recipient per day), separate from
+the model caps above, and a cap on what one paid web request may cost: 0.10 USDC. A request above
+it is not paid and no payment is proposed. See [Wallet](wallet.md) and
+[Pay for web resources](paid-resources.md).

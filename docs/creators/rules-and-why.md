@@ -140,9 +140,9 @@ and stays off until the owner reads the access sheet and accepts it.
 | You wrote | You see | Do this instead |
 | --- | --- | --- |
 | Skill header `schedule: every day at 08:00` | `"schedule" does nothing: a skill never runs by itself. It is used only when a message asks for it.` | Have the skill set a reminder or a watch, which the person approves. See [the FAQ](faq.md#can-my-skill-run-every-morning). |
-| Skill header `priority: high` | `"priority" is a setting VOOL does not read, so it changes nothing.` | Leave it out. |
+| Skill header `author: Sam` | `"author" is a setting VOOL does not read, so it changes nothing.` | Leave it out. |
 | Plugin `"auto_start": true` | `The plugin's setup file is invalid or missing. Review it before installing.` with the note `unknown field auto_start` | Remove it. The owner switches the plugin on. |
-| A skill zip that sets `id` or `task-families` | A refusal that names those settings and says only VOOL's own skills may set them | Take those lines out of the header. |
+| A skill zip that sets `id`, `task-families`, `type`, `priority` or `incompatible-with` | A refusal that names those settings and says only VOOL's own skills may set them | Take those lines out of the header. |
 
 Updates follow the same rule: an updated or changed plugin starts disabled and is reviewed again.
 

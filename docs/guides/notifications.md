@@ -22,6 +22,12 @@ items are unread.
 A model you watch is the model you picked in the model menu, and a paid model whose price you
 accepted.
 
+Other parts of VOOL use the same bell: a routine on a schedule leaves a note when it has
+something to do (see [My routines](routines.md)), a friend's job request arrives here when you
+lend jobs (see [Lend a job](lend-a-job.md)), and a council run you chose to watch sends its
+questions to **Needs you** and its reports to **Updates** (see
+[Chat features](chat-features.md#council-review)).
+
 Some things never make an item:
 
 * Greetings, quick commands and other turns that did no work.

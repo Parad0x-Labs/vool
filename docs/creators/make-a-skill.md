@@ -77,15 +77,18 @@ Tool names for `allowed-tools`, and what each asks the person to approve:
 
 ### A setting VOOL does not read
 
-VOOL says so; it never pretends. Add `schedule: every day at 08:00` and `priority: high` to a header and
+VOOL says so; it never pretends. Add `schedule: every day at 08:00` and `author: Sam` to a header and
 VOOL's check answers, word for word:
 
 ```text
 "schedule" does nothing: a skill never runs by itself. It is used only when a message asks for it.
-"priority" is a setting VOOL does not read, so it changes nothing.
+"author" is a setting VOOL does not read, so it changes nothing.
 ```
 
-The skill still loads and still works when a message asks for it. Timer words that get the first sentence:
+The skill still loads and still works when a message asks for it. Settings kept for VOOL's own skills are
+different: a zip that sets `id`, `task-families`, `type`, `priority` or `incompatible-with` is refused on import
+with `This skill sets ..., which only VOOL's own skills may set.` The check and the zip step do not catch this,
+so take those lines out before you share the zip. Timer words that get the first sentence:
 `schedule`, `interval`, `cron`, `every`, `timer`, `repeat`, `run-every`, `run_every`. For something that
 should come back later, see [Can my skill run every morning?](faq.md#can-my-skill-run-every-morning)
 

@@ -9,9 +9,11 @@ asking first whenever your operating mode says it should (see [Tools](tools.md))
 
 ## Adding and removing
 
-Pick a folder with **Choose a project folder…** in the chat, or with **+ Project** in the
-chat sidebar. Deleting a project makes VOOL forget what it learned in it and moves its chats
-back to General. Your files are untouched.
+Press **+ Project** in the chat sidebar and pick a folder. Chats in that project work in that
+folder and stay apart from your other projects. Chats outside any project are under General.
+
+A project in the sidebar has **Rename project** and **Delete project** buttons. Deleting a project makes VOOL forget
+what it learned in it and moves its chats back to General. Your files are untouched.
 
 ## Your other folders
 

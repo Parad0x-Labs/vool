@@ -1,6 +1,7 @@
 # Table of contents
 
 * [VOOL](README.md)
+* [What's new in 0.8](guides/whats-new-0-8.md)
 
 ## Getting started
 
@@ -20,6 +21,16 @@
 
 ## Guides
 
+* [Chat features](guides/chat-features.md)
+* [More chat features](guides/chat-features-more.md)
+* [Everyday assistant: email, calendar, reminders](guides/everyday-assistant.md)
+* [VOOL Browser](guides/browser.md)
+* [Send with Drop](guides/drop.md)
+* [Chat from Telegram and Discord](guides/telegram-and-discord.md)
+* [Check your VOOL: Doctor, Today, spending](guides/check-your-vool.md)
+* [Media Studio and pictures](guides/media-studio.md)
+* [The pet](guides/pet.md)
+* [More in VOOL](guides/more-in-vool.md)
 * [Run a local model](guides/local-models.md)
 * [Provider keys](guides/provider-keys.md)
 * [Connect OpenRouter](guides/openrouter.md)
@@ -36,7 +47,7 @@
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)
 * [Pay for web resources (x402)](guides/paid-resources.md)
-* [Private invoices with Zcash](guides/zcash-invoices.md)
+* [Private invoices with Zcash (advanced)](guides/zcash-invoices.md)
 * [Contacts](guides/contacts.md)
 * [My things](guides/my-things.md)
 * [My routines](guides/routines.md)

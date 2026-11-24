@@ -7,12 +7,13 @@ description: Exactly what data VOOL sends, when, and to whom. What stays on your
 ## The two states
 
 **Local** — the model and your files stay on this computer. Live facts such as
-weather or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in Local Only.
+weather or prices come from public web services only while Web lookups is on (it is off on a fresh install), and never in an Offline chat.
 
 **Cloud** — the selected context is sent directly to the selected provider.
 
-The chat header shows which way the next request runs — for example **AUTO** with
-**Local first** when VOOL Auto answers from this computer.
+The model button in the chat header shows which way the next request runs — for example
+**AUTO** with **Local first** when VOOL Auto starts on this computer. See
+[Local and cloud](../concepts/local-and-cloud.md) for the three run modes.
 
 ## What VOOL does not do
 
@@ -26,6 +27,12 @@ Your OpenRouter account remains yours. VOOL sends requests directly from this co
 using your key. Parad0x does not proxy your prompts or pay for your usage. Genuine VOOL
 usage may appear in VOOL's public aggregate OpenRouter statistics, but individual prompts
 and identities are not published.
+
+## Before files go to cloud
+
+When a chat first sends files or remembered information to a cloud model, VOOL can show the
+complete request first, so you can send it, trim it or keep it on this computer. See
+[See what leaves your computer](../guides/what-leaves-your-computer.md).
 
 ## Telemetry
 
