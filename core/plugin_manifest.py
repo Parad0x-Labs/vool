@@ -332,32 +332,42 @@ def browser_extension(block: dict, root: Path) -> dict:
             f"{_shown(text)}/manifest.json is missing or is not JSON. Put the extension's manifest.json in that folder.")
     if not isinstance(data, dict) or not isinstance(data.get("name"), str) or not isinstance(data.get("version"), str):
         _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", "manifest.json", "The extension's manifest.json needs a name and a version, both text.")
-    if data.get("manifest_version") != 3:
-        _no("This browser plugin uses an older extension format that VOOL's browser does not load. Ask its maker for an update.",
-            "manifest.json manifest_version", "Set manifest_version to 3.")
-    if "update_url" in data:
-        _no("This browser plugin would fetch its own updates from outside VOOL. It was not installed.",
-            "manifest.json update_url", "Take update_url out; a new version reaches people as a new plugin version.")
-    access = _names(data.get("permissions"), "manifest.json permissions") + _names(data.get("optional_permissions"), "manifest.json optional_permissions")
-    if set(access) & BROWSER_REFUSED_ACCESS:
-        _no("This browser plugin asks for access no browser plugin may have, such as saved sign-ins, the browser's connection or programs outside the browser. It was not installed.",
-            "manifest.json permissions", "Take out " + ", ".join(sorted(set(access) & BROWSER_REFUSED_ACCESS)) + ". No browser plugin may have them.")
+    # Each rule below stands on its own, so a maker's check names every one that fails in one run.
+    with _Part():
+        if data.get("manifest_version") != 3:
+            _no("This browser plugin uses an older extension format that VOOL's browser does not load. Ask its maker for an update.",
+                "manifest.json manifest_version", "Set manifest_version to 3.")
+    with _Part():
+        if "update_url" in data:
+            _no("This browser plugin would fetch its own updates from outside VOOL. It was not installed.",
+                "manifest.json update_url", "Take update_url out; a new version reaches people as a new plugin version.")
+    access: list[str] = []
+    with _Part():
+        access = _names(data.get("permissions"), "manifest.json permissions") + _names(data.get("optional_permissions"), "manifest.json optional_permissions")
+    with _Part():
+        if set(access) & BROWSER_REFUSED_ACCESS:
+            _no("This browser plugin asks for access no browser plugin may have, such as saved sign-ins, the browser's connection or programs outside the browser. It was not installed.",
+                "manifest.json permissions", "Take out " + ", ".join(sorted(set(access) & BROWSER_REFUSED_ACCESS)) + ". No browser plugin may have them.")
     # The start page and the search are the person's. An extension names a page to stand in
     # for the engine's new tab page in one part of its manifest, and a home page, pages to
     # open at start or a search in another.
-    pages = data.get("chrome_url_overrides", {})
-    if not isinstance(pages, dict):
-        _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", "manifest.json chrome_url_overrides", "Make it an object, or take it out.")
-    if "newtab" in pages or "chrome_settings_overrides" in data:
-        _no("This browser plugin would replace the browser's start page or search. It was not installed.",
-            "manifest.json chrome_url_overrides / chrome_settings_overrides",
-            "Take out the newtab page and chrome_settings_overrides. The start page and the search stay the person's.")
-    sites = _names(data.get("host_permissions"), "manifest.json host_permissions") + _names(data.get("optional_host_permissions"), "manifest.json optional_host_permissions")
-    scripts = data.get("content_scripts") or []
-    if not isinstance(scripts, list) or any(not isinstance(row, dict) for row in scripts):
-        _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", "manifest.json content_scripts", "Make it a list of objects, each with its matches.")
-    for row in scripts:
-        sites += _names(row.get("matches"), "manifest.json content_scripts matches")
+    with _Part():
+        pages = data.get("chrome_url_overrides", {})
+        if not isinstance(pages, dict):
+            _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", "manifest.json chrome_url_overrides", "Make it an object, or take it out.")
+        if "newtab" in pages or "chrome_settings_overrides" in data:
+            _no("This browser plugin would replace the browser's start page or search. It was not installed.",
+                "manifest.json chrome_url_overrides / chrome_settings_overrides",
+                "Take out the newtab page and chrome_settings_overrides. The start page and the search stay the person's.")
+    sites: list[str] = []
+    with _Part():
+        sites = _names(data.get("host_permissions"), "manifest.json host_permissions") + _names(data.get("optional_host_permissions"), "manifest.json optional_host_permissions")
+    with _Part():
+        scripts = data.get("content_scripts") or []
+        if not isinstance(scripts, list) or any(not isinstance(row, dict) for row in scripts):
+            _no("This browser plugin has no working extension inside it. Ask its maker to fix it.", "manifest.json content_scripts", "Make it a list of objects, each with its matches.")
+        for row in scripts:
+            sites += _names(row.get("matches"), "manifest.json content_scripts matches")
     return {"name": data["name"][:120], "version": data["version"][:60], "folder": text,
             "access": sorted(set(access)), "sites": sorted(set(sites)),
             "every_site": any(_every_site(pattern) for pattern in sites)}

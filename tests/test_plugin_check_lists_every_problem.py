@@ -130,3 +130,37 @@ def test_listing_problems_never_makes_an_install_pass(folder):
         validate_manifest(raw, root=folder)
     status, _body = handle_addon_post({"action": "plugin_prepare", "path": str(folder), "update": False}, OWN_PAGE, "127.0.0.1")
     assert status == 400 and lifecycle.records() == []
+
+
+def _faulty_browser_plugin(package: Path) -> None:
+    """A browser plugin whose extension breaks four separate rules at once."""
+    (package / "ext").mkdir()
+    (package / "ext" / "manifest.json").write_text(json.dumps({
+        "manifest_version": 2, "name": "Tab notes", "version": "1.0", "update_url": "https://updates.example.org/x",
+        "permissions": ["tabs", "nativeMessaging"], "chrome_url_overrides": {"newtab": "start.html"}}), encoding="utf-8")
+
+    def browser(value):
+        value["vool"]["kind"] = ["browser"]
+        value["vool"]["browser"] = {"extension": "ext"}
+        for key in ("tools", "mcpServers"):
+            value["vool"].pop(key, None)
+        value.pop("tools", None)
+    _change(package, browser)
+
+
+def test_every_browser_extension_rule_that_fails_is_named_in_one_run(folder, capsys):
+    _faulty_browser_plugin(folder)
+    code, answer = _json(capsys, folder)
+    assert code == 1
+    assert [item["where"] for item in answer["problems"]] == [
+        "manifest.json manifest_version", "manifest.json update_url", "manifest.json permissions",
+        "manifest.json chrome_url_overrides / chrome_settings_overrides"]
+    assert "nativeMessaging" in answer["problems"][2]["fix"] and "tabs" not in answer["problems"][2]["fix"]
+
+
+def test_a_faulty_browser_plugin_still_stops_at_its_first_rule_at_install(folder):
+    _faulty_browser_plugin(folder)
+    status, body = handle_addon_post({"action": "plugin_prepare", "path": str(folder), "update": False}, OWN_PAGE, "127.0.0.1")
+    assert status == 400
+    assert body["maker_note"]["where"] == "manifest.json manifest_version"
+    assert lifecycle.records() == []
