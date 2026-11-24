@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -158,7 +159,17 @@ def test_the_served_reminder_list_answer_reaches_the_person(tmp_path: Path) -> N
         prompt = " ".join(str(m.get("content") or "") for m in body.get("messages") or [] if isinstance(m, dict))
         if AMBIGUITY_SYSTEM_PROMPT in prompt:
             return json.dumps({"ambiguous": False, "referents": [], "clarification": ""})
-        if body.get("tools"):
+        judged = re.search(r'(\d+)\. "Reminders:', prompt)
+        if judged and "which of these tools does the message ask" in prompt:
+            # The turn's tool judge reads every wording as the reminder ask it is, as the local model does. With
+            # no judgement the words alone decide, and "do I have something to be reminded of this week?" was
+            # seated as a web lookup with no reminder tool (CI on 412af1a79): that is the judge's job, not
+            # this gate's, so the stub answers the judge.
+            return json.dumps({"answer": [int(judged.group(1))]})
+        offered = {str((tool.get("function") or {}).get("name") or "") for tool in body.get("tools") or []
+                   if isinstance(tool, dict)}
+        if "operator__list_reminders" in offered:
+            # The call goes to the first request that offers the list, as a model would make it.
             rounds.append(1)
             if len(rounds) == 1:
                 return call

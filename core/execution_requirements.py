@@ -354,6 +354,27 @@ def _operator_action_demand(text: str, source_context: dict[str, Any] | None = N
         return False
 
 
+def _judged_operator_demand(text: str, source_context: dict[str, Any] | None = None) -> bool:
+    """Whether the turn's judge, reading the person's whole message, picked one of VOOL's own operator tools.
+
+    The arm above reads the eligible text, which has reported speech and format directives carved out; the judge was
+    asked about the message as written, and its record is keyed by it. Carved, "anything i asked you to nudge me
+    about?" kept only "anything", the reminder pick was never found, and the turn stayed in the tools-less chat lane
+    (CI on 412af1a79: the model wrote the reminder back with no read behind it). Owner-local turns only, as the judgement
+    itself. Read here, never asked."""
+    if not isinstance(source_context, dict) or not source_context:
+        return False
+    try:
+        from core.plugin_ask import judged_builtin_seats
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return False
+        return any(seat.startswith("operator.") for seat in judged_builtin_seats(str(text or "")))
+    except Exception:
+        return False
+
+
 def _owner_live_source_toolsets(text: str, source_context: dict[str, Any] | None = None) -> tuple[str, ...]:
     """The toolsets of the owner's live sources the words ask about (core.tool_demand_signals.owner_live_sources).
 
@@ -1365,11 +1386,16 @@ def _compute_requirements(
     # calendars releases nothing. The model still decides whether any operator tool is called.
     live_toolsets = () if _operator_arm_silent else _owner_live_source_toolsets(candidate_text, source_context)
     card_toolsets = () if _operator_arm_silent else _tool_card_toolsets(candidate_text, source_context)
-    judged_toolsets = () if _operator_arm_silent else _judged_tool_toolsets(candidate_text, source_context)
+    judged_toolsets = () if _operator_arm_silent else tuple(dict.fromkeys((
+        *_judged_tool_toolsets(candidate_text, source_context), *_judged_tool_toolsets(user_input, source_context),
+    )))
     live_toolsets = tuple(dict.fromkeys((*live_toolsets, *card_toolsets, *judged_toolsets)))
+    operator_demand = not _operator_arm_silent and (
+        _operator_action_demand(candidate_text, source_context) or _judged_operator_demand(user_input, source_context)
+    )
     if (
         not _operator_arm_silent
-        and (_operator_action_demand(candidate_text, source_context) or live_toolsets)
+        and (operator_demand or live_toolsets)
         and not constraints.forbids_all_tools
         # The explicit prohibited set, not `forbids("operator")`: that helper also blocks on any
         # external-retrieval prohibition, and "do not search the web, just show my agenda" must
@@ -1397,13 +1423,13 @@ def _compute_requirements(
             tools_required=True,
             allowed_toolsets=tuple(dict.fromkeys((
                 *base.allowed_toolsets,
-                *(("operator",) if _operator_action_demand(candidate_text, source_context) else ()),
+                *(("operator",) if operator_demand else ()),
                 *live_toolsets,
             ))),
             inference_allowed=base.inference_allowed,
             reason_codes=tuple(dict.fromkeys((
                 *base.reason_codes,
-                "operator_action_request" if _operator_action_demand(candidate_text, source_context)
+                "operator_action_request" if operator_demand
                 else "owner_live_source_request",
                 *(("tool_card_request",) if card_toolsets else ()),
                 *(("judged_tool_request",) if judged_toolsets else ()),
