@@ -150,6 +150,12 @@ def _reply(body: dict[str, Any]) -> Any:
     messages = body.get("messages") or []
     prompt = " ".join(str(m.get("content") or "") for m in messages if isinstance(m, dict))
     prompt += " " + str(body.get("system") or "")
+    # A step handed native functions names its tools there, not in a prose list
+    # (core.tool_catalog_wire); a model reads both, so this stub does too.
+    prompt += " " + " ".join(
+        str((tool.get("function") or {}).get("name") or "").replace("__", ".")
+        for tool in body.get("tools") or [] if isinstance(tool, dict)
+    )
     if "turns on an entity that has several" in prompt:
         # The entity-ambiguity pre-check (core.entity_ambiguity): these questions name no entity.
         return json.dumps({"ambiguous": False, "referents": [], "clarification": ""})
@@ -280,11 +286,17 @@ def _tool_runs(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [e for e in events if e["type"] in {"tool_executed", "tool_result_published"}]
 
 
+def _call_text(call: dict[str, Any]) -> str:
+    """What the model read on one recorded call: its prompt, system text and native function names."""
+    names = " ".join(str(name).replace("__", ".") for name in call.get("tools") or [])
+    return f"{call['full_prompt']} {call['system']} {names}"
+
+
 def _wire_tool_steps(provider: ScriptedProvider, model: str) -> int:
     return sum(
         1
         for call in provider.calls
-        if call["model"] == model and _is_tool_step(f"{call['full_prompt']} {call['system']}")
+        if call["model"] == model and _is_tool_step(_call_text(call))
     )
 
 
@@ -335,7 +347,7 @@ def _keep_receipt(served: dict[str, Any], name: str, **record: Any) -> None:
 
 
 def _tool_step_calls(provider: ScriptedProvider) -> list[dict[str, Any]]:
-    return [call for call in provider.calls if _is_tool_step(f"{call['full_prompt']} {call['system']}")]
+    return [call for call in provider.calls if _is_tool_step(_call_text(call))]
 
 
 # --------------------------------------------------------------------------------------------

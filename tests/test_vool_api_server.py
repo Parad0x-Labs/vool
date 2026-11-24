@@ -3022,6 +3022,9 @@ def test_vool_chat_page_is_self_contained_and_wired() -> None:
     assert i18n_blob in html
     page_code = html.replace(i18n_blob, "")
     page_code = re.sub(r"data:image/(?:png|webp);base64,[A-Za-z0-9+/=]+", "", page_code)
+    # The SVG namespace name is an identifier the DOM compares, never fetched; createElementNS needs
+    # it spelled exactly so (the add-on rating icons). Only that exact quoted name is set aside.
+    page_code = page_code.replace("'http://www.w3.org/2000/svg'", "''")
     assert "http://" not in page_code
     external = _external_asset_references(page_code)
     assert not external, f"chat page must not reference external assets: {external}"

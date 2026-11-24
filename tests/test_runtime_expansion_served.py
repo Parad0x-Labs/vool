@@ -51,6 +51,18 @@ from tests._email_served_conversation import (
 pytestmark = [pytest.mark.pa_beta]
 
 CATALOG_LINE = re.compile(r"(?:^|\s)- ([a-z0-9_]+(?:\.[a-z0-9_]+)+)\(")
+#: A lane handed native functions reads its tools as the catalog's name map (one ``name(params)`` per
+#: offered function) instead of the per-tool prose list (core.tool_catalog_wire).
+NATIVE_NAME_MAP = re.compile(r"are not native function names: (.*?) If no tool is needed", re.S)
+NATIVE_MAP_NAME = re.compile(r"([a-z0-9_]+(?:__[a-z0-9_]+)+)\(")
+
+
+def _catalog_names(prompt: str) -> list[str]:
+    """The operations the round's prompt catalog names: its prose list, or its native name map."""
+    names = set(CATALOG_LINE.findall(prompt))
+    for block in NATIVE_NAME_MAP.findall(prompt):
+        names.update(name.replace("__", ".") for name in NATIVE_MAP_NAME.findall(block))
+    return sorted(names)
 #: The runtime's one-tool capability probe: a certification round, not a round of the turn's offer.
 CAPABILITY_PROBE_TOOLS = ["vool__capability_probe"]
 FAMILY = "skill"
@@ -80,7 +92,7 @@ class RoundRecordingModel(ScriptedEmailModel):
             expansions = [item for item in _observations(prompt) if item.get("intent") == "capability.expand_family"]
             record = {
                 "native": native,
-                "catalog": sorted(set(CATALOG_LINE.findall(prompt))),
+                "catalog": _catalog_names(prompt),
                 "expansion_seats": list((expansions[-1] if expansions else {}).get("seated_intents") or []),
             }
         reply = super().answer(path, body)

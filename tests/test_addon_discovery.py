@@ -134,6 +134,9 @@ def test_live_search_transport_is_fixed_origin_without_credentials(rig, monkeypa
     def fetch(url,**kwargs):
         calls.append((url,kwargs));return b'{"items":[],"total_count":0}',{}
     monkeypatch.setattr(github,'fetch_bytes',fetch)
+    # With no GitHub token set by whoever runs VOOL, a lookup carries no credential at all (a set
+    # token goes to api.github.com only: tests/test_a_github_lookup_uses_a_given_token_on_the_api_host_only.py).
+    monkeypatch.delenv('VOOL_GITHUB_TOKEN',raising=False)
     from core import credential_store
     monkeypatch.setattr(credential_store,'get_credential',lambda *a, **kw:pytest.fail('Public discovery must not read keys'))
     github.search('git helpers & coding')

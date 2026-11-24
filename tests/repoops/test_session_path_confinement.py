@@ -143,6 +143,13 @@ def test_plugin_lifecycle_single_component_ids_reach_the_owner(monkeypatch, tmp_
     # The id passes confinement unchanged and then selects its catalog identity; the catalog,
     # not the id, names the directory the owner receives.
     monkeypatch.setattr(catalog, "discovered_plugin_sources", lambda: ((pid, base / "plugins" / pid),))
+    # Since the plugin identity check (every install door reads the pack's setup file), the pack
+    # needs one. It is one VOOL ships, so an id such as vool-database is its own; the identity
+    # rule for packs from outside is tested in tests/test_plugin_identity_is_checked_at_install.py.
+    folder = base / "plugins" / pid / ".codex-plugin"
+    folder.mkdir(parents=True)
+    (folder / "plugin.json").write_text(json.dumps({"name": pid, "version": "1.0.0"}), encoding="utf-8")
+    monkeypatch.setattr(catalog, "bundled_plugin_dirs", lambda: (base / "plugins" / pid,))
     monkeypatch.setattr(lifecycle, "install", fake_install)
     result = repoops_api.plugin_lifecycle_action(action="install", plugin_id=pid)
     assert result["ok"] is False  # the stub raised after the id passed confinement
