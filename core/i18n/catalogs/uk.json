@@ -5523,9 +5523,14 @@
     "live.home_name": "Стартова сторінка VOOL",
     "live.home_title": "Нова вкладка",
     "live.home_search": "Шукайте в інтернеті або введіть адресу",
-    "live.home_visited": "Найчастіше відвідувані"
+    "live.home_visited": "Найчастіше відвідувані",
+    "live.home_welcome": "Ласкаво просимо до VOOL Browser",
+    "live.home_welcome_note": "Без входу в обліковий запис і без налаштувань. Введіть запит або адресу, щоб почати.",
+    "live.home_morning": "Доброго ранку",
+    "live.home_afternoon": "Добрий день",
+    "live.home_evening": "Добрий вечір"
   },
-  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
+  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

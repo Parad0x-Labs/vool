@@ -5523,7 +5523,12 @@
     "live.home_name": "VOOL start page",
     "live.home_title": "New tab",
     "live.home_search": "Search the web or type an address",
-    "live.home_visited": "Most visited"
+    "live.home_visited": "Most visited",
+    "live.home_welcome": "Welcome to VOOL Browser",
+    "live.home_welcome_note": "No sign-in, nothing to set up. Search or type an address to begin.",
+    "live.home_morning": "Good morning",
+    "live.home_afternoon": "Good afternoon",
+    "live.home_evening": "Good evening"
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -11,13 +11,17 @@ Rules kept here:
   search the person chose in the browser's settings; an address typed there is opened as
   typed. The most visited sites and their icons come from the engine's own history;
 - it asks for no page content and holds no page script, and it cannot see other tabs;
+- it welcomes the person the first time it is ever shown and greets them the first time
+  it is shown on a day. Which day it last greeted is kept in the page's own storage in
+  the profile and goes nowhere;
+- a place is kept on it for the top skills and plugins from VOOL's libraries. It is
+  empty and not shown: nothing fills it yet;
 - a private window keeps the engine's own page, which says that the window is private.
   An ordinary window the person opens from a private one gets this page.
 """
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -26,18 +30,26 @@ from typing import Any
 from core.runtime_paths import active_data_dir
 
 #: Raised whenever the files below change, so an older copy is never loaded.
-FORMAT = 2
+FORMAT = 3
 PAGE = "home.html"
 
-_WORDS = ("home_name", "home_title", "home_search", "home_visited")
+#: The folder the page is loaded from. It is always the same one: the engine names what
+#: it loads by the folder it came from, and it remembers by that name what the person
+#: answered when it asked whether this page may stand in for its own new tab page.
+FOLDER = "page"
+
+_WORDS = ("home_name", "home_title", "home_search", "home_visited",
+          "home_welcome", "home_welcome_note", "home_morning", "home_afternoon", "home_evening")
 
 _HTML = """<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title></title><link rel="stylesheet" href="home.css"></head>
 <body><main>
 <h1>VOOL</h1>
+<p id="hello" hidden><strong id="helloTitle"></strong><span id="helloNote"></span></p>
 <form id="search" role="search" autocomplete="off"><input id="q" type="text" autofocus spellcheck="false"></form>
 <section id="visited" hidden><h2 id="visitedTitle"></h2><div id="sites"></div></section>
+<section id="picks" hidden></section>
 </main><script src="home.js"></script></body></html>
 """
 
@@ -50,6 +62,8 @@ h1{font-size:2.25rem;letter-spacing:.35em;font-weight:600;margin:0 0 2rem;paddin
 #q{width:100%;font:inherit;font-size:1.05rem;padding:.85rem 1.1rem;border-radius:.8rem;border:1px solid var(--line);background:var(--field);color:var(--ink)}
 #q:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 #q::placeholder{color:var(--quiet)}
+#hello{margin:-.75rem 0 1.75rem;color:var(--quiet)}
+#hello strong{display:block;color:var(--ink);font-size:1.2rem;font-weight:500;margin-bottom:.15rem}
 h2{font-size:.85rem;font-weight:500;color:var(--quiet);margin:3rem 0 1rem}
 #sites{display:grid;grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr));gap:.75rem}
 #sites a{display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:1rem .75rem;border:1px solid var(--line);border-radius:.8rem;color:var(--ink);text-decoration:none;min-width:0}
@@ -67,6 +81,21 @@ document.documentElement.lang = WORDS.lang; document.documentElement.dir = DIREC
 document.title = WORDS.home_title;
 $('q').placeholder = WORDS.home_search; $('q').setAttribute('aria-label', WORDS.home_search);
 $('visitedTitle').textContent = WORDS.home_visited;
+// A welcome the first time this page is ever shown in this profile, and a greeting the
+// first time it is shown on a day, with that day's date. The day last greeted is kept in
+// this page's own storage in the profile; nothing about it is sent anywhere.
+function greeting(hour) { return hour >= 5 && hour < 12 ? 'home_morning' : hour >= 12 && hour < 18 ? 'home_afternoon' : 'home_evening'; }
+function hello(now) {
+  const day = [now.getFullYear(), now.getMonth() + 1, now.getDate()].join('-');
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem('hello') || 'null'); } catch (e) {}
+  if (last && last.day === day) return;
+  $('helloTitle').textContent = last ? WORDS[greeting(now.getHours())] : WORDS.home_welcome;
+  $('helloNote').textContent = last ? now.toLocaleDateString(WORDS.lang, {weekday: 'long', day: 'numeric', month: 'long'}) : WORDS.home_welcome_note;
+  $('hello').hidden = false;
+  try { localStorage.setItem('hello', JSON.stringify({day})); } catch (e) {}
+}
+hello(new Date());
 // An address is told from words to search for by its shape: it has no spaces, and it is
 // a full web address, a name whose last part after a dot is made of letters, or a number.
 function address(text) {
@@ -155,45 +184,55 @@ def _files(locale: str) -> dict[str, str]:
     }
 
 
+def _as_written(folder: Path, files: dict[str, str]) -> bool:
+    """True when *folder* holds exactly *files* and nothing else."""
+    try:
+        if sorted(path.name for path in folder.iterdir()) != sorted(files):
+            return False
+        return all((folder / name).is_file() and (folder / name).read_text(encoding="utf-8") == text for name, text in files.items())
+    except (OSError, ValueError):
+        return False
+
+
 def build(locale: str = "") -> Path:
     """Write the start page in the language VOOL was last seen in and return its folder.
 
-    The folder is named by its contents and written afresh at every start, so what is
-    loaded is what VOOL wrote, even if the folder was changed while the browser was closed.
+    It is checked against what VOOL writes at every start and written afresh when it
+    differs in any way, so what is loaded is what VOOL wrote, even if the folder was
+    changed while the browser was closed. A folder that is as written is left alone: an
+    open window may be reading it.
     """
     from . import guard
 
     base = _root()
     files = _files(locale or guard.language())
-    digest = hashlib.sha256()
-    for name in sorted(files):
-        digest.update(name.encode() + b"\0" + files[name].encode("utf-8") + b"\0")
-    target = base / ("home-" + digest.hexdigest()[:16])
+    target = base / FOLDER
     base.mkdir(parents=True, exist_ok=True, mode=0o700)
-    staging = base / (target.name + ".new")
-    shutil.rmtree(staging, ignore_errors=True)
-    shutil.rmtree(target, ignore_errors=True)
-    staging.mkdir(mode=0o700)
-    for filename, text in files.items():
-        path = staging / filename
-        path.write_text(text, encoding="utf-8")
-        path.chmod(0o600)
-    staging.rename(target)
+    if not _as_written(target, files):
+        staging = base / (FOLDER + ".new")
+        shutil.rmtree(staging, ignore_errors=True)
+        staging.mkdir(mode=0o700)
+        for filename, text in files.items():
+            path = staging / filename
+            path.write_text(text, encoding="utf-8")
+            path.chmod(0o600)
+        shutil.rmtree(target, ignore_errors=True)
+        staging.rename(target)
     for path in base.iterdir():
         if path.name != target.name:
             shutil.rmtree(path, ignore_errors=True)
     return target
 
 
-async def apply(window: Any) -> bool:
-    """Make VOOL's page the new tab page of *window*. Runs on the desk loop, once, at its start.
+async def apply(window: Any, folder: Path | None) -> bool:
+    """Make VOOL's page, written to *folder*, the new tab page of *window*. Runs on the
+    desk loop, once, at its start.
 
     True when the engine took it. A start page that will not load does not keep the browser
     from opening: new tabs then show the engine's own page.
     """
-    if window.context is None or window.context.browser is None:
+    if folder is None or window.context is None or window.context.browser is None:
         return False
-    folder = build()
     session = await window.context.browser.new_browser_cdp_session()
     try:
         answer = await session.send("Extensions.loadUnpacked", {"path": str(folder)})

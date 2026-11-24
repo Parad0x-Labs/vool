@@ -5523,9 +5523,14 @@
     "live.home_name": "Página inicial do VOOL",
     "live.home_title": "Novo separador",
     "live.home_search": "Pesquise na Web ou escreva um endereço",
-    "live.home_visited": "Mais visitados"
+    "live.home_visited": "Mais visitados",
+    "live.home_welcome": "Boas-vindas ao VOOL Browser",
+    "live.home_welcome_note": "Sem iniciar sessão e sem nada para configurar. Pesquise ou escreva um endereço para começar.",
+    "live.home_morning": "Bom dia",
+    "live.home_afternoon": "Boa tarde",
+    "live.home_evening": "Boa noite"
   },
-  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
+  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

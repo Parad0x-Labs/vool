@@ -5523,9 +5523,14 @@
     "live.home_name": "صفحة البداية في VOOL",
     "live.home_title": "علامة تبويب جديدة",
     "live.home_search": "ابحث في الويب أو اكتب عنوانًا",
-    "live.home_visited": "الأكثر زيارة"
+    "live.home_visited": "الأكثر زيارة",
+    "live.home_welcome": "مرحبًا بك في VOOL Browser",
+    "live.home_welcome_note": "لا تسجيل دخول ولا إعدادات. ابحث أو اكتب عنوانًا لتبدأ.",
+    "live.home_morning": "صباح الخير",
+    "live.home_afternoon": "طاب نهارك",
+    "live.home_evening": "مساء الخير"
   },
-  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
+  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

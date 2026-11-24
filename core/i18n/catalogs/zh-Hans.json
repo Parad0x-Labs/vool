@@ -5523,9 +5523,14 @@
     "live.home_name": "VOOL 起始页",
     "live.home_title": "新标签页",
     "live.home_search": "搜索网页或输入网址",
-    "live.home_visited": "常访问的网站"
+    "live.home_visited": "常访问的网站",
+    "live.home_welcome": "欢迎使用 VOOL Browser",
+    "live.home_welcome_note": "无需登录，也无需任何设置。搜索或输入网址即可开始。",
+    "live.home_morning": "早上好",
+    "live.home_afternoon": "下午好",
+    "live.home_evening": "晚上好"
   },
-  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
+  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

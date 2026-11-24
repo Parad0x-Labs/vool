@@ -5523,9 +5523,14 @@
     "live.home_name": "VOOL スタートページ",
     "live.home_title": "新しいタブ",
     "live.home_search": "ウェブを検索、またはアドレスを入力",
-    "live.home_visited": "よくアクセスするページ"
+    "live.home_visited": "よくアクセスするページ",
+    "live.home_welcome": "VOOL Browser へようこそ",
+    "live.home_welcome_note": "ログインも設定も不要です。検索するか、アドレスを入力して始めましょう。",
+    "live.home_morning": "おはようございます",
+    "live.home_afternoon": "こんにちは",
+    "live.home_evening": "こんばんは"
   },
-  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
+  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

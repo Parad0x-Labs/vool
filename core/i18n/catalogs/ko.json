@@ -5523,9 +5523,14 @@
     "live.home_name": "VOOL 시작 페이지",
     "live.home_title": "새 탭",
     "live.home_search": "웹 검색 또는 주소 입력",
-    "live.home_visited": "자주 방문한 사이트"
+    "live.home_visited": "자주 방문한 사이트",
+    "live.home_welcome": "VOOL Browser에 오신 것을 환영합니다",
+    "live.home_welcome_note": "로그인도 설정도 필요 없습니다. 검색하거나 주소를 입력해 시작하세요.",
+    "live.home_morning": "좋은 아침입니다",
+    "live.home_afternoon": "좋은 오후입니다",
+    "live.home_evening": "좋은 저녁입니다"
   },
-  "source_catalog_sha256": "8731ab54213743472218b7d9ad9a3316ee34f09d80772dd3408fa0bf7fa600fe",
+  "source_catalog_sha256": "36833eaf93eb3f5db08cd5723297b0cedf8fa7aebe8a31b3d304fbb03cc09445",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

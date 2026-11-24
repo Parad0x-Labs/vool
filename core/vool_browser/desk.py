@@ -188,6 +188,12 @@ def default_preferences() -> dict[str, Any]:
         "signin": {"allowed": False},
         "privacy_sandbox": {"m1": {"topics_enabled": False, "fledge_enabled": False, "ad_measurement_enabled": False}},
         "browser": {"check_default_browser": False},
+        # Read by the engine on macOS only. There the engine asks, in a bubble on a new
+        # tab, whether a page that stands in for its own new tab page may stay, and once
+        # per profile it takes whatever stands in at that moment as agreed to. This says
+        # that moment has not been yet, so it comes when the first new tab is shown, with
+        # VOOL's start page loaded. A page the person adds later is still asked about.
+        "ack_existing_ntp_extensions": False,
         "bookmark_bar": {"show_on_all_tabs": True},
     }
 
@@ -323,6 +329,13 @@ class _Window:
         continues, their_pages = on_start_up(self.profile)
         with contextlib.suppress(OSError):
             downloads_dir().mkdir(parents=True, exist_ok=True)
+        # The start page is on disk before the engine starts: an engine that had it loaded
+        # at its last quit reads the folder again by itself as it starts.
+        start_page: Path | None = None
+        with contextlib.suppress(Exception):
+            from . import home
+
+            start_page = home.build()
         # Chromium's sockets need a short path; see live.py for the Linux launch failure.
         self.tmp = Path(tempfile.mkdtemp(prefix="vool-db-"))
         self.driver = await async_playwright().start()
@@ -374,7 +387,7 @@ class _Window:
             with contextlib.suppress(Exception):
                 from . import home
 
-                await home.apply(self)
+                await home.apply(self, start_page)
             if not self.private:
                 # A plugin that will not load does not keep the browser from opening.
                 with contextlib.suppress(Exception):

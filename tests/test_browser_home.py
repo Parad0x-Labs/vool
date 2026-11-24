@@ -157,12 +157,19 @@ def test_the_list_is_up_to_date_in_a_new_tab_puts_the_most_visited_site_first_an
     assert "private" not in text and "find" not in text
 
 
-def test_the_start_page_is_written_afresh_at_every_start_and_in_the_language_vool_was_last_seen_in(browser, site):
+def test_the_start_page_is_checked_at_every_start_and_written_in_the_language_vool_was_last_seen_in(browser, site):
     browser.open("")
     folder = next(start._root().iterdir())
+    address = start_page(browser)
+    written = (folder / "home.js").stat().st_mtime_ns
+    browser.stop()
+    # Nothing changed: the folder is left as it is, and the page keeps its address.
+    browser.open("")
+    assert (folder / "home.js").stat().st_mtime_ns == written and start_page(browser) == address
     browser.stop()
     # Changed on disk while the browser was closed, and VOOL since seen in another language.
     (folder / "home.js").write_text("document.title = 'not VOOL';")
+    (folder / "extra.js").write_text("document.title = 'not VOOL either';")
     guard.remember_language("lt")
     browser.open("")
     page = next(p for p in browser.context_for_agent().pages if not p.is_closed())
@@ -173,8 +180,74 @@ def test_the_start_page_is_written_afresh_at_every_start_and_in_the_language_voo
 
     words = catalog_for("lt")
     assert browser._call(look()) == (words.text("live.home_title"), words.text("live.home_search"), "lt")
-    assert [path.name for path in start._root().iterdir()] != [folder.name]
-    assert len(list(start._root().iterdir())) == 1
+    # One folder, always the same one, holding what VOOL writes and nothing else. The
+    # page keeps its address in the engine, so what the engine remembers about it lasts.
+    assert [path.name for path in start._root().iterdir()] == [folder.name]
+    assert sorted(path.name for path in folder.iterdir()) == sorted(start._files("lt"))
+    assert start_page(browser) == address
+
+
+def hello(page):
+    async def read():
+        await page.wait_for_selector("#q")
+        return (await page.is_hidden("#hello"), await page.inner_text("#helloTitle") if await page.is_visible("#hello") else "",
+                await page.inner_text("#helloNote") if await page.is_visible("#hello") else "")
+
+    return read()
+
+
+def test_the_start_page_welcomes_the_person_once_and_greets_them_once_a_day(browser, site):
+    base, hits = site
+    words = catalog_for("en")
+    browser.open("")
+    first = next(p for p in browser.context_for_agent().pages if not p.is_closed())
+    # The first time the page is ever shown: a welcome.
+    assert browser._call(hello(first)) == (False, words.text("live.home_welcome"), words.text("live.home_welcome_note"))
+    # Not again in the next tab, nor after the browser was closed and opened the same day.
+    assert browser._call(hello(new_tab(browser))) == (True, "", "")
+    browser.stop()
+    browser.open("")
+    again = next(p for p in browser.context_for_agent().pages if not p.is_closed())
+    assert browser._call(hello(again)) == (True, "", "")
+
+    # Another day: the first start page shown greets by the time of day and names the date.
+    # The page is asked what it would show at a given moment, as it asks itself when it opens.
+    async def on(year, month, day, hour):
+        await again.evaluate(
+            "([y, m, d, h]) => { document.getElementById('hello').hidden = true; hello(new Date(y, m - 1, d, h, 30)); }",
+            [year, month, day, hour])
+        seen = await again.is_visible("#hello")
+        return (not seen, await again.inner_text("#helloTitle") if seen else "", await again.inner_text("#helloNote") if seen else "")
+
+    hidden, title, note = browser._call(on(2031, 3, 4, 9))
+    assert (hidden, title) == (False, words.text("live.home_morning"))
+    assert note == "Tuesday, March 4" or sorted(note.replace(",", "").split()) == ["4", "March", "Tuesday"], note
+    # Later the same day: nothing. The days after: by the hour.
+    assert browser._call(on(2031, 3, 4, 15)) == (True, "", "")
+    assert browser._call(on(2031, 3, 5, 15))[1] == words.text("live.home_afternoon")
+    assert browser._call(on(2031, 3, 6, 21))[1] == words.text("live.home_evening")
+    assert browser._call(on(2031, 3, 7, 2))[1] == words.text("live.home_evening")
+    assert browser._call(on(2031, 3, 8, 5))[1] == words.text("live.home_morning")
+    assert browser._call(on(2031, 3, 9, 12))[1] == words.text("live.home_afternoon")
+    # The day last greeted is kept with the profile: a new tab on that day shows no greeting.
+    browser._call(again.evaluate("() => { const d = new Date(); localStorage.setItem('hello', JSON.stringify({day: [d.getFullYear(), d.getMonth() + 1, d.getDate() - 1].join('-')})); }"))
+    hidden, title, note = browser._call(hello(new_tab(browser)))
+    assert not hidden and title in {words.text("live.home_" + part) for part in ("morning", "afternoon", "evening")} and note
+    assert browser._call(hello(new_tab(browser))) == (True, "", "")
+    # None of it asked anyone for anything.
+    assert asked(hits) == []
+
+
+def test_a_place_is_kept_on_the_start_page_for_top_skills_and_plugins_and_shows_nothing_yet(browser):
+    browser.open("")
+    page = next(p for p in browser.context_for_agent().pages if not p.is_closed())
+
+    async def look():
+        await page.wait_for_selector("#q")
+        return await page.is_hidden("#picks"), await page.inner_html("#picks"), await page.evaluate(
+            "[...document.querySelectorAll('main > *')].map((el) => el.id || el.tagName)")
+
+    assert browser._call(look()) == (True, "", ["H1", "hello", "search", "visited", "picks"])
 
 
 def test_a_private_window_is_the_engines_own_private_kind_and_keeps_the_engines_page(browser, site):
