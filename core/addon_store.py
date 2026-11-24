@@ -337,6 +337,14 @@ def _team_badges(rows: list[dict], plugins: list[dict]) -> None:
     for row in plugins:
         # A plugin whose files changed since its review carries a reason, and no badge.
         row["badges"] = [] if row.get("reason") else package_badges(str(row.get("id") or ""), index=index)
+    from core import plugin_lifecycle
+    from core.registry.client import installed_facts
+
+    for row in plugins:
+        # An installed plugin from the Skill Codex: whether it can be rated, and the team's notice if there is one.
+        record = plugin_lifecycle.record_for(str(row.get("id") or ""))
+        if record is not None and str(record.source).startswith("registry:"):
+            row["registry"] = installed_facts(str(record.source)[len("registry:"):])
 
 
 def security_action(action: str, value: str = "") -> dict:

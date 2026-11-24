@@ -1111,6 +1111,39 @@ class Store:
                 db.execute("UPDATE public_versions SET inspection=? WHERE sha256=?", (canonical(inspection), sha256))
         return inspection
 
+    def listing_facts(self, sha256: str) -> dict:
+        """What a published package says about itself for its listing: the author's listing block as checked,
+        what its setup file asks for, and its licence checksum. Read from the stored package once, then kept."""
+        from registry_service.listing import facts
+
+        inspection = self.public_inspection(sha256)
+        if "listing_facts" not in inspection:
+            with self.connection() as db:
+                row = db.execute("SELECT artifact FROM public_versions WHERE sha256=?", (sha256,)).fetchone()
+            inspection["listing_facts"] = facts(inspect(row[0]))
+            with self.connection() as db:
+                db.execute("UPDATE public_versions SET inspection=? WHERE sha256=?", (canonical(inspection), sha256))
+        return inspection["listing_facts"]
+
+    def published_versions(self, package_id: str) -> list[dict]:
+        """Each published version of one add-on with its day and its own notes, for the list of changes."""
+        with self.connection() as db:
+            rows = db.execute("SELECT version, entry, published FROM public_versions WHERE package_id=?", (package_id,)).fetchall()
+        result = []
+        for version, entry, published in rows:
+            info = decode(entry)
+            result.append({"version": version, "date": int(info.get("issued_at") or published or 0)} |
+                          ({"notes": info["metadata"]["release_notes"]} if info["metadata"].get("release_notes") else {}))
+        return result
+
+    def creator_verified(self, namespace: str) -> dict:
+        """Whether the publisher name is proven, and which sign-in providers its owner linked. Names only."""
+        with self.connection() as db:
+            row = db.execute("SELECT account FROM namespace_owners WHERE namespace=? AND verified=1", (namespace,)).fetchone()
+            providers = [item[0] for item in db.execute(
+                "SELECT DISTINCT provider FROM identities WHERE account=? ORDER BY provider", (row[0],))] if row else []
+        return {"publisher": bool(row), "providers": [name for name in providers if name in ("github", "google", "apple")]}
+
     def published_pictures(self) -> list[dict]:
         """Every picture of every published version, for the operator's review list."""
         with self.connection() as db:

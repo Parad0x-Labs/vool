@@ -358,6 +358,10 @@ def preflight(raw: bytes, scratch: Path) -> dict:
 
     plugin = plugin_findings(artifact)
     findings.extend(plugin)
+    # The listing block (description, links, compatibility): what an upload would refuse, each with field and fix.
+    from core.registry.checks import listing_findings
+
+    findings.extend(listing_findings(artifact))
     if not plugin:
         # A setup file with a fault above cannot be loaded; its faults are already listed, each by its field.
         with execution_directory(scratch) as owned:
@@ -495,6 +499,10 @@ def main(argv=None) -> int:
         else:
             separate(args.source, args.scratch, *([args.output] if args.command == "pack" else []))
             info = decode((args.source / "registry.json").read_bytes(), 32768)
+            if isinstance(info, dict):
+                # The listing block stays in the package's own registry.json, where the package checksum covers
+                # it. It is not part of the signed row, so the row keeps the fields every VOOL build knows.
+                info = {key: value for key, value in info.items() if key != "listing"}
             # "icon": "assets/icon.png" is enough; the package records that file's checksum.
             info = bind(info, lambda path: (args.source / path_name(path)).read_bytes())
             raw = pack(args.source, info, args.scratch)

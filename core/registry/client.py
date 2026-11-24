@@ -149,6 +149,7 @@ class Client:
                             (marks["sequence"] == previous[0] and digest(marks) == previous[1]), "editorial marks rollback")
                     self.catalog.db.execute("INSERT OR REPLACE INTO presentation_state VALUES (?,?,?)",
                                             (self.catalog.root["version"], marks["sequence"], digest(marks)))
+                self._keep_notices(marks)  # only marks that passed the rollback check above
             for row in rows:
                 row.update(metrics.get(row["id"], {}))
                 row.update(editors_pick=row["id"] in curated.get("editors_picks", []),
@@ -157,6 +158,123 @@ class Client:
                                        not item.get("featured", False), -item.get("stars", 0), item["id"]))
         except (RegistryError, OSError, ValueError, TypeError, KeyError):
             return  # An unavailable display feed does not grant a label or change the verified catalog.
+
+    def _keep_notices(self, marks: dict) -> None:
+        """Remember which add-ons the team took off the list or removed, and the reason code, from verified marks.
+
+        My add-ons reads this to say why. Only the code is kept; the sentence is VOOL's own, in the person's language.
+        """
+        found = {}
+        for field, state in (("delisted", "delisted"), ("withdrawals", "removed")):
+            items = marks.get(field, [])
+            for item in (items if isinstance(items, list) else [])[:4096]:
+                if isinstance(item, dict) and isinstance(item.get("id"), str) and len(item["id"]) <= 129:
+                    reason = item.get("reason")
+                    found[item["id"]] = (state, reason if reason in NOTICE_REASONS else "other")
+        with self.catalog.lock, self.catalog.db:
+            self.catalog.db.execute("CREATE TABLE IF NOT EXISTS listing_notices (id TEXT PRIMARY KEY, state TEXT, reason TEXT)")
+            self.catalog.db.execute("DELETE FROM listing_notices")
+            self.catalog.db.executemany("INSERT INTO listing_notices VALUES (?,?,?)",
+                                        [(name, state, reason) for name, (state, reason) in found.items()])
+
+    def listing(self, package_id: str, version: str, *, approved: bool, now: int) -> dict:
+        """One add-on's listing for its detail view, asked for only when the person opens that view.
+
+        The answer is the service's listing object, and nothing in it is trusted to be safe to draw: it must
+        name the exact package the signed list names, every value is copied field by field as plain text, the
+        description is read into its tree here again, links are checked here again, and the two team badges
+        come from the badge document this device verified, never from the answer.
+        """
+        from core.registry import badges
+        from core.registry import listing as rules
+
+        require(approved is True, "explicit registry network consent required")
+        entry = self.catalog.resolve(package_id, version, target=self.target, now=now)
+        info = entry["metadata"]
+        query = urllib.parse.urlencode({"id": package_id})
+        value = decode(self.request(self.origin + PREFIX + "/listing?" + query, limit=512 * 1024), 512 * 1024)
+        require(isinstance(value, dict) and value.get("schema") == "vool.listing.v1" and value.get("id") == package_id and
+                value.get("version") == version and value.get("sha256") == entry["artifact_sha256"],
+                "this listing is not for the listed version; browse the Skill Codex again")
+
+        def part(name, kind=dict):
+            return value[name] if isinstance(value.get(name), kind) else kind()
+
+        result = {"status": "ok", "id": package_id, "version": version, "kind": info["kind"],
+                  "name": info.get("title") or package_id.split("/")[1], "tagline": info["summary"],
+                  "publisher": package_id.split("/")[0], "license": info["license"], "sha256": entry["artifact_sha256"],
+                  "category": info["category"], "subcategory": info["subcategory"], "needs": list(info.get("needs", [])),
+                  "languages": list(info.get("languages", [])), "targets": entry["targets"]}
+        described = part("description")
+        if isinstance(described.get("text"), str) and 0 < len(described["text"]) <= rules.MAX_DESCRIPTION:
+            result["description"] = rules.parse(described["text"])
+        links = {}
+        for name in rules.LINKS:
+            try:
+                links[name] = rules.link(name, part("links").get(name))
+            except RegistryError:
+                continue
+        result["links"] = links
+        try:
+            stated = rules.compatibility({key: item for key, item in part("compatibility").items()
+                                          if key in ("min_vool", "max_vool", "platforms")})
+        except RegistryError:
+            stated = {}  # nothing stated, or something this build cannot read: the view says nothing
+        result["compatibility"] = stated
+        access = part("access")
+        result["access"] = {
+            "network": [_plain(host, 253) for host in _items(access.get("network"), 32) if isinstance(host, str)],
+            "credentials": [_plain(item.get("label"), 120) for item in _items(access.get("credentials"), 32)
+                            if isinstance(item, dict) and isinstance(item.get("label"), str)],
+            "tools": [{"description": _plain(item.get("description") or item.get("intent"), 400),
+                       "effect": item.get("effect") if item.get("effect") in _EFFECTS else "external_unpinned"}
+                      for item in _items(access.get("tools"), 128) if isinstance(item, dict)],
+            "runs_programs": access.get("runs_programs") is True}
+        result["plugin_kinds"] = [kind for kind in ("tools", "model_provider", "scanner") if kind in part("plugin_kinds", list)]
+        result["changelog"] = [{"version": _plain(item.get("version"), 64), "date": item["date"] if type(item.get("date")) is int and
+                                0 <= item["date"] < 2**40 else 0, "notes": _plain(item.get("notes"), 2000)}
+                               for item in _items(value.get("changelog"), 50) if isinstance(item, dict)]
+        verified = part("creator").get("verified")
+        result["publisher_verified"] = isinstance(verified, dict) and verified.get("publisher") is True
+        rating = part("rating")
+        shown = rating.get("shown") is True and type(rating.get("count")) is int and rating["count"] >= 5 and \
+            type(rating.get("average")) in (int, float) and 1 <= rating["average"] <= 5
+        spread = rating.get("distribution")
+        result["rating"] = {"shown": shown, "average": rating["average"] if shown else None,
+                            "count": rating["count"] if type(rating.get("count")) is int and 0 <= rating["count"] <= 10**9 else 0,
+                            "distribution": spread if shown and isinstance(spread, list) and len(spread) == 5 and
+                            all(type(n) is int and 0 <= n <= 10**9 for n in spread) else None,
+                            "removed": rating["removed_by_team"] if type(rating.get("removed_by_team")) is int and
+                            0 <= rating["removed_by_team"] <= 10**9 else 0, "frozen": rating.get("frozen") is True}
+        downloads = part("counts").get("download_requests")
+        result["download_requests"] = downloads if type(downloads) is int and 0 <= downloads <= 10**12 else None
+        result["paused"] = part("status").get("state") == "downloads_paused"
+        result["notices"] = [{"action": _plain(item.get("action"), 40), "reason": item.get("reason") if item.get("reason") in
+                              NOTICE_REASONS | RATING_REASONS else "other", "date": _plain(item.get("date"), 10),
+                              "affected": item["affected"] if type(item.get("affected")) is int and 0 <= item["affected"] <= 10**9 else 0}
+                             for item in _items(part("notices").get("moderation"), 100) if isinstance(item, dict)]
+        try:
+            index = badges.held(self.catalog, now=now, target=self.target)
+        except (RegistryError, sqlite3.Error, ValueError, TypeError, KeyError):
+            index = {}
+        result["badges"] = [] if result["paused"] else badges.badges_for(
+            index, "artifact", entry["artifact_sha256"], kind=info["kind"], package_id=package_id, version=version)
+        result["reviews"] = self._reviews(package_id)
+        return result
+
+    def _reviews(self, package_id: str) -> list[dict]:
+        """The first page of ratings people wrote, as plain text. No page of them is better than a broken one."""
+        try:
+            query = urllib.parse.urlencode({"id": package_id})
+            value = decode(self.request(self.origin + PREFIX + "/ratings?" + query, limit=512 * 1024), 512 * 1024)
+            return [{"author": _plain(item.get("author"), 64), "stars": item["stars"], "body": _plain(item.get("body"), 1000),
+                     "version": _plain(item.get("version"), 64), "bundled": item.get("proof") == "bundled",
+                     "created": item["created"] if type(item.get("created")) is int and 0 <= item["created"] < 2**40 else 0,
+                     "text_removed": item.get("text_removed") is True}
+                    for item in _items(value.get("ratings") if isinstance(value, dict) else None, 50)
+                    if isinstance(item, dict) and type(item.get("stars")) is int and 1 <= item["stars"] <= 5]
+        except (RegistryError, OSError, ValueError, TypeError, KeyError):
+            return []
 
     def _ratings(self, rows: list[dict]) -> None:
         """Stars for the cards, fetched only by Browse: the whole list, so the request says nothing about this device."""
@@ -336,6 +454,42 @@ class Client:
         return result
 
 
+# Why the team took an add-on off the list or removed it: the codes My add-ons has a sentence for.
+NOTICE_REASONS = frozenset({"harmful", "stolen", "misleading", "creator_request"})
+RATING_REASONS = frozenset({"fake", "automated", "self_rating", "paid", "abusive", "off_topic", "mistake_reversed"})
+_EFFECTS = frozenset({"read_only", "workspace_write", "network_send", "network_publish"})
+
+
+def _plain(value, limit: int) -> str:
+    """Text from the service as text for a page: no control characters, and no longer than its place allows."""
+    return "".join(char for char in value if ord(char) >= 32 or char == "\n")[:limit] if isinstance(value, str) else ""
+
+
+def _items(value, limit: int) -> list:
+    return value[:limit] if isinstance(value, list) else []
+
+
+def installed_facts(package_id: str) -> dict:
+    """For an installed Skill Codex add-on: whether it can be rated, and whether the team removed or delisted it.
+
+    Reads this device only: the install receipt, and the notices kept when the signed marks were last verified.
+    """
+    facts = {"id": package_id, "rate_ready": bool(_rate_pass(package_id))}
+    try:
+        state = home() / "config" / STATE_NAME
+        if state.is_file():
+            db = sqlite3.connect(state.resolve().as_uri() + "?mode=ro", uri=True)
+            try:
+                row = db.execute("SELECT state, reason FROM listing_notices WHERE id=?", (package_id,)).fetchone()
+            finally:
+                db.close()
+            if row and row[0] in ("delisted", "removed"):
+                facts["notice"] = {"state": row[0], "reason": row[1] if row[1] in NOTICE_REASONS else "other"}
+    except (sqlite3.Error, OSError):
+        pass  # no notice kept: the card says nothing it cannot back
+    return facts
+
+
 def _download(url: str, *, limit: int) -> tuple[bytes, str]:
     passes: list = []
     raw = fetch(url, limit=limit, passes=passes)
@@ -469,6 +623,9 @@ def handle(action: str, body: dict) -> dict:
             for row in result["entries"]:
                 row["rate_ready"] = bool(_rate_pass(row["id"]))  # installed from the Skill Codex, with a pass kept
             return result
+        if action == "registry_listing":
+            return client.listing(str(body.get("id", "")), str(body.get("version", "")),
+                                  approved=body.get("approved") is True, now=now)
         if action == "registry_picture":
             return client.picture(str(body.get("id", "")), str(body.get("sha256", "")),
                                   approved=body.get("approved") is True, now=now)

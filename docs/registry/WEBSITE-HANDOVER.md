@@ -202,6 +202,37 @@ or its exact automatic version is tested. Authors cannot approve pictures. Withd
 hide on the next Browse; browser caches expire within five minutes. Use the light/dark assets
 in `docs/registry/assets/` and supplied picture URLs, without constructing arbitrary remote links.
 
+## The listing object
+
+`GET /registry/api/listing?id=publisher%2Fname` answers one object, `vool.listing.v1`, for a listed skill or
+plugin. Its schema is [docs/reference/listing-standard-v1.schema.json](../reference/listing-standard-v1.schema.json);
+each field there says who writes it (`x-by`: author, registry or team). The website and VOOL show the same object.
+Refusals (HTTP 400 `{error}`): `this add-on is not listed`, `unknown listing query` (only `id` is taken). A signed-in
+creator also gets `pictures.pending` for their own add-on. `/catalog` rows and `/presentation` are unchanged.
+
+| Part | Where it comes from |
+| --- | --- |
+| `name`, `tagline`, `category`, `subcategory`, `languages`, `needs`, `version`, `license.id` | the package's signed row |
+| `description`, `links`, `compatibility.min_vool`, `max_vool`, `platforms` | the `listing` block in the package's own `registry.json`, checked at upload; left out when the package has none |
+| `access`, `plugin_kinds` | the package's setup file, read by the service; never what the author wrote about it |
+| `sha256`, `package_bytes`, `changelog`, `compatibility.checked_targets`, `source`, `counts`, `dates`, `creator.verified` | the service's own records. `counts.installs` stays `null`: no count of installs is kept |
+| `rating` | counted ratings, as on `GET /ratings` |
+| `badges.editors_choice`, `badges.tested_by_vool`, `tested_version`, `compatibility.tested_targets` | the stored badge document, verified again for each answer and matched to this exact checksum and version. A paused listing shows none |
+| `status`, `notices.moderation` | downloads paused, and the team's public notices |
+
+Rules for showing it:
+
+- Every value is text. Put it on the page with text nodes (`textContent`), never as markup.
+- `description.tree` is `description.text` already read into blocks: `heading` (level 1 to 3), `paragraph`, `list`
+  (`ordered`, `items`) and `code`; the words are `spans` of type `text`, `bold`, `italic` or `code`. Build one
+  element per block and span from a fixed list of your own and set its words as text. A block or span type you do
+  not know is skipped. There is no node for a link, a picture, a table or HTML: what an author typed of those is
+  already plain characters inside a text span, and is shown as such.
+- `links` are https addresses. Show the whole address as text, and open it only when the person presses it, in a
+  new tab with `rel="noopener noreferrer"`. Do not make any other text on the page into a link.
+- Draw a badge only from `badges`. Never from a name, a tagline, a description or a picture. VOOL itself draws
+  its chips from the badge document it verified on the device, not from this answer.
+
 ## Comments and reports
 
 | Method/path | Request | Success/refusal |

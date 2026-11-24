@@ -301,6 +301,37 @@ higher version of the same package, and switches the plugin off again until its 
 VOOL builds before 0.8 keep listing skills from the same signed list. They show a plugin row but
 cannot install it: their package reader refuses a plugin published under its own id.
 
+## Optional listing block: long description, links, compatibility
+
+A package may carry a `listing` block in its `registry.json`, for a skill and for a plugin alike. Add it after
+`init` or `plugin-init`; neither writes one. `lint`, `pack` and `check` read it and refuse what an upload would
+refuse, each time with the field and the fix.
+
+```json
+"listing": {
+  "description": "# Meeting notes\n\nTurns the notes of a meeting into **decisions**, *owners* and dates...",
+  "links": {"homepage": "https://example.org/notes", "support": "https://example.org/help", "docs": "https://example.org/guide"},
+  "compatibility": {"min_vool": "0.8.0", "platforms": ["macos-arm64", "linux-x86_64"]}
+}
+```
+
+- `description`: 80 to 6000 characters. Paragraphs, headings `#` to `###`, lists (`-`, `*` or `1.`), `**bold**`,
+  `*italic*`, `` `code` `` and code blocks between lines of three backticks. HTML, pictures and tables are refused;
+  `<` and `>` may appear only inside code. A link written as `[text](address)` is shown as those characters, not as
+  a link: put addresses under `links`. The description gets the same text rules as SKILL.md, read with the Markdown
+  marks gone, so a word such as a badge name cannot be hidden by putting stars inside it. Ticks, medals, shields
+  and stars are refused.
+- `links`: `homepage`, `support`, `docs`, each one https address of at most 200 characters with no user name or
+  password. They are shown as text and open only when a person presses them. For a plugin, `homepage` must equal
+  `vool.homepage` in the setup file.
+- `compatibility`: `min_vool` and `max_vool` as three numbers such as `0.8.0` (leave `max_vool` out unless a newer
+  VOOL is known not to work), and `platforms` from `macos-arm64`, `macos-x86_64`, `linux-x86_64`, `windows-x86_64`.
+  This is what you say; the builds the Skill Codex checked are shown beside it.
+- With a `listing` block, `summary` is the card's one line: 20 to 140 characters, no `<` or `>`.
+
+The block stays in the package's own file, under the package checksum. It is not part of the signed row, so a new
+version is how you change it.
+
 ## Optional picture and banner
 
 A skill can show a square icon in search results and in VOOL, and a wide banner on its website page. Both are optional. Put the files inside the package directory, then name them in `registry.json` after `init`:

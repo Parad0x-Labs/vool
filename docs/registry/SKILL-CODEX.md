@@ -80,6 +80,23 @@ All of these come from the signed entry, so the website and the app show the sam
 
 `GET /registry/api/categories` returns the fixed category and subcategory list with display labels; read it rather than copying it, because new slugs may be added (existing slugs are never renamed or removed). `GET /registry/api/profiles/{namespace}` returns `{profile, origin, packages}`, where packages are that publisher's listed catalog rows.
 
+## Listing object
+
+`GET /registry/api/listing?id=publisher%2Fname` returns one `vool.listing.v1` object for a listed add-on
+(schema: `docs/reference/listing-standard-v1.schema.json`). It is built in `registry_service/listing.py` from the
+signed row, the checked `listing` block of the package's own `registry.json` (`core/registry/listing.py`), the
+package's setup file, the rating summary, the stored badge document and the team's notices. What a package says
+about itself is read once and kept in `public_versions.inspection` under `listing_facts`; a version published
+before this is read from its stored package on first use. A package whose block does not pass shows no
+description, links or stated compatibility. Nothing is added to `/catalog` rows, `/snapshot` or `/presentation`.
+
+The upload checks and the signer read the block with the rest of the package (`core.registry.checks.listing_findings`,
+under the `quality` check): its shape, then the description as a page shows it, with the Markdown marks gone, by the
+same text rules as SKILL.md. Each refusal carries `where` (the field) and `fix`.
+
+VOOL asks for this route only when a person opens an add-on's detail view, together with the first page of
+`GET /ratings`. Browse itself still reads only whole lists.
+
 ## Pictures
 
 A skill may carry one square `icon` and one wide `banner`; both are optional. They are PNG files inside the signed package, never SVG, GIF, JPEG, WebP, animation or a link to another site. The package metadata names each one by its path and checksum, so the signature covers the exact bytes. The icon is square, 128 to 1024 pixels, at most 256 KB. The banner is 960 to 3000 pixels wide, 240 to 1200 tall and 2.5 to 4 times as wide as tall (1500 x 500 works), at most 1 MB. VOOL decodes every picture in full without an image library and checks its size from the header first. Hidden notes saved inside the file (text, camera details, location, editor data), colour profiles, animation, data after the image and damaged image data are refused. WebP stays off until VOOL can check its picture data the same way.
