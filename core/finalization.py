@@ -263,6 +263,25 @@ def _reader_reason(reason: Any) -> str:
     return text
 
 
+def without_closure_section(text: str) -> str:
+    """``text`` without the closure section this module appends ("Could not be answered:" /
+    "Answered in part:" and their rows).
+
+    Those rows are the runtime's own record of the turn, not the answer, so a check of whether
+    the ANSWER was cut off must not read them. A row's reason can end on a preposition ("nothing
+    in it was something this step could work on"), and read as answer text it was taken for a
+    sentence cut off mid-clause: gate on the v0.8 line (Nov 24) served "4827 * 63 = 304101." with
+    "(Incomplete: the last sentence ends mid-clause ...)" glued after the runtime's own row.
+    """
+    value = str(text or "")
+    cut = len(value)
+    for header in (RSS_UNAVAILABLE_HEADER, RSS_PARTIAL_HEADER):
+        index = value.find("\n\n" + header)
+        if index >= 0:
+            cut = min(cut, index)
+    return value[:cut]
+
+
 def _render_closure_rows(pending: list[dict[str, Any]], content: str) -> str:
     """The closure section: unanswered slots under one header, partially answered under another."""
     pending = [row for row in pending if _is_a_demand(str(row.get("text") or ""))]

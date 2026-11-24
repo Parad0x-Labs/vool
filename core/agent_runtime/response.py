@@ -695,7 +695,12 @@ def _validate_final_chat_output(
     # answer with nothing in it is replaced; one that is real but unfinished keeps every word it
     # has and says its state out loud, because deleting most of an answer to report the rest is
     # missing helps nobody.
-    completeness = inspect_answer_completeness(final_text, question=_last_user_text(source_context))
+    from core.finalization import without_closure_section
+
+    answer_body = without_closure_section(final_text)
+    completeness = inspect_answer_completeness(
+        answer_body if answer_body.strip() else final_text, question=_last_user_text(source_context)
+    )
     if raw_contract is not None:
         # A runtime-authored apology or partial-answer notice is still extra text.  Under this
         # explicit contract, reject an unusable draft and otherwise preserve only its deliverable.

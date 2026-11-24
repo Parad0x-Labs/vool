@@ -121,9 +121,86 @@ def is_filler_fragment(text: str) -> bool:
     return all(token in DISCOURSE_MARKER_TOKENS for token in tokens)
 
 
+#: Words that introduce HOW an ask is to be done: the instrument or source it names ("use the
+#: calculator", "using my notes", "with web search", "via the terminal"). The same role in the
+#: other chat languages VOOL serves (German, Lithuanian, French, Spanish, Italian, Portuguese).
+METHOD_HEADS = frozenset(
+    {
+        "use", "using", "with", "via", "through", "thru",
+        "benutze", "benutz", "nutze", "nutz", "verwende", "mit", "per",
+        "naudok", "naudokite", "naudojant", "naudodamas", "naudodama", "su",
+        "utilise", "utilisez", "avec", "usa", "usando", "con", "utiliza", "com",
+    }
+)
+#: Words that may sit between a method head and the instrument ("the", "my", "your", "dem", "mano").
+_METHOD_DETERMINERS = frozenset(
+    {
+        "the", "a", "an", "my", "your", "ur", "our", "its", "this", "that",
+        "dem", "den", "der", "die", "das", "meinem", "meinen", "meiner", "deinem", "deinen",
+        "mano", "savo", "tavo", "le", "la", "les", "mon", "ma", "mes", "el", "los", "las", "mi", "mis",
+        "il", "lo", "o", "os", "meu", "minha",
+    }
+)
+#: Words that would make the fragment more than a named instrument: a purpose or a second object.
+_METHOD_BREAKERS = frozenset(
+    {"to", "for", "and", "or", "from", "about", "on", "in", "into", "that", "which", "who", "if", "then"}
+)
+
+
+def is_method_clause(text: str) -> bool:
+    """Whether ``text`` only says HOW the ask beside it is to be done, so it is no ask of its own.
+
+    "what's 4827 times 63, use the calculator please" asks ONE thing; "use the calculator" is the
+    method of that ask, the way "with web search" or "using my notes" is. Split off as its own
+    request it reached the reader as "Could not be answered: use the calculator please" beside a
+    correct product (real-app gate on the v0.8 line, Nov 24). Read by shape: a method head, an
+    optional determiner, then one to three words that name the instrument, with no number and no
+    word that opens a purpose or a second object ("use the calculator to check the bill" and
+    "use 3 eggs" stay requests). Closing courtesy words at the end are packaging. Never raises.
+    """
+    from core.closing_words import CLOSING_COURTESY_WORDS
+
+    tokens = _normalize(text).split()
+    courtesy = {word for word in CLOSING_COURTESY_WORDS if " " not in word} | DISCOURSE_MARKER_TOKENS
+    while tokens and tokens[-1] in courtesy:
+        tokens.pop()
+    while tokens and tokens[0] in DISCOURSE_MARKER_TOKENS and tokens[0] not in METHOD_HEADS:
+        tokens.pop(0)
+    if len(tokens) < 2 or tokens[0] not in METHOD_HEADS:
+        return False
+    rest = tokens[1:]
+    if rest and rest[0] in _METHOD_DETERMINERS:
+        rest = rest[1:]
+    if not 1 <= len(rest) <= 3:
+        return False
+    return not any(any(ch.isdigit() for ch in token) or token in _METHOD_BREAKERS for token in rest)
+
+
+def without_method_clauses(text: str) -> str:
+    """``text`` with every trailing method clause taken out ("4827 times 63, use the calculator please" ->
+    "4827 times 63, "; "what's 19 x 7 using my calculator" -> "what's 19 x 7 "). A recognizer that reads the rest of
+    a message for a second ask reads this instead, so the way the person wants it done is never taken for one."""
+    value = str(text or "")
+    out: list[str] = []
+    for piece in re.split(r"([,;.!?]+)", value):
+        if not piece or re.fullmatch(r"[,;.!?]+", piece):
+            out.append(piece)
+            continue
+        cut = len(piece)
+        for match in re.finditer(r"[^\W\d_]+", piece):
+            if match.group(0).casefold() in METHOD_HEADS and is_method_clause(piece[match.start():]):
+                cut = match.start()
+                break
+        out.append(piece[:cut])
+    return "".join(out)
+
+
 __all__ = [
     "DISCOURSE_MARKER_TOKENS",
     "FILLER_PHRASES",
     "FILLER_PREFIXES",
+    "METHOD_HEADS",
     "is_filler_fragment",
+    "is_method_clause",
+    "without_method_clauses",
 ]

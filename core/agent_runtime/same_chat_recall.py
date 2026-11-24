@@ -367,6 +367,68 @@ def _question_order_recall(
     ), source_context=context)
 
 
+_RECAP_ANSWER_CHARS = 160
+
+
+def _recap_line(text: str) -> str:
+    """The start of a reply on one line, cut at a word boundary: enough to say what was answered. A reply that opens
+    on a lead-in ("Here is what we covered:") keeps the lines after it, so the line never ends on a promise."""
+    from core.response_provenance import strip_provenance_footer
+
+    flat = " ".join(" ".join(strip_provenance_footer(str(text or "")).split()).split())
+    if len(flat) <= _RECAP_ANSWER_CHARS:
+        return flat
+    return flat[:_RECAP_ANSWER_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+
+
+def _chat_recap(
+    user_input: str,
+    *,
+    session_id: str,
+    source_context: dict[str, object] | None,
+) -> TranscriptRecall | None:
+    """What this chat covered, read from its own messages: each ask and the first line of its answer, in order.
+
+    The chat's transcript is the whole answer to "recap this chat" / "list all the things we covered here", so it is
+    read, never generated and never routed to a tool. Real-app gate on the v0.8 line (Nov 24): "list all the things
+    we covered here please" was answered with the runtime's tool families and only the ask itself; the email asks
+    and the sum in that chat were missing. Same authorities as the order-of-asking reader: persisted rows first, the
+    visible transcript for a chat the store does not hold, and the memory revocation gate over both. A chat with
+    nothing before this ask says so."""
+    context = dict(source_context or {})
+    if session_id:
+        context.setdefault("chat_id", session_id)
+    rows, _store_ok = _persisted_chat_rows(session_id)
+    if not rows:
+        rows = _visible_chat_rows(source_context, current_ask=user_input)
+    while rows and _same_ask(rows[-1][0], user_input):
+        rows = rows[:-1]
+    if rows and not _authorize_transcript_payload(rows, context):
+        return _withheld_transcript_recall("recap")
+    if not rows:
+        return gate_transcript_recall(TranscriptRecall(
+            response="Nothing came before this in this chat, so there is nothing to recap yet.",
+            recall_kind="recap",
+            found=False,
+            route_reason="authoritative_chat_recap",
+            source_exchanges=(),
+        ), source_context=context)
+    lines = ["Here is what we covered in this chat:"]
+    for index, (asked, answered) in enumerate(rows, start=1):
+        line = f'{index}. You asked: "{" ".join(asked.split())}"'
+        said = _recap_line(answered)
+        if said:
+            line += f" — I answered: {said}"
+        lines.append(line)
+    return gate_transcript_recall(TranscriptRecall(
+        response="\n".join(lines),
+        recall_kind="recap",
+        found=True,
+        route_reason="authoritative_chat_recap",
+        source_exchanges=tuple(rows),
+    ), source_context=context)
+
+
 def _response_entries(text: str) -> dict[int, str]:
     entries: dict[int, str] = {}
     next_bullet = 1
@@ -541,6 +603,10 @@ def same_chat_transcript_recall_fast_path(
     # turning a stale local title into a purported answer about the outside subject.
     if _NAMED_EXTERNAL_ACTOR_RE.search(str(user_input or "")):
         return None
+    from core.context_history_authority import asks_for_chat_recap
+
+    if asks_for_chat_recap(user_input):
+        return _chat_recap(user_input, session_id=session_id, source_context=source_context)
     if ordering_kind:
         return _question_order_recall(
             user_input,

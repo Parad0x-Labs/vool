@@ -72,6 +72,7 @@ from typing import Any
 
 from core.agent_runtime.filler_words import DISCOURSE_MARKER_TOKENS as _DISCOURSE_MARKER_TOKENS
 from core.agent_runtime.filler_words import is_filler_fragment as _is_filler_fragment
+from core.agent_runtime.filler_words import is_method_clause as _is_method_clause
 from core.memory.admission import _APOSTROPHES as _APOSTROPHE_MARKS
 
 #: A claim that answers the entire message and may end the turn.
@@ -2318,6 +2319,11 @@ def _raw_fragments_uncut(value: str) -> list[tuple[str, int, int, str]]:
             stripped = stripped.strip()
             offset = slice_start + start + body.find(stripped)
             fragments.append((stripped, offset, offset + len(stripped), item.slice_id))
+    # A fragment that only names HOW its neighbour is to be done ("use the calculator please", "using my notes") is
+    # that neighbour's method, never a demand of its own (filler_words.is_method_clause). Dropped only while a real
+    # demand is left for it to belong to.
+    if any(not _is_method_clause(text) for text, *_rest in fragments):
+        fragments = [fragment for fragment in fragments if not _is_method_clause(fragment[0])]
     return fragments
 
 

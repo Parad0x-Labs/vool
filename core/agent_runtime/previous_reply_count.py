@@ -184,6 +184,12 @@ def _followup_by_shape(question: str) -> tuple[str, float] | None:
         ),
         text,
     )
+    # An operation said as one word with its number inside it ("double it", "halve that", "half of
+    # the result", "twice that") is the same operation over the same result: written out as the
+    # operation and its number, the shapes below read it.
+    text = re.sub(rf"\b(?:double|twice)\s+(?P<ref>{_ANAPHOR})\b", r"multiply \g<ref> by 2", text)
+    text = re.sub(rf"\btriple\s+(?P<ref>{_ANAPHOR})\b", r"multiply \g<ref> by 3", text)
+    text = re.sub(rf"\b(?:halve|half\s+of|half)\s+(?P<ref>{_ANAPHOR})\b", r"divide \g<ref> by 2", text)
     # "is that over 50?", "was it over 5": a yes/no question compares; it does not divide.
     if re.match(r"(?:is|was|are|were|isn't|wasn't|does|did|do)\b", text):
         return None

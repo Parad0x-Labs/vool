@@ -7025,6 +7025,14 @@ class VoolAgent(
                 question, has_attachments=turn_has_attachments, source_context=source_context
             ):
                 return None
+            # A question about THIS chat ("list all the things we covered here", "sum up what we discussed so far")
+            # names the conversation, not a world entity: its answer is the transcript. Real-app gate on the v0.8 line
+            # (Nov 24) and its replay: such asks were adjudicated as world entities and asked back "Which place, person
+            # or thing do you mean?".
+            from core.context_history_authority import asks_about_this_conversation, is_same_chat_history_recall
+
+            if is_same_chat_history_recall(question) or asks_about_this_conversation(question):
+                return None
             # A fact the owner saved answers it, so no world entity is in question: "what day does Anselm water the
             # plants?" with "my neighbour Anselm waters the plants on fridays" saved was asked back "Anselm of
             # Canterbury or the actor?" on the Mac (cbc915ec, real local model).

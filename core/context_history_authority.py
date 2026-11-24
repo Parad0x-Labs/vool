@@ -301,8 +301,18 @@ _ASK_LEAD_IN_OWNER_RE = re.compile(r"\b(?:i|i'm|me|my|we|our|us)\b", re.IGNORECA
 #: in this chat, read from the transcript (core.agent_runtime.same_chat_recall). Left to the model, "um what was my last
 #: question :)" was answered with the message before it (real-app check v3 on fe98e849, 2026-11-22).
 _LAST_OWN_MESSAGE_RE = re.compile(
-    r"^\s*(?:(?:what|which)(?:'s|s)?\s+(?:was|were|is)?\s*(?:my|our)\s+(?:last|previous|latest|most\s+recent)\s+"
+    r"^\s*(?:(?:what|which)(?:'s|s)?\s+(?:was|were|is)?\s*(?:my|our|the)\s+(?:last|previous|latest|most\s+recent)\s+"
     r"(?:question|message|ask|request)\b(?!\s+(?:to|for|about|on|of)\b)"
+    # The message just before the one being written: "what was the question right before this one", "which message
+    # came before this", "what did i ask just before this". "This" is the current message, so what it names is the
+    # person's own latest message (real-app gate on the v0.8 line, Nov 24: the model quoted the current message back).
+    r"|(?:(?:remind|tell)\s+me[,:]?\s+)?(?:what|which)(?:'s|s)?\s+(?:was|were|is|came)?\s*(?:my|our|the)\s+(?:question|message|ask|request)\s+"
+    r"(?:(?:i|we)\s+(?:asked|sent|wrote|typed)\s+)?(?:(?:right|just|directly|immediately)\s+)?before\s+(?:this|that)"
+    r"(?:\s+one)?\s*(?:[?.!]|$|\s+(?:please|pls|thanks|thank\s+you|ty|thx)\b)"
+    r"|(?:(?:remind|tell)\s+me[,:]?\s+)?(?:what|which)\s+did\s+(?:i|we)\s+(?:ask|say|type|write|send)\s+(?:(?:right|just|directly|immediately)\s+)?"
+    r"before\s+this(?:\s+one)?\b"
+    r"|(?:(?:remind|tell)\s+me[,:]?\s+)?(?:what|which)\s+(?:question|message|ask|request)\s+(?:came|was)\s+(?:(?:right|just|directly|immediately)\s+)?"
+    r"before\s+this(?:\s+one)?\s*(?:[?.!]|$)"
     r"|(?:what|which)\s+did\s+(?:i|we)\s+(?:just\s+|last\s+)(?:ask|say|type|write|send)\b"
     r"|(?:remind|tell)\s+me\s+(?:what\s+)?(?:my|our)\s+(?:last|previous)\s+(?:question|message)\s+was\b)",
     re.IGNORECASE,
@@ -325,6 +335,41 @@ def asks_for_last_own_message(text: str) -> bool:
     return bool(_LAST_OWN_MESSAGE_RE.search(plain_order_ask(text)))
 
 
+#: The conversation itself named as the thing asked about: "this chat", "here so far", "what we covered / discussed /
+#: talked about / went over". A "we" verb followed by a place or a third party ("we discussed at the meeting", "we
+#: covered with the landlord") is about another conversation and is left alone.
+_THIS_CONVERSATION_RE = re.compile(
+    r"\bthis\s+(?:chat|conversation|thread|session)\b(?!\s+(?:with|between|from)\b)"
+    r"|\b(?:in\s+)?here\s+so\s+far\b|\bso\s+far\s+(?:in\s+)?(?:here|this\s+chat)\b"
+    r"|\b(?:we|i|you)\s+(?:have\s+|'ve\s+|already\s+|just\s+)?"
+    r"(?:covered|discussed|talked\s+about|went\s+over|gone\s+over|went\s+through|gone\s+through|chatted\s+about|"
+    r"spoke\s+about|done|did|asked\s+about|asked)\b(?!\s+(?:at|during|with|in\s+(?:the|my|our|a)|on\s+the)\b)"
+    r"(?=[^.?!]{0,20}(?:\b(?:here|today|so\s+far|in\s+this\s+chat|now)\b|[?.!]|$))",
+    re.IGNORECASE,
+)
+#: Asking for the conversation back, in summary or as a list: recap, summary, sum up, go over, list, run through.
+_RECAP_ASK_RE = re.compile(
+    r"\b(?:recap|summar(?:y|ies|i[sz]e|i[sz]ing)|sum\s+(?:it\s+|this\s+|that\s+)?up|go\s+(?:back\s+)?over|"
+    r"run\s+(?:me\s+)?through|rundown|overview|list|everything|all\s+(?:the\s+)?(?:things|stuff|topics))\b",
+    re.IGNORECASE,
+)
+
+
+def asks_for_chat_recap(text: str) -> bool:
+    """A request to have THIS conversation recapped or listed back ("so recap this chat for me ty", "list all the things
+    we covered here please", "can you sum up what we've discussed so far?").
+
+    The answer is the chat's own transcript, never a tool, a file search or a memory lookup. Recognised by its two
+    parts, wherever they sit and whatever wraps them: an ask for a recap or a list, and the conversation named as its
+    object. Real-app gate on the v0.8 line (Nov 24): "list all the things we covered here please" was routed to the
+    tool list and answered with "Tool families on this runtime"; "so recap this chat for me ty" was not seen as a
+    question about the chat at all. A quoted example is content, as in ``is_same_chat_history_recall``."""
+    raw = " ".join(str(text or "").split())
+    if not raw or raw.startswith(('"', "'", "`", "\u201c", "\u2018")):
+        return False
+    return bool(_RECAP_ASK_RE.search(raw) and _THIS_CONVERSATION_RE.search(raw))
+
+
 def is_same_chat_history_recall(text: str) -> bool:
     """Recognize a direct request to inspect earlier turns in the current chat.
 
@@ -337,6 +382,8 @@ def is_same_chat_history_recall(text: str) -> bool:
     # A quoted/code example is content to discuss, not authority to inspect private transcript.
     if not raw or raw.startswith(('"', "'", "`", "“", "‘")):
         return False
+    if asks_for_chat_recap(raw):
+        return True
     normalized = plain_order_ask(raw)
     if _SAME_CHAT_HISTORY_RECALL_RE.search(normalized):
         return True

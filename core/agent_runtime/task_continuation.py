@@ -38,6 +38,10 @@ _VERB_RE = re.compile(
     r"explain|write|send|open|read|find|remind|remember|forget|delete|i|you|my|me)\b",
     re.IGNORECASE,
 )
+#: A word that points back at what was just said rather than naming something new.
+_POINTS_BACK_RE = re.compile(
+    r"\b(?:it|that|this|those|these|them|the\s+(?:result|answer|total|sum|number|same))\b", re.IGNORECASE
+)
 _TASK_HEAD_RE = re.compile(
     r"^\s*(?:how\s+do\s+(?:you|i)\s+say|translate|what(?:'s|\s+is)\s+\S+\s+in\s|spell|define|convert|"
     r"split|divide|calculate|compute|work\s+out|give\s+me|write|list|summari[sz]e|rewrite|"
@@ -92,6 +96,11 @@ def compose_continuation(text: str, previous_request: str) -> str:
         return ""
     obj = match.group("obj").strip(" '")
     if not obj or len(obj.split()) > 3 or _NOT_AN_OBJECT_RE.match(obj) or _VERB_RE.search(obj):
+        return ""
+    if _POINTS_BACK_RE.search(obj):
+        # "half of it", "double that", "the rest of this": an object that points back at what the last turn gave is
+        # that ANSWER, not a new object for the same task. Carried, "and half of it?" after "88 * 12 = 1056." became
+        # "Same as my previous request — compute 88 times 12 — but for: half of it" and the result was lost.
         return ""
     return f"Same as my previous request — “{previous}” — but for: {obj}"
 

@@ -315,9 +315,14 @@ def parse_clauses(raw: str) -> list[ProposedClause]:
     # request keeps splitting. A depends_on edge into a dropped clause goes with it (a real
     # request never depends on filler), and the survivors are re-indexed dense from 0 so
     # the DAG checks downstream see the same shape they see today.
-    from core.agent_runtime.filler_words import is_filler_fragment
+    from core.agent_runtime.filler_words import is_filler_fragment, is_method_clause
 
     kept = [clause for clause in clauses if not is_filler_fragment(clause.request)]
+    # A clause that only names HOW its neighbour is to be done ("use the calculator please", "with web search") is
+    # that neighbour's method, not a request: kept as its own clause it died unanswered beside a correct product
+    # (real-app gate on the v0.8 line, Nov 24). Dropped only while a real request is left for it to belong to.
+    if any(not is_method_clause(clause.request) for clause in kept):
+        kept = [clause for clause in kept if not is_method_clause(clause.request)]
     if len(kept) == len(clauses):
         return clauses
     remap = {clause.index: new_index for new_index, clause in enumerate(kept)}

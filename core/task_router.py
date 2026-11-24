@@ -705,8 +705,27 @@ _SHAPE_SUBTRACT_FORM_RE = re.compile(
 )
 
 
+#: The grammar words of English that carry no subject of their own: personal pronouns,
+#: auxiliaries and the subordinators that frame a sum as a supposition ("and if i divide it by 2",
+#: "what would it be if we halve... "). They can sit around a sum without asking anything else, so
+#: a message made of a sum and these words is still only the sum. Kept apart from the ask words
+#: because they are a closed grammatical class, not a list of ways to ask: real-app gate on the
+#: v0.8 line (Nov 24) sent "quick q: and if i divide it by 2 pls" to the model because "if" was not
+#: an ask word, and the model divided both operands of the previous sum instead of its result.
+#: Negation, comparison and quantity words ("not", "more", "than", "half") are left out on purpose:
+#: each changes what the sum means.
+_SHAPE_FUNCTION_WORDS = frozenset(
+    [
+        "i", "i'm", "i'd", "i'll", "we", "we'd", "you'd", "he", "she", "they", "it's", "that's",
+        "am", "be", "been", "being", "were", "will", "shall", "should", "might", "may", "must",
+        "would", "have", "has", "had", "if", "when", "once", "suppose", "say", "let's", "lets",
+        "us", "our", "your", "ur", "its", "by", "happens", "happen",
+    ]
+)
+
+
 def _shape_word_is_ask(word: str) -> bool:
-    if word in _SHAPE_ASK_WORDS:
+    if word in _SHAPE_ASK_WORDS or word in _SHAPE_FUNCTION_WORDS:
         return True
     # One typo in a longer ask word ("whtas", "calcualte", "pleas"). Short words are never
     # corrected: at three letters nearly every word is one edit from another.
@@ -752,6 +771,10 @@ def _expression_by_shape(normalized: str) -> str:
     rest = f"{text[: spans[0].start()]} {text[spans[0].end() :]}"
     if re.search(r"\d", rest):
         return ""
+    # "use the calculator please", "using my calc": how the sum is to be done, not a second ask beside it.
+    from core.agent_runtime.filler_words import without_method_clauses
+
+    rest = without_method_clauses(rest)
     rest = _SHAPE_EMOTICON_RE.sub(" ", rest)
     words = re.findall(r"[a-z]+(?:'[a-z]+)?", rest)
     # Anything that is neither a word, an emoticon nor plain punctuation (an "=" that is not a
