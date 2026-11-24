@@ -731,16 +731,68 @@ def test_a_private_window_asks_where_to_save_and_an_open_question_leaves_no_half
     assert not [p for p in desk_module.active_data_dir().rglob("timetable*")]
     assert {dnt for _, _, dnt in hits} == {"1"}
 
-    # The questions are never answered. With the window gone its profile is gone, with what
-    # was waiting in it. The person's folder holds no hidden half-file; an engine that takes
-    # the offered name when it closes leaves the whole file there, under its own name.
+    # The question is never answered, and VOOL closes the window. With the window gone its
+    # profile is gone, with what was waiting in it, and nothing was saved: a question that
+    # was not answered is not a yes. The folder is looked at again a moment later, for an
+    # engine that would still be writing as it goes.
     profile = window.profile
     browser.stop()
     assert not profile.exists()
-    left = sorted(folder.glob("*")) if folder.is_dir() else []
-    assert not [p.name for p in left if p.name.startswith(".")], left
-    for path in left:
-        assert path.name.startswith("timetable") and path.suffix == ".txt" and path.read_bytes() == b"06:05 early service"
+    assert not folder.is_dir() or list(folder.glob("*")) == [], sorted(p.name for p in folder.glob("*"))
+    # Nothing of that engine is still running that could save it later.
+    assert _engine_processes(profile) == []
+    time.sleep(2.0)
+    assert not folder.is_dir() or list(folder.glob("*")) == [], sorted(p.name for p in folder.glob("*"))
+    assert not profile.exists()
+
+
+def _engine_processes(profile):
+    """Every running process that was started on *profile*, the engine's main one first."""
+    import psutil
+
+    found = []
+    for process in psutil.process_iter():
+        try:
+            command = process.cmdline()
+            if any(str(profile) in part for part in command) and process.status() != psutil.STATUS_ZOMBIE:
+                found.append((any(part.startswith("--type=") for part in command), process))
+        except psutil.Error:
+            continue
+    return [process for _, process in sorted(found, key=lambda pair: pair[0])]
+
+
+def test_a_private_window_whose_engine_no_longer_answers_is_closed_at_once_and_leaves_nothing(browser, files_site):
+    """VOOL does not ask a private window's engine to close: it ends it. An engine that has
+    stopped answering shows the difference. Asked to close, it would be waited for, and
+    its profile could not be thrown away while it still ran."""
+    port, hits = files_site
+    browser.open(f"http://127.0.0.1:{port}/list", private=True)
+    window = browser._private[0]
+    profile, waiting, folder = window.profile, window.profile / desk_module.ARRIVING, desk_module.downloads_dir()
+
+    async def fetch(page):
+        await page.goto(f"http://127.0.0.1:{port}/list")
+        await page.click("#get")
+
+    # A Save question is open, as before, and then the engine freezes.
+    browser._call(fetch(next(p for p in window.engine.pages if p.url.endswith("/list"))))
+    assert _wait(lambda: waiting.is_dir() and any(p.is_file() for p in waiting.glob("*")))
+    running = _engine_processes(profile)
+    assert running and not any(part.startswith("--type=") for part in running[0].cmdline()), running
+    running[0].suspend()
+    try:
+        began = time.monotonic()
+        browser.stop()
+        took = time.monotonic() - began
+    finally:
+        for process in running:
+            with contextlib.suppress(Exception):
+                process.kill()
+    assert took < desk_module.STOP_TIMEOUT / 2, took
+    assert _engine_processes(profile) == [] and not profile.exists()
+    time.sleep(2.0)
+    assert not folder.is_dir() or list(folder.glob("*")) == []
+    assert not [p.name for p in desk_module._root().glob("private-*")]
 
 
 def test_a_lasting_profile_saves_without_asking_and_a_private_one_differs_only_in_how_it_saves(home, tmp_path, monkeypatch):

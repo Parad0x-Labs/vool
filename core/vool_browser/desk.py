@@ -266,6 +266,48 @@ def private_downloads(profile: Path) -> dict[str, Any]:
     return {"download": {"default_directory": str(profile / ARRIVING), "prompt_for_download": True}}
 
 
+#: How long an ended engine is given to be gone before its profile is removed.
+END_TIMEOUT = 5.0
+
+
+def end_engine_at_once(profile: Path) -> bool:
+    """End the engine that runs on *profile*, without asking it to close. True when none is left.
+
+    For a private window. An engine asked to close goes through its own closing, and what
+    it does then with a Save question the person left open is the engine's: measured on a
+    Mac (Chrome 158, 2026-11-24), VOOL closing a private window whose Save sheet nobody had
+    answered ended with the file in the folder the sheet offered. A question that was not
+    answered is not a yes. A private window's profile is thrown away with it, so nothing
+    in it needs a tidy ending: the engine's own process is ended outright, and an ended
+    process saves nothing.
+
+    The engine is told from every other process by the profile it was started on: a
+    folder inside VOOL's own data, made for this one window, that no other program is
+    ever started with. Its helper processes go when it does.
+    """
+    import psutil
+
+    named = f"--user-data-dir={profile}"
+    engines = []
+    for process in psutil.process_iter():
+        if named in _command(process):
+            engines.append(process)
+    # The main process first: it is the one that saves files. Its helpers after it.
+    engines.sort(key=lambda process: any(part.startswith("--type=") for part in _command(process)))
+    for process in engines:
+        with contextlib.suppress(psutil.Error):
+            process.kill()
+    _, left = psutil.wait_procs(engines, timeout=END_TIMEOUT)
+    return not left
+
+
+def _command(process: Any) -> list[str]:
+    try:
+        return list(process.cmdline())
+    except Exception:
+        return []
+
+
 async def seed_profile(profile: Path, *, private: bool = False) -> bool:
     """Give a profile that has no settings yet its starting ones. True when written.
 
@@ -632,6 +674,10 @@ class _Window:
         """Close the engine and, for a private window, remove every trace. True when clean."""
         context, self.context = self.context, None
         engine, self.engine = self.engine, None
+        ended = True
+        if self.private:
+            # Before anything asks it to close: see ``end_engine_at_once``.
+            ended = await asyncio.to_thread(end_engine_at_once, self.profile)
         if context is not None:
             # A tab VOOL was working in is not one of the person's: it is closed first, so
             # a start that continues where they left off does not bring it back as theirs.
@@ -655,7 +701,7 @@ class _Window:
             self.tmp = None
         if self.private:
             shutil.rmtree(self.profile, ignore_errors=True)
-            clean = not self.profile.exists()
+            clean = ended and not self.profile.exists()
         return clean
 
 
