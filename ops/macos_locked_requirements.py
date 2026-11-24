@@ -41,8 +41,9 @@ BUILT_WHEELS = REPO / "installer" / "bundle" / "built_wheels.json"
 #: The optional-dependency groups the app ships beside the base dependencies. companion carries
 #: zstandard (the command registry's codec), evm and x402 the wallet's Base/Ethereum lanes, desktop
 #: the native window (pywebview, pinned) and Apple Calendar/Contacts (pyobjc EventKit/Contacts), keys the
-#: wallet's security-key support (fido2).
-EXTRAS = ("companion", "evm", "x402", "desktop", "keys")
+#: wallet's security-key support (fido2), browser the driver for VOOL's browser window and page
+#: rendering (playwright; the engine itself is the person's own Chrome-family browser).
+EXTRAS = ("companion", "evm", "x402", "desktop", "keys", "browser")
 UV_PLATFORMS = {"arm64": "aarch64-apple-darwin", "x86_64": "x86_64-apple-darwin"}
 
 

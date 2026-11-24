@@ -684,7 +684,7 @@ stage_self_contained() {
     fi
   fi
   # EXACTLY THE LOCK. The set is uv.lock's own export for the project's base dependencies plus the
-  # extras the app ships (ops/macos_locked_requirements.py EXTRAS: companion, evm, x402, desktop, keys),
+  # extras the app ships (ops/macos_locked_requirements.py EXTRAS: companion, evm, x402, desktop, keys, browser),
   # evaluated for this architecture and the embedded CPython. Up to 0.7.7 this step installed a
   # hand-written list of names and loose specifiers with `uv pip install`, which resolved against
   # the live index: the 0.7.7 app shipped 32 of its 80 packages at versions the lock does not pin
@@ -697,7 +697,7 @@ stage_self_contained() {
   # What the lanes need is unchanged: the wallet's EVM lanes (eth-abi/eth-utils/eth-account, from
   # `evm`), the x402 Foundation SDK with web3 (`x402`), zstandard for the command registry
   # (`companion`), pywebview for the native window and pyobjc EventKit/Contacts for Apple Calendar
-  # and Contacts (`desktop`).
+  # and Contacts (`desktop`), playwright to drive the browser window (`browser`).
   # --python-platform pins wheel selection to the target. A host cache holding the other
   # architecture's wheels cannot contaminate the bundle: an arm64 CPython that loads an
   # x86_64-only extension is an ImportError at the user's first launch, not at build time.

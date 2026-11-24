@@ -292,6 +292,9 @@ def test_the_real_export_is_the_lock_exactly(arch, tmp_path):
     assert len(names) == len(pins), "a package appears twice in a single-target export"
     assert names["ckzg"] == ("2.1.8" if arch == "arm64" else "2.1.5")
     assert names["cryptography"] == ("50.0.1" if arch == "arm64" else "50.0.2")
-    assert "pip" not in names and "torch" not in names and "playwright" not in names
+    assert "pip" not in names and "torch" not in names
+    # The browser window is driven through playwright (the engine is the person's own Chrome-family
+    # browser), so the app ships the driver; the 0.7.x app left it out and the window could not open.
+    assert "playwright" in names
     built = {b["package"] for b in json.loads(report.read_text())["built_wheels"]}
     assert built == ({"proxy-tools"} if arch == "arm64" else {"cryptography", "proxy-tools"})
