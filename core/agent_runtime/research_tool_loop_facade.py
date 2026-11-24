@@ -350,6 +350,7 @@ def _batch_member_is_read_only(intent: str, arguments: dict[str, Any] | None = N
 
 
 # Intents that mean "no tool ran" — the set `tool_intent_direct_message` treats as a closing reply.
+from core.prompt_normalizer import REPEATED_CALL_NOT_RUN_KEY
 from core.tool_use_retry import TOOL_USE_RETRY_KEY, needed_tool_intents, tool_use_retry_directive
 
 _NON_EXECUTING_INTENTS = {"respond.direct", "none", "no_tool"}
@@ -2732,6 +2733,8 @@ class ResearchToolLoopFacadeMixin:
         code_completion_corrections = 0
         # One retry per turn for a needs-a-tool ask the model answered in prose (see below).
         tool_use_retry_spent = False
+        # One more round per turn after the model asks again for a call that already ran (see below).
+        repeat_answer_asked = False
         database_no_tool_corrections = 0
         database_ready_join_made = False
         database_ready_failure_made = False
@@ -2894,6 +2897,7 @@ class ResearchToolLoopFacadeMixin:
                     loop_source_context.pop("plugin_follow_up_note", None)
                     loop_source_context.pop("code_task_completion_feedback", None)
                     loop_source_context.pop(TOOL_USE_RETRY_KEY, None)
+                    loop_source_context.pop(REPEATED_CALL_NOT_RUN_KEY, None)
                     last_tool_decision = tool_decision
                     # NOTE: a provider that never answered (structured_output is None and
                     # not used_model) is NOT handled here. KAS's PR #80 added an early
@@ -3370,6 +3374,32 @@ class ResearchToolLoopFacadeMixin:
                             event_type="tool_repeat_allowed_for_approval",
                             message="Resuming the action you approved.",
                         )
+                    elif (
+                        payload_signature in seen_tool_payloads
+                        and not repeat_answer_asked
+                        and executed_steps
+                        and model_rounds < max_rounds
+                    ):
+                        # The model asked again for a call whose result it already holds. Ending the loop here
+                        # sent the answer to a separate call with a prompt of its own, which shares almost none
+                        # of the loop's cached prompt: Intel smoke on 3727b4e72 (qwen3:8b on CPU, about 11 prompt
+                        # tokens a second), "What is my locker number?" ran contacts.search, asked for it again,
+                        # and the answer call (6,677 prompt tokens, 833 of them cached) was still reading its
+                        # prompt after 12 minutes. The same conversation is asked once more instead, with the
+                        # note that the call already ran and was not run again: only the note and what follows
+                        # it are new to the model. A model that asks a third time ends the loop as before.
+                        repeat_answer_asked = True
+                        loop_source_context[REPEATED_CALL_NOT_RUN_KEY] = [
+                            str(dict(tool_decision.structured_output or {}).get("intent") or "").strip() or "tool"
+                        ]
+                        self._emit_runtime_event(
+                            loop_source_context,
+                            event_type="tool_repeat_blocked",
+                            message="Repeated tool request detected. Asking for the answer from the result already in hand.",
+                            status="repeated_call_not_run",
+                            step_count=len(executed_steps),
+                        )
+                        continue
                     elif payload_signature in seen_tool_payloads:
                         loop_stop_reason = "repeated_tool_request"
                         self._emit_runtime_event(

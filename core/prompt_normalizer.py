@@ -95,6 +95,9 @@ _HISTORICAL_CONTEXT_SOURCE_TYPES = {
 # Payload categories, imported by name so this module never has to depend on the breakdown module
 # at import time (core.prompt_payload_breakdown imports core.prompt_assembly_report, which is on
 # this module's own import chain). The two must agree; a guard test asserts they do.
+#: Loop source-context key: the tool intents the model asked for again in this turn with the same arguments, which
+#: did not run again. Set for the one round after (core.agent_runtime.research_tool_loop_facade).
+REPEATED_CALL_NOT_RUN_KEY = "tool_loop_repeated_call_not_run"
 _PAYLOAD_SYSTEM_BOOTSTRAP = "system_bootstrap"
 _PAYLOAD_CHAT_HISTORY = "chat_history"
 _PAYLOAD_PROJECT_CONTEXT = "project_context"
@@ -1655,6 +1658,16 @@ def _runtime_tool_observation_message(
             "Do not repeat an identical tool call. Continue the tool actions needed to fulfill the user's request; "
             "finish with respond.direct only when the requested work is complete or a real blocker prevents it."
         )
+        not_run = [str(name) for name in (source_context or {}).get(REPEATED_CALL_NOT_RUN_KEY) or () if str(name)]
+        if not_run:
+            # The loop's round after a call was asked for again (core.agent_runtime.research_tool_loop_facade):
+            # said here, in the message that sits last before the request, so the rest of the prompt is the one
+            # the model has already read.
+            header += (
+                " You asked again for " + ", ".join(dict.fromkeys(not_run)) + " with the same arguments. It already"
+                " ran in this turn and its result is below, so it was not run again. Answer the user now with"
+                " respond.direct from the results below, unless a different tool call is still needed."
+            )
     unfinished_code = list((source_context or {}).get("code_task_completion_feedback") or [])
     if unfinished_code:
         # Each row names the stage's lawful next actions (from the task runtime's stage machine),

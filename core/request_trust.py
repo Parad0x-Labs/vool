@@ -99,6 +99,9 @@ RESERVED_TRUST_KEYS = (
     # already ran and its reply is the final answer. A caller-written mark would tell every call
     # inside the loop to stop asking for tools.
     "tool_loop_terminal_synthesis",
+    # Server-authored by the tool loop for the one round after the model asked again for a call that already ran
+    # (core.prompt_normalizer.REPEATED_CALL_NOT_RUN_KEY): its names are written into that round's prompt.
+    "tool_loop_repeated_call_not_run",
     # "Use the model's own tools" turn stamps (core.model_own_tools.STAMP_KEYS): server-written
     # at run_once; a caller copy would claim a provider search the owner's switch never granted.
     "model_own_tools_turn",

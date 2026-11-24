@@ -32,6 +32,21 @@ def test_a_long_turn_logs_the_frame_it_waits_in(monkeypatch, caplog) -> None:
     assert secret not in text, "frames only, never local values"
 
 
+def test_a_turn_still_running_after_the_first_dumps_is_named_again_later(monkeypatch, caplog) -> None:
+    """Intel smoke on 3727b4e72: the last dump came 80 s into a turn that ran past 15 minutes."""
+    import core.turn_stall_watch as stall_watch
+
+    monkeypatch.setenv("VOOL_TURN_STALL_DUMP_SECONDS", "0.1")
+    monkeypatch.setenv("VOOL_TURN_STALL_DUMP_EVERY_SECONDS", "0.1")
+    monkeypatch.setattr(stall_watch, "_MAX_DUMPS", 1)
+    monkeypatch.setattr(stall_watch, "_LATE_EVERY_S", 0.2)
+    monkeypatch.setattr(stall_watch, "_MAX_LATE_DUMPS", 2)
+    with caplog.at_level(logging.WARNING, logger="core.turn_stall_watch"):
+        with watch_turn("chat turn"):
+            time.sleep(1.2)
+    assert len(caplog.records) == 3, [record.getMessage()[:60] for record in caplog.records]
+
+
 def test_a_quick_turn_logs_nothing(monkeypatch, caplog) -> None:
     monkeypatch.setenv("VOOL_TURN_STALL_DUMP_SECONDS", "0.3")
     with caplog.at_level(logging.WARNING, logger="core.turn_stall_watch"):
