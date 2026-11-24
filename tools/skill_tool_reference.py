@@ -23,6 +23,8 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
+from tools import public_names
+
 ROOT = Path(__file__).resolve().parents[1]
 PAGE = ROOT / "docs" / "guides" / "skill-tools-and-limits.md"
 BEGIN = "<!-- BEGIN GENERATED TOOL TABLE (python -m tools.skill_tool_reference) -->"
@@ -163,7 +165,8 @@ def render() -> str:
     internal: dict[str, list[str]] = defaultdict(list)
     for name in sorted(contracts):
         contract = contracts[name]
-        if contract.source != "builtin":
+        if contract.source != "builtin" or public_names.unnamed(contract.tool_surface) \
+                or public_names.unnamed(contract.intent.split(".", 1)[0]):
             continue
         if not contract.model_visible:
             hidden.append(name)
@@ -223,7 +226,7 @@ def render() -> str:
         lines.append("* " + ", ".join(f"`{name}`" for name in hidden) +
                      ": owner-only; never offered to a model, so naming it in a skill does nothing.")
     lines += ["", END]
-    return "\n".join(lines)
+    return public_names.refuse_if_named("skill tool table", "\n".join(lines))
 
 
 def updated(page_text: str, section: str) -> str:

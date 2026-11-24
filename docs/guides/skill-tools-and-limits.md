@@ -148,7 +148,7 @@ The full contract of a tool, with every field, is in Python:
 
 <!-- BEGIN GENERATED TOOL TABLE (python -m tools.skill_tool_reference) -->
 
-155 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
+147 tools, read from `core.runtime_tool_contracts` in a fresh profile. `?` marks an optional input. **Permission ids** are what a frontmatter `permissions` list must cover when it is declared. **Manual** and **Auto** say what that mode does with a call: *runs*, *asks* (a **Permission needed** prompt; nothing happens until the person clicks **Allow once**) or *refused*. A call can still be refused for its arguments (a path outside the allowed folders, a startup file) or ask where this says *runs* (overwriting an existing file asks in Auto mode).
 
 ### chain
 
@@ -365,19 +365,6 @@ The full contract of a tool, with every field, is in Python:
 | --- | --- | --- | --- | --- | --- | --- |
 | `web.research` | Run a bounded multi-source web research pass for a question. *Off until the person turns on web lookups (Settings > Privacy & Permissions > Web lookups).* | `query`, `max_hits?`, `max_pages?` | reads | none | runs | runs |
 | `web.search` | Search the public web for pages matching a query. *Off until the person turns on web lookups (Settings > Privacy & Permissions > Web lookups).* | `query`, `limit?` | reads | none | runs | runs |
-
-### web0
-
-| Tool | What it does | Inputs | Reads or changes | Permission ids | Manual | Auto |
-| --- | --- | --- | --- | --- | --- | --- |
-| `web0.add_block` | Append a content block (heading/text/quote/callout/image/divider) to a page in the builder project. | `project_id`, `page_id?`, `block`, `position?` | saves a draft | none | asks | runs |
-| `web0.add_gated_section` | Encrypt a section behind a wallet whitelist and insert it as a gated block (AES-GCM; only the ciphertext ships). | `project_id`, `page_id?`, `content`, `whitelist`, `mode?`, `label?` | saves a draft | none | asks | runs |
-| `web0.compile_preview` | Compile the builder project to a self-contained HTML preview without publishing. | `project_id` | saves a draft | none | asks | runs |
-| `web0.create_project` | Start a local web0.null builder project from a template and target .null domain. | `template_id`, `domain`, `project_name?` | saves a draft | none | asks | runs |
-| `web0.encrypt_whole_site` | Encrypt every text-bearing block on every page behind one wallet whitelist; only ciphertext remains in the project. | `project_id`, `whitelist`, `mode?`, `label?` | saves a draft | none | asks | runs |
-| `web0.fill_slots` | Fill named content slots (title, tagline, sections) on a local web0.null builder project. | `project_id`, `slots` | saves a draft | none | asks | runs |
-| `web0.open_builder_draft` | Create a local web0.null builder URL from a title and self-contained code draft. | `title`, `code`, `domain?` | saves a draft | none | asks | runs |
-| `web0.publish` | Publish the builder project to Arweave. | `project_id`, `allow_network_publish`, `vool_wallet` | publishes | none | asks | asks |
 
 ### workspace
 

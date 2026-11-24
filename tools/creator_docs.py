@@ -32,6 +32,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from tools import public_names  # after the path line, so a direct run finds it
+
 REFERENCE = Path("docs") / "creators" / "reference"
 TEMPLATE = ROOT / "examples" / "plugins" / "template"
 _OWN_PAGE = {"Content-Type": "application/json", "Host": "127.0.0.1:8123", "Origin": "http://127.0.0.1:8123"}
@@ -246,7 +248,7 @@ def names_kept_back() -> str:
     from core.registry.codec import RegistryError
 
     shipped = sorted(plugin_identity._shipped_ids())
-    tool_names = sorted(plugin_identity.builtin_tool_names())
+    tool_names = sorted(name for name in plugin_identity.builtin_tool_names() if not public_names.unnamed(name))
     try:
         metadata({**copy.deepcopy(_GOOD_DETAILS), "id": "vool/meeting-notes", "source": {"upload_id": "0" * 32, "namespace": "vool"}})
         raise SystemExit("creator_docs: the publisher name vool was accepted; the reference would be wrong")
@@ -329,7 +331,7 @@ def build() -> dict[str, str]:
     """{file name: text} for every generated page, as the code produces it now."""
     kept = {name: os.environ.pop(name, None) for name in _PACK_SETTINGS}
     try:
-        return {name: make() for name, make in PAGES}
+        return {name: public_names.refuse_if_named(name, make()) for name, make in PAGES}
     finally:
         os.environ.update({name: value for name, value in kept.items() if value is not None})
 

@@ -12,7 +12,7 @@ A plugin's id (`name` and `vool.id` in its setup file) may not be: the id of a p
 
 Ids of packs VOOL ships: `vool-database`.
 
-Names VOOL's own tools start with (40): `ai`, `browser`, `builtin`, `capability`, `code`, `contacts`, `demo`, `email`, `file`, `hive`, `image`, `machine`, `market`, `marketplace`, `mcp`, `media`, `memory`, `operator`, `orchestration`, `pay`, `pdf`, `plugin`, `profile`, `repo`, `respond`, `sandbox`, `sell`, `set`, `skill`, `things`, `token`, `video`, `vool-browser`, `wallet`, `watch`, `web`, `web0`, `workspace`, `x`, `x402`.
+Names VOOL's own tools start with (39): `ai`, `browser`, `builtin`, `capability`, `code`, `contacts`, `demo`, `email`, `file`, `hive`, `image`, `machine`, `market`, `marketplace`, `mcp`, `media`, `memory`, `operator`, `orchestration`, `pay`, `pdf`, `plugin`, `profile`, `repo`, `respond`, `sandbox`, `sell`, `set`, `skill`, `things`, `token`, `video`, `vool-browser`, `wallet`, `watch`, `web`, `workspace`, `x`, `x402`.
 
 | Id | Answer |
 | --- | --- |
