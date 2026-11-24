@@ -2401,6 +2401,10 @@
     "addons.rating_open": "打开技能宝典",
     "addons.moderation_ratings_removed": "因违反规则被 VOOL 团队移除的评分：{count} 条",
     "addons.recall_failed": "上次检查未能完成。VOOL 会在一小时内重试。",
+    "addons.badge_tested": "VOOL 已测试",
+    "addons.badge_tested_help": "VOOL 团队安装并使用过这个确切版本。",
+    "addons.badge_editors_choice": "编辑精选",
+    "addons.badge_editors_choice_help": "由 VOOL 团队选为同类中最好的之一。",
     "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
     "addons.registry_inspect": "下载以检查",
     "private.banner": "私密聊天：不保存任何内容",
@@ -5491,7 +5495,7 @@
     "phone.ui.no_answer_came": "没有收到回答。请再发送一次。",
     "phone.ui.ask_on_computer": "请在电脑上的 VOOL 中允许或拒绝此操作。"
   },
-  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
+  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

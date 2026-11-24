@@ -110,6 +110,10 @@ def display_refusal(text: Any, *, name: bool = True) -> str:
         return OWN_NAME
     if any(_VOUCHING_WORDS.search(form) for form in forms):
         return VOUCHING
+    from core.registry.checks import badge_label
+
+    if badge_label(text):   # "Tested by VOOL" or "Editor's Choice" as VOOL shows them, in any shipped language
+        return VOUCHING
     plain = unicodedata.normalize("NFKC", text)
     if _MIXED_WORD.search(plain):
         return PLAIN_TEXT

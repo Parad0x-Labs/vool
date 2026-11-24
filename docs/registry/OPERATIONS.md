@@ -102,6 +102,131 @@ Limits, so say nothing stronger:
 - Whoever can change the signer's repository can change its workflow and reach the online keys. Keep write access to the team, with two-factor sign-in, and look at every change to the workflow.
 - The other limits of the signing Mac apply as written below: one signature per role, a 7-day list, the check suite named by its major version, and one review model.
 
+## The two team badges
+
+"Tested by VOOL" and "Editor's Choice" are lines in one signed file, the badge document. A line names one exact package: its kind, name, version and checksum. Nothing else makes a badge: not a line in `team-steps.txt`, not a flag on a catalog row, not a word or a picture an author supplies. The older `tested`, `highlighted`, `featured` and `editors-pick` steps still order the list and release pictures; they draw no badge.
+
+Who holds what:
+
+- The owner holds the main (root) key offline. With it he signs the list of the people he appoints, `badge-issuers.json`. He signs no badge and need not be one of the people.
+- Each appointed person has a key of their own, in a file protected by a passphrase, on their own computer. A badge document counts once two different people on the list have signed it.
+- The signer (the GitHub job or the signing Mac) holds no badge key. It passes the signed files on to the service and signs a stamp, "this document, still current", good for seven days. Whoever can write to the signer's repository can therefore issue no badge.
+- The service checks the list, the two signatures, the number and the chain before it stores a document, and serves it at `GET /registry/api/badges`. Every app and the website check all of it again.
+
+A badge key never goes into a workflow file, an Actions secret, an environment variable or onto the server. The tool reads keys from files and passphrases from the keyboard only.
+
+### Appoint the people (owner)
+
+1. Each person makes their key and sends the owner the public line it prints:
+
+```text
+$ python -m registry_service.badges keygen --out ana.pem
+Choose a passphrase for your badge key:
+Type it again:
+Made ana.pem. Keep it and its passphrase on your own computer only.
+Public line (send this to the owner): 30698e6a884550b38f47b5008b740a094f7f49956533e8b553863c0b67956444
+Key id: 9c2605372d33df5161daf511c293e78e186ec6df328f18e9243f32446bfbe8e6
+```
+
+2. The owner signs the list with the main key, on the computer that holds the offline folder (`root.pem` and `trusted-root.json` from the signer's setup). Name at least two people; a third as a spare is sensible:
+
+```text
+$ python -m registry_service.badges issuers --root-key usb/root.pem --trusted-root usb/trusted-root.json \
+    --key 30698e6a...6444 --key 1e70ab2c...752c --key 1cb89fd0...9524 --out badges/badge-issuers.json
+Passphrase for root.pem:
+Issuer list 1, good until 2028-02-11. Appointed keys:
+  9c2605372d33df5161daf511c293e78e186ec6df328f18e9243f32446bfbe8e6
+  cbeb1f07aa3834fdc4bff609483efbd75b4e3e0d9f3ba5ed7a7f70c248389b8d
+  ebde5f3df59fcfc7a253663d67e7933b2842dcb88cf2b5652b872504e1b538b0
+Signed with the main key and written to badge-issuers.json.
+```
+
+3. Commit `badges/badge-issuers.json` to the signer's repository (on the signing Mac: put it in `FOLDER/badges/`).
+
+The list is good for 365 days (`--days`, at most 730); sign a new one before it runs out, or every badge stops showing. To change the people, run `issuers` again with `--previous badges/badge-issuers.json` and the new set of `--key` lines: the list number goes up and an older list is refused from then on. A badge that was signed for by someone who is no longer on the list stops showing until two current people issue it again (`--renew`).
+
+### Issue a badge (two appointed people)
+
+Keep the test record of each "Tested by VOOL" badge (who ran it, when, on which build, what was done) in a private place; only its checksum goes into the document. Write the badges into `badges/badges.txt` in a checkout of the signer's repository, one per line. The file is the complete set: a line you take out drops that badge.
+
+```text
+tested alice/notes 1.0.0 0.7.1 macos-arm64 /private/records/notes-1.0.0-test-record.json
+editors-choice alice/notes 1.0.0 "Short, clear, asks before it sends"
+```
+
+`tested` names the skill, its version, the VOOL version or versions it was run on (`0.8.0,0.8.1`), the platform or platforms (`macos-arm64,macos-x86_64`) and the record. `editors-choice` names the skill, its version and why. The checksum is read from the signer's own list (`authority/state.json`), so it is the listed package's and nobody types it. A plugin, or a skill that ships inside VOOL, is not in that list; give its checksum after the version: `tested plugin:PLUGIN-ID 1.0.0 sha256:<64 hex> 0.8.0 macos-arm64 record.json` (the checksum VOOL computes over the plugin's files: `core.plugin_package.capture_package(FOLDER).digest`) or `editors-choice bundled:SKILL-ID 1.0.0 sha256:<64 hex> "why"` (the `sha256` of its row in `core/addon_directory.json`).
+
+One of the two people proposes, naming both signers by key id (the first 8 characters or more):
+
+```text
+$ python -m registry_service.badges propose --file badges/badges.txt --issuers badges/badge-issuers.json \
+    --state authority/state.json --previous badges/badges.json --by 9c2605372d33 --by cbeb1f07aa38 --out badges/badges.json
+Badge document 1 written to badges.json, unsigned. It runs out on 2027-05-12.
+  new: Tested by VOOL  alice/notes 1.0.0
+  new: Editor's Choice  alice/notes 1.0.0
+Next: each of the two people named with --by runs `sign --key THEIR-KEY badges.json` on their own computer.
+```
+
+Leave `--previous` out for the very first document. Then each of the two signs on their own computer and passes the file on:
+
+```text
+$ python -m registry_service.badges sign --key ana.pem badges/badges.json
+Passphrase for ana.pem:
+Signed badge document 1: 1 of 2 signatures. Send the file to the second person to sign.
+
+$ python -m registry_service.badges sign --key ben.pem badges/badges.json
+Passphrase for ben.pem:
+Signed badge document 1: 2 of 2 signatures. It is complete. Run check, then put it in the signer repository as badges/badges.json through a pull request.
+
+$ python -m registry_service.badges check badges/badges.json --issuers badges/badge-issuers.json --trusted-root authority/trusted-root.json
+Badge document 1 holds: two appointed people signed it. It runs out on 2027-05-12.
+  Tested by VOOL  alice/notes 1.0.0 on VOOL 0.7.1  (180 days left)
+  Editor's Choice  alice/notes 1.0.0  (365 days left)
+  withdrawn checksums: 0
+```
+
+Merge the pull request that carries `badges/badges.json` (and `badges/badges.txt`). The next signer run passes the document on; its report then carries `"badges": {"sequence": 1, "badges": 2}`. A document that does not verify is not sent, and the public run log shows `"badges_waiting": true`; `check` says why:
+
+```text
+$ python -m registry_service.badges check badges/badges.json --issuers badges/badge-issuers.json --trusted-root authority/trusted-root.json
+Refused: 1 of 2 appointed people have signed this document. Each one runs: sign --key THEIR-KEY badges.json
+```
+
+Other refusals name the line or the cause, for example `Refused: badges.txt line 1: alice/notes 2.0.0 is not in the Skill Codex list`, `Refused: this key is not on the issuer list, so its signature would count for nothing` and `Refused: --by names the same person twice; a badge takes two different people`.
+
+### Renew, re-test and withdraw
+
+- **Every 90 days at the latest**, propose and sign a new document, even when nothing changed: a badge document runs out 90 days after it is made, and from then on no badge shows. `propose` with the same `badges.txt` carries every badge over as it is, with its own end date.
+- **A badge runs out by itself**: Tested by VOOL after 180 days, Editor's Choice after 365. `propose` then refuses with the date and asks for `--renew NAME`, which issues it again from today, or for the line to be taken out. Renewing is a new statement by two people, so test or look again first.
+- **A new version of a skill carries no badge.** A badge is for one checksum. Test the new version, change the version on its line, propose and sign.
+- **A new VOOL release**: "Tested by VOOL" shows only on the VOOL builds named on its line. List what waits:
+
+```text
+$ python -m registry_service.badges propose --retest 0.9.0 --previous badges/badges.json --issuers badges/badge-issuers.json
+Not yet tested on VOOL 0.9.0: 1
+alice/notes 1.0.0 (tested on 0.7.1)
+Nothing was changed. Test each one, add the version to its line in badges.txt, then propose.
+```
+
+- **Withdraw a badge**: take its line out and add `withdrawn <64 hex checksum>`, then propose and sign as above. Apps drop the badge at their next Browse or daily check. An app that saw the withdrawal never shows a badge for that checksum again, so a withdrawn package gets a badge back only as a new version. Taking the line out without `withdrawn` also removes the badge, and leaves room to issue it again later.
+
+```text
+$ python -m registry_service.badges propose --file badges/badges.txt --issuers badges/badge-issuers.json \
+    --state authority/state.json --previous badges/badges.json --by cbeb1f07aa38 --by ebde5f3df59f --out badges/badges.json
+Badge document 2 written to badges.json, unsigned. It runs out on 2027-05-12.
+  dropped: Tested by VOOL  alice/notes 1.0.0
+  dropped: Editor's Choice  alice/notes 1.0.0
+  withdrawn: a91e8d3de54316becd5cc8bea9dec49ccd03d54e0c92dc5957bedee1ee345c72
+Next: each of the two people named with --by runs `sign --key THEIR-KEY badges.json` on their own computer.
+```
+
+Limits to know:
+
+- Each document must follow the one in place: the service takes number N+1 only when it names document N. Always propose with `--previous` set to the file the signer's repository holds.
+- If the signer stops running, the stamp runs out after seven days and badges stop showing until it runs again. A taken-over server can hold back a withdrawal for at most those seven days.
+- A VOOL release can carry its own copy of the two files as `core/registry/badges.json` and `core/registry/badge-issuers.json`, for the skills that ship inside VOOL. That copy counts past its own date until the app has verified a newer document. No release carries one yet.
+- Removing a skill from the Skill Codex does not need a badge step: a removed version is not listed, so nothing is drawn for it.
+
 ## Automatic checks with the signing Mac
 
 Instead of the GitHub job, the owner's Mac can be the signing authority. It checks every upload made with the creator's MIT agreement, signs what passes, and sends the signed list to the service. No person approves uploads; a person only adds the "Tested by Parad0x Labs" mark, the Highlighted spot, suspensions, team members, the step that admits each team upload, and removals, each behind a code from an authenticator app.

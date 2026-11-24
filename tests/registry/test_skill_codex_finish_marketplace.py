@@ -206,7 +206,10 @@ def test_native_browser_shows_editor_pick_metrics_release_notes_and_disclaimer(s
             assert page.get_by_role("button", name="Browse Skill Codex", exact=True).evaluate(
                 "button => getComputedStyle(button).paddingTop") == "9px"
             expect(page.locator("#pluginsBody .addon-facts dt")).to_contain_text(["Languages", "Checked for"])
-            expect(page.locator("#pluginsBody .registry-editor-pick")).to_have_text("Editor's pick")
+            # A pick in the signer's marks orders the list; it is no longer drawn as a label. A badge comes
+            # only from the signed badge document (tests/registry/test_badges_browser.py).
+            expect(page.locator("#pluginsBody .registry-editor-pick")).to_have_count(0)
+            expect(page.locator("#pluginsBody vool-badge")).to_have_count(0)
             expect(page.locator("#pluginsBody")).to_contain_text("Not enough ratings yet (0)")
             expect(page.locator("#pluginsBody")).to_contain_text("do not guarantee")
             page.get_by_text("Release notes", exact=True).click()

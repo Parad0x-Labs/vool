@@ -11,7 +11,18 @@ Use `/codex/skills` for discovery, `/codex/skills/publish` for drafts/package up
 `/codex/skills/report?id=publisher%2Fname` for reports. Authentication redirects to the account page.
 Cards show title/name, summary, version, category/subcategory, languages, needs, supported targets,
 website stars and download requests. Use two linked taxonomy selectors from `/categories`, without
-recursive nesting. Give editor picks a distinct label; popularity never grants admission.
+recursive nesting. Popularity never grants admission.
+
+Draw the two team badges, "Tested by VOOL" and "Editor's Choice", only from the verified badge
+document at `GET /badges` (shape and checks: [SKILL-CODEX.md](SKILL-CODEX.md#team-badges)). Verify the
+issuer list against a pinned copy of the trust root, the two signatures and the stamp, in the page or
+at its render step, then match each row by kind, id, version and `sha256`. Draw no badge from a row
+field (`tested`, `highlighted`, `featured`, `editors_pick`, `origin`), a title, a summary or a picture:
+`featured` and `editors_pick` may order a home-page row, worded as a list ("Picked this week") and
+never as a badge. When the document is missing, out of date or does not verify, show no badge. Render
+the badge as an element of the page's own, with author text always set as plain text beside it. Help
+lines: "The VOOL team installed and used this exact version." and "Picked by the VOOL team as one of
+the best of its kind."
 
 Display this notice on discovery, details and before native-install instructions:
 
@@ -21,8 +32,8 @@ Display this notice on discovery, details and before native-install instructions
 
 Link the complete package licence. MIT contains warranty/liability limitations; this notice is not
 a claim of immunity from applicable law. Compatibility checks include package/native-format
-validation. Do not describe them as observed execution on every release/platform. The separate
-`tested` mark records a team test of exact artifact bytes.
+validation. Do not describe them as observed execution on every release/platform. A team test of
+exact artifact bytes is the "Tested by VOOL" badge, read from the badge document.
 
 ## Common transport and errors
 
@@ -166,6 +177,7 @@ Native updates refuse unchanged/lower versions and refuse to overwrite edited lo
 | GET `/download?id=publisher%2Fname&version=1.0.0` | Listed exact ID/version | `{sha256,length,url,metric:"download_requests"}`; pause/withdrawal/stale catalog/missing version: 400 `{error}`. |
 | GET `/artifacts/{sha256}?ticket={ticket}` | Returned ticket | Canonical attachment bytes and `X-Content-SHA256`; invalid/expired ticket, pause/withdrawal: 400 `{error}`. Retry the same ticket to avoid double counting. |
 | PUT `/stars` | JSON `{id,version,starred:true|false}`, session/CSRF | `{stars,download_requests}` for the stable ID; unauthenticated/unlisted: 400 `{error}`. |
+| GET `/badges` | No parameters | `{issuers,badges,stamp}`: three signed envelopes, or `null` each before the first document. The only source of a team badge; verify before drawing. |
 | GET `/pictures/{publisher}/{name}/{sha256}` | Catalog row's supplied URL | Approved PNG, image/png, same-origin resource policy, cache ≤300 seconds; otherwise `picture not found`. |
 
 Search `q` ≤100 characters matches words against name/summary/category labels. Origin: `official`
@@ -179,8 +191,8 @@ Only a creator's own rows can contain `pictures_pending`; paused rows have `down
 
 Stars are one authenticated account per stable package ID, not a five-point rating or GitHub
 repository stars. Downloads count requests, not installed users. Reviewed means automated
-admission, not human endorsement. Tested binds an exact checksum; updates lose it. Editorial
-labels come from maintainers. Community review rows are reviewer/role/version/date, not arbitrary
+admission, not human endorsement. A badge binds an exact checksum; updates lose it. The row
+fields `tested`, `featured` and `editors_pick` come from maintainers and are not badges. Community review rows are reviewer/role/version/date, not arbitrary
 review text. Requirements expose network use, credential binding names, permissions and dependencies,
 never values. Targets name exact VOOL version/commit/platform combinations. The service accepts the
 legacy config `target`; distribution follows signed admissions, hence response `target:null`.

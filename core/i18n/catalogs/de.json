@@ -2401,6 +2401,10 @@
     "addons.rating_open": "Fertigkeiten-Codex öffnen",
     "addons.moderation_ratings_removed": "Vom VOOL-Team wegen Regelverstößen entfernte Bewertungen: {count}",
     "addons.recall_failed": "Die letzte Prüfung konnte nicht abgeschlossen werden. VOOL versucht es innerhalb einer Stunde erneut.",
+    "addons.badge_tested": "Von VOOL getestet",
+    "addons.badge_tested_help": "Das VOOL-Team hat genau diese Version installiert und benutzt.",
+    "addons.badge_editors_choice": "Auswahl der Redaktion",
+    "addons.badge_editors_choice_help": "Vom VOOL-Team als eines der besten seiner Art ausgewählt.",
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
     "addons.registry_inspect": "Zur Prüfung herunterladen",
     "private.banner": "Privater Chat: nichts wird gespeichert",
@@ -5491,7 +5495,7 @@
     "phone.ui.no_answer_came": "Es kam keine Antwort. Sende es noch einmal.",
     "phone.ui.ask_on_computer": "Erlaube oder lehne das in VOOL auf deinem Computer ab."
   },
-  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
+  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

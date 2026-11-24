@@ -203,6 +203,7 @@ class Client:
         rows = [latest[package_id] for package_id in sorted(latest, key=lambda package_id: (not _team(package_id), package_id))]
         self._presentation(rows, now=now)
         self._ratings(rows)
+        self._badges(rows, now=now)
         with _PICTURE_LOCK:
             # A new Browse forgets earlier pictures, so a picture whose approval was taken away stops showing.
             _PICTURES.clear()
@@ -219,12 +220,38 @@ class Client:
     def recall(self, *, now: int) -> dict:
         """Read the signed list only to learn what was removed. Shows nothing and installs nothing.
 
-        The request is the one Browse makes. Its consent is the owner's saved daily-check choice, which
-        core.registry.recall reads before it calls this.
+        The requests are ones Browse makes: the signed list and the signed badge document. Their consent is
+        the owner's saved daily-check choice, which core.registry.recall reads before it calls this.
         """
         snapshot = decode(self.request(self.origin + PREFIX + "/snapshot", limit=4 * 1024 * 1024), 4 * 1024 * 1024)
         value = self.catalog.accept(snapshot, now=now)
+        self._fetch_badges(now=now)  # a withdrawn badge leaves installed add-ons within the day as well
         return {"status": "ok", "removed_listed": len(value["revoked"])}
+
+    # ---- the two team badges ----
+
+    def _fetch_badges(self, *, now: int) -> None:
+        """Read the signed badge document and keep it when it verifies. A failure keeps what was verified before."""
+        from core.registry import badges
+
+        try:
+            answer = decode(self.request(self.origin + PREFIX + "/badges", limit=2 * badges.MAX_BYTES), 2 * badges.MAX_BYTES)
+            badges.keep(self.catalog, answer, now=now)
+        except (RegistryError, OSError, sqlite3.Error, ValueError, TypeError, KeyError):
+            return  # no badge document, or one that does not verify, grants nothing
+
+    def _badges(self, rows: list[dict], *, now: int) -> None:
+        """Set each row's badges from the verified badge document only. Nothing on a row can produce one."""
+        from core.registry import badges
+
+        self._fetch_badges(now=now)
+        try:
+            index = badges.held(self.catalog, now=now, target=self.target)
+        except (RegistryError, sqlite3.Error, ValueError, TypeError, KeyError):
+            index = {}
+        for row in rows:
+            row["badges"] = badges.badges_for(index, "artifact", row.get("sha256"), kind=row.get("kind"),
+                                              package_id=row.get("id"), version=row.get("version"))
 
     def picture(self, package_id: str, sha256: str, *, approved: bool, now: int) -> dict:
         """A listed skill's approved icon, checked against the signed listing from this run's Browse."""
@@ -378,6 +405,31 @@ def _read_anchor() -> dict:
         return root
     except (OSError, RegistryError, sqlite3.Error, KeyError, TypeError, ValueError):
         raise RegistryError(CLOSED) from None
+
+
+def _shipped_badges() -> Path:
+    """Where a release carries its own signed badge document (badges.json and badge-issuers.json), when it has one."""
+    from core.runtime_paths import PROJECT_ROOT
+
+    return Path(PROJECT_ROOT) / "core" / "registry"
+
+
+def local_badges() -> dict:
+    """Badges for what is already on this device, from the document VOOL verified last or the one it shipped with.
+
+    Local files only: no request and no writes. Anything that does not verify gives an empty answer.
+    """
+    from core.registry import badges
+
+    try:
+        root = _read_anchor()["signed"]
+        try:
+            target = runtime_target()
+        except RegistryError:
+            target = None  # no release identity: nothing can show as tested on this build
+        return badges.local(root, home() / "config" / STATE_NAME, _shipped_badges(), now=int(time.time()), target=target)
+    except (RegistryError, OSError, sqlite3.Error, ValueError, TypeError, KeyError):
+        return {}
 
 
 def is_open() -> bool:

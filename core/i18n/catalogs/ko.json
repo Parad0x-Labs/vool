@@ -2401,6 +2401,10 @@
     "addons.rating_open": "스킬 코덱스 열기",
     "addons.moderation_ratings_removed": "규칙 위반으로 VOOL 팀이 삭제한 평가: {count}개",
     "addons.recall_failed": "마지막 확인을 마치지 못했습니다. VOOL이 한 시간 안에 다시 시도합니다.",
+    "addons.badge_tested": "VOOL 테스트 완료",
+    "addons.badge_tested_help": "VOOL 팀이 바로 이 버전을 설치해 사용해 보았습니다.",
+    "addons.badge_editors_choice": "에디터 추천",
+    "addons.badge_editors_choice_help": "VOOL 팀이 같은 종류 중 가장 좋은 것 가운데 하나로 골랐습니다.",
     "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
     "addons.registry_inspect": "확인용으로 다운로드",
     "private.banner": "비공개 채팅: 아무것도 저장되지 않습니다",
@@ -5491,7 +5495,7 @@
     "phone.ui.no_answer_came": "답변이 오지 않았습니다. 다시 보내세요.",
     "phone.ui.ask_on_computer": "컴퓨터의 VOOL에서 허용하거나 거부하세요."
   },
-  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
+  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

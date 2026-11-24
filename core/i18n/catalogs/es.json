@@ -2401,6 +2401,10 @@
     "addons.rating_open": "Abrir el códice de habilidades",
     "addons.moderation_ratings_removed": "Valoraciones retiradas por el equipo de VOOL por incumplir las normas: {count}",
     "addons.recall_failed": "La última comprobación no pudo terminar. VOOL lo intentará de nuevo en menos de una hora.",
+    "addons.badge_tested": "Probado por VOOL",
+    "addons.badge_tested_help": "El equipo de VOOL instaló y usó exactamente esta versión.",
+    "addons.badge_editors_choice": "Selección del editor",
+    "addons.badge_editors_choice_help": "Elegido por el equipo de VOOL como uno de los mejores de su tipo.",
     "addons.registry_empty": "Ninguna versión publicada coincide con esta compilación exacta de VOOL y tu búsqueda.",
     "addons.registry_inspect": "Descargar para inspeccionar",
     "private.banner": "Chat privado: no se guarda nada",
@@ -5491,7 +5495,7 @@
     "phone.ui.no_answer_came": "No llegó ninguna respuesta. Envíalo otra vez.",
     "phone.ui.ask_on_computer": "Permite o deniega esto en VOOL en tu ordenador."
   },
-  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
+  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

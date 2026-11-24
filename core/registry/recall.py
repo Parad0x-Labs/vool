@@ -5,8 +5,9 @@ when VOOL next reads the signed list, and until now that happened only when the 
 Browse Skill Codex. With this switch on, VOOL reads the same public list once a day by itself, so a
 removed add-on stops being offered within a day.
 
-The request is the one Browse makes: one GET of the public signed list. Nothing about the person,
-their chats or what they installed is sent. It runs only while the owner has at least one add-on
+The requests are the ones Browse makes: one GET of the public signed list and one of the public
+badge document, so a withdrawn badge leaves within a day as well. Nothing about the person, their
+chats or what they installed is sent. It runs only while the owner has at least one add-on
 from the Skill Codex, and never after they turned the switch off. It is on from the start because
 its whole use is the day nobody expects: a skill found harmful after people installed it.
 """

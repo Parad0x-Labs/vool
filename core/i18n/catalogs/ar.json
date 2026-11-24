@@ -2401,6 +2401,10 @@
     "addons.rating_open": "فتح دليل المهارات",
     "addons.moderation_ratings_removed": "تقييمات حذفها فريق VOOL لمخالفتها القواعد: {count}",
     "addons.recall_failed": "تعذّر إكمال آخر تحقق. سيحاول VOOL مرة أخرى خلال ساعة.",
+    "addons.badge_tested": "تم اختباره من VOOL",
+    "addons.badge_tested_help": "قام فريق VOOL بتثبيت هذا الإصدار نفسه واستخدامه.",
+    "addons.badge_editors_choice": "اختيار المحرر",
+    "addons.badge_editors_choice_help": "اختاره فريق VOOL كواحد من الأفضل في فئته.",
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
     "addons.registry_inspect": "تنزيل للفحص",
     "private.banner": "محادثة خاصة: لا يتم حفظ أي شيء",
@@ -5491,7 +5495,7 @@
     "phone.ui.no_answer_came": "لم تصل أي إجابة. أرسلها مرة أخرى.",
     "phone.ui.ask_on_computer": "اسمح بهذا أو ارفضه في VOOL على حاسوبك."
   },
-  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
+  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

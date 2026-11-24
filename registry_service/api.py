@@ -539,6 +539,17 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         marks = await run_in_threadpool(store.set_marks, value, catalog.root, now=now())
         return JSONResponse({"sequence": marks["sequence"]})
 
+    async def public_badges(request):
+        # The signed badge document, its issuer list and its stamp. Apps and the website verify all three themselves.
+        require(not request.query_params, "unknown badges query")
+        return JSONResponse(await run_in_threadpool(store.badges))
+
+    async def authority_badges(request):
+        # The signer only passes the document on. Its request signature opens the door; the two people's
+        # signatures inside are what count, and the store checks them.
+        value = decode(await signed(request, limit=2 * 1024 * 1024), 2 * 1024 * 1024)
+        return JSONResponse(await run_in_threadpool(store.set_badges, value, catalog.root, now=now()))
+
     async def authority_moderation(request):
         from registry_service.operations import pending
 
@@ -558,7 +569,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
     app = Starlette(routes=[
         Route(PREFIX + "/catalog", public_catalog), Route(PREFIX + "/snapshot", signed_catalog),
-        Route(PREFIX + "/presentation", public_presentation),
+        Route(PREFIX + "/presentation", public_presentation), Route(PREFIX + "/badges", public_badges),
         Route(PREFIX + "/categories", categories), Route(PREFIX + "/requirements", requirements),
         Route(PREFIX + "/profiles/{namespace}", profile_page),
         Route(PREFIX + "/comments", comment_list, methods=["GET", "POST"]),
@@ -590,6 +601,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         Route(PREFIX + "/authority/marks", authority_marks, methods=["POST"]),
         Route(PREFIX + "/authority/moderation", authority_moderation),
         Route(PREFIX + "/authority/moderation/ratings", authority_rating_queue),
+        Route(PREFIX + "/authority/badges", authority_badges, methods=["POST"]),
     ] if authority is not None else []), exception_handlers={RegistryError: failure, ValueError: failure, TypeError: failure, KeyError: failure})
 
     async def response_policy(request, call_next):

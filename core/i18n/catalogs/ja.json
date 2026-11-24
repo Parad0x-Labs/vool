@@ -2401,6 +2401,10 @@
     "addons.rating_open": "スキルコーデックスを開く",
     "addons.moderation_ratings_removed": "ルール違反のため VOOL チームが削除した評価：{count} 件",
     "addons.recall_failed": "前回の確認を完了できませんでした。VOOL は1時間以内にもう一度試します。",
+    "addons.badge_tested": "VOOL がテスト済み",
+    "addons.badge_tested_help": "VOOL チームがこのバージョンそのものをインストールして使いました。",
+    "addons.badge_editors_choice": "エディターのおすすめ",
+    "addons.badge_editors_choice_help": "VOOL チームが、この種類で特に優れたものとして選びました。",
     "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
     "addons.registry_inspect": "確認用にダウンロード",
     "private.banner": "プライベートチャット：何も保存されません",
@@ -5491,7 +5495,7 @@
     "phone.ui.no_answer_came": "回答が届きませんでした。もう一度送ってください。",
     "phone.ui.ask_on_computer": "パソコンの VOOL で許可または拒否してください。"
   },
-  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
+  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

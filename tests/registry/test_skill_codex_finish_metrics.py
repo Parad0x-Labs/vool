@@ -44,7 +44,10 @@ def test_nonzero_website_metrics_reach_real_native_browser_and_repository(served
             open_codex(page, address)
             assert browse(page).ok
             expect(page.locator("#pluginsBody")).to_contain_text("3 download requests")
-            expect(page.locator("#pluginsBody .registry-editor-pick")).to_have_text("Editor's pick")
+            # A pick in the signer's marks orders the list; it is no longer drawn as a label. A badge comes
+            # only from the signed badge document (tests/registry/test_badges_browser.py).
+            expect(page.locator("#pluginsBody .registry-editor-pick")).to_have_count(0)
+            expect(page.locator("#pluginsBody vool-badge")).to_have_count(0)
             expect(page.get_by_role("button", name="Browse Skill Codex", exact=True)).to_be_enabled()
             page.get_by_text("Release notes", exact=True).click()
             page.screenshot(path=str(tmp_path / "native-browser-metrics-proof.png"), full_page=True)

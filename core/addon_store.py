@@ -314,9 +314,29 @@ def catalog() -> dict:
     from core.plugin_migration import notices
     from core.plugin_tools import plugin_tools_on
 
-    return {"entries": rows, "reviews": pending, "plugins": inventory(), "plugin_notices": notices(),
+    plugins = inventory()
+    _team_badges(rows, plugins)
+    return {"entries": rows, "reviews": pending, "plugins": plugins, "plugin_notices": notices(),
             "scanners": scanners(), "plugin_tools_enabled": plugin_tools_on(), "registry_recall": _recall_status(),
             "supported": "Skills and explicitly reviewed plugins."}
+
+
+def _team_badges(rows: list[dict], plugins: list[dict]) -> None:
+    """Set "Tested by VOOL" and "Editor's Choice" from the signed badge document VOOL verified, and from nothing else.
+
+    A row read from disk never brings a badge of its own: whatever it carries is dropped first. A bundled
+    skill matches by the checksum of its SKILL.md, a plugin by the checksum of its files as they are now.
+    """
+    from core.plugin_catalog import package_badges
+    from core.registry.badges import badges_for
+    from core.registry.client import local_badges
+
+    index = local_badges()
+    for row in rows:
+        row["badges"] = badges_for(index, "skill-file", row.get("sha256"), kind="skill", package_id=row.get("id"))
+    for row in plugins:
+        # A plugin whose files changed since its review carries a reason, and no badge.
+        row["badges"] = [] if row.get("reason") else package_badges(str(row.get("id") or ""), index=index)
 
 
 def security_action(action: str, value: str = "") -> dict:

@@ -6,13 +6,14 @@ names the file and line and says what to change; a secret is never quoted back.
 """
 from __future__ import annotations
 
+import functools
 import json
 import re
 import unicodedata
 from pathlib import Path
 
 from core.registry.artifact import REVIEW_METADATA, metadata_text, review_files
-from core.registry.codec import RegistryError, canonical, digest
+from core.registry.codec import RegistryError, canonical, digest, require
 
 SUITE = "skill-codex-checks"
 SUITE_MAJOR = 1
@@ -78,7 +79,7 @@ _CLAIM = re.compile(
     r"\beditors? ?(?:choice|pick)s?\b|\bstaff ?(?:pick|choice)s?\b|"
     r"\b(?:tested|verified|checked|reviewed|approved|recommended|trusted|certified|endorsed|picked|chosen|featured|"
     r"made|built|backed|powered) by " + _VOUCHERS + r"\b|"
-    r"\b(?:official|verified|certified|trusted|recommended|approved) (?:vool|skill codex)\b|"
+    r"\b(?:official|verified|certified|trusted|recommended|approved|tested) (?:vool|skill codex)\b|"
     r"\bvool(?:s)? (?:official|verified|certified|recommended|approved|trusted|tested|pick|choice|staff|team|labs)\b|"
     r"\b(?:by|from) (?:the )?(?:vool team|vool labs|paradox ?labs|skill codex team)\b|\bby vool\b|\bparadox ?labs\b")
 # Words that vouch by themselves in the short text a card shows: a name, a summary, a description.
@@ -86,7 +87,10 @@ _VOUCH_WORDS = re.compile(r"\b(?:verified|official|officially|certified|endorsed
                           r"\bsecurity checked\b")
 # A name is the card's heading: there even "Featured" or the product's own name reads as VOOL speaking.
 _NAME_WORDS = re.compile(r"vool|\bv o o l\b|skill ?codex|\bparadox\b(?= ?(?:lab|team|official|$))|"
-                         r"\b(?:featured|recommended|trusted|approved)\b")
+                         r"\b(?:featured|highlighted|recommended|trusted|approved|audit(?:ed))\b")
+# The catalog sentences that are the two team badges themselves, and the older pick label. Read from the
+# language files when a check runs, so a label in any language VOOL ships is refused in an author's text.
+_BADGE_LABEL_KEYS = ("addons.badge_tested", "addons.badge_editors_choice", "addons.registry_editors_pick")
 # Publisher names a card reader would take for someone else: makers of AI models, wallets and payment
 # services, and the big platforms. Their own skills can be listed by a team step once they ask; nobody
 # else gets the name, with or without an ending such as "-official" or "-team".
@@ -265,6 +269,38 @@ def _card_forms(value: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys((folded.replace("1", "l"), folded.replace("1", "i"))))
 
 
+def _squeezed(form: str) -> str:
+    """Without spaces, and with the Turkish dotless and dotted i read as i, so capitals hide nothing."""
+    return form.replace(" ", "").replace("\u0131", "i").replace("\u0307", "")
+
+
+@functools.lru_cache(maxsize=1)
+def _badge_labels() -> tuple[tuple[str, str], ...]:
+    """(label as shown, label as a claim is read) for each badge label in each shipped language."""
+    from core.i18n.catalog import CATALOGS_DIR
+
+    found = {}
+    for path in sorted(CATALOGS_DIR.glob("*.json")):
+        messages = json.loads(path.read_text(encoding="utf-8")).get("messages", {})
+        for key in _BADGE_LABEL_KEYS:
+            label = messages.get(key)
+            if isinstance(label, str) and label.strip():
+                for form in _card_forms(label):
+                    found.setdefault(_squeezed(form), label)
+    # A label VOOL cannot read is a release fault, never a reason to let a look-alike through.
+    require(len(found) >= 2, "the badge labels could not be read")
+    return tuple((label, squeezed) for squeezed, label in found.items() if squeezed)
+
+
+def badge_label(value: str) -> str | None:
+    """The badge label this text carries, in whichever language, or None. Spaces and letter case do not hide it."""
+    squeezed = [_squeezed(form) for form in _card_forms(value)]
+    for label, wanted in _badge_labels():
+        if any(wanted in form for form in squeezed):
+            return label
+    return None
+
+
 def _vouching(value: str, *, name: bool = False, card: bool = False) -> str | None:
     """The words in this value that read as VOOL or the Skill Codex vouching for the skill, or None.
 
@@ -281,7 +317,7 @@ def _vouching(value: str, *, name: bool = False, card: bool = False) -> str | No
             match = pattern.search(form)
             if match:
                 return match.group(0).strip()
-    return None
+    return badge_label(value)
 
 
 def _finding(check: str, path: str, reason: str, *, line: int | None = None, quote: str | None = None,

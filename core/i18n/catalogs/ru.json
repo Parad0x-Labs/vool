@@ -2401,6 +2401,10 @@
     "addons.rating_open": "Открыть кодекс навыков",
     "addons.moderation_ratings_removed": "Оценок, удалённых командой VOOL за нарушение правил: {count}",
     "addons.recall_failed": "Последнюю проверку не удалось завершить. VOOL повторит попытку в течение часа.",
+    "addons.badge_tested": "Проверено VOOL",
+    "addons.badge_tested_help": "Команда VOOL установила и использовала именно эту версию.",
+    "addons.badge_editors_choice": "Выбор редакции",
+    "addons.badge_editors_choice_help": "Выбрано командой VOOL как одно из лучших в своём роде.",
     "addons.registry_empty": "Нет опубликованных версий для этой конкретной сборки VOOL и вашего поиска.",
     "addons.registry_inspect": "Скачать для просмотра",
     "private.banner": "Приватный чат: ничего не сохраняется",
@@ -5491,7 +5495,7 @@
     "phone.ui.no_answer_came": "Ответ не пришёл. Отправьте ещё раз.",
     "phone.ui.ask_on_computer": "Разрешите или отклоните это в VOOL на компьютере."
   },
-  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
+  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

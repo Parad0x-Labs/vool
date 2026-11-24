@@ -485,6 +485,10 @@ class RepoAuthority(Authority):
         require(hashlib.sha256(raw).hexdigest() == sha256, "the server sent different bytes")
         return raw
 
+    def _badge_folder(self) -> Path:
+        # In the open, beside team-steps.txt: a change arrives by pull request and is worth nothing unsigned.
+        return self.repo / "badges"
+
     def _today(self) -> str:
         return time.strftime("%Y-%m-%d", time.gmtime(self.now()))
 
@@ -750,6 +754,8 @@ def quiet(report: dict) -> dict:
             # Team uploads that wait for a team-admit line in the steps file.
             "team_step_needed": len(report.get("team_step_needed", [])),
             "team_steps": report["steps"]["problems"] + ([] if report["steps"]["applied"] else ["nothing applied"]),
+            # The badge document in badges/ did not verify or was refused: run `python -m registry_service.badges check`.
+            **({"badges_waiting": True} if "badge_problem" in report else {}),
             **{key: "The source could not be checked; the next run tries again."
                for key in ("releases_waiting", "recheck_waiting") if key in report}}
 

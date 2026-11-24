@@ -2401,6 +2401,10 @@
     "addons.rating_open": "Atidaryti įgūdžių kodeksą",
     "addons.moderation_ratings_removed": "VOOL komandos pašalinti taisykles pažeidę įvertinimai: {count}",
     "addons.recall_failed": "Paskutinio tikrinimo užbaigti nepavyko. VOOL bandys dar kartą per valandą.",
+    "addons.badge_tested": "Išbandė VOOL",
+    "addons.badge_tested_help": "VOOL komanda įdiegė ir naudojo būtent šią versiją.",
+    "addons.badge_editors_choice": "Redakcijos pasirinkimas",
+    "addons.badge_editors_choice_help": "VOOL komanda išrinko kaip vieną geriausių tokio tipo.",
     "addons.registry_empty": "Nė viena paskelbta versija neatitinka šio konkretaus VOOL rinkinio ir paieškos.",
     "addons.registry_inspect": "Atsisiųsti peržiūrai",
     "private.banner": "Privatus pokalbis: niekas neišsaugoma",
@@ -5491,7 +5495,7 @@
     "phone.ui.no_answer_came": "Atsakymas negautas. Siųskite dar kartą.",
     "phone.ui.ask_on_computer": "Leiskite arba atmeskite tai VOOL savo kompiuteryje."
   },
-  "source_catalog_sha256": "8e80ec89274ff20ff73e301cb40b80fccbd21c54494c86f368684c48c0ed6407",
+  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
