@@ -13,9 +13,8 @@ asks you before each step.
 
 ## What you need
 
-* A Chrome-family browser installed on the computer: Google Chrome, Chromium or Microsoft Edge.
-  On Linux, Brave works too. On a Mac, VOOL does not find Brave yet, so install one of the
-  other three. VOOL finds the browser by itself. There is nothing else to install.
+* A Chrome-family browser installed on the computer: Google Chrome, Chromium, Microsoft Edge or
+  Brave. VOOL finds the browser by itself. There is nothing else to install.
 * If VOOL says **VOOL has no browser engine on this computer yet.**, install Google Chrome and
   try again.
 
