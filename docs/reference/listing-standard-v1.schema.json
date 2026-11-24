@@ -225,7 +225,7 @@
                   "apple"
                 ]
               },
-              "description": "Sign-in providers linked to the creator's account. Names only, never ids."
+              "description": "Kept for a later version. Always empty: which sign-in services a creator linked is not public."
             }
           },
           "x-by": "registry",

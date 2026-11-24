@@ -1137,12 +1137,11 @@ class Store:
         return result
 
     def creator_verified(self, namespace: str) -> dict:
-        """Whether the publisher name is proven, and which sign-in providers its owner linked. Names only."""
+        """Whether the publisher name is proven. Which sign-in services its owner linked is the owner's own
+        business and is shown only to them (the profile route), so the public list here stays empty."""
         with self.connection() as db:
-            row = db.execute("SELECT account FROM namespace_owners WHERE namespace=? AND verified=1", (namespace,)).fetchone()
-            providers = [item[0] for item in db.execute(
-                "SELECT DISTINCT provider FROM identities WHERE account=? ORDER BY provider", (row[0],))] if row else []
-        return {"publisher": bool(row), "providers": [name for name in providers if name in ("github", "google", "apple")]}
+            row = db.execute("SELECT 1 FROM namespace_owners WHERE namespace=? AND verified=1", (namespace,)).fetchone()
+        return {"publisher": bool(row), "providers": []}
 
     def published_pictures(self) -> list[dict]:
         """Every picture of every published version, for the operator's review list."""

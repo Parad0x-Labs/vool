@@ -316,7 +316,7 @@ def test_one_listing_object_is_served_for_a_skill_and_matches_the_schema(world, 
     assert value["compatibility"]["checked_targets"] == before["targets"]
     assert value["sha256"] == before["sha256"] == report["artifact_sha256"] and value["package_bytes"] == report["artifact_length"]
     assert value["changelog"] == [{"version": "1.0.0", "date": value["dates"]["updated_at"]}]
-    assert value["creator"]["namespace"] == "alice" and value["creator"]["verified"] == {"publisher": True, "providers": ["github"]}
+    assert value["creator"]["namespace"] == "alice" and value["creator"]["verified"] == {"publisher": True, "providers": []}, "linked sign-in services stay private"
     assert value["access"] == {"network": [], "credentials": [], "permissions": [], "tools": [], "runs_programs": False, "dependencies": []}
     assert value["rating"] == {"shown": False, "count": 0, "average": None, "scope": "all_versions", "frozen": False, "removed_by_team": 0}
     assert value["badges"] == {"editors_choice": False, "tested_by_vool": False, "featured": False, "highlighted": False}
