@@ -5547,7 +5547,7 @@
     "phone.ui.ask_on_computer": "Zezwól na to lub odmów w VOOL na komputerze.",
     "live.window": "Otwórz w oknie przeglądarki",
     "live.private_window": "Nowe okno prywatne",
-    "live.engine_missing": "VOOL nie ma jeszcze silnika przeglądarki na tym komputerze.",
+    "live.engine_missing": "Przeglądarka VOOL potrzebuje na tym komputerze Google Chrome lub Chromium. Brave i Edge nie są jeszcze obsługiwane.",
     "live.private_web_down": "Prywatna sieć nie jest połączona, więc nic nie zostało otwarte.",
     "live.invalid_address": "To nie jest adres internetowy, który VOOL może otworzyć.",
     "live.note_window": "VOOL pracuje w karcie Twojego okna przeglądarki VOOL, ze stronami, na których masz otwartą sesję. Pyta, zanim coś zrobi. Płatności przechodzą przez Twój portfel.",
@@ -5603,7 +5603,7 @@
     "live.home_afternoon": "Dzień dobry",
     "live.home_evening": "Dobry wieczór"
   },
-  "source_catalog_sha256": "44450569a0ecbec5f74d5c5fe6ff9d7a7026548e9db0d303034908ec02759f8d",
+  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5547,7 +5547,7 @@
     "phone.ui.ask_on_computer": "اسمح بهذا أو ارفضه في VOOL على حاسوبك.",
     "live.window": "فتح في نافذة المتصفح",
     "live.private_window": "نافذة خاصة جديدة",
-    "live.engine_missing": "لا يملك VOOL محرك متصفح على هذا الحاسوب بعد.",
+    "live.engine_missing": "يحتاج متصفح VOOL إلى Google Chrome أو Chromium على هذا الحاسوب. Brave و Edge غير مدعومين بعد.",
     "live.private_web_down": "الويب الخاص غير متصل، لذلك لم يُفتح أي شيء.",
     "live.invalid_address": "هذا ليس عنوان ويب يستطيع VOOL فتحه.",
     "live.note_window": "يعمل VOOL في علامة تبويب من نافذة متصفح VOOL لديك، مع المواقع التي سجّلت الدخول إليها. يسألك قبل أن يتصرف. المدفوعات تمر عبر محفظتك.",
@@ -5603,7 +5603,7 @@
     "live.home_afternoon": "طاب نهارك",
     "live.home_evening": "مساء الخير"
   },
-  "source_catalog_sha256": "44450569a0ecbec5f74d5c5fe6ff9d7a7026548e9db0d303034908ec02759f8d",
+  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

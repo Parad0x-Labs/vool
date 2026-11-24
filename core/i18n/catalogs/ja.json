@@ -5547,7 +5547,7 @@
     "phone.ui.ask_on_computer": "パソコンの VOOL で許可または拒否してください。",
     "live.window": "ブラウザーウィンドウで開く",
     "live.private_window": "新しいプライベートウィンドウ",
-    "live.engine_missing": "このコンピューターには、VOOL のブラウザーエンジンがまだありません。",
+    "live.engine_missing": "VOOL のブラウザーには、このコンピューターに Google Chrome または Chromium が必要です。Brave と Edge にはまだ対応していません。",
     "live.private_web_down": "プライベートウェブが接続されていないため、何も開かれませんでした。",
     "live.invalid_address": "VOOL が開けるウェブアドレスではありません。",
     "live.note_window": "VOOL は、あなたの VOOL ブラウザーウィンドウのタブで、あなたがサインインしているサイトのまま作業します。操作の前に確認します。支払いはウォレットを通ります。",
@@ -5603,7 +5603,7 @@
     "live.home_afternoon": "こんにちは",
     "live.home_evening": "こんばんは"
   },
-  "source_catalog_sha256": "44450569a0ecbec5f74d5c5fe6ff9d7a7026548e9db0d303034908ec02759f8d",
+  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

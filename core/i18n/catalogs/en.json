@@ -5547,7 +5547,7 @@
     "phone.ui.ask_on_computer": "Allow or deny this in VOOL on your computer.",
     "live.window": "Open in a browser window",
     "live.private_window": "New private window",
-    "live.engine_missing": "VOOL has no browser engine on this computer yet.",
+    "live.engine_missing": "VOOL Browser needs Google Chrome or Chromium on this computer. Brave and Edge are not supported yet.",
     "live.private_web_down": "Private web is not connected, so nothing was opened.",
     "live.invalid_address": "That is not a web address VOOL can open.",
     "live.note_window": "VOOL works in a tab of your VOOL browser window, with the sites you are signed in to. It asks before it acts. Payments go through your wallet.",

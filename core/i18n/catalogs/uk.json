@@ -5547,7 +5547,7 @@
     "phone.ui.ask_on_computer": "Дозвольте або відхиліть це у VOOL на комп’ютері.",
     "live.window": "Відкрити у вікні браузера",
     "live.private_window": "Нове приватне вікно",
-    "live.engine_missing": "На цьому комп’ютері VOOL ще не має рушія браузера.",
+    "live.engine_missing": "Браузеру VOOL на цьому комп’ютері потрібен Google Chrome або Chromium. Brave та Edge поки не підтримуються.",
     "live.private_web_down": "Приватний веб не підключено, тому нічого не відкрито.",
     "live.invalid_address": "Це не вебадреса, яку VOOL може відкрити.",
     "live.note_window": "VOOL працює у вкладці вашого вікна браузера VOOL, із сайтами, на яких ви ввійшли. Він питає, перш ніж щось зробити. Платежі йдуть через ваш гаманець.",
@@ -5603,7 +5603,7 @@
     "live.home_afternoon": "Добрий день",
     "live.home_evening": "Добрий вечір"
   },
-  "source_catalog_sha256": "44450569a0ecbec5f74d5c5fe6ff9d7a7026548e9db0d303034908ec02759f8d",
+  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

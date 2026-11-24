@@ -5547,7 +5547,7 @@
     "phone.ui.ask_on_computer": "Cho phép hoặc từ chối việc này trong VOOL trên máy tính.",
     "live.window": "Mở trong cửa sổ trình duyệt",
     "live.private_window": "Cửa sổ riêng tư mới",
-    "live.engine_missing": "VOOL chưa có bộ máy trình duyệt trên máy tính này.",
+    "live.engine_missing": "Trình duyệt của VOOL cần Google Chrome hoặc Chromium trên máy tính này. Brave và Edge chưa được hỗ trợ.",
     "live.private_web_down": "Web riêng tư chưa được kết nối nên không có gì được mở.",
     "live.invalid_address": "Đó không phải là địa chỉ web mà VOOL có thể mở.",
     "live.note_window": "VOOL làm việc trong một thẻ của cửa sổ trình duyệt VOOL của bạn, với các trang bạn đang đăng nhập. VOOL hỏi trước khi làm. Thanh toán đi qua ví của bạn.",
@@ -5603,7 +5603,7 @@
     "live.home_afternoon": "Chào buổi chiều",
     "live.home_evening": "Chào buổi tối"
   },
-  "source_catalog_sha256": "44450569a0ecbec5f74d5c5fe6ff9d7a7026548e9db0d303034908ec02759f8d",
+  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5547,7 +5547,7 @@
     "phone.ui.ask_on_computer": "Leiskite arba atmeskite tai VOOL savo kompiuteryje.",
     "live.window": "Atidaryti naršyklės lange",
     "live.private_window": "Naujas privatus langas",
-    "live.engine_missing": "Šiame kompiuteryje VOOL dar neturi naršyklės variklio.",
+    "live.engine_missing": "VOOL naršyklei šiame kompiuteryje reikia „Google Chrome“ arba „Chromium“. „Brave“ ir „Edge“ dar nepalaikomos.",
     "live.private_web_down": "Privatus žiniatinklis neprijungtas, todėl niekas nebuvo atidaryta.",
     "live.invalid_address": "Tai nėra žiniatinklio adresas, kurį VOOL gali atidaryti.",
     "live.note_window": "VOOL dirba jūsų VOOL naršyklės lango skirtuke, su svetainėmis, prie kurių esate prisijungę. Prieš ką nors darydamas jis paklausia. Mokėjimai eina per jūsų piniginę.",
@@ -5603,7 +5603,7 @@
     "live.home_afternoon": "Laba diena",
     "live.home_evening": "Labas vakaras"
   },
-  "source_catalog_sha256": "44450569a0ecbec5f74d5c5fe6ff9d7a7026548e9db0d303034908ec02759f8d",
+  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

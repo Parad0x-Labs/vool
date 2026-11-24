@@ -4,8 +4,8 @@ description: VOOL Browser - browse in your own browser window, open a private wi
 
 # VOOL Browser
 
-VOOL Browser opens web pages in a window of its own. It uses the Chrome-family browser that is
-already on your computer, with a separate profile that VOOL keeps for itself. Your usual browser,
+VOOL Browser opens web pages in a window of its own. It uses the Google Chrome or Chromium that
+is already on your computer, with a separate profile that VOOL keeps for itself. Your usual browser,
 its passwords and its history are never touched.
 
 VOOL can also work on web pages for you: open a page, read it, fill a field, press a button. It
@@ -13,10 +13,11 @@ asks you before each step.
 
 ## What you need
 
-* A Chrome-family browser installed on the computer: Google Chrome, Chromium, Microsoft Edge or
-  Brave. VOOL finds the browser by itself. There is nothing else to install.
-* If VOOL says **VOOL has no browser engine on this computer yet.**, install Google Chrome and
-  try again.
+* Google Chrome or Chromium installed on the computer. VOOL finds it by itself. There is nothing
+  else to install.
+* Brave and Microsoft Edge are not supported yet. On a computer that has only one of those, VOOL
+  says **VOOL Browser needs Google Chrome or Chromium on this computer. Brave and Edge are not
+  supported yet.** Install Google Chrome and try again.
 
 ## Switch it on
 

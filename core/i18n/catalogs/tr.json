@@ -5547,7 +5547,7 @@
     "phone.ui.ask_on_computer": "Buna bilgisayarındaki VOOL’da izin ver ya da reddet.",
     "live.window": "Tarayıcı penceresinde aç",
     "live.private_window": "Yeni gizli pencere",
-    "live.engine_missing": "VOOL’un bu bilgisayarda henüz bir tarayıcı motoru yok.",
+    "live.engine_missing": "VOOL’un tarayıcısı için bu bilgisayarda Google Chrome veya Chromium gerekir. Brave ve Edge henüz desteklenmiyor.",
     "live.private_web_down": "Özel web bağlı değil, bu yüzden hiçbir şey açılmadı.",
     "live.invalid_address": "Bu, VOOL’un açabileceği bir web adresi değil.",
     "live.note_window": "VOOL, VOOL tarayıcı pencerenizin bir sekmesinde, oturum açtığınız sitelerle çalışır. Bir şey yapmadan önce sorar. Ödemeler cüzdanınızdan geçer.",
@@ -5603,7 +5603,7 @@
     "live.home_afternoon": "İyi günler",
     "live.home_evening": "İyi akşamlar"
   },
-  "source_catalog_sha256": "44450569a0ecbec5f74d5c5fe6ff9d7a7026548e9db0d303034908ec02759f8d",
+  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

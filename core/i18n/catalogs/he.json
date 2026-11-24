@@ -5547,7 +5547,7 @@
     "phone.ui.ask_on_computer": "אשר או דחה את זה ב-VOOL במחשב שלך.",
     "live.window": "פתיחה בחלון דפדפן",
     "live.private_window": "חלון פרטי חדש",
-    "live.engine_missing": "ל-VOOL עדיין אין מנוע דפדפן במחשב הזה.",
+    "live.engine_missing": "הדפדפן של VOOL צריך את Google Chrome או Chromium במחשב הזה. Brave ו-Edge עדיין לא נתמכים.",
     "live.private_web_down": "הרשת הפרטית אינה מחוברת, ולכן שום דבר לא נפתח.",
     "live.invalid_address": "זו אינה כתובת אינטרנט ש-VOOL יכול לפתוח.",
     "live.note_window": "VOOL עובד בכרטיסייה בחלון הדפדפן של VOOL שלכם, עם האתרים שאתם מחוברים אליהם. הוא שואל לפני שהוא פועל. תשלומים עוברים דרך הארנק שלכם.",
@@ -5603,7 +5603,7 @@
     "live.home_afternoon": "צהריים טובים",
     "live.home_evening": "ערב טוב"
   },
-  "source_catalog_sha256": "44450569a0ecbec5f74d5c5fe6ff9d7a7026548e9db0d303034908ec02759f8d",
+  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

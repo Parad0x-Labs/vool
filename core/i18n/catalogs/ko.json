@@ -5547,7 +5547,7 @@
     "phone.ui.ask_on_computer": "컴퓨터의 VOOL에서 허용하거나 거부하세요.",
     "live.window": "브라우저 창에서 열기",
     "live.private_window": "새 비공개 창",
-    "live.engine_missing": "이 컴퓨터에는 아직 VOOL의 브라우저 엔진이 없습니다.",
+    "live.engine_missing": "VOOL 브라우저를 쓰려면 이 컴퓨터에 Google Chrome 또는 Chromium이 필요합니다. Brave와 Edge는 아직 지원하지 않습니다.",
     "live.private_web_down": "프라이빗 웹이 연결되지 않아 아무것도 열리지 않았습니다.",
     "live.invalid_address": "VOOL이 열 수 있는 웹 주소가 아닙니다.",
     "live.note_window": "VOOL은 내 VOOL 브라우저 창의 탭에서, 로그인해 둔 사이트 그대로 작업합니다. 작업하기 전에 묻습니다. 결제는 지갑을 거칩니다.",
@@ -5603,7 +5603,7 @@
     "live.home_afternoon": "좋은 오후입니다",
     "live.home_evening": "좋은 저녁입니다"
   },
-  "source_catalog_sha256": "44450569a0ecbec5f74d5c5fe6ff9d7a7026548e9db0d303034908ec02759f8d",
+  "source_catalog_sha256": "5dea63e41cc64b160f9f8ba6afdd669ea2aa645f3a578f3a41b23097a08e8c07",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

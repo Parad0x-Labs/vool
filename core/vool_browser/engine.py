@@ -32,23 +32,29 @@ _FORBIDDEN_PROFILE_MARKERS = (
     "safari",
 )
 
-#: Chromium-family apps on a Mac, by the name of the app bundle, in order of preference. The
-#: program inside each bundle is read from the bundle's own Info.plist (CFBundleExecutable), never
-#: typed here: a hand-written program path once pointed Brave at "Google Chrome", which Brave's
-#: bundle does not have, so VOOL never found Brave on a Mac.
-MACOS_APP_NAMES = ("Google Chrome", "Chromium", "Microsoft Edge", "Brave Browser")
+#: The browsers VOOL runs on, on a Mac, by the name of the app bundle, in order of preference.
+#: The program inside each bundle is read from the bundle's own Info.plist
+#: (CFBundleExecutable), never typed here.
+#:
+#: Only browsers whose own background contacts were measured and closed are named. Brave and
+#: Microsoft Edge are Chromium-family too, and are left out on purpose: measured on their
+#: Linux builds in November 2026, with every setting below in force, Brave reported its use to
+#: its maker at each start, gave a site embedded in another site its cookie and fetched site
+#: icons by itself; Edge contacted its maker's configuration, search and address-checking
+#: services in the window, in VOOL's own lookups and through a Private web route. A computer
+#: that has only one of those has no engine for VOOL until each is measured and closed as
+#: this one was.
+MACOS_APP_NAMES = ("Google Chrome", "Chromium")
 
 #: Where a Mac keeps apps: the shared folder, then the person's own.
 MACOS_APP_FOLDERS = ("/Applications", "~/Applications")
 
-#: Chromium-family program names on Linux, looked up on PATH in this order.
+#: The same browsers on Linux, by program name, looked up on PATH in this order.
 LINUX_PROGRAM_NAMES = (
     "google-chrome",
     "google-chrome-stable",
     "chromium",
     "chromium-browser",
-    "microsoft-edge",
-    "brave-browser",
 )
 
 
