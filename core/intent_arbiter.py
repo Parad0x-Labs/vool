@@ -1939,6 +1939,60 @@ def arbitrate_forget_order(
     )
 
 
+def _file_ask_prompt(message: str) -> str:
+    """A balanced yes/no: does the message ask the assistant to look on the computer for a file or folder?
+
+    Asked only when the turn's tool judgement read a file ask and a memory reading read a recall of the same message,
+    and the facts the recall judge named share no word with it (`core.persistent_memory._recall_beside_a_file_pick`).
+    Measured on qwen3:8b (2026-11-24): "Um ar turiu failą, vadinamą „atostogos-892“? surask jį?" and five other file
+    asks in LT/EN/DE were read "find" by the tool judgement and "recall" by the memory question; this question read
+    all of them yes and most recalls the tool judgement misread as a file ask no."""
+    flat = " ".join(str(message or "").split())[:400]
+    return "\n".join([
+        "A person wrote to their assistant, which can search the files and folders on their computer and also "
+        "remembers what the person told it.",
+        "Question: does the message ask the assistant to LOOK ON THE COMPUTER for a file or folder (find it, say "
+        "where it is, or whether it exists there)?",
+        'Answer {"answer": "yes"} when it does, in any language and any words, also with spelling slips.',
+        'Answer {"answer": "no"} when it asks to be told something the person told the assistant before (where they '
+        "keep a thing at home, a name, a colour, what they said), or asks anything else.",
+        "",
+        'Message: "kannst du die Datei steuer_2025.pdf suchen?" -> {"answer": "yes"}',
+        'Message: "wo habe ich gesagt, dass mein Schlüssel liegt?" -> {"answer": "no"}',
+        'Message: "is there a folder named Photos-Rome on here?" -> {"answer": "yes"}',
+        'Message: "what did i tell you my locker number was?" -> {"answer": "no"}',
+        'Message: "ar kompiuteryje yra aplankas sutartys?" -> {"answer": "yes"}',
+        'Message: "kur laikau savo slides? sakiau tau" -> {"answer": "no"}',
+        'Message: "¿dónde está mi archivo receta_pan.docx?" -> {"answer": "yes"}',
+        'Message: "¿de qué color dije que era mi coche?" -> {"answer": "no"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_file_ask(
+    message: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a message asks the assistant to look on the computer for a file or folder: ``"yes"`` / ``"no"``, or
+    None when nothing judged it. Same call path as the other judgements."""
+    if not str(message or "").strip():
+        return None
+    prompt = _file_ask_prompt(message)
+    model = _keep_judge_model()
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=prompt, operation="file_ask_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
 MEMORY_KINDS = ("keep", "recall", "forget", "none")
 
 

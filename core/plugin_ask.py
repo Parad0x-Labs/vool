@@ -91,6 +91,9 @@ BUILTIN_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 #: The choices that ask for something done to or with the open folder's files, not for a file to be shown.
 WORKSPACE_WORK_CHOICES = frozenset({"files", "run"})
+#: The choices about files and folders on this computer (found, read, written, run or compared): what they hold is
+#: not something the person told VOOL (core.persistent_memory._recall_beside_a_file_pick).
+COMPUTER_FILE_CHOICES = frozenset({"changes", "files", "read", "find", "run"})
 _BUILTIN_SEATS = {key: seats for key, _description, seats in BUILTIN_CHOICES}
 #: Choices a judge reads one for the other: both are something of the person's at a time they name. A pick of either
 #: seats both, so the model is offered the tools of the one meant. Mac gate on 561e3e9d0 (installed app, qwen3:8b,

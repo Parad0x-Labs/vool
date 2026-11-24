@@ -3528,6 +3528,47 @@ def _asks_for_the_whole_memory(
         return False
 
 
+def _recall_beside_a_file_pick(
+    question: str, named: list[str], *, session_id: str | None, source_context: Mapping[str, Any] | None,
+) -> bool:
+    """Whether the facts a recall named may answer a message the turn's tool judgement read as a file ask (find, read
+    or work on a file on this computer); always True for any other message.
+
+    Mac gate on 608294d38 (2026-11-24, a chat bound to a project folder holding atostogos-892.txt): "Um ar turiu failą,
+    vadinamą „atostogos-892“? surask jį?" ("do I have a file called ...? find it?") was read "find" by the tool
+    judgement and "recall" by the memory question; a recall stands beside any tool pick, and "my boss's dog is Waffles"
+    was the answer: no file was looked for. Reproduced from source on qwen3:8b with a fresh Lithuanian file ask: the
+    recall judge named nothing, the whole-memory question then read the file ask as "everything you remember", and
+    every held fact was shown. So this is read after both. Measured on qwen3:8b the same two readings
+    came back for five other file asks in LT/EN/DE, while the tool judgement also read real recalls as file asks ("where
+    did i say i keep my spare keys?" -> run), so neither reading alone decides. Named facts that share a word with the
+    message stand (accents off, one form of a word for another); with none shared, the file-ask yes/no
+    (`core.intent_arbiter.arbitrate_file_ask`) decides, and only its yes hands the turn on to the file tool. No answer
+    keeps the recall, as before."""
+    try:
+        from core import plugin_ask
+
+        if not set(plugin_ask.judged_builtins(question)) & plugin_ask.COMPUTER_FILE_CHOICES:
+            return True
+        from core.fact_extractor import _folded_words, _same_word
+
+        # A word shared with a fact the recall judge named for this message stands for it; the whole memory shown for
+        # "everything you remember" was named for no message, so it is passed as none and the question decides.
+        asked = [word for word in _folded_words(question) if len(word) >= 4]
+        if any(_same_word(word, other) for fact in named for word in _folded_words(fact) if len(word) >= 4
+               for other in asked):
+            return True
+        from core.intent_arbiter import arbitrate_file_ask
+
+        verdict = arbitrate_file_ask(question, chat_id=str(session_id or ""),
+                                     source_context=dict(source_context or {}))
+    except Exception as exc:
+        LOGGER.warning("recall beside a file pick: unreadable (%s)", type(exc).__name__)
+        return True
+    LOGGER.info("judged recall beside a file pick: file ask %s", verdict or "not judged")
+    return verdict != "yes"
+
+
 def _judged_recall_reply(
     question: str, *, session_id: str | None, policy: Any, source_context: Mapping[str, Any] | None,
     forgotten_too: bool = True,
@@ -3546,9 +3587,14 @@ def _judged_recall_reply(
     named = _one_line_per_fact(_judged_items_named(question, held, session_id=session_id,
                                                    source_context=source_context))
     LOGGER.info("judged recall: %d held, %d named", len(held), len(named))
+    whole = False
     if not named and held and _asks_for_the_whole_memory(question, session_id=session_id,
                                                          source_context=source_context):
         named = _one_line_per_fact(held)[:_WHOLE_MEMORY_SHOWN]
+        whole = True
+    if named and not _recall_beside_a_file_pick(question, [] if whole else named, session_id=session_id,
+                                                source_context=source_context):
+        return None
     if len(named) == 1:
         return f"You told me: {named[0]}"
     if named:
