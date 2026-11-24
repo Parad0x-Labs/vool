@@ -700,37 +700,61 @@ def test_a_download_is_saved_under_its_own_name_in_the_downloads_folder(browser,
     assert {dnt for _, _, dnt in hits} == {"1"}
 
 
-def test_a_download_in_a_private_window_goes_to_the_downloads_folder_or_nowhere(browser, files_site):
+def test_a_private_window_asks_where_to_save_and_an_open_question_leaves_no_half_file(browser, files_site):
     port, hits = files_site
     browser.open(f"http://127.0.0.1:{port}/list", private=True)
     window = browser._private[0]
     assert window.side, "the engine's own private window"
+    # The settings this window's profile began with: ask, offer the person's folder, and
+    # keep what has arrived inside the profile until the person has answered.
+    began = json.loads((window.profile / "Default" / "Preferences").read_text(encoding="utf-8"))
+    waiting = window.profile / desk_module.ARRIVING
+    assert began["download"]["prompt_for_download"] is True and began["download"]["default_directory"] == str(waiting)
+    assert began["savefile"]["default_directory"] == str(desk_module.downloads_dir())
 
-    async def click():
-        page = next(p for p in window.engine.pages if p.url.endswith("/list"))
+    async def fetch(page):
+        await page.goto(f"http://127.0.0.1:{port}/list")
         await page.click("#get")
 
-    browser._call(click())
+    def arrived():
+        return [p for p in waiting.glob("*") if p.is_file() and p.read_bytes() == b"06:05 early service"] if waiting.is_dir() else []
+
     folder = desk_module.downloads_dir()
-    saved = folder / "timetable.txt"
-
-    def held():
-        return [p for p in folder.glob("*") if p.is_file() and p.read_bytes() == b"06:05 early service"]
-
-    # An engine's private window either saves the file like any window, or first asks
-    # where to, offering this folder and the file's own name: which one is the engine's
-    # own rule. Until the person answers, what has arrived waits in this folder.
-    assert _wait(lambda: bool(held())), sorted(p.name for p in folder.glob("*"))
-    asked_where = not saved.is_file()
-    assert [p.name for p in held()] == ["timetable.txt"] or (asked_where and len(held()) == 1 and held()[0].name.startswith("."))
-    # Nothing of the download sits inside VOOL's own data, the window's folders included.
+    browser._call(fetch(next(p for p in window.engine.pages if p.url.endswith("/list"))))
+    assert _wait(lambda: len(arrived()) == 1), sorted(p.name for p in waiting.glob("*"))
+    assert arrived()[0].name.startswith("."), arrived()
+    # Nothing is in the person's folder before they have answered, and nothing in VOOL's lasting data.
+    time.sleep(1.0)
+    assert not folder.is_dir() or list(folder.glob("*")) == []
     assert not [p for p in desk_module.active_data_dir().rglob("timetable*")]
-    for inside in (window.profile, window.tmp):
-        assert not [p for p in inside.rglob("*") if p.is_file() and p.stat().st_size == 19 and p.read_bytes() == b"06:05 early service"]
     assert {dnt for _, _, dnt in hits} == {"1"}
-    # A question the person never answered leaves nothing behind once the window is gone.
+
+    # The questions are never answered. With the window gone its profile is gone, with what
+    # was waiting in it. The person's folder holds no hidden half-file; an engine that takes
+    # the offered name when it closes leaves the whole file there, under its own name.
+    profile = window.profile
     browser.stop()
-    assert [p.name for p in folder.glob("*")] == ([] if asked_where else ["timetable.txt"])
+    assert not profile.exists()
+    left = sorted(folder.glob("*")) if folder.is_dir() else []
+    assert not [p.name for p in left if p.name.startswith(".")], left
+    for path in left:
+        assert path.name.startswith("timetable") and path.suffix == ".txt" and path.read_bytes() == b"06:05 early service"
+
+
+def test_a_lasting_profile_saves_without_asking_and_a_private_one_differs_only_in_how_it_saves(home, tmp_path, monkeypatch):
+    _quiet_test_engine(monkeypatch, home)
+    lasting = asyncio.run(_seeded(tmp_path / "lasting", private=False))
+    private = asyncio.run(_seeded(tmp_path / "private-x", private=True))
+    assert lasting["download"]["prompt_for_download"] is False
+    assert lasting["download"]["default_directory"] == lasting["savefile"]["default_directory"] == str(desk_module.downloads_dir())
+    assert private["download"] == {**lasting["download"], "prompt_for_download": True,
+                                   "default_directory": str(tmp_path / "private-x" / desk_module.ARRIVING)}
+    assert {key: value for key, value in private.items() if key != "download"} == {key: value for key, value in lasting.items() if key != "download"}
+
+
+async def _seeded(profile, *, private):
+    assert await desk_module.seed_profile(profile, private=private) is True
+    return json.loads((profile / "Default" / "Preferences").read_text(encoding="utf-8"))
 
 
 def test_a_plain_unencrypted_site_gets_nothing_until_the_person_chooses(browser, files_site):
@@ -901,13 +925,11 @@ def test_the_engine_asks_no_search_company_for_anything_at_start_or_for_a_new_ta
     assert not _wait(others, seconds=12), asked
 
 
-def _open_the_makers_update_address(browser, port):
-    from core.vool_browser.engine import MAKER_UPDATE_HOST
-
+def _open_at(browser, name, port):
     async def go():
         page = await browser.context_for_agent().new_page()
         try:
-            await page.goto(f"https://{MAKER_UPDATE_HOST}:{port}/service/update2", timeout=15000)
+            await page.goto(f"https://{name}:{port}/service/update2", timeout=15000)
         except Exception as error:
             return str(error)
         return ""
@@ -915,35 +937,38 @@ def _open_the_makers_update_address(browser, port):
     return browser._call(go())
 
 
-def test_the_engine_makers_update_address_leads_nowhere_directly_and_through_a_route(
+def test_the_engine_makers_update_names_lead_nowhere_directly_and_through_a_route(
     browser, files_site, socks, monkeypatch
 ):
-    """An engine that carries its maker's brand asks one address of the maker's each time
-    its settings page is opened. The engine has no switch for that, so the name leads to
-    an address on this machine where nothing listens."""
+    """An engine that carries its maker's brand asks the maker's update service by itself:
+    each time its settings page is opened, and each time its own private window is. The
+    engine has no switch for either, so the names lead to an address on this machine where
+    nothing listens."""
     from core import private_web
-    from core.vool_browser.engine import MAKER_UPDATE_HOST
+    from core.vool_browser.engine import MAKER_UPDATE_HOSTS
 
+    assert set(MAKER_UPDATE_HOSTS) == {"tools.google.com", "update.googleapis.com"}
     port, hits = files_site
     # The direct way, with no relay of the computer's own in between: the engine tries
     # this machine's dead address and is refused there.
     monkeypatch.setattr(desk_module, "extra_engine_flags", (*desk_module.extra_engine_flags, "--no-proxy-server"))
     browser.open(f"http://127.0.0.1:{port}/list")
-    assert "ERR_CONNECTION_REFUSED" in _open_the_makers_update_address(browser, port)
+    for name in MAKER_UPDATE_HOSTS:
+        assert "ERR_CONNECTION_REFUSED" in _open_at(browser, name, port), name
     browser.stop()
 
-    # Through a route, which is asked for every name it is to reach: never for this one.
+    # Through a route, which is asked for every name it is to reach: never for these.
     monkeypatch.setattr(desk_module, "extra_engine_flags", tuple(f for f in desk_module.extra_engine_flags if f != "--no-proxy-server"))
     socks_port, asked = socks
     monkeypatch.setattr(private_web, "current_route", lambda: private_web.RouteState(kind=private_web.ROUTE_TOR, socks_port=socks_port))
     monkeypatch.setattr(private_web, "route_problem", lambda state=None: None)
     browser.open(f"http://far-end-only.example:{port}/first")
     assert _wait(lambda: (3, "far-end-only.example") in asked), asked
-    # The name is kept off the route, and past the route the engine is given no address
+    # The names are kept off the route, and past the route the engine is given no address
     # for any name: it has nowhere to connect to.
-    assert f"--proxy-bypass-list={MAKER_UPDATE_HOST}" in desk_module.launch_flags(private=False)
-    assert "ERR_NAME_NOT_RESOLVED" in _open_the_makers_update_address(browser, port)
-    assert MAKER_UPDATE_HOST not in {host for _, host in asked}, asked
+    for name in MAKER_UPDATE_HOSTS:
+        assert "ERR_NAME_NOT_RESOLVED" in _open_at(browser, name, port), name
+    assert not set(MAKER_UPDATE_HOSTS) & {host for _, host in asked}, asked
     assert not [path for _, path, _ in hits if "update2" in path], hits
 
 
@@ -959,18 +984,19 @@ def _on_a_route_without(monkeypatch, socks, *dropped):
     return asked
 
 
-def test_were_the_name_not_kept_off_the_route_the_route_would_be_asked_for_it(
+def test_were_the_names_not_kept_off_the_route_the_route_would_be_asked_for_them(
     browser, files_site, socks, monkeypatch
 ):
     """The measurement that makes the check above mean something."""
-    from core.vool_browser.engine import MAKER_UPDATE_HOST
+    from core.vool_browser.engine import MAKER_UPDATE_HOSTS
 
     port, _ = files_site
     asked = _on_a_route_without(monkeypatch, socks, "--proxy-bypass-list=")
     browser.open(f"http://far-end-only.example:{port}/first")
     assert _wait(lambda: (3, "far-end-only.example") in asked), asked
-    _open_the_makers_update_address(browser, port)
-    assert (3, MAKER_UPDATE_HOST) in asked, asked
+    for name in MAKER_UPDATE_HOSTS:
+        _open_at(browser, name, port)
+        assert (3, name) in asked, asked
 
 
 def test_a_site_keeps_its_own_cookies_and_gets_none_when_another_site_embeds_it(browser):

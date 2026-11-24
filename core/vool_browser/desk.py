@@ -39,7 +39,7 @@ from typing import Any
 from core.runtime_paths import active_data_dir
 from core.secret_env import child_env
 
-from .engine import MAKER_UPDATE_HOST, QUIET_FLAGS, UNATTENDED_UI_FLAGS, find_engine_binary, refuse_real_profile_target
+from .engine import MAKER_UPDATE_HOSTS, QUIET_FLAGS, UNATTENDED_UI_FLAGS, find_engine_binary, refuse_real_profile_target
 
 ENGINE_START_TIMEOUT = 30.0
 #: While a window is open, how often the desk looks whether today's site lists are due.
@@ -255,7 +255,26 @@ def _laid_over(under: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-async def seed_profile(profile: Path) -> bool:
+#: Where a private window's engine keeps a file while it is still asking where to save it.
+ARRIVING = "arriving"
+
+
+def private_downloads(profile: Path) -> dict[str, Any]:
+    """How a private window saves files, laid over the settings every profile starts with.
+
+    An engine's private window asks where to save each file, whatever its settings say
+    (measured on two engines). Until the person answers, the engine keeps what has arrived
+    in the folder it would save to unasked. That would be the person's downloads folder: a
+    question left open when the window goes away left a hidden half-file there. So in a
+    private window's throwaway profile the unasked folder is one inside that profile, which
+    goes with it, and the engine is told to ask in every window of that profile, so that
+    an ordinary window opened from the private one saves nothing into the folder that is
+    thrown away. The folder it offers is still the person's downloads folder.
+    """
+    return {"download": {"default_directory": str(profile / ARRIVING), "prompt_for_download": True}}
+
+
+async def seed_profile(profile: Path, *, private: bool = False) -> bool:
     """Give a profile that has no settings yet its starting ones. True when written.
 
     It begins as a copy of the starting profile, which holds the settings the engine made
@@ -283,7 +302,13 @@ async def seed_profile(profile: Path) -> bool:
             else:
                 shutil.copy2(kept, target.parent / name)
     temp = target.with_suffix(".vool-tmp")
-    temp.write_text(json.dumps(_laid_over(made_by_engine, default_preferences())), encoding="utf-8")
+    ours = default_preferences()
+    if private:
+        # The engine does not make this folder itself; without it, it keeps what arrives
+        # in its temporary folder.
+        (profile / ARRIVING).mkdir(mode=0o700, exist_ok=True)
+        ours = _laid_over(ours, private_downloads(profile))
+    temp.write_text(json.dumps(_laid_over(made_by_engine, ours)), encoding="utf-8")
     temp.replace(target)
     return True
 
@@ -306,11 +331,11 @@ def _route_flags() -> list[str]:
         "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1",
         "--disable-quic",
         "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
-        # The engine does not apply its rule for the maker's update address (see the quiet
-        # list) to what it hands to a route, so that one name is kept off the route. Past
+        # The engine does not apply its rule for the maker's update names (see the quiet
+        # list) to what it hands to a route, so those names are kept off the route. Past
         # the route the engine is given no address for any name (the rule above), so the
         # request has nowhere to go and the name is never looked up on this machine.
-        f"--proxy-bypass-list={MAKER_UPDATE_HOST}",
+        "--proxy-bypass-list=" + ";".join(MAKER_UPDATE_HOSTS),
     ]
 
 
@@ -382,7 +407,7 @@ class _Window:
         flags = launch_flags(private=self.private)
         self.route = _route_flags()
         self.profile.mkdir(parents=True, exist_ok=True, mode=0o700)
-        await seed_profile(self.profile)
+        await seed_profile(self.profile, private=self.private)
         if _ASKS_ABOUT_THE_START_PAGE:
             start_page_is_agreed_to(self.profile)
         continues, their_pages = on_start_up(self.profile)

@@ -116,8 +116,11 @@ _QUIET_FEATURES = (
 #: push-message and component services are pointed here, so they cannot reach their
 #: makers' servers. Signing in to a website is ordinary browsing and is not affected.
 _NOWHERE = "http://127.0.0.1:9"
-#: The one name the engine's maker serves its settings-reset list from.
-MAKER_UPDATE_HOST = "tools.google.com"
+#: Names of the engine maker's update service that the engine asks by itself and has no
+#: switch for. Measured on a branded engine: the first each time its settings page is
+#: opened (a list for "reset settings"), the second each time its own private window is
+#: opened. VOOL has the engine's updates of its own parts switched off as it is.
+MAKER_UPDATE_HOSTS = ("tools.google.com", "update.googleapis.com")
 
 #: Quiet by default: page requests the person makes are the only traffic. Measured on
 #: the real engine through a recording relay (tests/test_desk_browser.py); each line
@@ -141,13 +144,12 @@ QUIET_FLAGS: tuple[str, ...] = (
     f"--gcm-checkin-url={_NOWHERE}",
     f"--gcm-registration-url={_NOWHERE}",
     "--gcm-mcs-endpoint=127.0.0.1:9",
-    # An engine that carries its maker's brand asks that maker's update address for a
-    # list each time its settings page is opened, and has no switch for it. The name is
-    # pointed at the address where nothing listens. The engine applies this on its direct
-    # way out only: a route VOOL sets keeps the name off itself (see ``desk``), and a relay
-    # set in the computer's own network settings is still asked for it. A page on that
-    # one name cannot be opened in this browser either.
-    f"--host-rules=MAP {MAKER_UPDATE_HOST} 127.0.0.1:9",
+    # The maker's update names (see above) are pointed at the address where nothing
+    # listens. The engine applies this on its direct way out only: a route VOOL sets keeps
+    # the names off itself (see ``desk``), and a relay set in the computer's own network
+    # settings is still asked for them. A page on those names cannot be opened in this
+    # browser either.
+    "--host-rules=" + ", ".join(f"MAP {name} 127.0.0.1:9" for name in MAKER_UPDATE_HOSTS),
     "--disable-features=" + ",".join(_QUIET_FEATURES),
 )
 #: Used by the everyday window and by the hidden engine that does VOOL's own web lookups: the
@@ -219,7 +221,7 @@ def find_engine_binary() -> str | None:
 
 
 __all__ = [
-    "MAKER_UPDATE_HOST",
+    "MAKER_UPDATE_HOSTS",
     "QUIET_FLAGS",
     "_FORBIDDEN_PROFILE_MARKERS",
     "find_engine_binary",
