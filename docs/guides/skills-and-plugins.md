@@ -179,7 +179,7 @@ off. If any file of a plugin changes after review, it switches off until you rev
 ### Browser plugins
 
 A browser plugin is an ordinary browser extension packed as a VOOL plugin. It runs in the VOOL
-browser window (the Chrome-family browser already on your computer, with its own separate
+browser window (the Google Chrome or Chromium browser already on your computer, with its own separate
 profile) only while it is enabled, and never in a private window. Its access sheet says which
 sites it can read and change. VOOL refuses a browser plugin that would update itself from
 outside VOOL, replace the start page or search, or ask for saved sign-ins.

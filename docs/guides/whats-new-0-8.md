@@ -34,7 +34,7 @@ otherwise. The full list of fixes is in the [changelog](../help/changelog.md).
 
 * **VOOL Browser.** Browse in your own browser window, open a private window, and send web
   traffic through Tor or your own VPN with one button. VOOL works on web pages only with your
-  OK. It uses the Chrome-family browser already on your computer. [VOOL Browser](browser.md)
+  OK. It uses the Google Chrome or Chromium browser already on your computer. [VOOL Browser](browser.md)
 * **Drop.** Send a note and a file, sealed, to another person's VOOL through a folder you both
   already sync. Drop is an early test version. [Send with Drop](drop.md)
 * **Telegram and Discord.** Make a bot in a few steps and chat with your VOOL from either app.

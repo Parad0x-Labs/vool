@@ -15,9 +15,10 @@ asks you before each step.
 
 * Google Chrome or Chromium installed on the computer. VOOL finds it by itself. There is nothing
   else to install.
-* Brave and Microsoft Edge are not supported yet. On a computer that has only one of those, VOOL
-  says **VOOL Browser needs Google Chrome or Chromium on this computer. Brave and Edge are not
-  supported yet.** Install Google Chrome and try again.
+* Brave and Microsoft Edge are not used in this version, even when they are installed: both send
+  data of their own that VOOL cannot switch off. Support for them comes in a later version. On a
+  computer that has only one of those, VOOL says **VOOL Browser needs Google Chrome or Chromium on
+  this computer. Brave and Edge are not supported yet.** Install Google Chrome and try again.
 
 ## Switch it on
 
