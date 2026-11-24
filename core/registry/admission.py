@@ -47,6 +47,7 @@ def validate_policy(policy: dict) -> str:
 
 
 def admit(artifact: dict, policy: dict, evidence: dict, *, now: int) -> dict:
+    from core.registry.artifact import native_identity
     from core.registry.validation import manifest_authority
 
     manifest_authority(artifact["manifest"])
@@ -105,9 +106,11 @@ def admit(artifact: dict, policy: dict, evidence: dict, *, now: int) -> dict:
     require(reports["source"]["result"].get("publication") == evidence["publication"] and
             reports["source"]["result"].get("artifact_sha256") == artifact["sha256"],
             "source report does not verify the GitHub publication bytes")
+    # plugin_id is the row's own key, the same for every kind: apps check it against the package id, and the
+    # install receipt and the rating pass are kept under it. A plugin's own id is in its manifest.
     return {"metadata": artifact["metadata"], "artifact_sha256": artifact["sha256"],
             "artifact_length": artifact["raw_length"],
-            "native_digest": artifact["native_digest"], "plugin_id": artifact["manifest"]["name"],
+            "native_digest": artifact["native_digest"], "plugin_id": native_identity(artifact["metadata"]["id"]),
             "dependencies": dependencies, "policy_sha256": policy_digest,
             "evidence_sha256": digest(evidence), "targets": policy["targets"], "publication": evidence["publication"],
             "native_rule_review": native}

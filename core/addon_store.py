@@ -645,6 +645,14 @@ def install_review(review_id: str, *, accepted: bool, risk_override: bool = Fals
         safe_skill_name = _safe_component(entry["skill_name"], _COMPONENT_ID,
                                           "addon_changed", "The reviewed skill name is not usable.")
         plugin_id = PREFIX + safe_entry_id
+        if not is_own(entry):
+            # A skill from another maker is shown under the name and maker its page gave. Both are held to the
+            # rule a plugin's are: no VOOL name, no word or mark that says someone checked or chose it.
+            from core.plugin_identity import identity_refusal
+
+            refusal = identity_refusal({"name": plugin_id, "vool": {"name": entry["name"], "publisher": entry["publisher"]}})
+            if refusal:
+                raise AddonError("addon_identity_refused", refusal)
         target = configured_plugins_root() / "plugins" / plugin_id
         if target.exists():
             raise AddonError("addon_already_installed", "This add-on is already present. Existing files were preserved.")

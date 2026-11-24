@@ -2405,6 +2405,10 @@
     "addons.badge_tested_help": "Zespół VOOL zainstalował i używał dokładnie tej wersji.",
     "addons.badge_editors_choice": "Wybór redakcji",
     "addons.badge_editors_choice_help": "Wybrane przez zespół VOOL jako jedno z najlepszych w swoim rodzaju.",
+    "addons.codex_plugin_kind_plugin": "Wtyczka",
+    "addons.codex_plugin_kind_skill": "Umiejętność",
+    "addons.codex_plugin_from": "Opublikowane w kodeksie umiejętności przez {publisher}. VOOL sprawdził, że to są opublikowane pliki. To nie dowodzi, że są bezpieczne.",
+    "addons.codex_plugin_off": "Jest instalowana jako wyłączona. Aby ją włączyć, otwórz Wtyczki i sprawdź jej dostęp.",
     "addons.registry_empty": "Żadna opublikowana wersja nie pasuje do tej dokładnej kompilacji VOOL i wyszukiwania.",
     "addons.registry_inspect": "Pobierz do sprawdzenia",
     "private.banner": "Prywatny czat: nic nie jest zapisywane",
@@ -5495,7 +5499,7 @@
     "phone.ui.no_answer_came": "Nie przyszła żadna odpowiedź. Wyślij to jeszcze raz.",
     "phone.ui.ask_on_computer": "Zezwól na to lub odmów w VOOL na komputerze."
   },
-  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
+  "source_catalog_sha256": "332d36592a331557f0a3888035e7481235560889d5096e930c73792a17ad9504",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

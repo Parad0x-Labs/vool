@@ -376,23 +376,114 @@ def _hidden_char(text: str) -> int | None:
                  char not in _ALLOWED_MARKS and not (index == 0 and char == "\ufeff")), None)
 
 
-def _code(artifact: dict) -> list[dict]:
+_PLUGIN_FILE = ".codex-plugin/plugin.json"
+#: Said for a plugin whose listing and setup file do not say the same thing.
+PLUGIN_MISMATCH = "This plugin's listing and its setup file don't say the same thing. Make them agree, then upload it again."
+PLUGIN_ONE = "A package holds exactly one plugin, with its access block. Change the package, then upload it again."
+PLUGIN_WORDS = "This plugin's own text says it was checked or chosen. Only the Skill Codex can mark a plugin that way."
+
+
+def _plugin_finding(path: str, reason: str, where: str, fix: str, *, rule: str = "plugin") -> dict:
+    """One problem with a plugin package: the sentence, the field at fault and what to write instead."""
+    flat = lambda text, limit: " ".join(str(text).split())[:limit]  # noqa: E731
+    return dict(_finding("code", path, reason, rule=rule), where=flat(where, 160), fix=flat(fix, 900))
+
+
+def _author_fields(manifest: dict) -> list[tuple[str, str, bool | None]]:
+    """(field, text, shown as a name / on a card / None for running text) for everything a plugin's maker wrote."""
+    block = manifest.get("vool") if isinstance(manifest.get("vool"), dict) else {}
+    interface = manifest.get("interface") if isinstance(manifest.get("interface"), dict) else {}
+    author = manifest.get("author") if isinstance(manifest.get("author"), dict) else {}
+    fields = [("description", manifest.get("description"), False), ("vool.name", block.get("name"), True),
+              ("vool.publisher", block.get("publisher"), True), ("vool.description", block.get("description"), False),
+              ("author.name", author.get("name"), True)]
+    fields += [("interface." + str(key)[:40], value, key == "displayName") for key, value in interface.items()]
+    tools = block.get("tools") if isinstance(block.get("tools"), list) else []
+    # A tool's description is read by the model and listed on the sheet, not shown as a card: None marks it as
+    # running text, where "official rate" is fine and only a claim such as "verified by VOOL" is refused.
+    fields += [(f"vool.tools[{index}].description", tool.get("description"), None)
+               for index, tool in enumerate(tools) if isinstance(tool, dict)]
+    slots = block.get("credentials") if isinstance(block.get("credentials"), dict) else {}
+    fields += [("vool.credentials." + "".join(char for char in str(slot) if char.isalnum() or char in "_-")[:80] + ".label",
+                row.get("label"), False) for slot, row in slots.items() if isinstance(row, dict)]
+    return [(where, text, name) for where, text, name in fields if isinstance(text, str) and text.strip()]
+
+
+def _plugin(artifact: dict, *, official: bool) -> list[dict]:
+    """The rules for a plugin package: the ones an install runs, and that listing and setup file agree.
+
+    A plugin is someone else's code, so nothing here is lighter than the Add-ons page's own door: the same
+    setup-file rules (``core.plugin_manifest``) and the same identity rules (``core.plugin_identity``). Every
+    finding names the field and the fix, and one run lists every problem these rules can find.
+    """
+    from core.plugin_identity import identity_notes
+    from core.plugin_manifest import manifest_problems
+    from core.plugin_tools import PluginManifestError, parse_manifest
+    from core.registry.artifact import holds_plugin
+
+    info, manifest, findings = artifact["metadata"], artifact["manifest"], []
+    others = sorted(name for name in artifact["files"] if name != _PLUGIN_FILE and name.endswith("/" + _PLUGIN_FILE))
+    for name in others:
+        findings.append(_plugin_finding(name, PLUGIN_ONE, name, "This is a second plugin inside the package. Take it out, "
+                                        "or publish it as a package of its own."))
+    if not holds_plugin(info, manifest):
+        findings.append(_plugin_finding(_PLUGIN_FILE, PLUGIN_ONE, "vool", "Add the vool block to the setup file: id, version, "
+                                        "name, publisher, description, homepage, license, kind, network and credentials. "
+                                        "The template in examples/plugins/template has every field."))
+        return findings
+    block, seen = manifest["vool"], set()
+
+    def add(reason: str, where: str, fix: str, *, path: str = _PLUGIN_FILE, rule: str = "plugin") -> None:
+        if fix and (where, fix) not in seen:
+            seen.add((where, fix))
+            findings.append(_plugin_finding(path, reason, where, fix, rule=rule))
+
+    for reason, note in identity_notes(manifest):
+        add(reason, note["where"], note["fix"])
+    for refusal in manifest_problems(manifest, root=Path(".")):
+        add(str(refusal), refusal.where, refusal.fix or str(refusal))
+    if not findings:
+        # What the install door itself still refuses (a tool named like one of VOOL's own, a runtime version).
+        try:
+            parse_manifest(manifest, path=Path(_PLUGIN_FILE))
+        except (PluginManifestError, ValueError, TypeError, KeyError) as exc:
+            add(str(exc), str(getattr(exc, "where", "") or ""), str(getattr(exc, "fix", "") or exc))
+    # The listing and the setup file say the same thing, so a card can't show one plugin and install another.
+    plugin_id, (publisher, name) = str(manifest.get("name")), str(info["id"]).split("/")
+    if plugin_id != name or block.get("id") != name:
+        add(PLUGIN_MISMATCH, "registry.json id", f"The name part of the package id must be the plugin's id. The setup file "
+            f"says the id is '{plugin_id[:80]}', so publish it as {publisher}/<that id>, or change name and vool.id in the "
+            f"setup file (and the first part of each tool name) to '{name}'. A package id holds lowercase letters, "
+            "digits and hyphens only.", path="registry.json")
+    shown = block.get("name")
+    if info.get("title") != shown:
+        add(PLUGIN_MISMATCH, "registry.json title", "Set \"title\" in registry.json to the plugin's vool.name, letter for "
+            "letter. A title is at most 60 characters, so a longer vool.name has to be shortened first.",
+            path="registry.json")
+    if info.get("license") != block.get("license"):
+        add(PLUGIN_MISMATCH, "vool.license", "Set vool.license in the setup file to the licence registry.json names: MIT.")
+    if not official:
+        for where, text, as_name in _author_fields(manifest):
+            match = _RESERVED.search(text) if as_name is not None else None
+            said = match.group(0) if match else _vouching(text, name=bool(as_name), card=as_name is not None)
+            if said:
+                add(PLUGIN_WORDS, where, f"Take \"{' '.join(said.split())[:60]}\" out of this field.", rule="reserved-name")
+    return findings
+
+
+def plugin_findings(artifact: dict, *, official: bool = False) -> list[dict]:
+    """The plugin rules for an inspected package, for the author's own check before upload; [] for a skill."""
+    return _plugin(artifact, official=official) if artifact["metadata"]["kind"] == "plugin" else []
+
+
+def _code(artifact: dict, *, official: bool = False) -> list[dict]:
     from core.skill_package import _RUNNABLE_MANIFEST_KEYS, _looks_runnable
 
     manifest = artifact["manifest"]
-    if artifact["metadata"]["kind"] == "plugin" and isinstance(manifest.get("vool"), dict) and "id" in manifest["vool"]:
-        from core.plugin_tools import PluginManifestError, parse_manifest
-
-        try:
-            plugin = parse_manifest(manifest, path=Path(".codex-plugin/plugin.json"))
-            if not plugin.vool:
-                raise ValueError("A store plugin needs the current access declarations.")
-        except (PluginManifestError, ValueError, TypeError, KeyError) as exc:
-            return [_finding("code", ".codex-plugin/plugin.json", str(exc))]
-        # Executable source belongs to a plugin's complete reviewed distribution.
-        # _texts still refuses binary/hidden content; all source proceeds through
-        # the same secret, instruction, native-boundary and independent reviews.
-        return []
+    if artifact["metadata"]["kind"] == "plugin":
+        # Program files belong to a plugin's complete reviewed package. _texts still refuses binary and hidden
+        # content, and every file goes through the secret, instruction, native-rule and independent reviews.
+        return _plugin(artifact, official=official)
 
     findings = []
     pictures = _picture_paths(artifact)
@@ -425,8 +516,6 @@ def _code(artifact: dict) -> list[dict]:
         if manifest.get(field):
             findings.append(_finding("code", ".codex-plugin/plugin.json", "The manifest asks for " +
                                      field.replace("_", " ") + ". Skills can't ask for access; take it out."))
-    if artifact["metadata"]["kind"] != "skill":
-        findings.append(_finding("code", "registry.json", "Only skills can be published to the Skill Codex."))
     return findings
 
 
@@ -702,7 +791,7 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     findings = {name: [] for name in DETERMINISTIC}
     for item in text_findings:
         findings[item["check"]].append(item)
-    findings["code"] += _code(artifact)
+    findings["code"] += _code(artifact, official=official)
     if sum(len(text) for text in texts.values()) > MAX_TEXT:
         # Nothing this long can be read in full, so nothing else is worth running on it.
         findings["quality"].append(_finding("quality", "package", "This skill is too long to check. Keep all its "
@@ -714,6 +803,10 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     findings["secrets"] += secrets
     rules = _RULES + _IMPORT_RULES if artifact["metadata"]["kind"] == "skill" else _RULES
     findings["instructions-primary"] += _instructions(texts, secret_lines, rules)
+    if artifact["metadata"]["kind"] != "skill":
+        # A skill file inside a plugin is read by VOOL like any skill, so it gets a skill's full rules.
+        findings["instructions-primary"] += _instructions(
+            {name: text for name, text in texts.items() if name.endswith("SKILL.md")}, secret_lines, _IMPORT_RULES)
     findings["license"] += _license(artifact)
     findings["quality"] += _quality(artifact, texts, official=official)
     if artifact["manifest"].get("requires"):

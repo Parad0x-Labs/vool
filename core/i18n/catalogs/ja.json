@@ -2405,6 +2405,10 @@
     "addons.badge_tested_help": "VOOL チームがこのバージョンそのものをインストールして使いました。",
     "addons.badge_editors_choice": "エディターのおすすめ",
     "addons.badge_editors_choice_help": "VOOL チームが、この種類で特に優れたものとして選びました。",
+    "addons.codex_plugin_kind_plugin": "プラグイン",
+    "addons.codex_plugin_kind_skill": "スキル",
+    "addons.codex_plugin_from": "{publisher} がスキルコーデックスで公開しました。VOOLは、これらが公開されたファイルであることを確認しました。それは安全の証明にはなりません。",
+    "addons.codex_plugin_off": "オフの状態でインストールされます。オンにするには「プラグイン」を開いてアクセス権限を確認してください。",
     "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
     "addons.registry_inspect": "確認用にダウンロード",
     "private.banner": "プライベートチャット：何も保存されません",
@@ -5495,7 +5499,7 @@
     "phone.ui.no_answer_came": "回答が届きませんでした。もう一度送ってください。",
     "phone.ui.ask_on_computer": "パソコンの VOOL で許可または拒否してください。"
   },
-  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
+  "source_catalog_sha256": "332d36592a331557f0a3888035e7481235560889d5096e930c73792a17ad9504",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

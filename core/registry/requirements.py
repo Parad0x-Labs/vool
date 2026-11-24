@@ -87,6 +87,7 @@ def package_requirements(manifest: dict, dependencies: object) -> dict:
     from core.registry.validation import manifest_authority
 
     authority = manifest_authority(manifest)
-    return {"network": any(tool["handler"]["network"] for tool in authority["tools"]),
+    # A plugin lists the websites it reaches in its access block; an earlier package says so tool by tool.
+    return {"network": bool(authority.get("network")) or any(tool["handler"].get("network", False) for tool in authority["tools"]),
             "credentials": authority["credential_bindings"], "permissions": authority["permissions"],
             "dependencies": sorted(dependencies)}

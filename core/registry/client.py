@@ -329,7 +329,10 @@ class Client:
             stage.with_suffix(".pass").unlink(missing_ok=True)  # no install, no pass
             raise
         stage.unlink()
-        _keep_pass(result["plugin_id"], stage.with_suffix(".pass"))
+        from core.registry.artifact import native_identity
+
+        # The receipt and the pass are kept under the row's own key; a plugin is installed under its own id.
+        _keep_pass(native_identity(package_id), stage.with_suffix(".pass"))
         return result
 
 

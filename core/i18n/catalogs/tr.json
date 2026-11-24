@@ -2405,6 +2405,10 @@
     "addons.badge_tested_help": "VOOL ekibi tam olarak bu sürümü kurdu ve kullandı.",
     "addons.badge_editors_choice": "Editörün Seçimi",
     "addons.badge_editors_choice_help": "VOOL ekibi tarafından türünün en iyilerinden biri olarak seçildi.",
+    "addons.codex_plugin_kind_plugin": "Eklenti",
+    "addons.codex_plugin_kind_skill": "Beceri",
+    "addons.codex_plugin_from": "Beceri Kodeksinde {publisher} tarafından yayımlandı. VOOL, bunların yayımlanan dosyalar olduğunu kontrol etti. Bu, güvenli olduklarını kanıtlamaz.",
+    "addons.codex_plugin_off": "Kapalı olarak yüklenir. Açmak için Eklentiler'i açın ve erişimini inceleyin.",
     "addons.registry_empty": "Bu belirli VOOL derlemesi ve arama için listelenmiş bir sürüm yok.",
     "addons.registry_inspect": "İncelemek için indir",
     "private.banner": "Özel sohbet: hiçbir şey kaydedilmez",
@@ -5495,7 +5499,7 @@
     "phone.ui.no_answer_came": "Yanıt gelmedi. Yeniden gönder.",
     "phone.ui.ask_on_computer": "Buna bilgisayarındaki VOOL’da izin ver ya da reddet."
   },
-  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
+  "source_catalog_sha256": "332d36592a331557f0a3888035e7481235560889d5096e930c73792a17ad9504",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

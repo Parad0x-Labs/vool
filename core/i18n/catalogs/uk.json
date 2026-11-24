@@ -2405,6 +2405,10 @@
     "addons.badge_tested_help": "Команда VOOL встановила й використовувала саме цю версію.",
     "addons.badge_editors_choice": "Вибір редакції",
     "addons.badge_editors_choice_help": "Обрано командою VOOL як одне з найкращих у своєму роді.",
+    "addons.codex_plugin_kind_plugin": "Плагін",
+    "addons.codex_plugin_kind_skill": "Навичка",
+    "addons.codex_plugin_from": "Опубліковано в кодексі навичок: {publisher}. VOOL перевірив, що це саме опубліковані файли. Це не доводить, що вони безпечні.",
+    "addons.codex_plugin_off": "Він встановлюється вимкненим. Щоб увімкнути його, відкрийте «Плагіни» та перевірте його доступ.",
     "addons.registry_empty": "Немає опублікованих версій для цієї конкретної збірки VOOL і вашого пошуку.",
     "addons.registry_inspect": "Завантажити для перегляду",
     "private.banner": "Приватний чат: нічого не зберігається",
@@ -5495,7 +5499,7 @@
     "phone.ui.no_answer_came": "Відповідь не надійшла. Надішліть ще раз.",
     "phone.ui.ask_on_computer": "Дозвольте або відхиліть це у VOOL на комп’ютері."
   },
-  "source_catalog_sha256": "fe578d740416a5ba9b6a3b87946f14490b434fd9238be2d7025d6ae26f6b6017",
+  "source_catalog_sha256": "332d36592a331557f0a3888035e7481235560889d5096e930c73792a17ad9504",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

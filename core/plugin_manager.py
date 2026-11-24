@@ -289,14 +289,20 @@ def install(review_id: str, *, accepted: bool, digest: str, findings_seen=0) -> 
         target = _destination(plugin.plugin_id)
         previous = lifecycle.record_for(plugin.plugin_id)
         active = previous and previous.stage != lifecycle.STAGE_UNINSTALLED
+        # A package from the Skill Codex keeps that as its source, so a removal there reaches this copy. Only
+        # core.registry.native passes such a source; the page's own actions cannot name one.
+        from_codex = str(saved["source"]).startswith("registry:")
+        new_source = saved["source"] if from_codex else "plugin:" + saved["source"]
         if active or target.exists():
-            if not saved["update"] or not active or Path(previous.root).resolve() != target.resolve() or not previous.source.startswith("plugin:"):
+            # A copy from the Skill Codex is replaced only by a later version of the same package there, and a
+            # folder or GitHub copy only by another of those: neither quietly becomes the other.
+            same_kind = active and (previous.source == new_source if from_codex else previous.source.startswith("plugin:"))
+            if not saved["update"] or not active or Path(previous.root).resolve() != target.resolve() or not same_kind:
                 raise lifecycle.LifecycleError("A plugin with this identity is already installed. Use Update to review a replacement.")
         elif saved["update"]:
             raise lifecycle.LifecycleError("Install the plugin before updating it.")
         # An update from another repository or publisher is another party's code: it must not
         # inherit keys the owner saved for the plugin it replaces.
-        new_source = "plugin:" + saved["source"]
         keys_follow = True
         if active:
             try:
