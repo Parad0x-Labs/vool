@@ -2394,6 +2394,10 @@
     "addons.recall_last": "Última verificação",
     "addons.recall_none": "Começa quando você tiver um complemento do códice de habilidades.",
     "addons.recall_failed": "A última verificação não pôde ser concluída. O VOOL tentará de novo dentro de uma hora.",
+    "addons.badge_tested": "Testado pela VOOL",
+    "addons.badge_tested_help": "A equipe VOOL instalou e usou exatamente esta versão.",
+    "addons.badge_editors_choice": "Escolha do editor",
+    "addons.badge_editors_choice_help": "Escolhido pela equipe VOOL como um dos melhores do seu tipo.",
     "addons.registry_empty": "Nenhuma versão publicada corresponde a esta compilação exata do VOOL e à sua busca.",
     "addons.registry_inspect": "Baixar para inspecionar",
     "private.banner": "Chat privado: nada é guardado",
@@ -5484,7 +5488,7 @@
     "phone.ui.no_answer_came": "Não chegou nenhuma resposta. Envie outra vez.",
     "phone.ui.ask_on_computer": "Permita ou recuse isto no VOOL no seu computador."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "65f14a7ab5c5800f827b842c58cc2be67d32564781e9d3a169e6cc42fabef7ca",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

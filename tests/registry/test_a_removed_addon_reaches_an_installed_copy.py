@@ -76,6 +76,11 @@ def device(tmp_path, monkeypatch):
     plugin_lifecycle.reset_for_tests()
 
 
+# What one daily check asks for: the signed list, then the signed badge document, so a withdrawn badge
+# also leaves within the day. Both are the same public files for everyone and carry nothing about the person.
+PUBLIC_READS = ["https://registry.test/registry/api/snapshot", "https://registry.test/registry/api/badges"]
+
+
 def offered(plugin_id):
     from core.tool_offer_assembly import loaded_skills
 
@@ -87,7 +92,7 @@ def test_with_no_choice_saved_the_check_is_on_and_a_removal_arrives(device):
     assert device["calls"] == [], "reading the choice makes no request"
     device["remove"]()
     assert recall.check(now=NOW + 60) == {"status": "ok", "removed_listed": 1}
-    assert len(device["calls"]) == 1 and not plugin_lifecycle.is_available(device["plugin_id"])
+    assert device["calls"] == PUBLIC_READS and not plugin_lifecycle.is_available(device["plugin_id"])
 
 
 def test_turned_off_it_asks_nothing_and_a_removal_does_not_arrive(device):
@@ -107,7 +112,7 @@ def test_turned_on_from_the_add_ons_page_a_removal_arrives_with_the_next_daily_c
     assert plugin_lifecycle.is_available(device["plugin_id"]) and offered(device["plugin_id"])
 
     assert recall.check(now=NOW + 60) == {"status": "ok", "removed_listed": 1}
-    assert device["calls"] == ["https://registry.test/registry/api/snapshot"], "one read of the public list, nothing else"
+    assert device["calls"] == PUBLIC_READS, "the public list and the public badge document, nothing else"
     assert not plugin_lifecycle.is_available(device["plugin_id"]) and not offered(device["plugin_id"])
     row = next(row for row in plugin_catalog.read_plugin_catalog()["plugins"] if row["id"] == device["plugin_id"])
     assert row["enabled"] is False and row["registry_available"] is False
@@ -116,7 +121,7 @@ def test_turned_on_from_the_add_ons_page_a_removal_arrives_with_the_next_daily_c
 
     # Once a day: nothing more is asked until a day has gone by.
     assert recall.check(now=NOW + 60 + DAY - 1) == {"status": "not_due"}
-    assert len(device["calls"]) == 1
+    assert device["calls"] == PUBLIC_READS
     status, body = handle_addon_post({"action": "registry_recall"}, OWN_PAGE, "127.0.0.1")
     assert status == 200 and body["last_checked"] == NOW + 60 and body["last_failed"] is None
 
@@ -172,7 +177,7 @@ def test_a_clock_set_back_does_not_silence_the_check(device):
     path.write_text(json.dumps({"enabled": True, "last_checked": NOW + 400 * DAY}))
     device["remove"]()
     assert recall.check(now=NOW + 60)["status"] == "ok"
-    assert len(device["calls"]) == 1 and not plugin_lifecycle.is_available(device["plugin_id"])
+    assert device["calls"] == PUBLIC_READS and not plugin_lifecycle.is_available(device["plugin_id"])
 
 
 @pytest.mark.parametrize("body,headers,host,status", [

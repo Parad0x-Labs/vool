@@ -2394,6 +2394,10 @@
     "addons.recall_last": "Ostatnie sprawdzenie",
     "addons.recall_none": "Zaczyna działać, gdy masz dodatek z kodeksu umiejętności.",
     "addons.recall_failed": "Ostatniego sprawdzenia nie udało się dokończyć. VOOL spróbuje ponownie w ciągu godziny.",
+    "addons.badge_tested": "Przetestowane przez VOOL",
+    "addons.badge_tested_help": "Zespół VOOL zainstalował i używał dokładnie tej wersji.",
+    "addons.badge_editors_choice": "Wybór redakcji",
+    "addons.badge_editors_choice_help": "Wybrane przez zespół VOOL jako jedno z najlepszych w swoim rodzaju.",
     "addons.registry_empty": "Żadna opublikowana wersja nie pasuje do tej dokładnej kompilacji VOOL i wyszukiwania.",
     "addons.registry_inspect": "Pobierz do sprawdzenia",
     "private.banner": "Prywatny czat: nic nie jest zapisywane",
@@ -5484,7 +5488,7 @@
     "phone.ui.no_answer_came": "Nie przyszła żadna odpowiedź. Wyślij to jeszcze raz.",
     "phone.ui.ask_on_computer": "Zezwól na to lub odmów w VOOL na komputerze."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "65f14a7ab5c5800f827b842c58cc2be67d32564781e9d3a169e6cc42fabef7ca",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

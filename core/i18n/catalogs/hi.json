@@ -2394,6 +2394,10 @@
     "addons.recall_last": "पिछली जाँच",
     "addons.recall_none": "यह तब शुरू होता है जब आपके पास कौशल कोडेक्स का कोई ऐड-ऑन हो।",
     "addons.recall_failed": "पिछली जाँच पूरी नहीं हो सकी। VOOL एक घंटे के भीतर फिर कोशिश करेगा।",
+    "addons.badge_tested": "VOOL द्वारा परखा गया",
+    "addons.badge_tested_help": "VOOL टीम ने ठीक यही संस्करण इंस्टॉल करके इस्तेमाल किया।",
+    "addons.badge_editors_choice": "संपादक की पसंद",
+    "addons.badge_editors_choice_help": "VOOL टीम ने इसे अपनी तरह के सबसे अच्छे में से एक चुना।",
     "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई सूचीबद्ध संस्करण नहीं मिला।",
     "addons.registry_inspect": "जाँच के लिए डाउनलोड करें",
     "private.banner": "निजी चैट: कुछ भी सहेजा नहीं जाता",
@@ -5484,7 +5488,7 @@
     "phone.ui.no_answer_came": "कोई जवाब नहीं आया। इसे फिर से भेजें।",
     "phone.ui.ask_on_computer": "इसे अपने कंप्यूटर पर VOOL में अनुमति दें या मना करें।"
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "65f14a7ab5c5800f827b842c58cc2be67d32564781e9d3a169e6cc42fabef7ca",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

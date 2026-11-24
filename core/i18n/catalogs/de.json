@@ -2394,6 +2394,10 @@
     "addons.recall_last": "Zuletzt geprüft",
     "addons.recall_none": "Beginnt, sobald du ein Add-on aus dem Fertigkeiten-Codex hast.",
     "addons.recall_failed": "Die letzte Prüfung konnte nicht abgeschlossen werden. VOOL versucht es innerhalb einer Stunde erneut.",
+    "addons.badge_tested": "Von VOOL getestet",
+    "addons.badge_tested_help": "Das VOOL-Team hat genau diese Version installiert und benutzt.",
+    "addons.badge_editors_choice": "Auswahl der Redaktion",
+    "addons.badge_editors_choice_help": "Vom VOOL-Team als eines der besten seiner Art ausgewählt.",
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
     "addons.registry_inspect": "Zur Prüfung herunterladen",
     "private.banner": "Privater Chat: nichts wird gespeichert",
@@ -5484,7 +5488,7 @@
     "phone.ui.no_answer_came": "Es kam keine Antwort. Sende es noch einmal.",
     "phone.ui.ask_on_computer": "Erlaube oder lehne das in VOOL auf deinem Computer ab."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "65f14a7ab5c5800f827b842c58cc2be67d32564781e9d3a169e6cc42fabef7ca",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

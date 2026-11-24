@@ -2394,6 +2394,10 @@
     "addons.recall_last": "上次检查",
     "addons.recall_none": "当你拥有来自技能宝典的附加组件后开始运行。",
     "addons.recall_failed": "上次检查未能完成。VOOL 会在一小时内重试。",
+    "addons.badge_tested": "VOOL 已测试",
+    "addons.badge_tested_help": "VOOL 团队安装并使用过这个确切版本。",
+    "addons.badge_editors_choice": "编辑精选",
+    "addons.badge_editors_choice_help": "由 VOOL 团队选为同类中最好的之一。",
     "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
     "addons.registry_inspect": "下载以检查",
     "private.banner": "私密聊天：不保存任何内容",
@@ -5484,7 +5488,7 @@
     "phone.ui.no_answer_came": "没有收到回答。请再发送一次。",
     "phone.ui.ask_on_computer": "请在电脑上的 VOOL 中允许或拒绝此操作。"
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "65f14a7ab5c5800f827b842c58cc2be67d32564781e9d3a169e6cc42fabef7ca",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

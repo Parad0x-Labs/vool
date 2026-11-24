@@ -1,7 +1,8 @@
 # The Skill Codex signer. Every few minutes it checks new uploads, signs what passes, applies the
 # team's steps from team-steps.txt and keeps the signed list fresh. Uploads are never stored here.
 # Only the team can change this repository; the keys reach only the "Sign" step, and only that step
-# can push.
+# can push. Badge keys are never here: two people sign the badge document on their own computers and
+# this job only passes the signed file on.
 name: Skill Codex signer
 
 on:

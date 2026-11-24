@@ -2394,6 +2394,10 @@
     "addons.recall_last": "Paskutinį kartą tikrinta",
     "addons.recall_none": "Pradedama, kai turite priedą iš įgūdžių kodekso.",
     "addons.recall_failed": "Paskutinio tikrinimo užbaigti nepavyko. VOOL bandys dar kartą per valandą.",
+    "addons.badge_tested": "Išbandė VOOL",
+    "addons.badge_tested_help": "VOOL komanda įdiegė ir naudojo būtent šią versiją.",
+    "addons.badge_editors_choice": "Redakcijos pasirinkimas",
+    "addons.badge_editors_choice_help": "VOOL komanda išrinko kaip vieną geriausių tokio tipo.",
     "addons.registry_empty": "Nė viena paskelbta versija neatitinka šio konkretaus VOOL rinkinio ir paieškos.",
     "addons.registry_inspect": "Atsisiųsti peržiūrai",
     "private.banner": "Privatus pokalbis: niekas neišsaugoma",
@@ -5484,7 +5488,7 @@
     "phone.ui.no_answer_came": "Atsakymas negautas. Siųskite dar kartą.",
     "phone.ui.ask_on_computer": "Leiskite arba atmeskite tai VOOL savo kompiuteryje."
   },
-  "source_catalog_sha256": "0732deb32ce68e2cfa01f0beb88f28196edd2973a9aad6e04bb491e42e380b3e",
+  "source_catalog_sha256": "65f14a7ab5c5800f827b842c58cc2be67d32564781e9d3a169e6cc42fabef7ca",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

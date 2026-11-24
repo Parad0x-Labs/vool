@@ -63,7 +63,7 @@ function renderServicePlugins(host,query){
  const rows=(data?.plugins||[]).filter(p=>key([p.name,p.description,p.publisher].join(' ')).includes(key(query)));
  if(!rows.length)grid.append(node('p',tr('plugin_empty','No plugins installed.')));
  rows.forEach(p=>{
-  const card=node('article',undefined,'addon-card');card.dataset.pluginId=p.id;card.append(node('h3',p.name),node('p',p.description||''),node('p',p.enabled?tr('plugin_enabled','Enabled'):tr('plugin_disabled','Disabled'),'addon-state'));
+  const card=node('article',undefined,'addon-card');card.dataset.pluginId=p.id;const title=node('div',undefined,'plugin-title-row');title.append(node('h3',p.name));addTeamBadges(title,p);card.append(title,node('p',p.description||''),node('p',p.enabled?tr('plugin_enabled','Enabled'):tr('plugin_disabled','Disabled'),'addon-state'));
   if(!p.reviewed_by_store)card.append(node('p',tr('plugin_not_reviewed','Not reviewed by the VOOL store'),'addon-meta'));
   if(p.reason)card.append(node('p',tr(p.reason_key,p.reason),'addon-error'));
   if((p.kind||[]).includes('model_provider'))card.append(node('p',tr('plugin_model_count','{count} models available').replace('{count}',String(p.model_count||0))));

@@ -567,6 +567,44 @@ class Store:
             db.executemany("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", [(name,) for name in value["teams"]])
         return value
 
+    # ---- the two team badges ----
+
+    @staticmethod
+    def _badges(db) -> dict | None:
+        db.execute("CREATE TABLE IF NOT EXISTS authority_badges (id INTEGER PRIMARY KEY CHECK(id=1), "
+                   "sequence INTEGER NOT NULL, document BLOB NOT NULL)")
+        row = db.execute("SELECT document FROM authority_badges WHERE id=1").fetchone()
+        return decode(row[0]) if row else None
+
+    def badges(self) -> dict:
+        """The issuer list, the badge document two people signed and its stamp, as they came in. Readers verify them."""
+        with self.connection() as db:
+            return self._badges(db) or {"issuers": None, "badges": None, "stamp": None}
+
+    def set_badges(self, value: dict, root: dict, *, now: int) -> dict:
+        """Take a badge document from the signer's relay. The relay's own key proves nothing here:
+        the issuer list must carry the root's signature and the document two appointed people's."""
+        from core.registry import badges
+        from core.registry.codec import digest
+
+        issuer, signed, stamp = badges.verify_all(value, root, now=now)
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            stored = self._badges(db)
+            if stored:
+                before, old_issuer = stored["badges"]["signed"], stored["issuers"]["signed"]
+                require(issuer["version"] >= old_issuer["version"], "this badge issuer list is older than the one in place")
+                if signed["sequence"] == before["sequence"]:
+                    # The same document with a fresh stamp, never another document under the same number.
+                    require(digest(signed) == digest(before), "another badge document already has this number")
+                    require(stamp["issued_at"] >= stored["stamp"]["signed"]["issued_at"],
+                            "this badge stamp is older than the one in place")
+                else:
+                    require(signed["sequence"] == before["sequence"] + 1 and signed["previous_sha256"] == digest(before),
+                            "this badge document does not follow the one in place; propose it again from the current one")
+            db.execute("INSERT OR REPLACE INTO authority_badges VALUES (1,?,?)", (signed["sequence"], canonical(value)))
+        return {"sequence": signed["sequence"]}
+
     def _daily_limit(self, db, account: str) -> int:
         """A member of a team the signing Mac named publishes the team's skills in batches."""
         teams = self._marks(db)["teams"]

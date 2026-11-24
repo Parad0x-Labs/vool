@@ -256,6 +256,9 @@ class Authority:
                 require(isinstance(answer, dict) and type(answer.get("sequence")) is int and
                         answer == {"sequence": value["signed"]["sequence"]},
                         "the service returned an invalid marks acknowledgement")
+            elif path == "/authority/badges":
+                require(answer == {"sequence": value["badges"]["signed"]["sequence"]},
+                        "the service returned an invalid badges acknowledgement")
             elif path == "/authority/catalog":
                 published = {entry["signed"]["metadata"]["id"] + "@" + entry["signed"]["metadata"]["version"]
                              for entry in value["entries"]}
@@ -489,9 +492,43 @@ class Authority:
         """Whether a team member's hand step named exactly these bytes, as publisher/name@checksum."""
         return named in self.state.get("team_admits", [])
 
+    # ---- the two team badges ----
+
+    def _badge_folder(self) -> Path:
+        return self.dir / "badges"
+
+    def relay_badges(self) -> dict | None:
+        """Pass on the badge document two appointed people signed, with a fresh "still current" stamp.
+
+        This signer holds no badge key. Its admission key signs only the stamp, which names the exact
+        document and lasts a week; the service and every app check the two people's signatures themselves.
+        """
+        from core.registry import badges
+
+        folder = self._badge_folder()
+        if not (folder / badges.SHIPPED[0]).is_file():
+            return None
+        try:
+            document = decode((folder / badges.SHIPPED[0]).read_bytes(), badges.MAX_BYTES)
+            issuer_list = decode((folder / badges.SHIPPED[1]).read_bytes(), 65536)
+        except OSError:
+            raise RegistryError("badges/badge-issuers.json is missing beside badges/badges.json") from None
+        issuer = badges.issuers(issuer_list, self.root, now=self.now())
+        signed = badges.verify_document(document, issuer, now=self.now())
+        stamp = add_signature(badges.new_stamp(signed, now=self.now()), self.admission_key)
+        self.call("POST", "/authority/badges", {"issuers": issuer_list, "badges": document, "stamp": stamp})
+        return {"sequence": signed["sequence"], "badges": len(signed["badges"])}
+
     @_exclusive
     def run_once(self, *, queue: dict | None = None, prepared: list | None = None, held: str | None = None) -> dict:
         report = {"admitted": [], "refused": [], "waiting": [], "errors": []}
+        try:
+            relayed = self.relay_badges()
+            if relayed:
+                report["badges"] = relayed
+        except RegistryError as exc:
+            # Badges that do not verify, or that the service refuses, wait; uploads and the signed list go on.
+            report["badge_problem"] = str(exc)
         self._review_stop = None
         self._batch_admissions = []
         if queue is None:
