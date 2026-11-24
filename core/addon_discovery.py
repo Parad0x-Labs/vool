@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
 import threading
 import time
@@ -93,6 +94,26 @@ def _rate_error(deadline: float) -> AddonError:
                       'Ready-to-scan store add-ons still work. Nothing was scanned for this request.', 429)
 
 
+#: An optional GitHub token, read from the environment of the process at each request. Without one,
+#: lookups use GitHub's anonymous allowance, which is counted per network address: everyone behind
+#: the same address (an office, a carrier's shared address, a CI runner pool) draws on the same 60 an
+#: hour, and a person who did nothing gets "limit reached". CI on 4b39b40d5 and b19b37bce (2026-11-24):
+#: the real-GitHub add-on journey met that limit on a shared runner address.
+GITHUB_TOKEN_ENV = 'VOOL_GITHUB_TOKEN'
+
+
+def _github_headers(url: str) -> dict[str, str]:
+    """Request headers for ``url``; the token goes to GitHub's API host over https and nowhere else.
+
+    fetch_bytes follows no redirect, so a reply cannot carry the token to another host."""
+    headers = {'Accept': 'application/vnd.github+json'}
+    parts = urlsplit(url)
+    token = os.environ.get(GITHUB_TOKEN_ENV, '').strip()
+    if token and parts.scheme == 'https' and parts.hostname == 'api.github.com' and parts.port in (None, 443):
+        headers['Authorization'] = 'Bearer ' + token
+    return headers
+
+
 def _request(url: str, limit: int) -> bytes:
     cooldown = 'cooldown:' + urlsplit(url).hostname
     until = _cached(cooldown)
@@ -101,7 +122,7 @@ def _request(url: str, limit: int) -> bytes:
     if not _SLOTS.acquire(blocking=False):
         raise AddonError('github_busy', 'Another catalogue lookup is running. Try again when it finishes.', 429)
     try:
-        raw, _ = fetch_bytes(url, headers={'Accept': 'application/vnd.github+json'}, limit=limit)
+        raw, _ = fetch_bytes(url, headers=_github_headers(url), limit=limit)
         return raw
     except urllib.error.HTTPError as exc:
         headers = {k.lower(): v for k, v in (exc.headers or {}).items()}

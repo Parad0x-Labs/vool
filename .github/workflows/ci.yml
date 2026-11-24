@@ -287,6 +287,12 @@ jobs:
             --weights ops/shard_weights.json \
             --output ".verification-logs/shard-${{ matrix.shard }}-files.txt"
       - name: Run shard ${{ matrix.shard }}
+        env:
+          # The real-GitHub add-on journey draws on GitHub's per-address anonymous allowance, which
+          # a shared runner address can have spent before this job starts (2026-11-24, shard 7).
+          # The run's own read-only token is the product's optional VOOL_GITHUB_TOKEN; the product
+          # sends it to api.github.com only.
+          VOOL_GITHUB_TOKEN: ${{ github.token }}
         # Bound any stalled collection/setup/call/teardown/shutdown phase to ten minutes.
         # A timeout stays red and uploads the active node plus thread stacks. A file with a
         # MEASURED duration in the committed timing snapshot may spend up to measured*1.5 in

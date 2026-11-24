@@ -46,7 +46,7 @@ class PluginDaemon:
         self.child = None
 
     def start(self):
-        env = {name: os.environ[name] for name in ("HOME", "USER", "LANG", "TZ", "TMPDIR", "VOOL_PLUGIN_DOCKER_SOCKET") if name in os.environ}
+        env = {name: os.environ[name] for name in ("HOME", "USER", "LANG", "TZ", "TMPDIR", "VOOL_PLUGIN_DOCKER_SOCKET", "VOOL_GITHUB_TOKEN") if name in os.environ}
         env.update(PATH=os.environ.get("PATH", "/usr/bin:/bin"), VOOL_HOME=str(self.home),
                    VOOL_PLUGINS_DIR=str(self.home / "addons"), VOOL_PLUGIN_SCRATCH_ROOT=str(self.home / "plugin-scratch"),
                    VOOL_PLUGIN_LIFECYCLE_PATH=str(self.home / "data/plugin_lifecycle.json"),
@@ -376,6 +376,8 @@ def test_scanner_key_and_real_github_install_flow(tmp_path, https_service):
         assert any(row.get("path") == "/v1/scan" and not row["authorized"] for row in records)
         assert any(row.get("path") == "/v1/scan" and row["authorized"] for row in records)
         assert https_service["access"] not in page.locator("body").inner_text() + daemon.log.read_text(errors="replace")
+        github_token = os.environ.get("VOOL_GITHUB_TOKEN", "")
+        assert not github_token or github_token not in page.locator("body").inner_text() + daemon.log.read_text(errors="replace")
         page.screenshot(path=str(tmp_path / "scanner-installed.png"), full_page=True)
     finally:
         (tmp_path / "scanner-final.txt").write_text(page.locator("body").inner_text())
