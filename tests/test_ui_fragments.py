@@ -359,8 +359,14 @@ def test_frame_counts_under_node_for_sheet_and_procedural() -> None:
     assert result["sparkIdle"] == 600 and result["sparkSuccess"] == 6
     # pet-original-style-20260930: the exact six-ID roster is obsolete. The four approved
     # originals are added and all six saved ids are preserved.
-    assert result["characters"] == [
+    legacy = [c for c in result["characters"] if not c.startswith("rm_")]
+    assert legacy == [
         "beetle", "ember", "golem", "prime", "prism", "rascal", "raven", "spark", "tide", "veil",
+    ]
+    # The remastered pets ship beside the legacy ten as separate ids.
+    assert [c for c in result["characters"] if c.startswith("rm_")] == [
+        "rm_beetle", "rm_ember", "rm_golem", "rm_prime", "rm_prism",
+        "rm_rascal", "rm_raven", "rm_spark", "rm_tide", "rm_veil",
     ]
     assert result["agentsApi"] == "function"
 
