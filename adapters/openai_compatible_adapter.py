@@ -55,8 +55,21 @@ from core.tool_call_recovery import (
     canonical_intent_text,
     resolve_tool_calls,
 )
+from core.tool_catalog_wire import messages_for_native_wire
 
 logger = logging.getLogger("vool.model_adapter")
+
+
+def _with_native_wire_catalog(request: ModelRequest, *, native: bool) -> ModelRequest:
+    """The request whose payload is being built, its prose tool catalog without the per-tool list when the
+    payload hands the model its tools as native functions (core.tool_catalog_wire). Done before the messages
+    are fitted and bound to their evidence, so the budget and the evidence record see what is sent."""
+    if not native or not request.messages:
+        return request
+    slim = messages_for_native_wire(list(request.messages))
+    if slim == list(request.messages):
+        return request
+    return replace(request, messages=slim)
 
 #: Residency a local serving call asks for when the manifest sets none. Longer than the boot
 #: prewarm's 15 m on purpose: the model must still be loaded for the first turn after a
@@ -1222,6 +1235,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
             provider_slot_for_manifest(self.manifest), str(getattr(self.manifest, "model_name", "") or "")
         ):
             raise RuntimeError(UNPRICED_BUILTIN_TOOLS_REFUSAL)
+        request = _with_native_wire_catalog(request, native=bool(
+            getattr(request, "tools", None) and request.output_mode == "tool_intent" and self._supports_native_tools()))
         generation_profile = dict(request.metadata.get("generation_profile") or {})
         context_window = self._ollama_context_window(request) if self._runtime_family() == "ollama" else 0
         max_output_tokens = (
@@ -1391,6 +1406,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         return payload
 
     def _build_ollama_payload(self, request: ModelRequest, *, force_json: bool, stream: bool) -> dict[str, Any]:
+        request = _with_native_wire_catalog(request, native=bool(self._ollama_native_tools(request)))
         generation_profile = dict(request.metadata.get("generation_profile") or {})
         options: dict[str, Any] = {
             "temperature": request.temperature

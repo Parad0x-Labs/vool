@@ -38,6 +38,7 @@ from core.output_budget_policy import (
 )
 from core.plain_task_routing import plain_task_kind
 from core.stipulated_frame import STIPULATED_FRAME_PROMPT_GUIDANCE, has_stipulated_frame
+from core.tool_catalog_wire import CATALOG_OPENER_WITH_SPECS, CLOSING_RULES_START, PROSE_ONLY_START
 from core.tool_intent_executor import runtime_tool_specs
 from core.user_preferences import load_preferences
 from core.visual_playbooks import detect_visual_genre, visual_playbook_directive
@@ -124,9 +125,7 @@ TURN_DIRECTIVES_METADATA_KEY = "turn_directives"
 #: The tool catalog travels as its OWN system message (after history, beside the turn
 #: directives). These are the renderer's own opening words -- the stable identifiers for the
 #: catalog's first bytes -- kept beside the renderer so they can never drift apart.
-_TOOL_CATALOG_OPENER_WITH_SPECS = (
-    "When native functions are supplied, use these exact function names and declared parameters."
-)
+_TOOL_CATALOG_OPENER_WITH_SPECS = CATALOG_OPENER_WITH_SPECS
 _TOOL_CATALOG_OPENER_EMPTY = (
     "If no real runtime tool is available, use respond.direct with the actual answer in its message field."
 )
@@ -3069,7 +3068,9 @@ def _tool_intent_catalog_text(
     lines = [
         _TOOL_CATALOG_OPENER_WITH_SPECS + " "
         "Canonical operation names in guidance are not native function names: " + mapping,
-        "Without native functions, return JSON with the canonical intent and arguments.",
+        # Everything from here to the closing rules is sent only to a lane without native tools
+        # (core.tool_catalog_wire): a lane handed the functions has these names and descriptions there.
+        PROSE_ONLY_START,
         "Select operations from this runtime tool catalog using the supplied tool-call protocol:",
     ]
     for spec in specs:
@@ -3081,7 +3082,7 @@ def _tool_intent_catalog_text(
         # and a small local model copied it straight into the answer -- the user was shown the literal
         # words "final grounded reply". An angle-bracket slot cannot be mistaken for prose. The
         # placeholder guard in response_policy_classification is the backstop if a model echoes anyway.
-        "If no tool is needed or you are done after real tool work, use respond.direct with your actual "
+        CLOSING_RULES_START + " with your actual "
         "reply written out in full in its message field. Never send placeholder text. "
         "Prefer another real tool call over guessing. Never invent intent names or unsupported arguments."
     )
