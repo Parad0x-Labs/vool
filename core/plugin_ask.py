@@ -79,8 +79,13 @@ BUILTIN_CHOICES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
      ("workspace.write_file", "workspace.replace_in_file")),
     ("read", "Read a file in the open folder: show or tell what a file already says, or answer a question from it.",
      ("workspace.read_file",)),
-    ("find", "Find a file or folder on this computer by its name and say where it is. Not for reading or changing "
-     "what a file says.",
+    # A person asks for "my bill", "my report" or "my CV", rarely for a file by its name. Read as only a file by its
+    # name, "surask man pernai metų sąskaitą už elektrą" and the gate's "gal gali surasti mano žemės ūkio ataskaitą
+    # už 2024 metus?" were picked as the web, and the reading without the web picked nothing (iMac, qwen3:8b, judge
+    # probe on 56d5fb4a0: 36 of 45 -> 42 of 45, nothing that was right moved). Over the full list the judge reads only
+    # the first _PLUGIN_ASK_BRIEF_CHARS of a choice, so this one is kept inside that and is read whole.
+    ("find", "Find something the person keeps on this computer, a file or a folder (a document, report, bill, photo, "
+     "spreadsheet or download of theirs), by its name or what it is.",
      ("machine.find_file", "machine.find_folder")),
     ("run", "Run in the open folder: run the project's tests, its linter or its formatter, and say what they printed.",
      ("workspace.run_tests", "workspace.run_lint", "workspace.run_formatter")),
