@@ -2046,11 +2046,12 @@ def reminder_target_or_refusal(
                 where = f' (chat "{label}")' if label else ""
                 lines.append(f"- {row.get('note')} — due {wall}{where} (id {str(row.get('reminder_id'))[:8]})")
             more = f"\n(and {len(candidates) - 5} more)" if len(candidates) > 5 else ""
-            head = (
-                f"{len(candidates)} pending reminders match that:"
-                if candidates is tied
-                else f"This chat has {len(candidates)} pending reminders:"
-            )
+            if candidates is tied:
+                head = f"{len(candidates)} pending reminders match that:"
+            elif len(candidates) == 1:
+                head = "No reminder matches that. This chat has one pending reminder:"
+            else:
+                head = f"This chat has {len(candidates)} pending reminders:"
             return None, OperatorActionResult(
                 ok=False,
                 status="invalid_request",
@@ -2132,10 +2133,15 @@ def _select_reminder_target(
     if typed_words and _reminder_words(typed_words):
         # The reminder a tool call named in its own words: that one, or none when they name none it can reach.
         return _reminder_named_by(typed_words, reachable)
-    named = _reminder_named_by(str(getattr(intent, "raw_text", "") or ""), reachable)
+    raw_text = str(getattr(intent, "raw_text", "") or "")
+    named = _reminder_named_by(raw_text, reachable)
     if named is not None:
         return named
-    if len(pending) == 1:
+    if len(pending) == 1 and not _reminder_words(raw_text):
+        # Only a request that names no reminder at all means the chat's one pending reminder. "delete my reminder
+        # about the dentist appointment" named one that does not exist, and the chat's only reminder ("renew the car
+        # insurance") was cancelled in its place (iMac gate on 0d419ddb5). Words that name nothing reachable are
+        # answered with the reminders there are, and nothing changes.
         return pending[0]
     return None
 
@@ -2150,10 +2156,12 @@ _REMINDER_ORDER_WORDS = (
 def _reminder_words(text: str) -> list[str]:
     """The words of an order that could name a reminder: its terms besides the order's own words."""
     try:
-        from core.chat_housekeeping import query_terms
+        from core.chat_housekeeping import _doc_stems, query_terms
     except Exception:
         return []
-    order_words = set(query_terms(_REMINDER_ORDER_WORDS))
+    # Every order word, not the first twelve query_terms keeps: "reminder" and "thanks" sit past that cap, so "cancel my
+    # reminder" seemed to name a reminder called "reminder".
+    order_words = _doc_stems(_REMINDER_ORDER_WORDS)
     return [term for term in query_terms(text) if term not in order_words and len(term) >= 3]
 
 
