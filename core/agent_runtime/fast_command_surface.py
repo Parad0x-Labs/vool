@@ -2297,7 +2297,7 @@ def action_fast_path_result(
             else "channel"
         ],
         "prompt_assembly_report": {},
-        "model_execution": {"source": "channel_action", "used_model": False},
+        "model_execution": _action_model_execution(details),
         "media_analysis": {"used_provider": False, "reason": "channel_action"},
         "curiosity": {"mode": "skipped", "reason": "channel_action"},
         "backend": agent.backend_name,
@@ -2339,6 +2339,16 @@ def _fast_path_complexity(reason: str) -> str:
     if lane == "deep":
         return "hard"
     return "medium"
+
+
+def _action_model_execution(details: dict[str, object] | None) -> dict[str, object]:
+    """Who wrote an action result's reply. The tool loop's own closing words (``respond.direct``) are the model's: the
+    result is built here like every action's, and stamped "no model", the done-claim check skipped it as a reply
+    VOOL composed. iMac gate on 7ce02be05: "nebereikia priminimo apie augalų laistymą, ištrink jį" (no such reminder,
+    no tool run) was answered "Priminimas apie augalų laistymą buvo ištrintas." and signed "no action claimed"."""
+    if str((details or {}).get("tool_name") or "") == "respond.direct":
+        return {"source": "model_tool_loop", "used_model": True}
+    return {"source": "channel_action", "used_model": False}
 
 
 def _should_emit_action_lane_proof(*, reason: str, details: dict[str, object] | None) -> bool:
