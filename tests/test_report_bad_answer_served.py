@@ -34,7 +34,9 @@ class _KeepProvider(_AskProvider):
     def reply(self, model, body):
         said = "\n".join(str((m or {}).get("content") or "") for m in body.get("messages") or [])
         if '{"answer": "yes"} or {"answer": "no"}' in said and self.tool == "remember":
-            return '{"answer": "yes"}'
+            # The keep question asks whether the person said NOT to keep it (core.intent_arbiter, 0c3d44046): a
+            # preference told to be kept is a no there, and a yes to every other question.
+            return '{"answer": "no"}' if "NOT to remember" in said else '{"answer": "yes"}'
         return super().reply(model, body)
 
 
