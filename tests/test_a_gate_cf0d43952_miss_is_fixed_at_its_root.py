@@ -82,7 +82,7 @@ def test_a_pick_that_runs_or_writes_stands_on_its_own_yes(key, verdict, kept, mo
     asked: list[str] = []
     monkeypatch.setattr(intent_arbiter, "arbitrate_choice_ask", lambda t, c, **_k: asked.append(c) or verdict)
     assert plugin_ask._actions_confirmed("what is the name of my dentist's cat?", (key,), {}, "chat-1") == kept
-    assert bool(asked) == (key in {"run", "files"})
+    assert bool(asked) == (key in {"run", "files", "contacts"})
 
 
 @pytest.mark.parametrize("seed", range(3))

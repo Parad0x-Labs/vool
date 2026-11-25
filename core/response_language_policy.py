@@ -575,6 +575,11 @@ def response_language_provider_instruction(policy: dict[str, Any] | None) -> str
     if not isinstance(policy, dict):
         return ""
     expected = str(policy.get("expected_language") or "")
+    if expected in {"", "none"} and policy.get("reason") == "insufficient_evidence":
+        # No letter decided the language, so none is named; the model is still told whose language counts. A German
+        # question with no umlaut, asked right after a Lithuanian turn, was answered in Lithuanian: with nothing
+        # stated, the model went on in the chat's earlier language (iMac gate on f0a19600e, qwen3:8b).
+        return "Respond in the language of the person's latest message, even if earlier messages used another."
     if expected in {"", "none", "en"}:
         return ""
     name = LANGUAGE_NAMES.get(expected)

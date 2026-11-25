@@ -620,8 +620,9 @@ def _web_confirmed(text: str, keys: tuple[str, ...], source_context: dict[str, A
     return tuple(key for key in keys if key != "web")
 
 
-#: Picks that act on this computer: each stands only on a yes/no of its own (`_actions_confirmed`).
-_ACTION_CHOICES_CONFIRMED = frozenset({"run", "files"})
+#: Picks that act on this computer or on the person's saved records: each stands only on a yes/no of its own
+#: (`_actions_confirmed`).
+_ACTION_CHOICES_CONFIRMED = frozenset({"run", "files", "contacts"})
 
 
 def _actions_confirmed(
@@ -629,11 +630,19 @@ def _actions_confirmed(
 ) -> tuple[str, ...]:
     """The picks, with a pick that runs something or writes a file kept only when a yes/no of its own says the message
     asks for it. iMac gate on cf0d43952 (qwen3:8b): "what is the name of my dentist's cat?" was picked Run, and the
-    reply was a listing of the open folder. No answer keeps the pick."""
+    reply was a listing of the open folder. No answer keeps the pick.
+
+    Contacts too, unless the message carries what a contact holds (a phone number or an email): on the iMac gate of
+    f0a19600e "..., my squash partner ... owns a gecko named ..., keep that bit to yourself" was picked Contacts, the
+    fact was written into a contact's notes behind two approval cards and the message was kept in memory; a recall
+    about the person's own life ran a contact search."""
     from core import intent_arbiter
 
     kept = []
     for key in keys:
+        if key == "contacts" and _CONTACT_VALUE_RE.search(" ".join(str(text or "").split())):
+            kept.append(key)
+            continue
         if key in _ACTION_CHOICES_CONFIRMED:
             description = next((row[1] for row in BUILTIN_CHOICES if row[0] == key), "")
             try:

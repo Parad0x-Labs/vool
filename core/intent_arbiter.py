@@ -1848,7 +1848,7 @@ def _choice_ask_prompt(message: str, choice: str) -> str:
     return "\n".join([
         "A person wrote to their assistant. Does the message ask the assistant to do this? Any language.",
         f'This: "{what}"',
-        "A question about the person's own life, people or pets, or about the world, is no.",
+        "Telling or asking something about the person's own life, people or pets, or about the world, is no.",
         "",
         f'Message: "{flat}" ->',
         'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
