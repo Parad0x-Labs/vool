@@ -2082,43 +2082,60 @@ def _memory_kind_prompt(message: str) -> str:
 
 
 def _keep_wanted_prompt(message: str) -> str:
-    """One yes/no: does the person ask the assistant NOT to keep what they say?
+    """Which of three the message is: an ask to remember, an ask NOT to remember, or something just told or asked.
 
     Asked only of a keep both memory readings agreed on (`core.persistent_memory._judged_memory_turn`): on the Mac gate
     of 561e3e9d0 both read "merk dir das bitte nicht: meine Lampe heißt ..." ("please don't remember this") as a keep,
-    and it was saved. A small model reads the "not" in one plain question better than among four answers.
+    and it was saved.
 
-    The question is only the refusal. Asked "does the person want the assistant to KEEP it?", a fact told plainly
-    with no ask either way ("my cousin Darius has a cat named Murka") read as "no" on the gate iMac (a5403e091), and
-    a fact the person told was answered "Okay, I won't keep that." Nothing but a refusal the person said stops a
-    keep, so a refusal is all that is asked: "yes" here is read back as "no" (`_keep_refused_reader`)."""
-    flat = " ".join(str(message or "").split())[:400]
+    Three answers, each named for what it is, never a yes/no about a "not":
+    - Asked "does the person want the assistant to KEEP it?", a fact told plainly with no ask either way ("my cousin
+      Darius has a cat named Murka") read as "no" on the gate iMac (a5403e091): "Okay, I won't keep that."
+    - Asked the inverse, "does the person ask the assistant NOT to remember ...?", qwen3:8b answered "yes" 3 of 3 to
+      "please remember: ..." in English and German on the gate iMac (3dd1243b9): a remember word was enough, and a
+      plain keep was refused ("Okay, das merke ich mir nicht").
+    Only "dont" stops a keep (`_keep_refused_reader`)."""
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
     return "\n".join([
-        "A person wrote to their assistant.",
-        "Question: does the person ask the assistant NOT to remember, note, save or keep what they say?",
-        'Answer {"answer": "yes"} only when they say so, in any language and any words.',
-        'Answer {"answer": "no"} when they ask it to remember it, and when they just tell it something without '
-        "asking either way.",
+        "A person wrote to their assistant. Which one is the message? Any language, any words.",
+        "remember = it asks the assistant to remember, note, save or keep what it says.",
+        "dont = it asks the assistant NOT to remember, note, save or keep what it says.",
+        "tell = it only tells or asks something, with no ask about remembering either way.",
         "",
-        'Message: "recuerda que mi coche es gris" -> {"answer": "no"}',
-        'Message: "mi clave del wifi es Nube77, pero no la guardes" -> {"answer": "yes"}',
-        'Message: "mój kot boi się odkurzacza" -> {"answer": "no"}',
-        'Message: "nie zapisuj tego: mój PIN to 2580" -> {"answer": "yes"}',
-        'Message: "my dentist is Dr Ferro and she works on Tuesdays" -> {"answer": "no"}',
-        'Message: "my locker code is 4471, no need to remember it" -> {"answer": "yes"}',
-        'Message: "įsimink: mano močiutės katinas vardu Murkis" -> {"answer": "no"}',
-        'Message: "neįsimink šito: mano kodas 9134" -> {"answer": "yes"}',
-        'Message: "merk dir: mein Onkel fährt einen roten Traktor" -> {"answer": "no"}',
+        'Message: "recuerda que mi coche es gris" -> {"answer": "remember"}',
+        'Message: "mi clave del wifi es Nube77, pero no la guardes" -> {"answer": "dont"}',
+        'Message: "mój kot boi się odkurzacza" -> {"answer": "tell"}',
+        'Message: "nie zapisuj tego: mój PIN to 2580" -> {"answer": "dont"}',
+        'Message: "my dentist is Dr Ferro and she works on Tuesdays" -> {"answer": "tell"}',
+        'Message: "my locker code is 4471, no need to remember it" -> {"answer": "dont"}',
+        'Message: "įsimink: mano močiutės katinas vardu Murkis" -> {"answer": "remember"}',
+        'Message: "neįsimink šito: mano kodas 9134" -> {"answer": "dont"}',
+        'Message: "merk dir: mein Onkel fährt einen roten Traktor" -> {"answer": "remember"}',
         "",
         f'Message: "{flat}" ->',
-        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+        'Reply with ONLY the JSON object: {"answer": "remember"}, {"answer": "dont"} or {"answer": "tell"}',
     ])
 
 
+_KEEP_KINDS = {"remember": "yes", "tell": "yes", "dont": "no"}
+
+
 def _keep_refused_reader(content: str) -> str | None:
-    """`_keep_wanted_prompt` asks whether the keep was refused: its "yes" is a keep not wanted ("no")."""
-    refused = parse_followup_decision(content)
-    return None if refused is None else ("no" if refused == "yes" else "yes")
+    """`_keep_wanted_prompt`'s answer as a keep wanted: "dont" is a keep not wanted ("no"); "remember" and "tell" are
+    "yes"; anything else is None (nothing judged it, and the keep stands as both readings agreed)."""
+    raw: object = None
+    try:
+        raw = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        match = re.search(r"\{[^{}]*\}", str(content or ""), re.DOTALL)
+        if match:
+            try:
+                raw = json.loads(match.group(0))
+            except json.JSONDecodeError:
+                raw = None
+    value = raw.get("answer") if isinstance(raw, dict) else None
+    value = "".join(ch for ch in str(value or "").strip().lower() if ch.isalpha())
+    return _KEEP_KINDS.get(value)
 
 
 def arbitrate_keep_wanted(

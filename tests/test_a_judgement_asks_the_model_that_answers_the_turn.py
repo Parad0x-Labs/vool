@@ -42,7 +42,7 @@ def test_the_turns_own_loaded_model_is_asked_not_the_largest_loaded(monkeypatch)
 def test_a_turn_model_not_loaded_yet_is_asked_through_the_turn_judge_not_another_loaded_one(monkeypatch):
     _loaded(monkeypatch, "qwen3.5:9b")
     asked: list[str] = []
-    _bind("qwen3:8b", ['{"answer": "no"}'], asked)
+    _bind("qwen3:8b", ['{"answer": "tell"}'], asked)
     assert intent_arbiter._judge_model_for({}) == ""
     calls: list[str] = []
     monkeypatch.setattr(intent_arbiter, "arbitrate_followup", lambda *a, **k: calls.append(k.get("model")))
@@ -69,22 +69,26 @@ def test_an_owner_pinned_judge_model_still_wins(monkeypatch):
     assert intent_arbiter._judge_model_for({}) == "qwen3:14b"
 
 
-@pytest.mark.parametrize(("refused", "wanted"), [('{"answer": "no"}', "yes"), ('{"answer": "yes"}', "no"),
-                                                 ("maybe", None)])
-def test_keep_wanted_asks_only_whether_the_keep_was_refused(monkeypatch, refused, wanted):
+@pytest.mark.parametrize(("answer", "wanted"), [('{"answer": "remember"}', "yes"), ('{"answer": "tell"}', "yes"),
+                                                ('{"answer": "dont"}', "no"), ('{"answer": "yes"}', None),
+                                                ("maybe", None)])
+def test_keep_wanted_names_three_answers_and_only_dont_stops_a_keep(monkeypatch, answer, wanted):
+    """iMac gate on 3dd1243b9 (qwen3:8b): asked "does the person ask NOT to remember ...?", the model answered "yes" to
+    "please remember: ..." and a plain keep was refused. The question now names three answers; a bare yes/no is no
+    answer to it."""
     _loaded(monkeypatch, "qwen3:8b")
     _bind("qwen3:8b", [], [])
     seen: dict[str, object] = {}
 
     def followup(*_a, **k):
         seen.update(k)
-        return k["parse"](refused)
+        return k["parse"](answer)
 
     monkeypatch.setattr(intent_arbiter, "arbitrate_followup", followup)
     assert intent_arbiter.arbitrate_keep_wanted("mi hermana vive en Kaunas", source_context={}) == wanted
     assert seen["model"] == "qwen3:8b"
     prompt = str(seen["prompt"])
-    assert "NOT to remember" in prompt and "without asking either way" in prompt
+    assert all(f'"answer": "{kind}"' in prompt for kind in ("remember", "dont", "tell")), prompt
 
 
 def test_a_turn_whose_own_model_is_not_known_never_asks_the_largest_loaded(monkeypatch):
