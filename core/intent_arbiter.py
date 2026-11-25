@@ -298,6 +298,8 @@ def arbitrate(
     try:
         import requests
 
+        from core.local_compute_budget import local_compute_seconds
+
         arbiter_payload = {
             "model": model,
             "messages": [{"role": "user", "content": _build_prompt(text, options)}],
@@ -360,7 +362,7 @@ def arbitrate(
         response = requests.post(
             _disclosure_endpoint,
             **request_options(_disclosure_body, _disclosure_endpoint),
-            timeout=(1.5, _TIMEOUT_S),
+            timeout=(1.5, local_compute_seconds(_TIMEOUT_S)),
         )
         received_headers(_disclosure_body)
         response.raise_for_status()
@@ -532,7 +534,14 @@ def arbitrate_followup(
 
         call_id = record_provider_call(source_context, provider_id="ollama", model_id=str(model or ""), cost_class="free_local",
                                        call_role=call_role)
-        response = requests.post(_ollama_chat_url(), json=permit.consume(), timeout=(1.5, timeout_s or _TIMEOUT_S))
+        # The ceilings were measured on GPU hosts; a CPU-only machine gets them scaled once (core.local_compute_budget).
+        # CI Intel smoke on bb5351e0e: the memory question beside a tool pick ran out its 60 s on the i7 runner and the
+        # Reminders pick's own yes/no its 15 s, so a recall question kept a wrong Reminders pick and its tool loop ran
+        # past the 900 s step.
+        from core.local_compute_budget import local_compute_seconds
+
+        response = requests.post(_ollama_chat_url(), json=permit.consume(),
+                                 timeout=(1.5, local_compute_seconds(timeout_s or _TIMEOUT_S)))
         response.raise_for_status()
         content = str(((response.json().get("message") or {}).get("content")) or "")
     except Exception as exc:
