@@ -56,3 +56,42 @@ def test_an_unverified_record_backs_nothing(monkeypatch) -> None:
     output = {"route": "location_followup_receipts", "response": "Files created/updated there: `seed-order.txt`."}
 
     assert not validator._location_answer_has_verified_past_receipt(output, session_id="chat-1", source_context={})
+
+
+# iMac gate on 174b25378: a write made by the builder lane ("please create plumber-notes.txt saying ...") left no path
+# in its receipt at all (arguments {}, parameters {}, target ""). The location render is built from this chat's
+# completed-write events, which only the runtime emits, so those events back it.
+def _completed(name: str, *, ok: bool = True, where: str = "message") -> dict:
+    details = {"ok": ok, "canonical_target": name if where == "target" else ""}
+    message = f"Created `{name}`." if where == "message" else "Created the file."
+    return {"event_type": "workspace_mutation_completed", "message": message, "details": details}
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_a_builder_write_with_an_empty_receipt_is_backed_by_its_completed_event(seed, monkeypatch) -> None:
+    rng = random.Random(f"builder-{seed}")
+    name = rng.choice(["plumber-notes.txt", "druskos-sarasas.txt", "einkauf.md", "tap/drip-log.txt"])
+    root = rng.choice(["/srv/work/projA", "/data/garden"])
+    empty = {"tool_name": "workspace.write_file", "arguments": {}, "session_id": "chat-1",
+             "execution": {"action_record": {"action_type": "tool_executed", "parameters": {}, "target": ""}}}
+    monkeypatch.setattr("core.runtime_continuity.list_runtime_tool_receipts", lambda *_a, **_k: [empty])
+    monkeypatch.setattr(validator, "_receipt_shows_execution", lambda *_a, **_k: False)
+    events = [_completed("other.txt"), _completed(name, where=rng.choice(["message", "target"]))]
+    monkeypatch.setattr("core.runtime_continuity.list_recent_runtime_session_events", lambda *_a, **_k: events)
+    output = {"route": "location_followup_receipts",
+              "response": f"It's in this chat's workspace: `{root}`.\nFiles created/updated there: `{name}`."}
+
+    assert validator._location_answer_has_verified_past_receipt(output, session_id="chat-1", source_context={})
+
+
+@pytest.mark.parametrize("case", ["no_event", "failed_event", "other_route", "one_unknown_file"])
+def test_completed_events_back_only_the_runtime_render_of_their_own_files(case, monkeypatch) -> None:
+    monkeypatch.setattr("core.runtime_continuity.list_runtime_tool_receipts", lambda *_a, **_k: [])
+    events = {"no_event": [], "failed_event": [_completed("plumber-notes.txt", ok=False)]}.get(
+        case, [_completed("plumber-notes.txt")])
+    monkeypatch.setattr("core.runtime_continuity.list_recent_runtime_session_events", lambda *_a, **_k: events)
+    listed = "`plumber-notes.txt`, `budget.xlsx`" if case == "one_unknown_file" else "`plumber-notes.txt`"
+    output = {"route": "model_reply" if case == "other_route" else "location_followup_receipts",
+              "response": f"It's in this chat's workspace: `/srv/work`.\nFiles created/updated there: {listed}."}
+
+    assert not validator._location_answer_has_verified_past_receipt(output, session_id="chat-1", source_context={})

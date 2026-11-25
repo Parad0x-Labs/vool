@@ -1615,6 +1615,8 @@ def _location_answer_has_verified_past_receipt(
         return False
     route = " ".join(str(output.get(key) or "") for key in ("route", "route_reason", "reason"))
     response = str(output.get("response") or "")
+    if "location_followup_receipts" in route and _location_render_names_completed_writes(response, clean_session):
+        return True
     try:
         from core.runtime_continuity import list_runtime_tool_receipts
 
@@ -1648,6 +1650,39 @@ def _location_answer_has_verified_past_receipt(
                 continue
             return True
     return False
+
+
+def _location_render_names_completed_writes(response: str, session_id: str) -> bool:
+    """Whether the runtime's own "where did it go" render names only files its completed-write events hold.
+
+    That render (agent `_maybe_answer_location_followup_turn`) is built from this chat's
+    `workspace_mutation_completed` events, which only the runtime emits, after a write that succeeded.
+    A write made by the builder lane leaves no path in its tool receipt (arguments {}, parameters {},
+    target ""), so on the iMac gate (174b25378) "ok, so where did that end up on disk?" got the true
+    path and was then replaced with "I cannot verify the claimed action". Every file the render lists
+    must be one of those events' files; a render naming any other file is judged as before."""
+    listed = re.search(r"Files created/updated there: (.+?)\.?\s*(?:\(|$)", response, re.DOTALL)
+    names = re.findall(r"`([^`]+)`", listed.group(1)) if listed else []
+    if not names:
+        return False
+    try:
+        from core.runtime_continuity import list_recent_runtime_session_events
+
+        events = list_recent_runtime_session_events(session_id, limit=120)
+    except Exception:
+        return False
+    written: set[str] = set()
+    for event in events:
+        if str(event.get("event_type") or "") != "workspace_mutation_completed":
+            continue
+        details = event.get("details") if isinstance(event.get("details"), dict) else {}
+        if details.get("ok") is False:
+            continue
+        for value in (details.get("path"), details.get("canonical_target")):
+            if str(value or "").strip():
+                written.add(str(value).strip())
+        written.update(match.strip() for match in re.findall(r"`([^`]+)`", str(event.get("message") or "")))
+    return all(name.strip() in written for name in names)
 
 
 def _written_paths(receipt: dict[str, Any]) -> list[str]:
