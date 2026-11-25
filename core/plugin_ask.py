@@ -362,14 +362,16 @@ def _memory_kind_confirmed(
     - a keep or a forget never takes a tool's order ("remind me at 9 to ..."): neither stands beside a picked tool."""
     from core import intent_arbiter
 
-    def asked(name: str, call) -> str | None:
+    def asked(name: str, call, **extra) -> str | None:
         try:
-            return call(text, chat_id=str(session_id or ""), source_context=source_context)
+            return call(text, chat_id=str(session_id or ""), source_context=source_context, **extra)
         except Exception as exc:
             _log.info("memory %s: judge call failed (%s)", name, type(exc).__name__)
             return None
 
-    kind = asked("kind", intent_arbiter.arbitrate_memory_kind)
+    # Beside a picked tool, a recall stands only if this question names it: it waits as long as the tool ask did.
+    kind = asked("kind", intent_arbiter.arbitrate_memory_kind,
+                 **({"patient": True} if any(key not in _MEMORY_KINDS for key in keys) else {}))
     picked = {_MEMORY_KINDS[key] for key in keys if key in _MEMORY_KINDS}
     tools = tuple(key for key in keys if key not in _MEMORY_KINDS)
     named = picked | ({kind} if kind in {"keep", "recall", "forget"} else set())

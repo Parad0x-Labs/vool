@@ -2013,9 +2013,15 @@ def arbitrate_memory_kind(
     request_id: str = "",
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
+    patient: bool = False,
 ) -> str | None:
     """What a message asks of VOOL's memory: "keep", "recall", "forget" or "none"; None when nothing judged it. Same
-    call path as the other judgements (`_memory_kind_prompt` says why it is its own question)."""
+    call path as the other judgements (`_memory_kind_prompt` says why it is its own question).
+
+    ``patient`` when the tool judgement beside it picked a tool: a recall then stands only if this question names it,
+    so it waits as the tool ask does. On the Intel smoke of 174b25378 (qwen3:8b on a CPU) it was cut at the usual 15 s
+    for "What is Ilona's favourite tree?" and "What is my locker number?", the tool judgement's Reminders and Contacts
+    picks stood alone, and the first ended in an approval card, the second ran past 15 minutes."""
     if not str(message or "").strip():
         return None
     prompt = _memory_kind_prompt(message)
@@ -2026,6 +2032,7 @@ def arbitrate_memory_kind(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=prompt, operation="memory_kind_arbitration", model=model,
         runner_role="general", call_role=_judgement_role(), parse=_memory_kind_reader,
+        **({"patient": True, "timeout_s": _LOAD_TIMEOUT_S} if patient else {}),
     )
 
 
