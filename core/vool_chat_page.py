@@ -4777,6 +4777,7 @@ function newChat() {
   if (view.run && !view.run.ended) detachRunDom(view.run);
   setDisplayedChat(mintSessionId());
   restoreChatModel(displayedChat);
+  carryLocalPick(displayedChat);
   localStorage.setItem('vool.sessionId', displayedChat);
   view.mode = loadModeForSession(displayedChat);
   reflectMode();
@@ -4785,7 +4786,7 @@ function newChat() {
   activityHistory = [];   // the cross-session Activity list is a panel-wide view, not chat state
   renderContextBar();   // fresh chat in General -> update the context chips
   updatePinCount();     // a new chat has no pins
-  reflectModel();       // a new chat starts back on local-first Auto (its bucket has no sticky)
+  reflectModel();       // a new chat starts on the last local pick, else local-first Auto (no sticky)
   reflectComposer(); hidePermBar();
   showEmpty();
   setupLineReflect();   // a brand-new empty chat is where the setup line may appear
@@ -4803,12 +4804,28 @@ function modelForChat(chatId) {
 function restoreChatModel(chatId) {
   modelValue = modelForChat(chatId);
 }
+// The model a new chat starts on. The installed app reset every new chat to Auto, and the person
+// picked their local model again each time (chat-brag run on 6f5532699). A local model or a
+// no-cloud lane carries into the next new chat; a cloud pick never does (it could charge in a chat
+// where nobody chose it), so after one the next new chat starts on Auto.
+const NEW_CHAT_MODEL_KEY = 'vool_new_chat_model';
+function noteNewChatModel(m) {
+  try { localStorage.setItem(NEW_CHAT_MODEL_KEY, (isLocalModel(m) || isNoCloudModel(m)) ? String(m) : 'vool'); } catch (e) {}
+}
+function carryLocalPick(chatId) {
+  if (_jget('vool_chat_models_v1', '{}')[String(chatId)]) return;
+  let m = '';
+  try { m = localStorage.getItem(NEW_CHAT_MODEL_KEY) || ''; } catch (e) { m = ''; }
+  // Still installed (or a no-cloud lane) when the chat opens; a removed model is not pinned.
+  if (m && m !== 'vool' && (isLocalModel(m) || isNoCloudModel(m))) setModelValue(m, chatId);
+}
 function setModelValue(m, chatId = displayedChat) {
   const choices = _jget('vool_chat_models_v1', '{}');
   if (choices[String(chatId)] && choices[String(chatId)] !== (m || 'vool')) {
     try { paidPinAcknowledgements.delete(paidAckKey(chatId, choices[String(chatId)])); } catch (e) {}
   }
   choices[String(chatId)] = m || 'vool';
+  noteNewChatModel(m || 'vool');
   modelSelectionRevisions[String(chatId)] = (modelSelectionRevisions[String(chatId)] || 0) + 1;
   localStorage.setItem('vool_chat_models_v1', JSON.stringify(choices));
   if (isDisplayed(chatId)) {
@@ -4849,6 +4866,7 @@ async function newChatInProject(pid) {
   const sid = mintSessionId();
   setDisplayedChat(sid); localStorage.setItem('vool.sessionId', sid);
   restoreChatModel(sid);
+  carryLocalPick(sid);
   view.mode = loadModeForSession(displayedChat);
   reflectMode();
   activityHistory = [];   // panel-wide cross-session list, not chat state
