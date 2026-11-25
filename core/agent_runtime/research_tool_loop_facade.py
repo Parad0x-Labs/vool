@@ -708,7 +708,13 @@ def _change_call_carries_an_earlier_message(
                 copied.append(value)
                 continue
             words = _words_of(value)
-            if len(words) < 2 or " ".join(words) not in earlier:
+            joined = " ".join(words)
+            # An earlier message's words count as much as an earlier call's: a call that failed is never on the
+            # ledger. iMac gate on b8d1c324a: "primink šeštadienį 11 val. nupirkti gimtadienio tortą" went out as a
+            # cancel that failed, and the next "primink sekmadienį 15 val. palaistyti pomidorus" went out as a set of
+            # the cake with the earlier text, note and a wrong day.
+            if len(words) < 2 or (joined not in earlier and not any(
+                    f" {joined} " in f" {said} " for said in earlier_asks)):
                 continue
             if _names_a_word_of(value, asked) or value.casefold() in read_this_turn:
                 continue
@@ -720,12 +726,19 @@ def _change_call_carries_an_earlier_message(
         # chat's own messages are read, not only the calls that ran.
         typed_request = str(arguments.get("text") or "").strip()
         typed_words = " ".join(_words_of(typed_request))
+        # An earlier message word for word is that message, whatever words it shares with this one ("primink", "val"
+        # open both of two Lithuanian reminder asks).
+        this_words = " ".join(asked)
         if (
             typed_request
             and typed_request not in copied
             and len(typed_words.split()) >= 3
-            and not _names_a_word_of(typed_request, asked)
-            and any(typed_words in said or said in typed_words for said in earlier_asks)
+            and typed_words != this_words
+            and (
+                typed_words in earlier_asks
+                or (not _names_a_word_of(typed_request, asked)
+                    and any(typed_words in said or said in typed_words for said in earlier_asks))
+            )
         ):
             copied.append(typed_request)
         if not copied:
