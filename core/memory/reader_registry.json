@@ -113,7 +113,8 @@
     "verified_forget_outcome": "authority",
     "is_bound_forget_no_match": "authority",
     "requires_forget_outcome": "authority",
-    "forget_demand_targets": "authority"
+    "forget_demand_targets": "authority",
+    "shows_forget_outcome": "authority"
   },
   "core/memory/entries.py": {
     "forget_profile_derivatives": "writer",

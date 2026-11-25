@@ -710,7 +710,14 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
     if named:
         _record(text, named, signature)
         return named
-    builtins = [*BUILTIN_CHOICES, *MEMORY_CHOICES] if _builtins_to_ask(text, source_context) else []
+    # A pasted email or message is material, not the ask: the judge (and the word readers deciding whether to ask it)
+    # read the person's own words in front of it, with the paste shown as text already in the message
+    # (core.memory.admission reads the paste by its shape, in any language).
+    from core.memory.admission import text_before_a_pasted_message
+
+    own = text_before_a_pasted_message(text)
+    material = text[text.find(own) + len(own):].strip() if own and own != text else ""
+    builtins = [*BUILTIN_CHOICES, *MEMORY_CHOICES] if _builtins_to_ask(own if material else text, source_context) else []
     if not rows and not builtins:
         return None
     from core import intent_arbiter
@@ -729,8 +736,9 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
         # asked for in another language is not offered at all (outside review of 261a0389, R5).
         try:
             picked = intent_arbiter.arbitrate_plugin_ask(
-                text,
+                own if material else text,
                 choices,
+                material=material,
                 previous=_previous_request(text, source_context),
                 chat_id=str(session_id or ""),
                 source_context=source_context,

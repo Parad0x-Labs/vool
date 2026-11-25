@@ -1486,7 +1486,7 @@ _PLUGIN_ASK_FULL_CHOICES = 8
 _PLUGIN_ASK_BRIEF_CHARS = 180
 
 
-def _plugin_ask_prompt(message: str, previous: str, plugins: list[str]) -> str:
+def _plugin_ask_prompt(message: str, previous: str, plugins: list[str], material: str = "") -> str:
     """One question over a numbered list: which of the listed tools does the message ask the assistant to use?
 
     The list is the tools' own names and descriptions (an added plugin's as its maker wrote it). The examples are
@@ -1540,6 +1540,13 @@ def _plugin_ask_prompt(message: str, previous: str, plugins: list[str]) -> str:
     ]
     if str(previous or "").strip():
         lines.append(f'Previous message: "{flat(previous, 240)}"')
+    if str(material or "").strip():
+        # A pasted email or message is the ask's material, already in the message: shown as such, so a short ask
+        # over it ("the gist of this?") is not read as an ask to open a file (gate18 on bb5351e0e: a pasted German
+        # mail under "Could you give me the gist of this?" was judged "read a file" and searched the Desktop).
+        lines.append("The person pasted the text below into the message itself. It is already here: summing it up, "
+                     "translating it, or answering about it needs no tool. Judge only what the person asks.")
+        lines.append(f'Pasted text: "{prompt_data(material, 240)}"')
     lines.append(f'Message: "{flat(message, 400)}" ->')
     lines.append('Reply with ONLY the JSON object: {"answer": [N, ...]}, or {"answer": [0]} for none of them')
     return "\n".join(lines)
@@ -1578,6 +1585,7 @@ def arbitrate_plugin_ask(
     request_id: str = "",
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
+    material: str = "",
 ) -> tuple[int, ...] | None:
     """Which of the listed tools a message asks to use: their places in ``plugins`` from 1 (empty for none), or None
     when nothing judged it. ``plugins`` are the tools' descriptions (an added plugin's as its maker wrote it). Same call
@@ -1586,7 +1594,7 @@ def arbitrate_plugin_ask(
     asked = [str(plugin or "") for plugin in plugins][:PLUGIN_ASK_CHOICES]
     if not str(message or "").strip() or not any(plugin.strip() for plugin in asked):
         return None
-    prompt = _plugin_ask_prompt(message, previous, asked)
+    prompt = _plugin_ask_prompt(message, previous, asked, material)
     reader = _numbers_reader(len(asked))
     model = _judge_model_for(source_context)
     if not model:

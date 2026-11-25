@@ -88,6 +88,26 @@ def test_the_final_check_keeps_the_verified_outcome_in_the_persons_language(monk
     assert english["response"] == executed
 
 
+def test_a_forget_shown_in_the_persons_language_is_signed_as_the_executed_outcome(monkeypatch):
+    """Mac gate 18 on bb5351e0e: every real Polish and Lithuanian forget was signed action_claim_unbacked ("no verified
+    outcome") because the receipt compared the localized reply with the English one."""
+    from types import SimpleNamespace
+
+    import core.memory.command_result as command_result
+    from core.agent_runtime.action_honesty_validator import _final_claim_kind
+
+    executed = f"Forget applied. Removed 1 memory entry. {FORGET_LIST_NOTE}"
+    execution = SimpleNamespace(response=executed, outcome=executed, status="applied")
+    monkeypatch.setattr(command_result, "verified_forget_outcome", lambda *a, **k: execution)
+    order = "Pamiršk, ką sakiau apie kaimyno vėžlį."
+    shown = in_the_persons_language(executed, order)
+    assert shown != executed
+    assert _final_claim_kind({"response": shown}, user_input=order, session_id="lt-chat") == ""
+    assert command_result.shows_forget_outcome(shown, execution, order)
+    assert not command_result.shows_forget_outcome("Viską ištryniau.", execution, order)
+    assert not command_result.shows_forget_outcome(shown, None, order)
+
+
 def test_a_forget_that_names_nothing_is_answered_in_the_persons_language():
     from core.persistent_memory import JUDGED_FORGET_NAMES_NOTHING
 

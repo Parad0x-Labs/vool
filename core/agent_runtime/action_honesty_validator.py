@@ -2262,13 +2262,13 @@ def _final_claim_kind(
     session_id: str | None = None, source_context: dict[str, object] | None = None,
 ) -> str:
     """Classify the exact delivered result identically for the guard and signed receipt."""
-    from core.memory.command_result import requires_forget_outcome, verified_forget_outcome
+    from core.memory.command_result import requires_forget_outcome, shows_forget_outcome, verified_forget_outcome
 
     outcome = verified_forget_outcome(
         result, user_input=user_input, effective_input=effective_input,
         session_id=session_id, source_context=source_context,
     )
-    if outcome is not None and str(result.get("response") or "") == outcome.response:
+    if shows_forget_outcome(result.get("response"), outcome, user_input):
         return ""
     if requires_forget_outcome(
         result, user_input=user_input, effective_input=effective_input,

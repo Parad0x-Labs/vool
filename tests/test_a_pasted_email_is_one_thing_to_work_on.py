@@ -61,3 +61,44 @@ def test_the_kind_of_task_is_read_from_the_persons_own_words():
     pasted = (f"{asked}\n\nFrom: Riverside Builders <office@example.net>\nSubject: Meeting about the sync\n\n"
               "We will install the new boiler after the meeting and email you the invoice.")
     assert classify(pasted)["task_class"] == classify(asked)["task_class"]
+
+
+@pytest.mark.parametrize("text", _EMAILS[:2] + _EMAILS[3:])
+def test_the_words_in_front_of_a_pasted_email_are_the_ask(text):
+    """Mac gate 18 on bb5351e0e: a mail under a short ask was read whole by the tool gate."""
+    from core.agent_runtime.turn_planner import pasted_material_head
+    from core.memory.admission import text_before_a_pasted_message
+
+    assert pasted_material_head(text) == text_before_a_pasted_message(text).strip(" \t\r\n:-")
+
+
+def test_an_email_pasted_with_no_ask_in_front_has_no_head():
+    from core.agent_runtime.turn_planner import pasted_material_head
+
+    assert pasted_material_head(_EMAILS[2]) == ""
+
+
+def test_the_tool_judge_reads_the_ask_with_the_email_shown_as_material(monkeypatch):
+    """Mac gate 18 on bb5351e0e: a German mail pasted under "Could you give me the gist of this?" was judged "read a
+    file", and the turn searched the Desktop for its subject line. The judge is asked about the person's own words,
+    with the paste shown as text already in the message."""
+    from core import intent_arbiter, plugin_ask
+    from core.request_trust import OWNER_LOCAL_KEY
+
+    seen = []
+    monkeypatch.setattr(plugin_ask, "_installed_with_tools", lambda: [])
+    monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask",
+                        lambda message, choices, **kw: seen.append((message, kw.get("material", ""))) or ())
+    plugin_ask.forget()
+    try:
+        text = _EMAILS[3]
+        plugin_ask.judge_turn(text, source_context={OWNER_LOCAL_KEY: True, "surface": "openclaw"}, session_id="p")
+    finally:
+        plugin_ask.forget()
+    assert seen, "the tool judge was not asked"
+    message, material = seen[0]
+    assert message == "kas čia parašyta?"
+    assert material.startswith("Nuo: Biblioteka") and "penktadienio" in material
+    prompt = intent_arbiter._plugin_ask_prompt(message, "", ["Read a file"], material)
+    assert "Pasted text:" in prompt and prompt.rstrip().endswith('{"answer": [0]} for none of them')
+    assert intent_arbiter._plugin_ask_prompt(message, "", ["Read a file"]).count("Pasted text:") == 0

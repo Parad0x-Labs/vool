@@ -213,6 +213,21 @@ def verified_forget_outcome(
     )
 
 
+def shows_forget_outcome(response: object, execution: _ForgetExecution | None, user_input: str) -> bool:
+    """Whether the delivered reply is the executed forget outcome: its own words, or the same outcome in the person's
+    language as the final check renders it (core.agent_runtime.action_honesty_validator.enforce_final_action_honesty).
+    Mac gate 18 on bb5351e0e: every real Polish and Lithuanian forget was signed "no verified outcome" because the
+    receipt compared the localized reply with the English one."""
+    if execution is None:
+        return False
+    shown = str(response or "")
+    if shown == execution.response:
+        return True
+    from core.i18n.lane_receipts import in_the_persons_language
+
+    return shown == in_the_persons_language(execution.response, str(user_input or ""))
+
+
 def is_bound_forget_no_match(
     result: dict, *, user_input: str, effective_input: str | None,
     session_id: str | None, source_context: dict | None,
@@ -223,7 +238,7 @@ def is_bound_forget_no_match(
     )
     return bool(
         execution is not None and execution.status == "no_match"
-        and str(result.get("response") or "") == execution.response
+        and shows_forget_outcome(result.get("response"), execution, user_input)
     )
 
 

@@ -291,6 +291,18 @@ def pasted_material_head(text: str) -> str:
     if not message:
         return ""
     try:
+        # A pasted email or message, read by its shape in any language (core.memory.admission): the words in front
+        # of it are the ask when they are one request. Gate18 on bb5351e0e: a German mail pasted under "Could you
+        # give me the gist of this?" was read whole, and the turn searched the Desktop for its subject line.
+        from core.memory.admission import text_before_a_pasted_message
+
+        own = text_before_a_pasted_message(message).strip(" \t\r\n:-")
+        if own and own != message:
+            from core.agent_runtime.answer_coverage import demand_units
+
+            own_units = demand_units(own)
+            if own_units is None or len(own_units) <= 1:
+                return own
         from core.plain_task_routing import _SUPPLIED_MATERIAL_RE
 
         material = _SUPPLIED_MATERIAL_RE.search(message)
