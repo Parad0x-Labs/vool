@@ -725,6 +725,7 @@
     "memory.forget_applied": "Unutuldu. Silinen hafıza kaydı: {count}.",
     "memory.forget_list_note": "Bu sohbette, VOOL'un bu bilgisayardaki unutma listesi unutulan kelimelerin yalnızca kilitli bir parmak izini tutar; bu yüzden bir daha asla kullanılmazlar.",
     "memory.forget_no_match": "Hiçbir şey kaldırılmadı. Bu sohbette \"{target}\" ile eşleşen bir anı bulunamadı.",
+    "memory.forget_names_nothing": "Bununla ilgili kayıtlı hiçbir şeyim yok, bu yüzden hiçbir şey silinmedi ve bunu saklamayacağım. Daha önce bana söylediğin bir şeyi kastettiysen, hangi bilgi olduğunu söylediğin sözlerle yaz.",
     "memory.you_told_me": "Bana şunu söyledin:",
     "bot.approval_needed": "Bunun için bilgisayarında onayın gerekiyor. Bu sohbeti oradaki VOOL'da aç ve izin ver. Sonucu buraya göndereceğim.",
     "bot.approval_needed_what": "Bunun için bilgisayarında onayın gerekiyor: {what}. Bu sohbeti oradaki VOOL'da aç ve izin ver. Sonucu buraya göndereceğim.",
@@ -5632,7 +5633,7 @@
     "mail.saved.details_on": "Uyarılar gönderen ve konuyu belirtir.",
     "mail.saved.details_off": "Uyarılar yalnızca kaç e-posta geldiğini söyler."
   },
-  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
+  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

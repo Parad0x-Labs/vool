@@ -263,11 +263,15 @@ def led_statement(text: str) -> tuple[str, str] | None:
 _LEAD_POINTER_RE = re.compile(r"\b(?:this|these|that|those|it|them)\b", re.IGNORECASE)
 
 
-#: A lead that opens on its pointer as the OBJECT of the capture verb before it ("keep THIS tucked away for later:
-#: ..."); a pointer followed by a verb of its own is the subject of a statement ("this is the gate code: 4471").
+#: A lead that opens on its pointer as the OBJECT of the capture verb before it, standing alone: followed by nothing,
+#: a preposition or place word ("keep THIS in the back of your head", "THIS for later", "THIS somewhere safe") or a
+#: participle ("THIS tucked away"). A pointer followed by a noun is a determiner and the noun names the fact ("this
+#: route label: ORBIT 19", "this phrase as a note: North Star"): that lead stays with the fact. A pointer followed by
+#: a verb of its own is the subject of a statement ("this is the gate code: 4471").
 _POINTER_OBJECT_LEAD_RE = re.compile(
-    r"^(?:this|these|that|those|it|them)\b(?!\s+(?:is|are|was|were|am|has|have|had|does|do|did|will|would|shall|"
-    r"should|can|could|may|might|must|means|meant|goes|went|says|said)\b)(?!['’]s\b)",
+    r"^(?:this|these|that|those|it|them)"
+    r"(?:\s*$|\s+(?:in|into|inside|for|on|onto|at|to|somewhere|safe|away|aside|handy|up|down|around|with|under"
+    r"|[a-z]+ed)\b)",
     re.IGNORECASE,
 )
 

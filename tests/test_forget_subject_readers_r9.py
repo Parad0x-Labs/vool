@@ -116,6 +116,7 @@ def test_unrelated_source_survives_subject_withdrawal(tmp_path):
     }),
     ("core.persistent_memory", {
         "augment_history_from_session_log", "memory_lifecycle_snapshot", "maybe_handle_memory_command",
+        "held_fact_answer_before_a_lookup",
     }, {
         "has_relevant_memory_candidate", "ensure_memory_files", "append_conversation_event",
         "open_transcript_commit_boundary", "transcript_commit_boundary_open", "has_staged_conversation_event",

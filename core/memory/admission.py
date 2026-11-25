@@ -658,11 +658,8 @@ _HEADER_LINE_RE = re.compile(r"^\s*[^\W\d_][\w-]{0,24}\s*:\s*\S")
 _ADDRESS_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 
 
-def holds_a_pasted_message(text: str) -> bool:
-    """Whether the text holds a pasted email or message, read by its shape in any language: a block of two or more
-    header lines (label, colon, value) at least one of which carries an address, set off by a blank line before it
-    (or opening the text) and followed by a blank line and a body. A contact card ("Name: ... / Email: ...") has no
-    body behind a blank line and is not one."""
+def _pasted_message_start(text: str) -> int | None:
+    """The line a pasted email or message starts on (its first header line), or None."""
     lines = str(text or "").splitlines()
     index = 0
     while index < len(lines):
@@ -674,11 +671,27 @@ def holds_a_pasted_message(text: str) -> bool:
             body = [line for line in lines[end + 1:] if line.strip()]
             if (len(block) >= 2 and any(_ADDRESS_RE.search(line) for line in block)
                     and end < len(lines) and not lines[end].strip() and body):
-                return True
+                return index
             index = max(end, index + 1)
             continue
         index += 1
-    return False
+    return None
+
+
+def holds_a_pasted_message(text: str) -> bool:
+    """Whether the text holds a pasted email or message, read by its shape in any language: a block of two or more
+    header lines (label, colon, value) at least one of which carries an address, set off by a blank line before it
+    (or opening the text) and followed by a blank line and a body. A contact card ("Name: ... / Email: ...") has no
+    body behind a blank line and is not one."""
+    return _pasted_message_start(text) is not None
+
+
+def text_before_a_pasted_message(text: str) -> str:
+    """The person's own words in front of a pasted email or message (the whole text when it holds none)."""
+    start = _pasted_message_start(text)
+    if start is None:
+        return str(text or "")
+    return "\n".join(str(text or "").splitlines()[:start]).strip()
 
 
 def classify_user_text(user_input: str) -> UserTextOrigin:

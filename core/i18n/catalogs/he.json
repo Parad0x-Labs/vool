@@ -725,6 +725,7 @@
     "memory.forget_applied": "נשכח. רשומות זיכרון שהוסרו: {count}.",
     "memory.forget_list_note": "בצ'אט הזה, רשימת השכחה של VOOL במחשב הזה שומרת רק טביעת אצבע נעולה של המילים שנשכחו, כך שלא ייעשה בהן שימוש שוב.",
     "memory.forget_no_match": "שום דבר לא הוסר. לא נמצא בצ'אט הזה זיכרון שתואם ל-\"{target}\".",
+    "memory.forget_names_nothing": "אין לי שום דבר שמור על זה, ולכן שום דבר לא נמחק, ולא אשמור את זה. אם התכוונת למשהו שסיפרת לי קודם, כתוב איזו עובדה, במילים שבהן אמרת אותה.",
     "memory.you_told_me": "אמרת לי:",
     "bot.approval_needed": "זה צריך את האישור שלך במחשב. פתח את השיחה הזו ב-VOOL שם ואשר. אשלח את התוצאה לכאן.",
     "bot.approval_needed_what": "זה צריך את האישור שלך במחשב: {what}. פתח את השיחה הזו ב-VOOL שם ואשר. אשלח את התוצאה לכאן.",
@@ -5632,7 +5633,7 @@
     "mail.saved.details_on": "ההתראות מציינות את השולח והנושא.",
     "mail.saved.details_off": "ההתראות אומרות רק כמה מיילים הגיעו."
   },
-  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
+  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

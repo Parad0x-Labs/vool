@@ -86,3 +86,17 @@ def test_the_final_check_keeps_the_verified_outcome_in_the_persons_language(monk
     assert replaced["response"] == shown  # a reply that is not the outcome is still replaced by it
     english = enforce_final_action_honesty({"response": "done"}, user_input="forget the tortoise", session_id="en")
     assert english["response"] == executed
+
+
+def test_a_forget_that_names_nothing_is_answered_in_the_persons_language():
+    from core.persistent_memory import JUDGED_FORGET_NAMES_NOTHING
+
+    shown = in_the_persons_language(JUDGED_FORGET_NAMES_NOTHING, "Zapomnij, co mówiłem o kocie sąsiadki.")
+    assert shown.startswith("Nie mam o tym nic zapisanego")
+
+
+def test_a_language_vool_ships_no_words_for_gets_the_apps_language_whole():
+    """Czech has no catalog: the reply stays in English words, not English stand-ins under another language's name
+    ("Removed 1 memory entries", Mac gate 17)."""
+    english = f"Forget applied. Removed 1 memory entry. {FORGET_LIST_NOTE}"
+    assert in_the_persons_language(english, "Díky. Teď prosím zapomeň, co jsem říkal o papoušku.") == english

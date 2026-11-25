@@ -725,6 +725,7 @@
     "memory.forget_applied": "Vergessen. Entfernte Erinnerungseinträge: {count}.",
     "memory.forget_list_note": "In diesem Chat behält die Vergessen-Liste von VOOL auf diesem Computer nur einen gesperrten Fingerabdruck der vergessenen Wörter, damit sie nie wieder verwendet werden.",
     "memory.forget_no_match": "Nichts wurde entfernt. In diesem Chat wurde keine Erinnerung gefunden, die zu „{target}“ passt.",
+    "memory.forget_names_nothing": "Dazu habe ich nichts gespeichert, also wurde nichts gelöscht, und ich behalte es nicht. Wenn du etwas meinst, das du mir früher gesagt hast, nenne mir die Sache in den Worten, in denen du sie gesagt hast.",
     "memory.you_told_me": "Du hast mir gesagt:",
     "bot.approval_needed": "Dafür brauche ich dein OK am Computer. Öffne diesen Chat dort in VOOL und erlaube es. Das Ergebnis schicke ich hierher.",
     "bot.approval_needed_what": "Dafür brauche ich dein OK am Computer: {what}. Öffne diesen Chat dort in VOOL und erlaube es. Das Ergebnis schicke ich hierher.",
@@ -5632,7 +5633,7 @@
     "mail.saved.details_on": "Hinweise nennen Absender und Betreff.",
     "mail.saved.details_off": "Hinweise sagen nur, wie viele E-Mails angekommen sind."
   },
-  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
+  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

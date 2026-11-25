@@ -725,6 +725,7 @@
     "memory.forget_applied": "已忘记。已删除的记忆条目：{count}。",
     "memory.forget_list_note": "在此聊天中，VOOL 在这台电脑上的遗忘列表只保留被遗忘词语的锁定指纹，因此它们不会再被使用。",
     "memory.forget_no_match": "没有删除任何内容。在此聊天中未找到与“{target}”匹配的记忆。",
+    "memory.forget_names_nothing": "我没有保存与此相关的任何内容，因此没有删除任何东西，我也不会保存它。如果你指的是之前告诉过我的事情，请用你当时的说法告诉我是哪一条。",
     "memory.you_told_me": "你告诉过我：",
     "bot.approval_needed": "这需要你在电脑上同意。请在那台电脑的 VOOL 中打开这个对话并允许。结果我会发到这里。",
     "bot.approval_needed_what": "这需要你在电脑上同意：{what}。请在那台电脑的 VOOL 中打开这个对话并允许。结果我会发到这里。",
@@ -5632,7 +5633,7 @@
     "mail.saved.details_on": "提醒会显示发件人和主题。",
     "mail.saved.details_off": "提醒只显示收到了几封邮件。"
   },
-  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
+  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

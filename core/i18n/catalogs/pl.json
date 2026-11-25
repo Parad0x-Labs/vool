@@ -725,6 +725,7 @@
     "memory.forget_applied": "Zapomniane. Usunięte wpisy pamięci: {count}.",
     "memory.forget_list_note": "W tym czacie lista zapomnianych VOOL na tym komputerze przechowuje tylko zablokowany odcisk zapomnianych słów, więc nigdy nie zostaną ponownie użyte.",
     "memory.forget_no_match": "Nic nie usunięto. W tym czacie nie znaleziono wspomnienia pasującego do „{target}”.",
+    "memory.forget_names_nothing": "Nie mam o tym nic zapisanego, więc nic nie zostało usunięte i tego nie zachowam. Jeśli chodzi o coś, co mi wcześniej powiedziałeś, napisz, o który fakt chodzi, tymi słowami, którymi go podałeś.",
     "memory.you_told_me": "Powiedziałeś mi:",
     "bot.approval_needed": "To wymaga Twojej zgody na komputerze. Otwórz tam tę rozmowę w VOOL i zezwól. Wynik wyślę tutaj.",
     "bot.approval_needed_what": "To wymaga Twojej zgody na komputerze: {what}. Otwórz tam tę rozmowę w VOOL i zezwól. Wynik wyślę tutaj.",
@@ -5632,7 +5633,7 @@
     "mail.saved.details_on": "Powiadomienia podają nadawcę i temat.",
     "mail.saved.details_off": "Powiadomienia mówią tylko, ile e-maili przyszło."
   },
-  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
+  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3622,7 +3622,7 @@ def _recall_beside_a_file_pick(
 
 def _judged_recall_reply(
     question: str, *, session_id: str | None, policy: Any, source_context: Mapping[str, Any] | None,
-    forgotten_too: bool = True,
+    forgotten_too: bool = True, whole_too: bool = True,
 ) -> str | None:
     """A recall question answered in any language from what VOOL holds: the saved facts the judge names, shown in their
     own words through the serving gate; "no record" when what it asks about was forgotten (``forgotten_too``); None when
@@ -3639,7 +3639,7 @@ def _judged_recall_reply(
                                                    source_context=source_context))
     LOGGER.info("judged recall: %d held, %d named", len(held), len(named))
     whole = False
-    if not named and held and _asks_for_the_whole_memory(question, session_id=session_id,
+    if not named and held and whole_too and _asks_for_the_whole_memory(question, session_id=session_id,
                                                          source_context=source_context):
         named = _one_line_per_fact(held)[:_WHOLE_MEMORY_SHOWN]
         whole = True
@@ -3651,6 +3651,25 @@ def _judged_recall_reply(
     if named:
         return "You told me:\n" + "\n".join(f"- {fact}" for fact in named)
     return None
+
+
+def held_fact_answer_before_a_lookup(
+    text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None,
+) -> str | None:
+    """What VOOL holds that answers a question about to be refused as a web lookup, named by the recall judge in any
+    language; None when it holds nothing, the turn may not read memory, or the judge names nothing. Only a question:
+    an order to look something up is the lookup's."""
+    from core.memory import everyday_remember as everyday
+
+    clean = " ".join(str(text or "").split())
+    if not clean or not everyday.is_question(clean) or not _turn_may_read_memory(source_context, session_id):
+        return None
+    try:
+        policy = memory_entries.resolve_memory_access_policy(access_policy=None, chat_id=session_id)
+    except (TypeError, ValueError):
+        return None
+    return _judged_recall_reply(clean, session_id=session_id, policy=policy,
+                                source_context=dict(source_context or {}), forgotten_too=False, whole_too=False)
 
 
 #: A judged recall in a new chat that nothing VOOL holds answers.

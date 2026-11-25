@@ -50,3 +50,14 @@ def test_the_conductor_leaves_a_pasted_email_whole(monkeypatch):
     assert runtime._maybe_answer_conductor_turn(session_id="paste-chat", source_context={},
                                                 effective_input=_EMAILS[0], raw_input=_EMAILS[0]) is None
     assert called == []
+
+
+def test_the_kind_of_task_is_read_from_the_persons_own_words():
+    """Mac gate 17 on f04d8289c: the pasted email's words made "Can you sum this up for me?" integration work, and the
+    summary came with a plan's step lines glued on."""
+    from core.task_router import classify
+
+    asked = "Can you sum this up for me?"
+    pasted = (f"{asked}\n\nFrom: Riverside Builders <office@example.net>\nSubject: Meeting about the sync\n\n"
+              "We will install the new boiler after the meeting and email you the invoice.")
+    assert classify(pasted)["task_class"] == classify(asked)["task_class"]

@@ -20,6 +20,9 @@ _EXACT_KEYS = {
     "I don't have that saved. If you tell me, I'll remember it.": "memory.recall_nothing",
     "Okay, I won't keep that.": "memory.keep_not_wanted",
     "That was already forgotten.": "memory.already_forgotten",
+    ("I have nothing saved about that, so nothing was erased, and I won't keep it. "
+     "If you meant something you told me before, tell me which fact, in the words you told it."):
+        "memory.forget_names_nothing",
 }
 _FORGET_APPLIED_RE = re.compile(r"^Forget applied\. Removed (?P<count>\d+) memory entr(?:y|ies)\.$")
 _FORGET_NO_MATCH_RE = re.compile(
@@ -43,9 +46,17 @@ def reply_locale(user_text: str) -> str:
         said = ""
     if said == "en":
         return "en"
-    if said and "memory.kept" in catalog_for(said).locale_keys:
+    if said and "memory.kept" in catalog_for(said).locale_keys and _ships(said):
         return said
     return turn_locale() or "en"
+
+
+def _ships(locale: str) -> bool:
+    """Whether VOOL ships a catalog of this language itself (a language with none, such as Czech, is answered in the
+    app's language, never with words another catalog stands in with: "Removed 1 memory entries" on gate 17)."""
+    from pathlib import Path
+
+    return (Path(__file__).resolve().parent / "catalogs" / f"{locale}.json").is_file()
 
 
 def in_the_persons_language(reply: str, user_text: str) -> str:

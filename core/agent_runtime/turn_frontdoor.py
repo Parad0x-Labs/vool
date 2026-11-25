@@ -2619,6 +2619,26 @@ def handle_turn_frontdoor(
                         _ask_needs_web = _ask_is_live_data = False
                 except Exception:
                     pass
+            if _ask_needs_web and not _ask_is_live_data:
+                # A question a fact the person told VOOL answers is theirs, in any language, before it is refused as a
+                # lookup: the word reading above only finds a fact that shares the question's words. Mac gate 17 on
+                # f04d8289c: "kiedy jest serwis kotła?" with "the boiler service is booked for 14 April" saved was
+                # answered "Web lookups are off". The recall judge reads the question against what VOOL holds.
+                try:
+                    from core.persistent_memory import held_fact_answer_before_a_lookup
+
+                    _held = held_fact_answer_before_a_lookup(
+                        effective_input, session_id=str(session_id or ""), source_context=source_context)
+                except Exception:
+                    _held = None
+                if _held:
+                    from core.i18n.lane_receipts import in_the_persons_language
+
+                    return {"result": agent._fast_path_result(
+                        session_id=session_id, user_input=effective_input,
+                        response=in_the_persons_language(_held, effective_input), confidence=0.9,
+                        source_context=source_context, reason="memory_command",
+                    )}
             _plain = ""
             _plain_reason = ""
             if _ask_is_live_data:

@@ -725,6 +725,7 @@
     "memory.forget_applied": "Forget applied. Removed {count} memory entries.",
     "memory.forget_list_note": "In this chat, VOOL's forget list on this computer keeps only a locked fingerprint of the forgotten words, so they are never used again.",
     "memory.forget_no_match": "Nothing was removed. Forget found no memory in this chat that matched \"{target}\".",
+    "memory.forget_names_nothing": "I have nothing saved about that, so nothing was erased, and I won't keep it. If you meant something you told me before, tell me which fact, in the words you told it.",
     "memory.you_told_me": "You told me:",
     "bot.approval_needed": "This needs your OK on your computer. Open this chat in VOOL there and allow it. I'll send the result here.",
     "bot.approval_needed_what": "This needs your OK on your computer: {what}. Open this chat in VOOL there and allow it. I'll send the result here.",

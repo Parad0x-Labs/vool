@@ -82,7 +82,9 @@
     "UserTextOrigin.authored_text": "transform",
     "UserTextOrigin.adoption_directive": "transform",
     "UserTextOrigin.adoptable_source_statements": "transform",
-    "classify_user_text": "transform"
+    "classify_user_text": "transform",
+    "holds_a_pasted_message": "transform",
+    "text_before_a_pasted_message": "transform"
   },
   "core/memory/carriers.py": {
     "payload_strings": "transform",
@@ -186,7 +188,8 @@
     "row_list_subject": "transform",
     "stated_facts": "transform",
     "typed_values": "transform",
-    "unlisted_statements": "transform"
+    "unlisted_statements": "transform",
+    "pointed_capture_fact": "transform"
   },
   "core/memory/files.py": {
     "memory_path": "configuration",
@@ -377,7 +380,8 @@
     "whole_memory_erase_request": "transform",
     "everyday_memory_turn": "transform",
     "judged_memory_ask": "transform",
-    "keep_stated_facts": "writer"
+    "keep_stated_facts": "writer",
+    "held_fact_answer_before_a_lookup": "reader"
   },
   "core/vool_memory.py": {
     "MemoryNode.to_row": "transform",

@@ -2307,6 +2307,12 @@ def classify(user_input: str, context: dict[str, Any] | None = None) -> dict[str
     routing_input = (
         structured_directive.task_text if structured_directive is not None else user_input
     )
+    from core.memory.admission import text_before_a_pasted_message
+
+    # A pasted email's own words (its sender, "meeting", "email", "install") are what the ask works on, never what
+    # kind of task it is: Mac gate 17 on f04d8289c read "Can you sum this up for me?" over a pasted email as
+    # integration work, and the answer came with a plan's step lines glued on.
+    routing_input = text_before_a_pasted_message(routing_input) or routing_input
     from core.retrieval_constraints import analyze_retrieval_constraints
 
     raw_text = redact_text(routing_input).lower()
