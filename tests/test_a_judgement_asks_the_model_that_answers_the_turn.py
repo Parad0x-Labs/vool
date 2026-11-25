@@ -115,17 +115,56 @@ def test_the_model_the_page_asked_for_answers_when_the_lookup_names_none(monkeyp
     assert turn_judge._requested_ollama_model({"requested_model": requested}) == expected
 
 
-@pytest.mark.parametrize(("context", "expected"), [
-    ({"runtime_default_model": "qwen3:8b"}, ("qwen3:8b", "general")),
-    ({"requested_model": "auto", "runtime_default_model": "qwen3:8b"}, ("qwen3:8b", "general")),
-    ({"requested_model": "qwen3:4b", "runtime_default_model": "qwen3:8b"}, ("qwen3:4b", "general")),
-    ({"runtime_default_model": "qwen3:14b"}, None),
+class _Manifest:
+    def __init__(self, model: str, role: str = "general", family: str = "ollama", ready: bool = False) -> None:
+        self.model_name = model
+        self.metadata = {"runtime_family": family, "bundle_role": role}
+        self.ready = ready
+
+
+class _Router:
+    def __init__(self, *manifests: _Manifest) -> None:
+        self.registry = type("R", (), {"list_manifests": lambda _self, enabled_only=True: list(manifests)})()
+
+
+@pytest.mark.parametrize(("manifests", "expected"), [
+    ((_Manifest("qwen3:8b"),), ("qwen3:8b", "general")),
+    ((_Manifest("qwen3:0.6b", role="lightweight_utility"), _Manifest("qwen3:8b")), ("qwen3:8b", "general")),
+    ((_Manifest("qwen3:8b"), _Manifest("qwen3:4b", ready=True)), ("qwen3:4b", "general")),
+    ((_Manifest("qwen3.5:9b"),), None),
+    ((_Manifest("qwen3:8b", family="openai"),), None),
+    ((), None),
 ])
-def test_a_first_turn_with_no_pick_is_judged_by_the_computers_own_default_model(monkeypatch, context, expected):
-    """iMac gate on f0a19600e: the first turn of a chat on the default model had no requested model stamped and no
-    manifest, so it was judged by nobody and a Lithuanian fact was not kept."""
+def test_a_first_message_before_any_final_answer_check_is_judged_by_the_registered_chat_model(
+        monkeypatch, manifests, expected):
+    """iMac gates on f0a19600e and 64798c0fb: on a fresh profile the first message of a chat had no model whose final-
+    answer check had passed, so it was judged by nobody ("turn judge model: none") and a Lithuanian fact was not kept
+    while the reply said it was. A helper model, a model VOOL did not install and a cloud model are never picked."""
+    from core import local_model_policy, local_ollama_inventory
+    from core.agent_runtime import turn_judge
+    from core.clean_loop import brain
+
+    monkeypatch.setattr(local_ollama_inventory, "installed_ollama_model_names",
+                        lambda **_k: ("qwen3:8b", "qwen3:4b", "qwen3:0.6b"))
+    monkeypatch.setattr(local_model_policy, "local_models_enabled", lambda *a, **k: True)
+    monkeypatch.setattr(brain, "_is_local", lambda m: m.metadata["runtime_family"] == "ollama")
+    monkeypatch.setattr(brain, "_ready", lambda m: m.ready)
+    assert turn_judge._registered_chat_model(_Router(*manifests)) == expected
+
+
+def test_with_local_models_off_no_registered_model_is_asked(monkeypatch):
+    from core import local_model_policy
+    from core.agent_runtime import turn_judge
+
+    monkeypatch.setattr(local_model_policy, "local_models_enabled", lambda *a, **k: False)
+    assert turn_judge._registered_chat_model(_Router(_Manifest("qwen3:8b"))) is None
+
+
+def test_an_auto_or_empty_pick_names_no_model_by_itself(monkeypatch):
     from core import local_ollama_inventory
     from core.agent_runtime import turn_judge
 
-    monkeypatch.setattr(local_ollama_inventory, "installed_ollama_model_names", lambda **_k: ("qwen3:8b", "qwen3:4b"))
-    assert turn_judge._requested_ollama_model(context) == expected
+    monkeypatch.setattr(local_ollama_inventory, "installed_ollama_model_names", lambda **_k: ("qwen3:8b",))
+    assert turn_judge._requested_ollama_model({}) is None
+    assert turn_judge._requested_ollama_model({"requested_model": "auto"}) is None
+    assert turn_judge._requested_ollama_model({"requested_model": "qwen3:8b"}) == ("qwen3:8b", "general")

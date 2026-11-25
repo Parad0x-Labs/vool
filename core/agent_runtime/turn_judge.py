@@ -76,7 +76,7 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
             model = str(getattr(manifest, "model_name", "") or "").strip()
             ollama = str(metadata.get("runtime_family") or "").strip().lower() == "ollama"
             named = (model, str(metadata.get("bundle_role") or "general")) if model and ollama else None
-            found.append(named or _requested_ollama_model(source_context))
+            found.append(named or _requested_ollama_model(source_context) or _registered_chat_model(router))
             _log.info("turn judge model: %s", (found[0] or ("none",))[0])
         return found[0]
 
@@ -94,22 +94,16 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
 
 
 def _requested_ollama_model(source_context: dict) -> tuple[str, str] | None:
-    """The Ollama model the person picked for this chat, or this computer's default one, when the manifest lookup names
-    none.
+    """The Ollama model the person picked for this chat, when the manifest lookup names none.
 
     On the first turn of a new chat the lookup named no model, and every judgement of that turn went to the largest
     model another app had loaded (qwen3.5:9b) while the chat was answered by qwen3:8b (iMac gate on cf0d43952). The
     model the page sent is the one that answers; it is used when Ollama has it installed."""
-    context = source_context or {}
-    requested = str(context.get("requested_model") or "").strip()
+    requested = str((source_context or {}).get("requested_model") or "").strip()
     try:
         from core.auto_local_only_mode import is_auto_selection
 
         if not requested or is_auto_selection(requested):
-            # The chat door leaves the computer's own default model out of requested_model (it is Auto's model), and
-            # stamps it apart: on the iMac (f0a19600e) the first turn had neither and was judged by nobody.
-            requested = str(context.get("runtime_default_model") or "").strip()
-        if not requested:
             return None
         from core.local_ollama_inventory import installed_ollama_model_names
 
@@ -120,6 +114,47 @@ def _requested_ollama_model(source_context: dict) -> tuple[str, str] | None:
     if wanted in installed or (":" not in wanted and f"{wanted}:latest" in installed):
         return requested, "general"
     return None
+
+
+#: Local models VOOL registers for its own small jobs, never the model a chat is answered by.
+_HELPER_ROLES = frozenset({"lightweight_utility"})
+
+
+def _registered_chat_model(router: Any) -> tuple[str, str] | None:
+    """The local Ollama chat model VOOL registered, when neither the answer lookup nor the chat's pick names one.
+
+    The answer lookup (`core.clean_loop.brain.resolve_local_manifest`) names only a model whose final-answer check has
+    passed. On a fresh profile none has passed yet on the first message, so that message had no judge at all ("turn
+    judge model: none", then LookupError): a Lithuanian "remember: ..." was not kept while the reply, from qwen3:8b,
+    said it was (iMac gates on f0a19600e and 64798c0fb). A yes/no needs no final-answer check: the judge asks the
+    registered chat model, one that passed first, installed in Ollama, never a helper model and never a model
+    another app loaded that VOOL did not register."""
+    try:
+        from core.local_model_policy import local_models_enabled
+
+        if not local_models_enabled():
+            return None
+        manifests = list(router.registry.list_manifests(enabled_only=True))
+        from core.clean_loop import brain
+        from core.local_ollama_inventory import installed_ollama_model_names
+
+        installed = {str(name).strip().lower() for name in installed_ollama_model_names()}
+    except Exception:
+        return None
+    candidates = []
+    for manifest in manifests:
+        metadata = getattr(manifest, "metadata", None) or {}
+        model = str(getattr(manifest, "model_name", "") or "").strip()
+        role = str(metadata.get("bundle_role") or "general").strip().lower()
+        if (not model or role in _HELPER_ROLES or str(metadata.get("runtime_family") or "").strip().lower() != "ollama"
+                or not brain._is_local(manifest)):
+            continue
+        if model.lower() in installed or (":" not in model and f"{model.lower()}:latest" in installed):
+            candidates.append((not brain._ready(manifest), model, role))
+    if not candidates:
+        return None
+    _unready, model, role = min(candidates, key=lambda item: item[0])
+    return model, role
 
 
 def _judge_for(agent: Any, source_context: Any, session_id: str) -> Any | None:
