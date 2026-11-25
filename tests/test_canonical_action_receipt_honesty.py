@@ -32,15 +32,22 @@ def actual_write(tmp_path, *, session=None, chat_id=None, name=None, force_redac
     if force_redaction_field:
         # A generated structural digest can resemble a base58 private key.
         # Select that shape from actual producer output; no secret is used.
+        # A hyphen-named id ("tool-action-<hex>", "tool-receipt-<hex>") is never read as a key at all: across the
+        # whole probe redaction leaves it alone (a 64-hex id with no "0" in it was masked, about 1 in 60, and the
+        # privacy gate refused the next cloud call; CI on 4e06fdc5c).
+        named_id = force_redaction_field in ('action_id', 'receipt_id')
         for nonce in range(2048):
             details['tool_call_id'] = 'digest-shape-control-' + str(nonce)
             generated = orchestrator.build_tool_action_record(context,event_type='tool_executed',
                 message=result.response_text,details=details)
             scrubbed = orchestrator.redact_tool_arguments({'action_record':generated})['action_record']
-            if scrubbed[force_redaction_field] != generated[force_redaction_field]:
+            if named_id:
+                assert scrubbed[force_redaction_field] == generated[force_redaction_field], generated
+            elif scrubbed[force_redaction_field] != generated[force_redaction_field]:
                 break
         else:
-            pytest.fail('No generated digest shape found within the bounded producer probe')
+            if not named_id:
+                pytest.fail('No generated digest shape found within the bounded producer probe')
     orchestrator.emit_runtime_event(agent, context, event_type='tool_executed',
         message=result.response_text, emit_runtime_event_fn=lambda *a, **k: None, **details)
     row = list_runtime_tool_receipts(session)[0]

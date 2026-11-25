@@ -162,3 +162,29 @@ def test_dmg_with_two_apps_is_refused_and_detached(monkeypatch, tmp_path):
     with pytest.raises(smoke.SmokeFailure, match=r'expected one \.app'):
         smoke.stage_app(Path('release.dmg'), tmp_path)
     assert calls[-1] == ['hdiutil', 'detach', str(mount)]
+
+
+def test_a_failed_step_prints_what_the_app_logged_while_it_ran(tmp_path):
+    """Intel smoke on 3dd1243b9: a recall turn ran past the 900 s chat timeout and nothing in the job log said where
+    it waited. The failed step now prints the app's own log lines from its time window, stall reports cut short."""
+    import json as _json
+
+    support = tmp_path / "VOOL"
+    (support / "data/logs").mkdir(parents=True)
+    frame = '  File "/x/VOOL.app/Contents/Resources/app/core/plugin_ask.py", line 731, in _judge_turn\n'
+    rows = [
+        {"ts": "2026-11-25T13:00:00+00:00", "logger": "core.a", "msg": "before the step"},
+        {"ts": "2026-11-25T13:10:00+00:00", "logger": "core.turn_stall_watch",
+         "msg": "chat turn still running after 20.0 s; it is here:\n" + frame + "    x()\n"},
+        {"ts": "2026-11-25T13:11:00+00:00", "logger": "vool.api", "msg": "http_request GET /api/runtime/status"},
+        {"ts": "2026-11-25T13:30:00+00:00", "logger": "core.a", "msg": "after the step"},
+    ]
+    (support / "data/logs/vool_api.log").write_text("\n".join(_json.dumps(r) for r in rows) + "\nnot json\n")
+    from datetime import datetime
+
+    start = datetime.fromisoformat("2026-11-25T13:05:00+00:00").timestamp()
+    end = datetime.fromisoformat("2026-11-25T13:20:00+00:00").timestamp()
+    lines = smoke.turn_log(support, start, end)
+    assert len(lines) == 1, lines
+    assert "chat turn still running after 20.0 s" in lines[0] and "core/plugin_ask.py" in lines[0]
+    assert smoke.turn_log(None, start, end) == []

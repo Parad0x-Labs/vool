@@ -14,6 +14,7 @@ the others; the run prints a PASS/FAIL table of every step and still exits non-z
 from __future__ import annotations
 
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -93,6 +94,47 @@ def reply_text(answer: dict) -> str:
     return text
 
 
+def turn_log(support: Path | None, started: float, ended: float, limit: int = 160) -> list[str]:
+    """What the app logged between ``started`` and ``ended`` (wall time), one short line each.
+
+    On the Intel runner a recall turn ran past the 900 s chat timeout (3dd1243b9) and the job log held only the API
+    log's last 200 lines, written 15 minutes later, while the evidence upload failed: nothing said where the turn spent
+    its time. The per-request access lines are left out, and a stall report is cut to its first line and the last app
+    frames it names, so the decisions and the place a slow turn waited fit in the job log itself."""
+    if support is None or not support.exists():
+        return []
+    picked: list[tuple[str, str]] = []
+    for source in sorted(support.rglob("vool_api.log*")):
+        for raw in source.read_text(errors="replace").splitlines():
+            try:
+                entry = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            stamp = str(entry.get("ts") or "")
+            try:
+                when = datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                continue
+            if not started <= when <= ended:
+                continue
+            message = str(entry.get("msg") or "")
+            if "http_request" in message and "/api/chat" not in message:
+                continue
+            first, *rest = message.split("\n")
+            frames = [
+                line.strip().split("/Resources/app/", 1)[1]
+                for line in rest
+                if "/Resources/app/" in line and "File " in line
+            ]
+            text = first[:240] + (" @ " + " <- ".join(reversed(frames[-4:])) if frames else "")
+            picked.append((stamp, f"{stamp[11:19]} {entry.get('logger', '')}: {text}"))
+    picked.sort()
+    lines = [line for _stamp, line in picked]
+    return lines if len(lines) <= limit else [*lines[: limit // 4], "...", *lines[-(limit - limit // 4):]]
+
+
 class Run:
     def __init__(self, scratch: Path) -> None:
         self.scratch = scratch
@@ -100,6 +142,8 @@ class Run:
         self.last_answer: dict = {}
         # Wall time the last chat request returned: the quiet-window wait before the private check counts from it.
         self.last_chat_end = 0.0
+        # The app's support folder, once known: a failed check prints what the app logged while it ran.
+        self.support: Path | None = None
 
     def record(self, name: str, ok: bool, detail: object, fatal: bool = True) -> None:
         self.steps.append({"step": name, "ok": ok, "detail": detail})
@@ -119,11 +163,15 @@ class Run:
 
     def check(self, name: str, step) -> None:
         """Run one chat check and record it without stopping the run; an error in it is its FAIL."""
+        started = time.time()
         try:
             ok, detail = step()
         except (SmokeFailure, OSError, ValueError, urllib.error.URLError) as error:
             ok, detail = False, f"{type(error).__name__}: {error}"
         self.record(name, ok, detail, fatal=False)
+        if not ok:
+            for line in turn_log(self.support, started, time.time()):
+                print(f"  | {line}", flush=True)
 
     def summary(self) -> list[str]:
         """Print every step as a PASS/FAIL table; the names of the failed ones."""
@@ -424,6 +472,7 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
     port = free_port()
     origin = f"http://127.0.0.1:{port}"
     support = home / "Library/Application Support/VOOL"
+    run.support = support
     # A fresh HOME and a stripped environment: no runner credentials, provider keys, VOOL_* or
     # OLLAMA_* settings can stand in for what the bundle itself provides.
     env = {
