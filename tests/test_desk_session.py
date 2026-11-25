@@ -147,7 +147,7 @@ def test_vool_reads_a_scripted_page_signed_in_as_the_person_and_nothing_runs_bef
     assert status == 200 and not any(path == "/members" for _, _, path, _ in requests)
 
     snap = agent(rig, item, "navigate", {"url": origin + "/members"})
-    assert snap["state"] == "ready", snap
+    assert snap["state"] == "ready", (snap["state"], snap.get("result"), snap.get("url"))
     text = snap["result"]["page"]["text"]
     # Written by the page's own script from the person's sign-in.
     assert "Welcome back, member" in text
@@ -191,7 +191,7 @@ def test_a_sign_in_the_person_saved_is_filled_in_by_the_browser_and_never_shown_
     main.stop()
     item = session(origin)
     snap = agent(rig, item, "navigate", {"url": origin + "/club-sign-in"})
-    assert snap["state"] == "ready", snap
+    assert snap["state"] == "ready", (snap["state"], snap.get("result"), snap.get("url"))
     read = "(name) => document.querySelector('[name=' + name + ']').value"
     assert _wait(lambda: main._call(item._page.evaluate(read, "pass")) == kept), "the browser did not fill the saved sign-in"
     assert main._call(item._page.evaluate(read, "user")) == "dana"
@@ -347,7 +347,7 @@ def test_vool_keeps_working_in_its_tab_while_the_person_looks_at_another_tab(wor
     first_frame = snap["frame"]
 
     snap = agent(rig, item, "type", {"selector": node(snap, "note")["selector"], "text": "Still here"})
-    assert snap["state"] == "ready", snap
+    assert snap["state"] == "ready", (snap["state"], snap.get("result"), snap.get("url"))
     snap = agent(rig, item, "navigate", {"url": origin + "/checked"})
     assert snap["state"] == "ready" and snap["title"] == "Checked", snap["result"].get("observation_failure_class")
     assert snap["frame"] and snap["frame"] != first_frame
