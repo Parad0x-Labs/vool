@@ -64,6 +64,13 @@ _FOLLOWED_BY_A_NOUN = r"\s+(?!" + _TIME_END_WORDS + r")\w"
 # launch", "a midnight snack") makes it a modifier of that noun, exactly as a noun after a
 # number does. Only a midnight a sentence says as a time can end the day it is said with.
 _MIDNIGHT_WORD_RE = re.compile(r"\bmidnight\b(?!" + _FOLLOWED_BY_A_NOUN + r")", re.IGNORECASE)
+# Straight after a day word that is not the name of an event ("the Friday at 10 workshop"): one fixed-width lookbehind
+# per word, since Python's lookbehind takes no alternatives of different lengths.
+_AFTER_A_DAY_WORD = "(?:" + "|".join(
+    rf"(?<=\b{word}\s)(?<!\bthe\s{word}\s)(?<!\ba\s{word}\s)"
+    for word in ("today", "tonight", "tomorrow", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+                 "sunday", "morning", "afternoon", "evening", "night")
+) + ")"
 _TIME_RE = re.compile(
     r"\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(?:at\s+)(\d{1,2}):(\d{2})\b"
     # A bare 24-hour clock ("tomorrow 15:00"), the form this lane's own clarifications suggest.
@@ -76,7 +83,13 @@ _TIME_RE = re.compile(
     r"|\bat\s+(\d{1,2})(?![\d:]|\.\d|\s*(?:am|pm)\b|\s*(?:st|nd|rd|th)\b|" + _FOLLOWED_BY_A_NOUN + r")"
     # A decimal clock after "at" ("at 9.30 tomorrow"): the point is the colon people did not
     # type, with an optional am/pm, and the same not-followed-by-a-noun rule.
-    r"|\bat\s+(\d{1,2})\.(\d{2})(?!\d)(?:\s*(am|pm)\b)?(?!" + _FOLLOWED_BY_A_NOUN + r")",
+    r"|\bat\s+(\d{1,2})\.(\d{2})(?!\d)(?:\s*(am|pm)\b)?(?!" + _FOLLOWED_BY_A_NOUN + r")"
+    # A bare hour said straight after the day it falls on ("on saturday at 10 remind me to ...", "tomorrow at 9 water
+    # the plants") is the clock time whatever word follows: an address or a count is never said right after a day,
+    # and the order that follows starts with a verb no list of end words can hold. Mac gate on 7ce02be05: "and on
+    # saturday at 10 remind me to water the balcony plants" was asked "Which time on saturday?". A day said as the
+    # name of an event ("the Friday at 10 workshop", "a Monday at 3 call") keeps the noun rule above.
+    r"|" + _AFTER_A_DAY_WORD + r"at\s+(\d{1,2})(?![\d:]|\.\d|\s*(?:am|pm)\b|\s*(?:st|nd|rd|th)\b)",
     re.IGNORECASE,
 )
 _IN_RELATIVE_RE = re.compile(
@@ -675,10 +688,10 @@ def _clock_from_match(match: re.Match) -> tuple[int, int]:
         elif meridiem == "am" and hour == 12:
             hour = 0
         return hour, minute
-    if match.group(8) is not None:
+    if match.group(8) is not None or match.group(12) is not None:
         # A bare hour after "at" ("at 9", "at 21"): which side of noon it falls on is decided by
         # a part-of-day word or the defaults in `_bare_hour_wall`, which the caller applies.
-        hour = int(match.group(8))
+        hour = int(match.group(8) if match.group(8) is not None else match.group(12))
         if not 1 <= hour <= 23:
             raise ValueError("Give me a valid clock time: a bare hour after 'at' is 1 to 23, or use am/pm or HH:MM.")
         return hour, 0
@@ -730,7 +743,7 @@ def _read_clock(time_match: re.Match, text: str) -> tuple[int, int]:
     """A clock match read against its whole sentence, so a bare hour after "at" lands on the
     side of noon the sentence names ("at 9 tonight" is 21:00)."""
     hour, minute = _clock_from_match(time_match)
-    bare_after_at = time_match.group(8) is not None or (
+    bare_after_at = time_match.group(8) is not None or time_match.group(12) is not None or (
         time_match.group(9) is not None and time_match.group(11) is None
     )
     if bare_after_at:
@@ -757,7 +770,7 @@ def _is_ending_midnight(time_match: re.Match | None, part_match: re.Match | None
     say it themselves."""
     if time_match is None:
         return False
-    hour_text = time_match.group(8) if time_match.group(8) is not None else time_match.group(9)
+    hour_text = next((time_match.group(n) for n in (8, 12, 9) if time_match.group(n) is not None), None)
     if hour_text is not None:
         if int(hour_text) != 12:
             return False
