@@ -576,15 +576,23 @@ def earlier_turns_used_another_language(earlier_user_texts: list[str] | tuple[st
             continue
         if _evidenced_input_language(decision_text) not in {"", "en"}:
             return True
-        if any(ch.isalpha() and ord(ch) > 127 for ch in decision_text):
+        if _has_letter_english_does_not_use(decision_text):
             return True
     return False
+
+
+def _has_letter_english_does_not_use(text: str) -> bool:
+    """A letter outside plain a-z (ą, é, ß, ж, 字): the text is plainly not English even when no single language owns
+    the letter. Quoted material is left out: a quoted word is a subject, not the language the person writes in."""
+    decision_text = _strip_quoted_material(unicodedata.normalize("NFC", str(text or "")))
+    return any(ch.isalpha() and ord(ch) > 127 for ch in decision_text)
 
 
 def response_language_provider_instruction(
     policy: dict[str, Any] | None,
     *,
     earlier_user_texts: list[str] | tuple[str, ...] | None = None,
+    latest_text: str = "",
 ) -> str:
     """The one bounded system-prompt line that carries the policy onto the provider request.
 
@@ -601,7 +609,10 @@ def response_language_provider_instruction(
         # stated, the model went on in the chat's earlier language (iMac gate on f0a19600e, qwen3:8b). Said only
         # when an earlier message of the chat was in another language: that is the pull it counters, and a chat
         # kept in English keeps its prompt byte for byte ("Why?" after English turns).
-        if earlier_turns_used_another_language(earlier_user_texts):
+        # Also said when the latest message itself carries a letter English does not use: on the iMac gate of
+        # 3dd1243b9, "jaki kolor ma rower mojego sąsiada?" (Polish, its "ą" shared with Lithuanian, so no single
+        # language) came after an English turn and was answered in English.
+        if earlier_turns_used_another_language(earlier_user_texts) or _has_letter_english_does_not_use(latest_text):
             return "Respond in the language of the person's latest message, even if earlier messages used another."
         return ""
     if expected in {"", "none", "en"}:

@@ -32,9 +32,14 @@ def test_an_undecided_message_tells_the_model_its_latest_message_counts(seed) ->
     if policy["expected_language"] in {"none", ""}:
         line = response_language_provider_instruction(policy, earlier_user_texts=[rng.choice(EARLIER_OTHER)])
         assert "latest message" in line, (text, policy)
-        assert response_language_provider_instruction(policy) == "", "no earlier message: nothing pulls"
-        assert response_language_provider_instruction(
-            policy, earlier_user_texts=list(EARLIER_ENGLISH)) == "", "an English chat keeps its prompt"
+        plain = not any(ch.isalpha() and ord(ch) > 127 for ch in text)
+        alone = response_language_provider_instruction(policy, latest_text=text)
+        after_english = response_language_provider_instruction(
+            policy, earlier_user_texts=list(EARLIER_ENGLISH), latest_text=text)
+        if plain:
+            assert alone == "" and after_english == "", "no letter of its own and nothing earlier pulls"
+        else:
+            assert "latest message" in alone and "latest message" in after_english, (text, policy)
     else:
         assert response_language_provider_instruction(policy).startswith("Respond in") or policy["expected_language"] == "en"
 
@@ -45,3 +50,21 @@ def test_english_and_named_languages_keep_their_own_lines() -> None:
     assert response_language_provider_instruction({"expected_language": "lt", "reason": "operator_preference"}) == (
         "Respond in Lithuanian.")
     assert response_language_provider_instruction({"expected_language": "none"}) == ""
+
+
+@pytest.mark.parametrize("latest", ["jaki kolor ma czapka mojej żony?", "kada išvažiuoja traukinys į Kauną?",
+                                    "Que sais-tu de la tante de Léa ?"])
+def test_a_message_with_its_own_non_english_letters_is_answered_in_it_after_english_turns(latest) -> None:
+    """iMac gate on 3dd1243b9: a Polish question whose "ą" names no single language, asked after an English turn, was
+    answered in English."""
+    policy = response_language_policy_for_text(latest).to_dict()
+    if policy["expected_language"] in {"none", ""}:
+        line = response_language_provider_instruction(policy, earlier_user_texts=list(EARLIER_ENGLISH), latest_text=latest)
+        assert "latest message" in line, (latest, policy)
+
+
+@pytest.mark.parametrize("latest", ["Why?", "Run the tests.", "Explain that more."])
+def test_an_english_chat_sends_no_extra_line(latest) -> None:
+    policy = response_language_policy_for_text(latest).to_dict()
+    assert response_language_provider_instruction(
+        policy, earlier_user_texts=list(EARLIER_ENGLISH), latest_text=latest) == ""
