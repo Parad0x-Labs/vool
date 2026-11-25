@@ -8702,6 +8702,15 @@ def _dispatch_post_inner(
                 # The owner named this model in setup: it is a pin, not Auto's guess.
                 source_context["model_selection"] = "pin"
                 source_context["cloud_only_default_applied"] = True
+        # The local model this computer answers with now (the one made ready, else the one being made ready, else the
+        # boot pick): a chat's first message is judged by it before any final-answer check has passed
+        # (core.agent_runtime.turn_judge).
+        try:
+            from core.local_model_readiness import model_in_use
+
+            source_context["runtime_model_in_use"] = model_in_use(str(getattr(runtime, "runtime_model_tag", "") or ""))
+        except Exception:
+            pass
         # Bind the Auto lane for this turn BEFORE any routing runs. The flag is stamped into
         # `source_context`, which is what survives the shallow copies and the thread-pool hops the
         # provider calls take — see `core.auto_local_only_mode`. Stamped server-side from the

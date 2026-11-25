@@ -76,7 +76,8 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
             model = str(getattr(manifest, "model_name", "") or "").strip()
             ollama = str(metadata.get("runtime_family") or "").strip().lower() == "ollama"
             named = (model, str(metadata.get("bundle_role") or "general")) if model and ollama else None
-            found.append(named or _requested_ollama_model(source_context) or _registered_chat_model(router))
+            found.append(named or _requested_ollama_model(source_context)
+                         or _registered_chat_model(router, in_use=str(source_context.get("runtime_model_in_use") or "")))
             _log.info("turn judge model: %s", (found[0] or ("none",))[0])
         return found[0]
 
@@ -120,7 +121,7 @@ def _requested_ollama_model(source_context: dict) -> tuple[str, str] | None:
 _HELPER_ROLES = frozenset({"lightweight_utility"})
 
 
-def _registered_chat_model(router: Any) -> tuple[str, str] | None:
+def _registered_chat_model(router: Any, *, in_use: str = "") -> tuple[str, str] | None:
     """The local Ollama chat model VOOL registered, when neither the answer lookup nor the chat's pick names one.
 
     The answer lookup (`core.clean_loop.brain.resolve_local_manifest`) names only a model whose final-answer check has
@@ -128,7 +129,11 @@ def _registered_chat_model(router: Any) -> tuple[str, str] | None:
     judge model: none", then LookupError): a Lithuanian "remember: ..." was not kept while the reply, from qwen3:8b,
     said it was (iMac gates on f0a19600e and 64798c0fb). A yes/no needs no final-answer check: the judge asks the
     registered chat model, one that passed first, installed in Ollama, never a helper model and never a model
-    another app loaded that VOOL did not register."""
+    another app loaded that VOOL did not register.
+
+    The model this computer answers with now (`in_use`, stamped by the chat door from
+    `core.local_model_readiness.model_in_use`) goes first: on the iMac gate of 4e06fdc5c, with qwen3:8b the chat model
+    and qwen3.5:9b also registered, the first message was judged by qwen3.5:9b, which loaded it beside the chat's."""
     try:
         from core.local_model_policy import local_models_enabled
 
@@ -153,7 +158,8 @@ def _registered_chat_model(router: Any) -> tuple[str, str] | None:
             candidates.append((not brain._ready(manifest), model, role))
     if not candidates:
         return None
-    _unready, model, role = min(candidates, key=lambda item: item[0])
+    wanted = in_use.strip().lower()
+    _unready, model, role = min(candidates, key=lambda item: (item[1].lower() != wanted, item[0]))
     return model, role
 
 

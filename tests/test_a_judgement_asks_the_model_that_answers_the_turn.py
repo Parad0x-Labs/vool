@@ -152,6 +152,22 @@ def test_a_first_message_before_any_final_answer_check_is_judged_by_the_register
     assert turn_judge._registered_chat_model(_Router(*manifests)) == expected
 
 
+def test_the_model_this_computer_answers_with_goes_first(monkeypatch):
+    """iMac gate on 4e06fdc5c: with qwen3:8b the chat model and qwen3.5:9b also registered, the first message was
+    judged by qwen3.5:9b, which loaded it beside the chat's."""
+    from core import local_model_policy, local_ollama_inventory
+    from core.agent_runtime import turn_judge
+    from core.clean_loop import brain
+
+    monkeypatch.setattr(local_ollama_inventory, "installed_ollama_model_names", lambda **_k: ("qwen3.5:9b", "qwen3:8b"))
+    monkeypatch.setattr(local_model_policy, "local_models_enabled", lambda *a, **k: True)
+    monkeypatch.setattr(brain, "_is_local", lambda m: True)
+    monkeypatch.setattr(brain, "_ready", lambda m: False)
+    router = _Router(_Manifest("qwen3.5:9b"), _Manifest("qwen3:8b"))
+    assert turn_judge._registered_chat_model(router, in_use="qwen3:8b") == ("qwen3:8b", "general")
+    assert turn_judge._registered_chat_model(router, in_use="") == ("qwen3.5:9b", "general")
+
+
 def test_with_local_models_off_no_registered_model_is_asked(monkeypatch):
     from core import local_model_policy
     from core.agent_runtime import turn_judge
