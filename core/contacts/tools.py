@@ -83,6 +83,54 @@ def value_in_text(endpoint: NormalizedEndpoint, text: str) -> bool:
     return False
 
 
+_EMAIL_IN_TEXT = re.compile(r"[^\s@<>(),;:\"']+@[^\s@<>(),;:\"']+\.[^\s@<>(),;:\"']{2,}")
+_PHONE_IN_TEXT = re.compile(r"\+?\d[\d\s().\-]{5,}\d")
+
+
+def _one_slip_apart(a: str, b: str) -> bool:
+    """Whether two values differ by at most two typed slips (a letter missing, extra or changed; two letters swapped
+    count as two)."""
+    if a == b or abs(len(a) - len(b)) > 2:
+        return a == b
+    previous = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        current = [i]
+        for j, cb in enumerate(b, 1):
+            current.append(min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (ca != cb)))
+        previous = current
+    return previous[-1] <= 2
+
+
+def as_the_user_typed_it(
+    pairs: list[tuple[dict[str, Any], NormalizedEndpoint]], text: str,
+) -> list[tuple[dict[str, Any], NormalizedEndpoint]]:
+    """The model's email and phone values, each replaced by the one value of its kind in the user's own message that it
+    is a slip of. On the iMac gate of 64798c0fb "add a contact: ..., ieva.r@example.org" was saved with "ivea.r@...":
+    the guard kept the slip out of the contact, and the address the person typed was lost while the reply said it was
+    not in their message. Only the person's own value is ever saved; a wallet address is never matched this way."""
+    if not text:
+        return pairs
+    found = {KIND_EMAIL: [m.group(0).rstrip(".") for m in _EMAIL_IN_TEXT.finditer(text)],
+             KIND_PHONE: [m.group(0).strip() for m in _PHONE_IN_TEXT.finditer(text)]}
+    out = []
+    for raw, endpoint in pairs:
+        if endpoint.kind in found and not value_in_text(endpoint, text):
+            if endpoint.kind == KIND_EMAIL:
+                near = [v for v in found[KIND_EMAIL] if _one_slip_apart(v.casefold(), endpoint.value.casefold())]
+            else:
+                mine = re.sub(r"\D", "", endpoint.value)
+                near = [v for v in found[KIND_PHONE] if len(mine) >= 5 and _one_slip_apart(re.sub(r"\D", "", v), mine)]
+            if len(set(near)) == 1:
+                try:
+                    fixed = {**raw, "value": near[0]}
+                    out.append((fixed, normalize_endpoint(fixed)))
+                    continue
+                except EndpointError:
+                    pass
+        out.append((raw, endpoint))
+    return out
+
+
 def name_in_text(name: str, text: str) -> bool:
     key = names.name_key(name)
     return bool(key) and key in names.name_key(text)
@@ -376,7 +424,7 @@ def save_changes_nothing(arguments: dict[str, Any] | None) -> dict[str, Any] | N
 
 def _save(args: dict[str, Any], source_context: dict[str, Any] | None) -> dict[str, Any]:
     proof = proven_user_text(source_context)
-    pairs = _normalize(_requested_endpoints(args))
+    pairs = as_the_user_typed_it(_normalize(_requested_endpoints(args)), proof)
     contact_id = _clean(args.get("contact_id"))
     name = _clean(args.get("name"))
     aliases = [_clean(a) for a in _as_list(args.get("aliases")) if _clean(a)]
@@ -458,7 +506,7 @@ def _update(args: dict[str, Any], source_context: dict[str, Any] | None) -> dict
         notes_lines.append(f"Aliases not added (not in your message): {', '.join(dropped)}.")
     add_aliases = [a for a in add_aliases if a not in dropped]
     remove_aliases = [_clean(a) for a in _as_list(args.get("remove_aliases")) if _clean(a)]
-    additions = _normalize(_requested_endpoints({**args, "endpoints": args.get("add_endpoints")}))
+    additions = as_the_user_typed_it(_normalize(_requested_endpoints({**args, "endpoints": args.get("add_endpoints")})), proof)
     proven_adds = [e for _raw, e in additions if value_in_text(e, proof)]
     unproven_adds = [e for _raw, e in additions if not value_in_text(e, proof)]
     current = {e["endpoint_id"]: e for e in target["endpoints"]}
