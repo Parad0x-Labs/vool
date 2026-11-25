@@ -2431,7 +2431,15 @@ class MemoryFirstRouter:
         # provider call, in the same bounded guidance channel as the contracts above — the
         # output-language decision must reach the wire, not only the post-hoc validator. English
         # keeps its proven post-hoc guard + one bounded repair and adds no prompt bytes.
-        _language_provider_instruction = response_language_provider_instruction(turn_language_policy)
+        # The person's earlier messages in this chat, the current one left out: the last user message is this turn.
+        _earlier_user_texts = [
+            str(getattr(message, "content", "") or "")
+            for message in getattr(internal_request, "messages", ())
+            if str(getattr(message, "role", "") or "") == "user"
+        ][:-1]
+        _language_provider_instruction = response_language_provider_instruction(
+            turn_language_policy, earlier_user_texts=_earlier_user_texts
+        )
         if _language_provider_instruction:
             system_prompt = f"{system_prompt}\n\n{_language_provider_instruction}"
         # PB01 hook 1 — LEARNED GUIDANCE DELIVERY: the validated steps/preconditions of the

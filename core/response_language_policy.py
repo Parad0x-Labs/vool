@@ -565,7 +565,27 @@ def response_language_retry_instruction(policy: dict[str, Any] | None) -> str:
     return "Return the answer in the user's language."
 
 
-def response_language_provider_instruction(policy: dict[str, Any] | None) -> str:
+def earlier_turns_used_another_language(earlier_user_texts: list[str] | tuple[str, ...] | None) -> bool:
+    """Whether an earlier message of the person's in this chat was in a language other than English: the pull a model
+    follows when the latest message's own letters decide nothing. A message counts when its letters name a language
+    other than English, or when it carries any letter English does not use: French "fête d'été" names no single
+    language (é is shared), yet it is plainly not English."""
+    for text in earlier_user_texts or ():
+        decision_text = _strip_quoted_material(unicodedata.normalize("NFC", str(text or "").strip()))
+        if not decision_text.strip():
+            continue
+        if _evidenced_input_language(decision_text) not in {"", "en"}:
+            return True
+        if any(ch.isalpha() and ord(ch) > 127 for ch in decision_text):
+            return True
+    return False
+
+
+def response_language_provider_instruction(
+    policy: dict[str, Any] | None,
+    *,
+    earlier_user_texts: list[str] | tuple[str, ...] | None = None,
+) -> str:
     """The one bounded system-prompt line that carries the policy onto the provider request.
 
     English keeps its proven post-hoc guard + bounded repair channel and adds no prompt bytes;
@@ -578,8 +598,12 @@ def response_language_provider_instruction(policy: dict[str, Any] | None) -> str
     if expected in {"", "none"} and policy.get("reason") == "insufficient_evidence":
         # No letter decided the language, so none is named; the model is still told whose language counts. A German
         # question with no umlaut, asked right after a Lithuanian turn, was answered in Lithuanian: with nothing
-        # stated, the model went on in the chat's earlier language (iMac gate on f0a19600e, qwen3:8b).
-        return "Respond in the language of the person's latest message, even if earlier messages used another."
+        # stated, the model went on in the chat's earlier language (iMac gate on f0a19600e, qwen3:8b). Said only
+        # when an earlier message of the chat was in another language: that is the pull it counters, and a chat
+        # kept in English keeps its prompt byte for byte ("Why?" after English turns).
+        if earlier_turns_used_another_language(earlier_user_texts):
+            return "Respond in the language of the person's latest message, even if earlier messages used another."
+        return ""
     if expected in {"", "none", "en"}:
         return ""
     name = LANGUAGE_NAMES.get(expected)
