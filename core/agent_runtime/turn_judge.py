@@ -38,7 +38,7 @@ def enabled(env: Any = None) -> bool:
 def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any | None:
     """With local models on: the Ollama model that answers this turn, asked when none is loaded yet.
 
-    The judgements ask the loaded local model first (`core.intent_arbiter._keep_judge_model`). On the first turn,
+    The judgements ask this turn's model at once while it is loaded (`core.intent_arbiter._judge_model_for`). On the first turn,
     or after Ollama unloaded the model when idle, none is loaded, and every judgement said "nobody judged" in a few
     milliseconds: a reminder, note or calendar ask in Lithuanian got no tool and the reply said it was done (blind
     audit of 58f60bbf3, 31 of 50 judgements None). The model this judge asks is the one the turn loads to answer
@@ -79,6 +79,9 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
         model, role = named
         return intent_arbiter.ask_local_model(str(prompt), model, runner_role=role, source_context=source_context) or ""
 
+    # The arbiter asks a judgement of the turn's own model while it is loaded (`intent_arbiter._judge_model_for`),
+    # never of whichever other model is loaded.
+    judge.turn_model = _model  # type: ignore[attr-defined]
     return judge
 
 

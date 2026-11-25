@@ -597,12 +597,16 @@ def bind_turn_judge(source_context: object, judge: Callable[[str], str] | None) 
         _TURN_JUDGES.popitem(last=False)
 
 
+def _bound_judge(source_context: object) -> Callable[[str], str] | None:
+    return _TURN_JUDGES.get(_turn_key(source_context)) or getattr(_THIS_THREAD, "judge", None)
+
+
 def _judged_for_the_turn(
     prompt: str, source_context: object, parse: Callable[[str], str | None] | None = None
 ) -> str | None:
     """``"yes"`` / ``"no"`` from the judge bound for this turn, or None: no judge bound, a failed call, an
     unreadable answer. None is what "no local model" always was: the caller decides nothing on it."""
-    judge = _TURN_JUDGES.get(_turn_key(source_context)) or getattr(_THIS_THREAD, "judge", None)
+    judge = _bound_judge(source_context)
     if judge is None:
         # Nothing was asked, so nothing failed: a routing call's own failure, read by the front door after every
         # judgement of the turn, is not overwritten by a later judgement that had no judge to ask.
@@ -681,7 +685,7 @@ def arbitrate_keep_ask(
     `arbitrate_followup`. None is never a keep: the caller writes nothing on it."""
     if not str(lead or "").strip() or not str(body or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_keep_ask_prompt(lead, body), source_context)
     return arbitrate_followup(
@@ -735,7 +739,7 @@ def arbitrate_forget_ask(
     its own. None is never a forget: the caller erases nothing on it."""
     if not str(lead or "").strip() or not str(order or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_forget_ask_prompt(lead, order), source_context)
     return arbitrate_followup(
@@ -784,7 +788,7 @@ def arbitrate_restore(
     ledger role and the model of `arbitrate_keep_ask`. None restores nothing."""
     if not str(message or "").strip() or not str(current or "").strip() or not str(earlier or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_restore_prompt(message, current, earlier), source_context)
     return arbitrate_followup(
@@ -841,7 +845,7 @@ def arbitrate_answered(
     restore (same lane, sealed site, ledger role). None changes nothing: the caller keeps its own reading."""
     if not str(question or "").strip() or not str(reply or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_answered_prompt(question, reply), source_context)
     return arbitrate_followup(
@@ -943,7 +947,7 @@ def arbitrate_done_claim(
     routing_failure = _LAST_FAILURE.get("reason", "")
     _LAST_FAILURE["reason"] = ""
     try:
-        model = _keep_judge_model()
+        model = _judge_model_for(source_context)
         if not model:
             return _judged_for_the_turn(prompt, source_context, _done_claim_reader)
         # Patient on a turn that asked for a tool (``patient``), like the tool ask: without this judgement a done claim with
@@ -1022,7 +1026,7 @@ def arbitrate_meaning(
     the answer and the lane says what it said before."""
     if not str(question or "").strip() or not str(fact or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_meaning_prompt(question, fact), source_context)
     return arbitrate_followup(
@@ -1084,7 +1088,7 @@ def arbitrate_same_thing(
     judgement role on the turn's ledger). None decides nothing: the caller shows the fact marked."""
     if not str(question or "").strip() or not str(fact or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_same_thing_prompt(question, fact), source_context)
     return arbitrate_followup(
@@ -1165,7 +1169,7 @@ def arbitrate_named_fact(
         return None
     prompt = _named_fact_prompt(question, asked)
     reader = _named_fact_reader(len(asked))
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         named = _judged_for_the_turn(prompt, source_context, reader)
     else:
@@ -1225,7 +1229,7 @@ def arbitrate_forget_targets(
         return None
     prompt = _forget_targets_prompt(message, asked)
     reader = _numbers_reader(len(asked))
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         named = _judged_for_the_turn(prompt, source_context, reader)
     else:
@@ -1281,7 +1285,7 @@ def arbitrate_recall_facts(
         return None
     prompt = _recall_facts_prompt(question, asked)
     reader = _numbers_reader(len(asked))
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         named = _judged_for_the_turn(prompt, source_context, reader)
     else:
@@ -1338,7 +1342,7 @@ def arbitrate_kept_fact(
         return None
     prompt = _kept_fact_prompt(message, versions)
     reader = _numbers_reader(len(versions))
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         picked = _judged_for_the_turn(prompt, source_context, reader)
     else:
@@ -1462,7 +1466,7 @@ def arbitrate_plugin_ask(
         return None
     prompt = _plugin_ask_prompt(message, previous, asked)
     reader = _numbers_reader(len(asked))
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         named = _judged_for_the_turn(prompt, source_context, reader)
     else:
@@ -1634,7 +1638,7 @@ def arbitrate_lasting_fact(
     the keep ask (same lane, sealed site, ledger role). None keeps nothing: no fact is written on a guess."""
     if not str(sentence or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_lasting_fact_prompt(sentence), source_context)
     return arbitrate_followup(
@@ -1656,7 +1660,7 @@ def arbitrate_standing_state(
     (`_standing_state_prompt` says why there are two). None keeps nothing."""
     if not str(sentence or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_standing_state_prompt(sentence), source_context)
     return arbitrate_followup(
@@ -1717,7 +1721,7 @@ def arbitrate_web_ask(
     tool judgement picked the web (core.plugin_ask); None and "no" keep the web out of the turn."""
     if not str(message or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_web_ask_prompt(message), source_context)
     return arbitrate_followup(
@@ -1758,7 +1762,7 @@ def arbitrate_whole_memory_ask(
     nothing judged it. Asked only when a judged recall named none of the held facts (core.persistent_memory)."""
     if not str(message or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_whole_memory_prompt(message), source_context)
     return arbitrate_followup(
@@ -1780,7 +1784,7 @@ def arbitrate_told_as_fact(
     (`_told_as_fact_prompt` says why it is its own question). None keeps nothing."""
     if not str(sentence or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(_told_as_fact_prompt(sentence), source_context)
     return arbitrate_followup(
@@ -1841,28 +1845,40 @@ def _memory_kind_prompt(message: str) -> str:
 
 
 def _keep_wanted_prompt(message: str) -> str:
-    """A balanced yes/no: does the person want what they say kept, or do they ask the assistant NOT to keep it?
+    """One yes/no: does the person ask the assistant NOT to keep what they say?
 
     Asked only of a keep both memory readings agreed on (`core.persistent_memory._judged_memory_turn`): on the Mac gate
     of 561e3e9d0 both read "merk dir das bitte nicht: meine Lampe heißt ..." ("please don't remember this") as a keep,
-    and it was saved. A small model reads the "not" in one plain question better than among four answers."""
+    and it was saved. A small model reads the "not" in one plain question better than among four answers.
+
+    The question is only the refusal. Asked "does the person want the assistant to KEEP it?", a fact told plainly
+    with no ask either way ("my cousin Darius has a cat named Murka") read as "no" on the gate iMac (a5403e091), and
+    a fact the person told was answered "Okay, I won't keep that." Nothing but a refusal the person said stops a
+    keep, so a refusal is all that is asked: "yes" here is read back as "no" (`_keep_refused_reader`)."""
     flat = " ".join(str(message or "").split())[:400]
     return "\n".join([
         "A person wrote to their assistant.",
-        "Question: does the person want the assistant to KEEP what they say for later?",
-        'Answer {"answer": "yes"} when they ask it to remember, note, save or keep it, in any language and any words.',
-        'Answer {"answer": "no"} when they ask it NOT to remember, note, save or keep it, in any language.',
+        "Question: does the person ask the assistant NOT to remember, note, save or keep what they say?",
+        'Answer {"answer": "yes"} only when they say so, in any language and any words.',
+        'Answer {"answer": "no"} when they ask it to remember it, and when they just tell it something without '
+        "asking either way.",
         "",
-        'Message: "recuerda que mi coche es gris" -> {"answer": "yes"}',
-        'Message: "mi clave del wifi es Nube77, pero no la guardes" -> {"answer": "no"}',
-        'Message: "zapamiętaj: mój kot boi się odkurzacza" -> {"answer": "yes"}',
-        'Message: "nie zapisuj tego: mój PIN to 2580" -> {"answer": "no"}',
-        'Message: "note that my dentist is Dr Ferro" -> {"answer": "yes"}',
-        'Message: "my locker code is 4471, no need to remember it" -> {"answer": "no"}',
+        'Message: "recuerda que mi coche es gris" -> {"answer": "no"}',
+        'Message: "mi clave del wifi es Nube77, pero no la guardes" -> {"answer": "yes"}',
+        'Message: "mój kot boi się odkurzacza" -> {"answer": "no"}',
+        'Message: "nie zapisuj tego: mój PIN to 2580" -> {"answer": "yes"}',
+        'Message: "my dentist is Dr Ferro and she works on Tuesdays" -> {"answer": "no"}',
+        'Message: "my locker code is 4471, no need to remember it" -> {"answer": "yes"}',
         "",
         f'Message: "{flat}" ->',
         'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
     ])
+
+
+def _keep_refused_reader(content: str) -> str | None:
+    """`_keep_wanted_prompt` asks whether the keep was refused: its "yes" is a keep not wanted ("no")."""
+    refused = parse_followup_decision(content)
+    return None if refused is None else ("no" if refused == "yes" else "yes")
 
 
 def arbitrate_keep_wanted(
@@ -1872,17 +1888,17 @@ def arbitrate_keep_wanted(
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
 ) -> str | None:
-    """``"yes"`` when the person wants what they say kept, ``"no"`` when they ask not to keep it, None when nothing
-    judged it. Same call path as the other judgements."""
+    """``"yes"`` when the person wants what they say kept or says nothing either way, ``"no"`` when they ask not to
+    keep it, None when nothing judged it. Same call path as the other judgements."""
     if not str(message or "").strip():
         return None
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
-        return _judged_for_the_turn(_keep_wanted_prompt(message), source_context)
+        return _judged_for_the_turn(_keep_wanted_prompt(message), source_context, _keep_refused_reader)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_keep_wanted_prompt(message), operation="keep_wanted_arbitration", model=model,
-        runner_role="general", call_role=_judgement_role(),
+        runner_role="general", call_role=_judgement_role(), parse=_keep_refused_reader,
     )
 
 
@@ -1929,7 +1945,7 @@ def arbitrate_forget_order(
     if not str(message or "").strip():
         return None
     prompt = _forget_order_prompt(message)
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(prompt, source_context)
     return arbitrate_followup(
@@ -1983,7 +1999,7 @@ def arbitrate_file_ask(
     if not str(message or "").strip():
         return None
     prompt = _file_ask_prompt(message)
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(prompt, source_context)
     return arbitrate_followup(
@@ -2025,7 +2041,7 @@ def arbitrate_memory_kind(
     if not str(message or "").strip():
         return None
     prompt = _memory_kind_prompt(message)
-    model = _keep_judge_model()
+    model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(prompt, source_context, _memory_kind_reader)
     return arbitrate_followup(
@@ -2046,6 +2062,47 @@ def _judgement_role() -> str:
 #: probe (24 leads, half of them other tasks): qwen3:8b read 24 of 24, qwen3:4b read every keep ask and every task
 #: that points at its text, and qwen3:0.6b -- the helper tag the rest of this module asks -- answered yes to all 24.
 _KEEP_JUDGE_MIN_BILLIONS = 4.0
+
+
+def _same_ollama_tag(left: str, right: str) -> bool:
+    def tagged(name: str) -> str:
+        name = str(name or "").strip().lower()
+        return name if ":" in name else f"{name}:latest"
+
+    return bool(left and right) and tagged(left) == tagged(right)
+
+
+def _judge_model_for(source_context: object) -> str:
+    """The local model a judgement of this turn is asked of: the model that answers the turn, or "".
+
+    The model that answers the turn, when the turn's judge knows it (`core.agent_runtime.turn_judge`): loaded, it is
+    asked here at once; not loaded yet, "" hands the judgement to the turn's judge, which waits for the load the turn
+    makes anyway. Never another model only because Ollama has it loaded: on the gate iMac (a5403e091) another app had
+    qwen3.5:9b loaded, the largest, so every judgement of a qwen3:8b chat went to it, and it read "my cousin Darius
+    has a cat named Murka" as a fact the person did not want kept. What the judgement says must depend on the message
+    and the owner's own model, not on what else runs on the machine. A turn with no such judge (a remote or agent
+    turn, local models off) keeps `_keep_judge_model`."""
+    if _local_models_disabled():
+        return ""
+    if str(os.environ.get("VOOL_KEEP_JUDGE_MODEL") or "").strip():
+        return _keep_judge_model()
+    turn_model = getattr(_bound_judge(source_context), "turn_model", None)
+    if not callable(turn_model):
+        return _keep_judge_model()
+    try:
+        named = turn_model()
+    except Exception:
+        named = None
+    if not named:
+        return _keep_judge_model()
+    model = str(named[0] or "")
+    try:
+        from core.local_ollama_inventory import loaded_ollama_model_names
+
+        loaded = loaded_ollama_model_names()
+    except Exception:
+        loaded = ()
+    return model if any(_same_ollama_tag(model, name) for name in loaded) else ""
 
 
 def _keep_judge_model() -> str:
