@@ -1799,6 +1799,84 @@ def arbitrate_particular_ask(
     )
 
 
+def _answered_in_chat_prompt(question: str, earlier: list[str]) -> str:
+    """Whether the person's earlier messages in this chat tell the answer to a question about their own life."""
+    flat = " ".join(str(question or "").split())[:300].replace('"', "'")
+    lines = [" ".join(str(m or "").split())[:300].replace('"', "'") for m in list(earlier)[-10:]]
+    said = "\n".join(f'- "{line}"' for line in lines if line) or "- (none)"
+    return "\n".join([
+        "Below are the person's earlier messages in this chat, then a question they ask now.",
+        "Does one of the earlier messages tell the answer to the question? Answer yes or no. Any language.",
+        "",
+        "Example: earlier: \"my sister's dog is called Bruno\". Question: \"what's my sister's dog called?\" ->",
+        '{"answer": "yes"}',
+        "Example: earlier: \"what's Ona's goat called?\". Question: \"what kind of cat does Jonas have?\" ->",
+        '{"answer": "no"}',
+        "",
+        "Earlier messages:",
+        said,
+        f'Question: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_answered_in_chat(
+    question: str,
+    earlier: list[str],
+    *,
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether this chat's earlier messages hold the answer to a recall nothing saved answers: ``"yes"`` / ``"no"``,
+    or None when nothing judged it (core.persistent_memory)."""
+    if not str(question or "").strip() or not earlier:
+        return None
+    prompt = _answered_in_chat_prompt(question, earlier)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
+        operation="answered_in_chat_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+    )
+
+
+def _choice_ask_prompt(message: str, choice: str) -> str:
+    """Whether a message asks for one tool the judgement over the whole list picked for it."""
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
+    what = " ".join(str(choice or "").split())[:300].replace('"', "'")
+    return "\n".join([
+        "A person wrote to their assistant. Does the message ask the assistant to do this? Any language.",
+        f'This: "{what}"',
+        "A question about the person's own life, people or pets, or about the world, is no.",
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_choice_ask(
+    message: str,
+    choice: str,
+    *,
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a message asks for the picked tool (`choice`, its description): ``"yes"`` / ``"no"``, or None when
+    nothing judged it (core.plugin_ask)."""
+    if not str(message or "").strip() or not str(choice or "").strip():
+        return None
+    prompt = _choice_ask_prompt(message, choice)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
+        operation="choice_ask_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+        patient=True,
+    )
+
+
 def _reminder_ask_prompt(message: str) -> str:
     """Whether a message asks to be reminded at some time, put on its own when the tool judgement picked Reminders and
     the memory question read the same message as something to remember. On the gate iMac (3c92e8df3, qwen3:8b) both
@@ -1861,7 +1939,7 @@ def _means_the_one_reminder_prompt(message: str, reminder: str) -> str:
         'Reminder: "renew the car insurance". Message: "delete my reminder about the dentist" -> {"answer": "no"}',
         'Reminder: "renew the car insurance". Message: "cancel my reminder" -> {"answer": "yes"}',
         'Reminder: "call mom". Message: "move it to friday 3pm" -> {"answer": "yes"}',
-        'Reminder: "pay rent". Message: "streich bitte die Erinnerung" -> {"answer": "yes"}',
+        'Reminder: "pay rent". Message: "die Erinnerung kann weg" -> {"answer": "yes"}',
         'Reminder: "pay rent". Message: "atšauk priminimą apie vaistus" -> {"answer": "no"}',
         'Reminder: "water the plants". Message: "przesuń przypomnienie na jutro na 9" -> {"answer": "yes"}',
         "",
@@ -2008,6 +2086,9 @@ def _keep_wanted_prompt(message: str) -> str:
         'Message: "nie zapisuj tego: mój PIN to 2580" -> {"answer": "yes"}',
         'Message: "my dentist is Dr Ferro and she works on Tuesdays" -> {"answer": "no"}',
         'Message: "my locker code is 4471, no need to remember it" -> {"answer": "yes"}',
+        'Message: "įsimink: mano močiutės katinas vardu Murkis" -> {"answer": "no"}',
+        'Message: "neįsimink šito: mano kodas 9134" -> {"answer": "yes"}',
+        'Message: "merk dir: mein Onkel fährt einen roten Traktor" -> {"answer": "no"}',
         "",
         f'Message: "{flat}" ->',
         'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
@@ -2233,7 +2314,9 @@ def _judge_model_for(source_context: object) -> str:
     except Exception:
         named = None
     if not named:
-        return _keep_judge_model()
+        # The turn has its own judge but no model of its own is known: never the largest other model loaded (the first
+        # turn of a new chat went to qwen3.5:9b, iMac gate on cf0d43952). The turn's judge decides, or nobody does.
+        return ""
     model = str(named[0] or "")
     try:
         from core.local_ollama_inventory import loaded_ollama_model_names

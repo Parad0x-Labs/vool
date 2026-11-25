@@ -46,6 +46,7 @@ __all__ = [
     "chat_has_private_request_in_flight",
     "end_private_request",
     "is_private",
+    "keep_this_turn_out",
     "localized_reply",
     "mark_request_private",
     "observe_private_door",
@@ -354,7 +355,8 @@ _LEAD = r"(?:(?:hey|hi|ok|okay|so|and|also|please|pls|vool|now|from\s+now\s+on|f
 _TAIL = r"(?:[,\s]+(?:please|pls|thanks|thank\s+you|ok|okay|now|for\s+now|from\s+now\s+on|vool))*"
 _THIS = (
     r"(?:this|that|any\s+of\s+this|anything|everything|me|us|our\s+(?:chat|conversation|talk)"
-    r"|this\s+(?:chat|conversation|talk|one|part|bit)|my\s+(?:messages|chats?|words))"
+    r"|(?:this|that|these|those)\s+(?:chat|conversation|talk|one|ones|part|parts|bit|bits|detail|details|fact|facts|"
+    r"stuff|info|piece|line|lines|message)|my\s+(?:messages|chats?|words))"
 )
 #: Common slips of the keyboard for the verbs a person uses to ask not to be recorded.
 _RECORD = r"(?:record|recrod|reocrd|recrd|save|svae|log|store|keep)"
@@ -599,6 +601,16 @@ _KEY_OF_REPLY = {text: key for key, text in REPLY_KEYS.items()}
 #: A keep refused on a turn that alone is private: the person asked that this message is not kept
 #: (`PrivateCommand.this_turn_only`); the chat is saved as usual, so "Private chat is on" would be untrue.
 REPLY_NOT_KEPT_THIS_TURN = "Okay, I won't keep that."
+
+
+def keep_this_turn_out(source_context: Any, session_id: str | None = None) -> None:
+    """Make the rest of this turn private: the person asked, in their own words, that what it says is not kept.
+
+    The chat is not switched; only this request is marked, and `source_context` is stamped when it can be."""
+    sid = session_id_from(source_context if isinstance(source_context, Mapping) else None, session_id)
+    if isinstance(source_context, dict):
+        source_context[PRIVATE_TURN_KEY] = True
+    mark_request_private(session_id=sid)
 
 
 def remember_refused_reply(source_context: Mapping[str, Any] | None, session_id: str | None = None) -> str:

@@ -55,7 +55,8 @@ def maybe_handle_memory_fast_path(
         # nothing is left that could answer it, and a model would guess (core.persistent_memory).
         from core.persistent_memory import _judged_recall_with_nothing_behind_it
 
-        nothing = _judged_recall_with_nothing_behind_it(user_input, session_id=session_id)
+        nothing = _judged_recall_with_nothing_behind_it(user_input, session_id=session_id,
+                                                        source_context=source_context)
         if nothing is not None:
             from core.i18n.lane_receipts import in_the_persons_language
 

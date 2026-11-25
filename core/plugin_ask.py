@@ -374,13 +374,14 @@ def _memory_kind_confirmed(
                  **({"patient": True} if any(key not in _MEMORY_KINDS for key in keys) else {}))
     picked = {_MEMORY_KINDS[key] for key in keys if key in _MEMORY_KINDS}
     tools = tuple(key for key in keys if key not in _MEMORY_KINDS)
-    if "reminders" in tools and (kind == "keep" or "keep" in picked):
-        # A Reminders pick and a keep reading of one message disagree on remind against remember. On the gate iMac
-        # (3c92e8df3, qwen3:8b) "zapamiętaj: mój szwagier ma psa o imieniu Burek" and a plainly told fact were both
-        # picked Reminders beside a keep; the model wrote a reminder out of the fact, raised an approval for it, and
-        # the fact was not kept. A yes/no of its own settles it; no answer leaves the pick as it was.
+    if "reminders" in tools:
+        # A Reminders pick is confirmed by a yes/no of its own. On the gate iMac (3c92e8df3, qwen3:8b) "zapamiętaj: mój
+        # szwagier ma psa o imieniu Burek" and a plainly told fact were picked Reminders beside a keep reading, and the
+        # model wrote a reminder out of the fact with an approval card; on cf0d43952 "..., don't save that part" was
+        # picked Reminders with no memory reading at all, and was answered as a failed reminder cancel. No answer
+        # leaves the pick as it was.
         if asked("reminder", intent_arbiter.arbitrate_reminder_ask) == "no":
-            _log.info("tool ask: reminders pick dropped beside a keep reading")
+            _log.info("tool ask: reminders pick not confirmed")
             tools = tuple(key for key in tools if key != "reminders")
             keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)
             if kind == "keep":
@@ -417,7 +418,7 @@ def _memory_kind_confirmed(
         # forget or recall reading is asked whether the message is about a reminder.
         if asked("reminder", intent_arbiter.arbitrate_reminder_ask) == "yes":
             _log.info("memory kind judged: %s read as a reminder order", ",".join(sorted(named)))
-            return tools + ("reminders",)
+            return ("reminders",)
     if not decided and not tools and kind == "keep" and not picked:
         # The memory question alone read a keep and the tool judgement picked nothing: "zapamiętaj proszę: moja
         # sąsiadka Ewa ma kota o imieniu Mruczek" was not kept and the model's "I'll remember that" was corrected to
@@ -619,6 +620,35 @@ def _web_confirmed(text: str, keys: tuple[str, ...], source_context: dict[str, A
     return tuple(key for key in keys if key != "web")
 
 
+#: Picks that act on this computer: each stands only on a yes/no of its own (`_actions_confirmed`).
+_ACTION_CHOICES_CONFIRMED = frozenset({"run", "files"})
+
+
+def _actions_confirmed(
+    text: str, keys: tuple[str, ...], source_context: dict[str, Any], session_id: str,
+) -> tuple[str, ...]:
+    """The picks, with a pick that runs something or writes a file kept only when a yes/no of its own says the message
+    asks for it. iMac gate on cf0d43952 (qwen3:8b): "what is the name of my dentist's cat?" was picked Run, and the
+    reply was a listing of the open folder. No answer keeps the pick."""
+    from core import intent_arbiter
+
+    kept = []
+    for key in keys:
+        if key in _ACTION_CHOICES_CONFIRMED:
+            description = next((row[1] for row in BUILTIN_CHOICES if row[0] == key), "")
+            try:
+                verdict = intent_arbiter.arbitrate_choice_ask(
+                    text, description, chat_id=str(session_id or ""), source_context=source_context)
+            except Exception as exc:
+                _log.info("tool ask: %s pick not confirmed (%s)", key, type(exc).__name__)
+                verdict = None
+            if verdict == "no":
+                _log.info("tool ask: %s pick dropped by its own yes/no", key)
+                continue
+        kept.append(key)
+    return tuple(kept)
+
+
 def _judged_again_without_the_web(
     text: str, builtins: list[tuple[str, str, tuple[str, ...]]], source_context: dict[str, Any], session_id: str
 ) -> tuple[str, ...]:
@@ -720,6 +750,7 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
         keys = _web_confirmed(text, picked_keys, source_context, session_id)
         if picked_keys and not keys and not plugins:
             keys = _judged_again_without_the_web(text, builtins, source_context, session_id)
+        keys = _actions_confirmed(text, keys, source_context, session_id)
         _record_builtins(text, _memory_kind_confirmed(text, keys, source_context, session_id))
     if not rows:
         return None

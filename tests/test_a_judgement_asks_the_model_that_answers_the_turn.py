@@ -85,3 +85,31 @@ def test_keep_wanted_asks_only_whether_the_keep_was_refused(monkeypatch, refused
     assert seen["model"] == "qwen3:8b"
     prompt = str(seen["prompt"])
     assert "NOT to remember" in prompt and "without asking either way" in prompt
+
+
+def test_a_turn_whose_own_model_is_not_known_never_asks_the_largest_loaded(monkeypatch):
+    """iMac gate on cf0d43952: the first turn of a new chat named no model of its own, and its judgements went to the
+    qwen3.5:9b another app had loaded while qwen3:8b answered the chat."""
+    _loaded(monkeypatch, "qwen3.5:9b", "qwen3:8b")
+
+    def judge(_prompt: str) -> str:
+        raise LookupError("no local Ollama model answers this turn")
+
+    judge.turn_model = lambda: None
+    intent_arbiter.bind_turn_judge({}, judge)
+    assert intent_arbiter._judge_model_for({}) == ""
+
+
+@pytest.mark.parametrize(("requested", "installed", "expected"), [
+    ("qwen3:8b", ("qwen3:8b", "qwen3.5:9b"), ("qwen3:8b", "general")),
+    ("llama3.1", ("llama3.1:latest",), ("llama3.1", "general")),
+    ("auto", ("qwen3:8b",), None),
+    ("gpt-4.1", ("qwen3:8b",), None),
+    ("", ("qwen3:8b",), None),
+])
+def test_the_model_the_page_asked_for_answers_when_the_lookup_names_none(monkeypatch, requested, installed, expected):
+    from core import local_ollama_inventory
+    from core.agent_runtime import turn_judge
+
+    monkeypatch.setattr(local_ollama_inventory, "installed_ollama_model_names", lambda **_k: installed)
+    assert turn_judge._requested_ollama_model({"requested_model": requested}) == expected

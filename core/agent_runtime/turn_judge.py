@@ -22,8 +22,11 @@ a turn, as before.
 """
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 SWITCH_ENV = "VOOL_CLOUD_JUDGEMENTS"
 _TRUTHY = {"1", "true", "yes", "on"}
@@ -65,11 +68,16 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
 
     def _model() -> tuple[str, str] | None:
         if not found:
-            manifest = brain.resolve_local_manifest(router, source_context)
+            try:
+                manifest = brain.resolve_local_manifest(router, source_context)
+            except Exception:
+                manifest = None
             metadata = (getattr(manifest, "metadata", None) or {}) if manifest is not None else {}
             model = str(getattr(manifest, "model_name", "") or "").strip()
             ollama = str(metadata.get("runtime_family") or "").strip().lower() == "ollama"
-            found.append((model, str(metadata.get("bundle_role") or "general")) if model and ollama else None)
+            named = (model, str(metadata.get("bundle_role") or "general")) if model and ollama else None
+            found.append(named or _requested_ollama_model(source_context))
+            _log.info("turn judge model: %s", (found[0] or ("none",))[0])
         return found[0]
 
     def judge(prompt: str) -> str:
@@ -83,6 +91,31 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
     # never of whichever other model is loaded.
     judge.turn_model = _model  # type: ignore[attr-defined]
     return judge
+
+
+def _requested_ollama_model(source_context: dict) -> tuple[str, str] | None:
+    """The Ollama model the person picked for this chat, when the manifest lookup names none.
+
+    On the first turn of a new chat the lookup named no model, and every judgement of that turn went to the largest
+    model another app had loaded (qwen3.5:9b) while the chat was answered by qwen3:8b (iMac gate on cf0d43952). The
+    model the page sent is the one that answers; it is used when Ollama has it installed."""
+    requested = str((source_context or {}).get("requested_model") or "").strip()
+    if not requested:
+        return None
+    try:
+        from core.auto_local_only_mode import is_auto_selection
+
+        if is_auto_selection(requested):
+            return None
+        from core.local_ollama_inventory import installed_ollama_model_names
+
+        installed = {str(name).strip().lower() for name in installed_ollama_model_names()}
+    except Exception:
+        return None
+    wanted = requested.lower()
+    if wanted in installed or (":" not in wanted and f"{wanted}:latest" in installed):
+        return requested, "general"
+    return None
 
 
 def _judge_for(agent: Any, source_context: Any, session_id: str) -> Any | None:

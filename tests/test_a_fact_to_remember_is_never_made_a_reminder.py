@@ -60,10 +60,10 @@ def test_no_answer_leaves_the_pick_as_it_was(readings) -> None:
     assert plugin_ask._memory_kind_confirmed(FACTS[0], ("reminders",), {}, "chat-1") == ("reminders",)
 
 
-def test_a_reminders_pick_without_a_keep_reading_is_not_asked_again(readings) -> None:
-    asked = readings(None, "no")
+def test_a_reminders_pick_without_a_keep_reading_is_confirmed_by_its_own_yes(readings) -> None:
+    asked = readings(None, "yes")
     assert plugin_ask._memory_kind_confirmed("show my reminders", ("reminders",), {}, "chat-1") == ("reminders",)
-    assert asked == []
+    assert asked == ["show my reminders"]
 
 
 def test_the_question_is_asked_of_the_turns_model(monkeypatch) -> None:

@@ -3354,11 +3354,23 @@ def _keep_not_wanted(text: str, *, session_id: str | None, source_context: Mappi
     from core.intent_arbiter import arbitrate_keep_wanted
 
     try:
-        return arbitrate_keep_wanted(text, chat_id=str(session_id or ""),
-                                     source_context=dict(source_context or {})) == "no"
+        refused = arbitrate_keep_wanted(text, chat_id=str(session_id or ""),
+                                        source_context=dict(source_context or {})) == "no"
     except Exception as exc:
         LOGGER.warning("judged keep: keep-wanted unavailable: %s", type(exc).__name__)
         return False
+    if refused:
+        # A message the person asked not to keep is kept nowhere: not as a fact, and not in the chat's own record that
+        # a later chat's recall reads. "..., don't save that part", missed by the private-chat words, was stored with
+        # the chat and quoted back in another chat (iMac gate on cf0d43952). In any language the judged refusal makes
+        # the rest of the turn private.
+        try:
+            from core.private_chat import keep_this_turn_out
+
+            keep_this_turn_out(source_context, session_id)
+        except Exception:
+            LOGGER.warning("judged keep: the refused turn could not be made private", exc_info=True)
+    return refused
 
 
 def _told_as_fact(sentence: str, *, session_id: str | None, source_context: Mapping[str, Any] | None) -> bool:
@@ -3629,7 +3641,9 @@ def _judged_recall_before_not_found(text: str, *, session_id: str | None,
                                 source_context=dict(source_context or {}), forgotten_too=False)
 
 
-def _judged_recall_with_nothing_behind_it(text: str, *, session_id: str | None) -> str | None:
+def _judged_recall_with_nothing_behind_it(
+    text: str, *, session_id: str | None, source_context: Mapping[str, Any] | None = None,
+) -> str | None:
     """The answer to a recall the turn's judge read, in any language, once every memory lane has handed it on: in a
     chat with no earlier message nothing can answer it, so it is "not saved", never a model's guess. Handed to the
     model with an empty memory, "kokios spalvos mano valtis?" was answered "raudona", and "where is my boat?" "docked
@@ -3642,8 +3656,23 @@ def _judged_recall_with_nothing_behind_it(text: str, *, session_id: str | None) 
             return None
     except Exception:
         return None
-    if _chat_earlier_user_turns(session_id):
-        return None
+    earlier = _chat_earlier_user_turns(session_id)
+    if earlier:
+        # The model reads this chat's earlier messages, but only an answer one of them holds may come from it. Handed
+        # on in a chat whose earlier messages said nothing about it, "what kind of bird does Daiva have and its name?"
+        # (nothing saved about Daiva) was answered "You told me: Daiva has a bird named Klaudia, and it's a canary"
+        # (iMac gate on cf0d43952). Asked whether they hold it, a no is "not saved"; no answer hands it on as before.
+        try:
+            from core.intent_arbiter import arbitrate_answered_in_chat
+
+            verdict = arbitrate_answered_in_chat(text, earlier, chat_id=str(session_id or ""),
+                                                 source_context=dict(source_context or {}) or None)
+        except Exception as exc:
+            LOGGER.warning("recall in this chat: unreadable (%s)", type(exc).__name__)
+            verdict = None
+        LOGGER.info("judged recall with nothing held: this chat holds the answer %s", verdict or "not judged")
+        if verdict != "no":
+            return None
     return JUDGED_RECALL_NOTHING
 
 
