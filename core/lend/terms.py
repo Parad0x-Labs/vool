@@ -11,6 +11,8 @@ from core.drop.session import b64, unb64
 MAX_INPUT = 10 * 1024 * 1024
 MAX_OUTPUT = 10 * 1024 * 1024
 DAY = 86400000
+# A default invite never lives less than this: one made later than 23:59 minus this runs to the next night.
+MIN_DEFAULT_HOURS = 2
 CAPABILITIES = ('contact_sheet', 'clean_pdf', 'summary', 'translation', 'recording')
 #: The jobs this version can run at all: on a computer with process confinement, and a recording only
 #: with the local media tools as well. Summarising and translating with a local model are not among
@@ -80,10 +82,14 @@ def terms(value, *, now, fresh=False):
 def defaults(now):
     # Convert tonight's local wall time with its own offset, rather than
     # freezing the morning's offset across a daylight-saving transition.
+    # An invite made late in the evening runs to the NEXT 23:59: measured on CI 2026-11-24, invites made
+    # at 23:58:59 got one second of life ("expired" before the guest could answer), and before this an
+    # invite made after 23:59 lived one second by construction.
     today = datetime.fromtimestamp(now / 1000)
     tonight = today.replace(hour=23, minute=59, second=0, microsecond=0)
-    if tonight <= today:
-        tonight = today + timedelta(seconds=1)
+    if tonight - today < timedelta(hours=MIN_DEFAULT_HOURS):
+        # By calendar day, not by 24 hours: the night before a clock change is 23 or 25 hours long.
+        tonight = datetime.combine(today.date() + timedelta(days=1), tonight.time())
     return {'capability': 'clean_pdf', 'jobs': 1, 'max_bytes': MAX_INPUT,
             'max_length': 50000, 'max_seconds': 30, 'expires': int(tonight.timestamp()*1000),
             'auto': False, 'local_only': True, 'trim_start': 0, 'trim_length': 30}

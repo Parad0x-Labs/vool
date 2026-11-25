@@ -127,3 +127,25 @@ def test_default_expiry_uses_tonights_local_offset_across_clock_changes(monkeypa
                 assert defaults(int(morning.timestamp()*1000))['expires'] == int(tonight.timestamp()*1000)
     finally:
         time.tzset()
+
+
+def test_a_late_evening_invite_runs_to_the_next_night(monkeypatch):
+    # CI 2026-11-24: invites made at 23:58:59 expired a second later, before the guest could answer.
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from core.lend.terms import defaults
+
+    try:
+        with monkeypatch.context() as env:
+            env.setenv('TZ', 'Europe/Vilnius')
+            time.tzset()
+            zone = ZoneInfo('Europe/Vilnius')
+            for hour, minute, second in [(23, 58, 59), (23, 59, 30), (22, 30, 0)]:
+                late = datetime(2026, 3, 28, hour, minute, second, tzinfo=zone)  # the night before the clock change
+                next_night = datetime(2026, 3, 29, 23, 59, tzinfo=zone)
+                assert defaults(int(late.timestamp()*1000))['expires'] == int(next_night.timestamp()*1000)
+            evening = datetime(2026, 3, 28, 20, 0, tzinfo=zone)
+            assert defaults(int(evening.timestamp()*1000))['expires'] == int(datetime(2026, 3, 28, 23, 59, tzinfo=zone).timestamp()*1000)
+    finally:
+        time.tzset()
