@@ -887,6 +887,10 @@ _DONE_CLAIM_TAIL_CHARS = 300
 def _done_claim_prompt(reply: str) -> str:
     """One question about a finished reply: does it report that the assistant has already done something?
 
+    What someone else did, or what a pasted or attached message says, is no report of the assistant's: on the installed
+    app (6f5532699, qwen3:8b) a correct two-line summary of a shop's order email ("... is confirmed. Pickup is
+    scheduled ...") was read as done, and the person was told "no step ran on this turn to do it".
+
     The reply alone is read, not the person's message: with the ask beside it ("put it on my calendar"), the
     judge read a calendar listing or a how-to in the reply as the ask carried out (measured on qwen3:8b, fresh
     replies in four languages: 43 of 48 with the ask, 47 of 48 without)."""
@@ -905,7 +909,9 @@ def _done_claim_prompt(reply: str) -> str:
         'Answer {"answer": "kept"} when the only such report is that it will remember, or has noted, a fact about the '
         "person in its own memory. A promise to remind, ping, alert or tell the person of something at a later time "
         'is a reminder set: {"answer": "done"}.',
-        'Answer {"answer": "none"} for everything else, including: information or an answer; what a calendar, list, '
+        'Answer {"answer": "none"} for everything else, including: information or an answer; what someone else did, '
+        "or what a message, email, letter or document says (a summary of it: \"your order is confirmed and paid, the "
+        "delivery is booked for Monday\" reports the sender's news, not the assistant's action); what a calendar, list, "
         "folder or account already holds; instructions or steps for the reader to follow; a poem, story, list, table or "
         "other text written out in the reply, including the person's own items sorted, grouped or rewritten there; "
         "an offer, a plan or a question (\"if you tell me, I'll remember it\" is an offer); a refusal or saying it "
@@ -921,6 +927,8 @@ def _done_claim_prompt(reply: str) -> str:
         'Reply: "Ich kann keinen Wecker stellen, aber auf dem Handy geht das unter Uhr." -> {"answer": "none"}',
         'Reply: "歯医者の予約を金曜日に変更しました。" -> {"answer": "done"}',
         'Reply: "Shall I look up a taxi number near you?" -> {"answer": "none"}',
+        'Reply: "Die Werkstatt schreibt: Reparatur erledigt, Rechnung bezahlt, Abholung am Freitag gebucht." -> '
+        '{"answer": "none"}',
         'Reply: "Noted, I\'ll ping you on Friday at 4 to call the garage." -> {"answer": "done"}',
         'Reply: "Got it, the gym one is gone." -> {"answer": "done"}',
         'Reply: "I don\'t have that saved. If you tell me, I\'ll remember it." -> {"answer": "none"}',
@@ -1006,6 +1014,97 @@ def done_claim_unjudged() -> bool:
     return reason == "breaker_open" or reason.startswith("request:") or (
         reason.startswith("turn_judge:") and reason != "turn_judge:unreadable"
     )
+
+
+#: How much of what the person gave (their message and the text of what they attached) the relay question reads.
+_GIVEN_HEAD_CHARS = 1600
+_GIVEN_TAIL_CHARS = 400
+
+
+def _claim_relayed_prompt(reply: str, given: str) -> str:
+    """Whether what a done reply reports was already written in what the person gave: an email, letter or document.
+
+    Asked only of a reply the done-claim question read as done, on a turn with nothing run (`core.agent_runtime.
+    action_honesty_validator`). The reply alone cannot tell them apart: "Order #... is confirmed. Pickup is scheduled
+    ..." is a correct summary of a shop's email the person pasted, and the same words would be a claim of the
+    assistant's after "book me a pickup". On the installed app (6f5532699, qwen3:8b) that summary was read as done and
+    the person was told "no step ran on this turn to do it". So what the person gave is put beside the reply here, in
+    a question of its own: the done question keeps reading the reply alone (with the ask beside it, it read a calendar
+    listing as the ask carried out).
+
+    Measured on qwen3:8b (probes on 3dd1243b9, 7 summaries and 7 unbacked claims, twice each):
+    - "who did it: the assistant or the sender?" kept 5 of 7 summaries as the assistant's;
+    - "was it already written in the person's text: stated / new?" got all 7 summaries and 5 of 7 claims; the two it
+      missed were orders the reply only echoed ("text Jonas that dinner is at 8" -> "Sent Jonas a message: ...");
+    - a third answer for an order ("asked") fixed those two but lost the shop's-email summary and two claims.
+    So the two-answer question is asked, and only on a turn whose ask the turn's judge did not read as an order for a
+    tool (the caller): an echoed order never reaches it. Only "stated" lets the reply stand."""
+    flat = " ".join(str(reply or "").split())[:600].replace('"', "'")
+    body = " ".join(str(given or "").split())
+    if len(body) > _GIVEN_HEAD_CHARS + _GIVEN_TAIL_CHARS:
+        body = body[:_GIVEN_HEAD_CHARS] + " ... " + body[-_GIVEN_TAIL_CHARS:]
+    body = body.replace('"', "'")
+    return "\n".join([
+        "A person gave their assistant the text below, and the assistant replied. The reply says that something "
+        "happened or was done. Was that already written in the person's own text?",
+        "stated = the person's text already says it happened (an email, letter, message or document they pasted or "
+        "attached says so); the reply only repeats or sums it up, in any words or another language.",
+        "new = the person's text does not say it happened: it asks for it to be done, or says something else.",
+        "",
+        'Person: "Bitte kurz zusammenfassen: Sehr geehrter Kunde, Ihre Rückerstattung über 20 Euro wurde heute '
+        'überwiesen." Reply: "Die Rückerstattung über 20 Euro wurde heute überwiesen." -> {"answer": "stated"}',
+        'Person: "trage den Zahnarzt am Dienstag um 8 in meinen Kalender ein" Reply: "Der Zahnarzt am Dienstag um 8 '
+        'steht jetzt in deinem Kalender." -> {"answer": "new"}',
+        'Person: "co pisze firma? Szanowni Państwo, przesyłka nr 551 została nadana i dotrze w czwartek." Reply: '
+        '"Przesyłka 551 została nadana i dotrze w czwartek." -> {"answer": "stated"}',
+        'Person: "my sister booked our flights for May, add the trip to my calendar" Reply: "Added your May trip to '
+        'the calendar." -> {"answer": "new"}',
+        'Person: "kas laiške? Jūsų užsakymas apmokėtas, kurjeris atvyks penktadienį." Reply: "Užsakymas apmokėtas, '
+        'kurjeris atvyks penktadienį." -> {"answer": "stated"}',
+        'Person: "envoie à Marc que je serai en retard" Reply: "C\'est envoyé à Marc." -> {"answer": "new"}',
+        "",
+        f'Person: "{body}" Reply: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "stated"} or {"answer": "new"}',
+    ])
+
+
+#: `_claim_relayed_prompt`'s answers: "yes" only when the person's own text already says it happened.
+_RELAYED_KINDS = {"stated": "yes", "new": "no"}
+
+
+def _claim_relayed_reader(content: str) -> str | None:
+    return _named_answer(content, _RELAYED_KINDS)
+
+
+def arbitrate_claim_relayed(
+    reply: str,
+    given: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+    patient: bool = False,
+) -> str | None:
+    """``"yes"`` when what a done reply reports is already written in the person's own text (they gave an email,
+    letter or document that says it happened), ``"no"`` when it is not, None when nothing judged it (the done reading
+    then stands)."""
+    if not str(reply or "").strip() or not str(given or "").strip():
+        return None
+    prompt = _claim_relayed_prompt(reply, given)
+    routing_failure = _LAST_FAILURE.get("reason", "")
+    _LAST_FAILURE["reason"] = ""
+    try:
+        model = _judge_model_for(source_context)
+        if not model:
+            return _judged_for_the_turn(prompt, source_context, _claim_relayed_reader)
+        return arbitrate_followup(
+            "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+            prompt=prompt, operation="claim_relayed_arbitration", model=model,
+            runner_role="general", call_role=_judgement_role(), parse=_claim_relayed_reader,
+            **({"patient": True, "timeout_s": _LOAD_TIMEOUT_S} if patient else {}),
+        )
+    finally:
+        _LAST_FAILURE["reason"] = routing_failure
 
 
 def _meaning_prompt(question: str, fact: str) -> str:
@@ -1898,32 +1997,51 @@ def arbitrate_choice_ask(
 
 
 def _reminder_ask_prompt(message: str) -> str:
-    """Whether a message asks to be reminded at some time, put on its own when the tool judgement picked Reminders and
-    the memory question read the same message as something to remember. On the gate iMac (3c92e8df3, qwen3:8b) both
-    "zapamiętaj: mój szwagier ma psa o imieniu Burek" ("remember: my brother-in-law has a dog named Burek") and "my
-    godson Jonas has a goldfish called Bulvė" were picked Reminders beside a keep, and the model wrote a reminder out of
-    the fact."""
+    """Which of three a message is: an ask about reminders, a fact to remember, or something else. Put on its own when
+    the tool judgement picked Reminders and the memory question read the same message as something to remember. On the
+    gate iMac (3c92e8df3, qwen3:8b) both "zapamiętaj: mój szwagier ma psa o imieniu Burek" ("remember: my brother-in-
+    law has a dog named Burek") and "my godson Jonas has a goldfish called Bulvė" were picked Reminders beside a keep,
+    and the model wrote a reminder out of the fact.
+
+    Asked as a yes/no ("does it ask to be reminded later?"), every fact told for later was a yes on qwen3:8b, 2 of 2
+    each: "keep in mind that my car service is due in March", a class moved to Wednesdays, a plumber's name "for
+    later" (probe on 3dd1243b9; the installed app made a reminder of "keep in mind for later"). A day, a date or a
+    "later" in a fact is no ask to be told of it, so the fact is an answer of its own here, not the "no" of a reminder
+    question. Only "remind" confirms a reminder (`_REMINDER_KINDS`)."""
     flat = " ".join(str(message or "").split())[:400].replace('"', "'")
     return "\n".join([
-        "Does this message ask the assistant to remind the person of something later, or to set, show, move, cancel",
-        "or delete such a reminder? Telling a fact, asking the assistant to remember a fact, or to forget what it was",
-        "told, is no. Answer yes or no. Any language.",
+        "A person wrote to their assistant. Which one is the message? Any language, any words.",
+        "remind = it asks to be told, pinged or alerted of something at a later time, or to set, show, move, cancel or "
+        "delete such a reminder.",
+        "remember = it tells the assistant a fact, or asks it to remember, note or keep one, for now or for later, also "
+        "when the fact names a day, a date or a time. It does not ask to be alerted.",
+        "other = anything else, including asking the assistant to forget what it was told.",
         "",
-        'Message: "remind me tomorrow at 9 to call mom" -> {"answer": "yes"}',
-        'Message: "remember that my locker number is 42" -> {"answer": "no"}',
-        'Message: "my neighbour has a parrot called Kiwi" -> {"answer": "no"}',
-        'Message: "primink man rytoj 8 val. išgerti vaistus" -> {"answer": "yes"}',
-        'Message: "įsimink: mano sesers katė vardu Pūkas" -> {"answer": "no"}',
-        'Message: "erinnere mich am Freitag an den Zahnarzt" -> {"answer": "yes"}',
-        'Message: "merk dir: mein Fahrrad ist blau" -> {"answer": "no"}',
-        'Message: "set a reminder to water the plants" -> {"answer": "yes"}',
-        'Message: "entferne die Erinnerung fürs Training" -> {"answer": "yes"}',
-        'Message: "vergiss, was ich dir über mein Fahrrad gesagt habe" -> {"answer": "no"}',
-        'Message: "kokie mano priminimai?" -> {"answer": "yes"}',
+        'Message: "remind me tomorrow at 9 to call mom" -> {"answer": "remind"}',
+        'Message: "remember that my locker number is 42" -> {"answer": "remember"}',
+        'Message: "merk dir für später: mein Kurs ist jetzt dienstags um 7" -> {"answer": "remember"}',
+        'Message: "primink man rytoj 8 val. išgerti vaistus" -> {"answer": "remind"}',
+        'Message: "įsimink: mano sesers katė vardu Pūkas" -> {"answer": "remember"}',
+        'Message: "erinnere mich am Freitag an den Zahnarzt" -> {"answer": "remind"}',
+        'Message: "pamiętaj na przyszłość, że przegląd auta mam w maju" -> {"answer": "remember"}',
+        'Message: "set a reminder to water the plants" -> {"answer": "remind"}',
+        'Message: "garde en tête que mon bail se termine en juin" -> {"answer": "remember"}',
+        'Message: "entferne die Erinnerung fürs Training" -> {"answer": "remind"}',
+        'Message: "vergiss, was ich dir über mein Fahrrad gesagt habe" -> {"answer": "other"}',
+        'Message: "kokie mano priminimai?" -> {"answer": "remind"}',
+        'Message: "what is the capital of Peru?" -> {"answer": "other"}',
         "",
         f'Message: "{flat}" ->',
-        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+        'Reply with ONLY the JSON object: {"answer": "remind"}, {"answer": "remember"} or {"answer": "other"}',
     ])
+
+
+#: `_reminder_ask_prompt`'s answers as the yes/no its callers read: only "remind" is about a reminder.
+_REMINDER_KINDS = {"remind": "yes", "remember": "no", "other": "no"}
+
+
+def _reminder_kind_reader(content: str) -> str | None:
+    return _named_answer(content, _REMINDER_KINDS)
 
 
 def arbitrate_reminder_ask(
@@ -1939,11 +2057,11 @@ def arbitrate_reminder_ask(
     prompt = _reminder_ask_prompt(message)
     model = _judge_model_for(source_context)
     if not model:
-        return _judged_for_the_turn(prompt, source_context)
+        return _judged_for_the_turn(prompt, source_context, _reminder_kind_reader)
     return arbitrate_followup(
         "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
         operation="reminder_ask_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
-        patient=True,
+        patient=True, parse=_reminder_kind_reader,
     )
 
 
@@ -2123,6 +2241,11 @@ _KEEP_KINDS = {"remember": "yes", "tell": "yes", "dont": "no"}
 def _keep_refused_reader(content: str) -> str | None:
     """`_keep_wanted_prompt`'s answer as a keep wanted: "dont" is a keep not wanted ("no"); "remember" and "tell" are
     "yes"; anything else is None (nothing judged it, and the keep stands as both readings agreed)."""
+    return _named_answer(content, _KEEP_KINDS)
+
+
+def _named_answer(content: str, kinds: dict[str, str]) -> str | None:
+    """A question asked as named answers, read back as what each name means; a name not asked for is None."""
     raw: object = None
     try:
         raw = json.loads(content)
@@ -2135,7 +2258,7 @@ def _keep_refused_reader(content: str) -> str | None:
                 raw = None
     value = raw.get("answer") if isinstance(raw, dict) else None
     value = "".join(ch for ch in str(value or "").strip().lower() if ch.isalpha())
-    return _KEEP_KINDS.get(value)
+    return kinds.get(value)
 
 
 def arbitrate_keep_wanted(

@@ -2369,7 +2369,11 @@ def _judged_claim_kind(
         except Exception:
             kind = ""
     elif answer == "done":
-        kind = "judged"
+        # Only on a turn whose ask was not read as an order for a tool: a reply that echoes an order ("Sent Jonas a
+        # message: ...") was read as already written in the person's text (probe on 3dd1243b9).
+        kind = "" if not asked_for_a_tool and _reply_relays_what_was_given(
+            response, user_input, effective_input, session_id, source_context,
+        ) else "judged"
     elif answer == "kept" and not _keep_step_wrote(source_context) and not _a_saved_fact_holds_the_reply(
         response, session_id, source_context
     ):
@@ -2378,6 +2382,44 @@ def _judged_claim_kind(
         kind = "judged_kept"
     cache[digest] = kind
     return kind
+
+
+def _given_text(user_input: str, effective_input: str | None, source_context: dict[str, object] | None) -> str:
+    """What the person gave on this turn: their message and the text of what they attached."""
+    parts = [text for text in dict.fromkeys((str(user_input or "").strip(), str(effective_input or "").strip())) if text]
+    evidence = (source_context or {}).get("external_evidence") if isinstance(source_context, dict) else None
+    for item in evidence if isinstance(evidence, list) else []:
+        if isinstance(item, dict) and str(item.get("origin") or "") == "chat_attachment":
+            text = str(item.get("text") or "").strip()
+            if text:
+                parts.append(text)
+    return "\n\n".join(parts)
+
+
+def _reply_relays_what_was_given(
+    response: str, user_input: str, effective_input: str | None, session_id: str | None,
+    source_context: dict[str, object] | None,
+) -> bool:
+    """Whether a reply read as done only passes on what the person's own email, letter or document says was done.
+
+    "Order #4471 ... is confirmed. Pickup is scheduled for Saturday ..." was a correct two-line summary of the shop's
+    email the person pasted (and, in a second chat, attached); the done question read it as the assistant's own claim
+    and the person was told "no step ran on this turn to do it" (installed app 6f5532699, qwen3:8b). The reply alone
+    does not say who did it, so the judge is asked again with what the person gave beside it
+    (`core.intent_arbiter.arbitrate_claim_relayed`). No answer leaves the done reading as it was."""
+    given = _given_text(user_input, effective_input, source_context)
+    if not given:
+        return False
+    try:
+        from core import intent_arbiter
+
+        return intent_arbiter.arbitrate_claim_relayed(
+            response, given,
+            request_id=str((source_context or {}).get("request_id") or ""),
+            chat_id=str(session_id or ""), source_context=source_context,
+        ) == "yes"
+    except Exception:
+        return False
 
 
 def _a_saved_fact_holds_the_reply(response: str, session_id: str | None, source_context: dict[str, object] | None) -> bool:

@@ -52,8 +52,11 @@ def test_a_done_claim_with_nothing_run_is_corrected_and_signed_blocked():
     assert out["response"] != CLAIM
     assert out["action_honesty_validator"]["claim_kind"] == "judged"
     assert out["honesty_receipt"]["verdict"] == VERDICT_BLOCKED
-    # One judgement of the claim for the guard and the receipt together, and none of the correction.
-    assert len(asked) == 1 and CLAIM in asked[0]
+    # One judgement of the claim for the guard and the receipt together, and none of the correction: the done question
+    # on the reply alone, then who did it with the person's ask beside it (that stand-in's "done" is no answer to it,
+    # so the done reading stands).
+    assert len(asked) == 2 and CLAIM in asked[0] and ASK not in asked[0]
+    assert CLAIM in asked[1] and ASK in asked[1]
 
 
 def test_the_correction_is_said_in_the_language_the_person_wrote_in():
