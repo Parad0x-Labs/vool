@@ -121,8 +121,12 @@ _API_KEY_RE = re.compile(
     r")\b"
 )
 # Long base58 (>= 64 chars) — a Solana secret key / seed. A 32-44 char base58 (a public address) is
-# deliberately NOT matched, so ordinary wallet addresses in chat stay readable.
-_B58_SECRET_RE = re.compile(r"\b[1-9A-HJ-NP-Za-km-z]{64,88}\b")
+# deliberately NOT matched, so ordinary wallet addresses in chat stay readable. A run that is the tail of a
+# hyphen-joined name ("tool-receipt-<64 hex>", "tool-action-<64 hex>") is that name, VOOL's own id, not a key pasted
+# on its own: a 64-hex id with no "0" in it (about 1 in 60) fits the base58 alphabet, and the privacy gate kept a
+# cloud model's next request on the computer because the tool result quoted one (disclosure suite, CI on 4e06fdc5c
+# and 0c3d44046, 2026-11-25). A bare run is still read as a key, digest-shaped or not.
+_B58_SECRET_RE = re.compile(r"(?<![0-9A-Za-z]-)\b[1-9A-HJ-NP-Za-km-z]{64,88}\b")
 # Bitcoin WIF private key: 51-52 base58 chars starting 5/K/L. Distinguishable from a Solana
 # public address (32-44 chars) by length + prefix, so this does not mask ordinary addresses.
 _WIF_RE = re.compile(r"\b[5KL][1-9A-HJ-NP-Za-km-z]{50,51}\b")
