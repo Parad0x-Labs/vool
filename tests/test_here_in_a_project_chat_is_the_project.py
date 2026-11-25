@@ -107,3 +107,55 @@ def test_a_turn_judged_a_find_may_list_a_folder(picked, admitted, turn, monkeypa
     turn.run_once(text, session_id_override="here-chat", source_context={"chat_id": "here-chat"})
 
     assert bool(seen.get("admitted")) is admitted, (text, picked, seen)
+
+
+def _project(tmp_path):
+    project = tmp_path / "Volumes" / "Work" / "firewood"
+    project.mkdir(parents=True)
+    (project / "malku-sarasas.txt").write_text("beržas 3 m3\n")
+    return project
+
+
+def test_the_bound_folder_named_by_its_full_path_is_listed(home, tmp_path) -> None:
+    """iMac gate on 174b25378: the same folder "." listed was refused by its absolute path."""
+    from core.runtime_execution_tools import _dispatch_runtime_tool
+
+    project = _project(tmp_path)
+    listed = _dispatch_runtime_tool("machine.list_directory", {"path": str(project)},
+                                    source_context={"workspace": str(project), "workspace_binding": "project"})
+    assert listed.ok and "malku-sarasas.txt" in listed.response_text, listed.response_text
+
+
+@pytest.mark.parametrize("how", ["absolute", "relative"])
+def test_a_file_in_the_bound_folder_is_read(how, home, tmp_path) -> None:
+    """iMac gate on 174b25378: "rodyk, kur mano malkų sąrašas" read projC/malku-sarasas.txt and was refused."""
+    from core.runtime_execution_tools import _dispatch_runtime_tool
+
+    project = _project(tmp_path)
+    path = str(project / "malku-sarasas.txt") if how == "absolute" else "malku-sarasas.txt"
+    read = _dispatch_runtime_tool("machine.read_file", {"path": path},
+                                  source_context={"workspace": str(project), "workspace_binding": "project"})
+    assert read.ok and "beržas" in read.response_text, read.response_text
+
+
+def test_outside_the_bound_folder_the_machine_roots_still_decide(home, tmp_path) -> None:
+    from core.runtime_execution_tools import _dispatch_runtime_tool
+
+    project = _project(tmp_path)
+    other = tmp_path / "Volumes" / "Work" / "other"
+    other.mkdir()
+    (other / "secret.txt").write_text("x")
+    (home / "Documents" / "kept.txt").write_text("home file")
+    context = {"workspace": str(project), "workspace_binding": "project"}
+    assert not _dispatch_runtime_tool("machine.read_file", {"path": str(other / "secret.txt")}, source_context=context).ok
+    assert not _dispatch_runtime_tool("machine.list_directory", {"path": str(other)}, source_context=context).ok
+    from_home = _dispatch_runtime_tool("machine.read_file", {"path": "Documents/kept.txt"}, source_context=context)
+    assert from_home.ok and "home file" in from_home.response_text, from_home.response_text
+
+
+def test_an_unbound_chat_does_not_reach_a_folder_outside_the_roots(home, tmp_path) -> None:
+    from core.runtime_execution_tools import _dispatch_runtime_tool
+
+    project = _project(tmp_path)
+    assert not _dispatch_runtime_tool("machine.read_file", {"path": str(project / "malku-sarasas.txt")},
+                                      source_context={"workspace": str(project), "workspace_binding": "default"}).ok

@@ -3702,6 +3702,13 @@ def _guessed_path_lookup(
     raw = str(arguments.get("path") or "").strip()
     if not raw or _reader_target_exists(intent, raw, workspace_root=workspace_root):
         return None
+    project_root = _bound_project_root(source_context)
+    if intent == "machine.read_file":
+        try:
+            if _in_bound_folder(raw, project_root) is not None:
+                return None  # the folder this chat is bound to holds it: the reader reads it there
+        except ValueError:
+            return None  # a protected place: the reader's own refusal stands
     from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
 
     refusal = remote_turn_tool_refusal("machine.find_file", source_context)
@@ -4031,7 +4038,7 @@ def _dispatch_runtime_tool(
         if intent == "machine.move_path":
             return _covered(lambda: _machine_move_path(arguments, workspace_root=workspace_root))
         if intent == "machine.read_file":
-            return _read_machine_file(arguments)
+            return _read_machine_file(arguments, project_root=_bound_project_root(source_context))
         if intent == "machine.send_to_phone":
             return _machine_send_to_phone(arguments, source_context=source_context)
         if intent == "machine.send_with_drop":
@@ -5522,6 +5529,36 @@ def _bound_project_root(source_context: dict[str, Any] | None) -> Path | None:
     return root
 
 
+def _in_bound_folder(raw_path: Any, project_root: Path | None) -> Path | None:
+    """The path, when it lies inside the folder this chat is bound to; None otherwise (the machine roots decide).
+
+    The bound folder is one the person chose for the chat, wherever it is on the disk: named by its full path it was
+    refused as "not a safe local directory", for a listing and for a read alike (iMac gate on 174b25378, a project
+    outside the home). A relative path is the bound folder's when the bound folder holds it. This runtime's own state is never inside."""
+    if project_root is None:
+        return None
+    raw = str(raw_path or "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        # "Desktop/a.txt" still means the home's Desktop unless the bound folder itself holds that path.
+        candidate = project_root / candidate
+        if not candidate.exists():
+            return None
+    try:
+        resolved = candidate.resolve()
+        resolved.relative_to(project_root.resolve())
+    except (OSError, ValueError):
+        return None
+    from core.runtime_state_protection import refusal as _protected_refusal
+
+    reason = _protected_refusal(resolved, write=False)
+    if reason:
+        raise ValueError(reason)
+    return resolved
+
+
 def _workspace_root(source_context: dict[str, Any] | None) -> Path:
     raw = str((source_context or {}).get("workspace") or (source_context or {}).get("workspace_root") or "").strip()
     return resolve_workspace_root(raw or None)
@@ -6226,7 +6263,7 @@ def _list_machine_directory(
         if project_root is not None and str(arguments.get("path") or "").strip() in {"", ".", "./"}:
             target = project_root
         else:
-            target = _resolve_machine_directory(arguments.get("path"))
+            target = _in_bound_folder(arguments.get("path"), project_root) or _resolve_machine_directory(arguments.get("path"))
     except ValueError:
         allowed_roots = _readable_root_labels()
         return RuntimeExecutionResult(
@@ -6613,7 +6650,7 @@ def _machine_send_with_drop(arguments: dict[str, Any], *, source_context: dict[s
     )
 
 
-def _read_machine_file(arguments: dict[str, Any]) -> RuntimeExecutionResult:
+def _read_machine_file(arguments: dict[str, Any], *, project_root: Path | None = None) -> RuntimeExecutionResult:
     if not policy_engine.get("filesystem.allow_read_workspace", True):
         return RuntimeExecutionResult(
             handled=True,
@@ -6630,7 +6667,7 @@ def _read_machine_file(arguments: dict[str, Any]) -> RuntimeExecutionResult:
             },
         )
     try:
-        target = _resolve_machine_directory(arguments.get("path"))
+        target = _in_bound_folder(arguments.get("path"), project_root) or _resolve_machine_directory(arguments.get("path"))
     except ValueError as exc:
         if str(exc).startswith("protected_runtime_state"):
             return RuntimeExecutionResult(
