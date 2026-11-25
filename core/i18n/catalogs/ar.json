@@ -723,6 +723,8 @@
     "memory.keep_not_wanted": "حسنًا، لن أحتفظ بذلك.",
     "memory.already_forgotten": "تم نسيان ذلك بالفعل.",
     "memory.forget_applied": "تم النسيان. عدد مدخلات الذاكرة المحذوفة: {count}.",
+    "memory.forget_list_note": "في هذه المحادثة، تحتفظ قائمة النسيان في VOOL على هذا الكمبيوتر ببصمة مقفلة فقط للكلمات المنسية، فلا تُستخدم مرة أخرى أبدًا.",
+    "memory.forget_no_match": "لم تتم إزالة أي شيء. لم يُعثر في هذه المحادثة على ذكرى تطابق \"{target}\".",
     "memory.you_told_me": "أخبرتني:",
     "bot.approval_needed": "يحتاج هذا إلى موافقتك على حاسوبك. افتح هذه المحادثة في VOOL هناك واسمح بها. سأرسل النتيجة هنا.",
     "bot.approval_needed_what": "يحتاج هذا إلى موافقتك على حاسوبك: {what}. افتح هذه المحادثة في VOOL هناك واسمح بها. سأرسل النتيجة هنا.",
@@ -5630,7 +5632,7 @@
     "mail.saved.details_on": "تذكر التنبيهات المرسل والموضوع.",
     "mail.saved.details_off": "تذكر التنبيهات عدد الرسائل التي وصلت فقط."
   },
-  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
+  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

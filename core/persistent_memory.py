@@ -669,7 +669,23 @@ def _split_inside_quotes(text: str) -> bool:
 
 
 def _combined_forget_result(results: list[tuple[str, str, dict[str, Any]]]) -> tuple[str, str, dict[str, Any]]:
-    """One reply for a forget that named several targets; each target's own outcome is kept."""
+    """One reply for a forget that named several targets; each target's own outcome is kept.
+
+    A target that matched nothing because another target of the same order already erased it is the same thing
+    named twice (the saved row and the person's own sentence that holds it), not a second outcome: it is left out
+    of the reply. Mac gate 15 on 06a3f89fc: one forget answered "Forget applied. Removed 1 memory entry." and then
+    "Nothing was removed ..." for the sentence that row was kept from."""
+    from core.memory.carriers import carries
+
+    erased_words = [str(erasures.get(_FORGOTTEN_WORDS) or "") for _, status, erasures in results if status == "applied"]
+
+    def named_twice(status: str, erasures: dict[str, Any]) -> bool:
+        words = str(erasures.get(_FORGOTTEN_WORDS) or "")
+        return status == "no_match" and bool(words) and any(
+            done and (carries(words, done) or carries(done, words)) for done in erased_words)
+
+    once = [result for result in results if not named_twice(result[1], result[2])]
+    results = once or results
     statuses = [status for _, status, _ in results]
     stores: dict[str, Any] = {}
     for _, _, erasures in results:
@@ -4328,6 +4344,11 @@ def maybe_handle_memory_command(
             return False, ""
         if verb not in {"remember", "remember that", "note", "note that", "store", "store this"} and _NON_MEMORY_CAPTURE_RE.match(fact):
             return False, ""
+        from core.memory.everyday_remember import pointed_capture_fact
+
+        pointed = pointed_capture_fact(" ".join([*verb.split()[1:], fact]))
+        if pointed:
+            fact = pointed
         if len(fact) < 3:
             return True, "Memory update skipped: fact is too short."
         facts = _split_explicit_memory_facts(fact)

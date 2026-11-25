@@ -873,10 +873,16 @@ def build_tool_action_record(
         "parameters_hash": parameters_hash,
         "identifiers": identifiers,
     }
-    action_id = _safe_identifier(details.get("action_id")) or f"tool-action-{_stable_json_hash(identity_payload)}"
+    from core.secret_redaction import register_minted_id
+
+    action_id = _safe_identifier(details.get("action_id"))
+    if not action_id:
+        action_id = f"tool-action-{_stable_json_hash(identity_payload)}"
+        register_minted_id(action_id)
     receipt_id = _safe_identifier(details.get("receipt_id") or details.get("receipt_key"))
     if not receipt_id:
         receipt_id = f"tool-receipt-{_stable_json_hash({'action_id': action_id})}"
+        register_minted_id(receipt_id)
 
     failed = normalized_event == "tool_failed" or mode == "tool_failed"
     outcome = "failed" if failed else "pending_approval" if normalized_event == "tool_preview" else "succeeded"

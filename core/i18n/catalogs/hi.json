@@ -723,6 +723,8 @@
     "memory.keep_not_wanted": "ठीक है, मैं इसे नहीं रखूँगा।",
     "memory.already_forgotten": "यह पहले ही भुला दिया गया था।",
     "memory.forget_applied": "भुला दिया। हटाई गई मेमोरी प्रविष्टियाँ: {count}।",
+    "memory.forget_list_note": "इस चैट में, इस कंप्यूटर पर VOOL की भूलने की सूची भूले गए शब्दों का केवल एक बंद फ़िंगरप्रिंट रखती है, ताकि उनका फिर कभी उपयोग न हो।",
+    "memory.forget_no_match": "कुछ भी नहीं हटाया गया। इस चैट में \"{target}\" से मेल खाती कोई स्मृति नहीं मिली।",
     "memory.you_told_me": "आपने मुझे बताया:",
     "bot.approval_needed": "इसके लिए आपके कंप्यूटर पर आपकी अनुमति चाहिए। वहाँ VOOL में यह चैट खोलें और अनुमति दें। मैं नतीजा यहाँ भेजूँगा।",
     "bot.approval_needed_what": "इसके लिए आपके कंप्यूटर पर आपकी अनुमति चाहिए: {what}। वहाँ VOOL में यह चैट खोलें और अनुमति दें। मैं नतीजा यहाँ भेजूँगा।",
@@ -5630,7 +5632,7 @@
     "mail.saved.details_on": "सूचनाएँ भेजने वाले और विषय का नाम बताती हैं।",
     "mail.saved.details_off": "सूचनाएँ केवल यह बताती हैं कि कितने ईमेल आए।"
   },
-  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
+  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

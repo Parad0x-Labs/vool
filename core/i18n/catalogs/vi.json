@@ -723,6 +723,8 @@
     "memory.keep_not_wanted": "Được, tôi sẽ không lưu điều đó.",
     "memory.already_forgotten": "Điều đó đã bị quên rồi.",
     "memory.forget_applied": "Đã quên. Số mục bộ nhớ đã xóa: {count}.",
+    "memory.forget_list_note": "Trong cuộc trò chuyện này, danh sách quên của VOOL trên máy tính này chỉ giữ một dấu vân tay đã khóa của các từ bị quên, nên chúng sẽ không bao giờ được dùng lại.",
+    "memory.forget_no_match": "Không có gì bị xóa. Không tìm thấy ký ức nào trong cuộc trò chuyện này khớp với \"{target}\".",
     "memory.you_told_me": "Bạn đã nói với tôi:",
     "bot.approval_needed": "Việc này cần bạn đồng ý trên máy tính. Hãy mở cuộc trò chuyện này trong VOOL ở đó và cho phép. Tôi sẽ gửi kết quả về đây.",
     "bot.approval_needed_what": "Việc này cần bạn đồng ý trên máy tính: {what}. Hãy mở cuộc trò chuyện này trong VOOL ở đó và cho phép. Tôi sẽ gửi kết quả về đây.",
@@ -5630,7 +5632,7 @@
     "mail.saved.details_on": "Thông báo nêu người gửi và tiêu đề.",
     "mail.saved.details_off": "Thông báo chỉ cho biết có bao nhiêu email đến."
   },
-  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
+  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

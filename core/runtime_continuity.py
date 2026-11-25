@@ -4115,7 +4115,14 @@ def _preserve_tool_receipt_structure(*, original, scrubbed, raw_arguments, safe_
     candidate = {**scrubbed, **structural}
     # No semantic field is restored. Any semantic redaction/truncation remains
     # visible and invalid for canonical authority, with no new digest generated.
-    return candidate if _stable_json_hash(candidate) == _stable_json_hash(original) else scrubbed
+    if _stable_json_hash(candidate) != _stable_json_hash(original):
+        return scrubbed
+    from core.secret_redaction import register_minted_id
+
+    for verified in (structural.get("action_id"), structural.get("receipt_id")):
+        if verified:
+            register_minted_id(verified)  # proven the runtime's own: quoted later, it is no key
+    return candidate
 
 
 # A private turn's tool receipts (core.private_chat) stay in this process: the row would keep the

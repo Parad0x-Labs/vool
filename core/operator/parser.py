@@ -411,6 +411,15 @@ _STORE_PLACE_WORDS = (
     r"|to\s+(?:my)?self"
 )
 _KEEP_NOTE_STORE_PLACE_RE = re.compile(_STORE_PLACE_WORDS, re.IGNORECASE)
+# The notes store itself, without the gap-fillers: "for me"/"for later"/"to myself" may stand between a NOTE and its
+# words, but behind "this"/"that" they name no store at all. "keep this in the back of your head for later: ..." asks
+# the assistant to remember, and the filler read as a destination made it a note save (Mac gate 15 on 06a3f89fc: the
+# fact went to the notes and a later question about it found nothing held).
+_DEMONSTRATIVE_STORE_PLACE_RE = re.compile(
+    r"(?:to|in|into|inside|on)\s+(?:(?:my|the)\s+)?(?:own\s+)?(?:notes|notes\s+app|notebook|workspace)"
+    r"|(?:(?:to|in|into|inside|on)\s+)?apple\s+notes",
+    re.IGNORECASE,
+)
 _KEEP_NOTE_DOWN_PLACE_RE = re.compile(r"down(?:\s+(?:" + _STORE_PLACE_WORDS + r"))?", re.IGNORECASE)
 
 
@@ -547,7 +556,7 @@ class _NoteSaveRecognizer:
             # a referent going to a person is composed writing, not a kept note.
             if not _note_ask_is_positioned(text, match.start()):
                 continue
-            place = _KEEP_NOTE_STORE_PLACE_RE.search(after)
+            place = _DEMONSTRATIVE_STORE_PLACE_RE.search(after)
             cue = _keep_note_first_cue(after)
             if place is not None and cue is None and _REFERENT_INTO_NOTES_RE.fullmatch(after):
                 # "keep that routine in my notes" after an answer: the referent is the chat's own last answer, which

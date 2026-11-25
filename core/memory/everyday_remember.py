@@ -36,7 +36,9 @@ _LEAD_RE = re.compile(
     r"|for\s+future\s+reference"
     r"|don'?t\s+forget\s+that"
     r")"
-    r"(?:\s+for\s+me)?(?:\s*,?\s*(?:pls|please|plz|thanks|thx))?"
+    # "keep in mind for later that ...": the filler may stand between the lead and its "that" too (Mac gate 15 on
+    # 06a3f89fc kept "for later that ..." as the fact).
+    r"(?:\s+for\s+(?:me|later)(?:\s+that\b)?)?(?:\s*,?\s*(?:pls|please|plz|thanks|thx))?"
     r"(?:\s*[:.,;!\-]+\s*|\s+|$)(?P<fact>.*)$",
     re.IGNORECASE | re.DOTALL,
 )
@@ -259,6 +261,32 @@ def led_statement(text: str) -> tuple[str, str] | None:
 
 #: What a lead points at the text behind it with: "stash THIS for me", "keep THESE", "hang on to IT".
 _LEAD_POINTER_RE = re.compile(r"\b(?:this|these|that|those|it|them)\b", re.IGNORECASE)
+
+
+#: A lead that opens on its pointer as the OBJECT of the capture verb before it ("keep THIS tucked away for later:
+#: ..."); a pointer followed by a verb of its own is the subject of a statement ("this is the gate code: 4471").
+_POINTER_OBJECT_LEAD_RE = re.compile(
+    r"^(?:this|these|that|those|it|them)\b(?!\s+(?:is|are|was|were|am|has|have|had|does|do|did|will|would|shall|"
+    r"should|can|could|may|might|must|means|meant|goes|went|says|said)\b)(?!['’]s\b)",
+    re.IGNORECASE,
+)
+
+
+def pointed_capture_fact(capture_object: str) -> str | None:
+    """The fact of an explicit capture whose object is a pointer lead and the text behind it, else None.
+
+    "Keep this in the back of your head for later: the boat club meets on Thursday" names its fact behind the
+    colon; the pointer and whatever the lead adds to it ("tucked away", "for later", "in your head") are the
+    ask, not the fact. Measured on the installed app (Mac gate 15 on 06a3f89fc): the whole object was saved, so
+    the row began "this in the back of your head for later: ...". What the lead says the text is for stays with
+    the fact, as any judged lead's does ("Remember this for my allotment: ..." keeps "(my allotment)")."""
+    led = led_statement(capture_object)
+    if led is None:
+        return None
+    lead, body = led
+    if not _POINTER_OBJECT_LEAD_RE.match(lead):
+        return None
+    return judged_lead(lead, body).fact or None
 
 
 def lead_may_ask(lead: str) -> bool:

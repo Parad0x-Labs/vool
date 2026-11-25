@@ -723,6 +723,8 @@
     "memory.keep_not_wanted": "Está bem, não vou guardar isso.",
     "memory.already_forgotten": "Isso já tinha sido esquecido.",
     "memory.forget_applied": "Esquecido. Entradas de memória removidas: {count}.",
+    "memory.forget_list_note": "Neste chat, a lista de esquecimento do VOOL neste computador guarda apenas uma impressão bloqueada das palavras esquecidas, para que nunca mais sejam usadas.",
+    "memory.forget_no_match": "Nada foi removido. Não foi encontrada nenhuma memória neste chat que corresponda a \"{target}\".",
     "memory.you_told_me": "Disseste-me:",
     "bot.approval_needed": "Isto precisa da tua aprovação no computador. Abre esta conversa no VOOL de lá e permite. Envio o resultado aqui.",
     "bot.approval_needed_what": "Isto precisa da tua aprovação no computador: {what}. Abre esta conversa no VOOL de lá e permite. Envio o resultado aqui.",
@@ -5630,7 +5632,7 @@
     "mail.saved.details_on": "Os alertas indicam o remetente e o assunto.",
     "mail.saved.details_off": "Os alertas dizem só quantos e-mails chegaram."
   },
-  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
+  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -11,6 +11,7 @@ from core.runtime_continuity import (
     reset_runtime_continuity_state,
     store_tool_receipt,
 )
+from core.secret_redaction import clear_exact_secrets_for_tests
 from storage.migrations import run_migrations
 
 
@@ -36,6 +37,8 @@ def generated(field="record_hash", event="tool_executed"):
                      "checkpoint_id":"typed-storage-checkpoint",
                      "tool_call_id":f"typed-storage-call-{nonce}",
                      "arguments":{"path":"synthetic.txt", "content":f"SYNTHETIC BYTES {nonce}"}})
+        # As a fresh process reads a stored row: nothing the runtime minted earlier is known as its own yet.
+        clear_exact_secrets_for_tests()
         safe = orchestrator.redact_tool_arguments({"action_record":record})["action_record"]
         if safe[field] != record[field]:
             return record

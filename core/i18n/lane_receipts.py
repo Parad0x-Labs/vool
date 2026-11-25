@@ -22,6 +22,8 @@ _EXACT_KEYS = {
     "That was already forgotten.": "memory.already_forgotten",
 }
 _FORGET_APPLIED_RE = re.compile(r"^Forget applied\. Removed (?P<count>\d+) memory entr(?:y|ies)\.$")
+_FORGET_NO_MATCH_RE = re.compile(
+    r'^Nothing was removed\. Forget found no memory in this chat that matched "(?P<target>[^"\n]*)"\.$')
 _TOLD_HEAD = "You told me:"
 
 
@@ -64,12 +66,46 @@ def in_the_persons_language(reply: str, user_text: str) -> str:
     key = _EXACT_KEYS.get(text.strip())
     if key:
         return said(key, text)
-    match = _FORGET_APPLIED_RE.match(text.strip())
-    if match:
-        return said("memory.forget_applied", text, count=match.group("count"))
     if text.startswith(_TOLD_HEAD):
         return said("memory.you_told_me", _TOLD_HEAD) + text[len(_TOLD_HEAD):]
-    return text
+    return "\n".join(_forget_line(line, said) for line in text.split("\n"))
+
+
+def _forget_line(line: str, said) -> str:
+    """One line of a forget's reply: its outcome sentence, then the forget list's note, each in the person's
+    language; anything after them stays as it is. Mac gate 15 on 06a3f89fc: a Lithuanian forget was answered in
+    English, because the note behind the outcome made the whole line unknown to an exact match."""
+    from core.memory.copies import FORGET_LIST_NOTE
+
+    rest = line.strip()
+    head = ""
+    already = "That was already forgotten."
+    if rest.startswith(already):
+        head, rest = said(_EXACT_KEYS[already], already), rest[len(already):]
+    for pattern, key in ((_FORGET_APPLIED_RE, "memory.forget_applied"), (_FORGET_NO_MATCH_RE, "memory.forget_no_match")):
+        found = None if head else _first_sentences(rest, pattern)
+        if found is not None:
+            match, rest = found
+            head = said(key, match.group(0), **match.groupdict())
+    if not head:
+        return line
+    rest = rest.strip()
+    if rest.startswith(FORGET_LIST_NOTE):
+        head = f"{head} {said('memory.forget_list_note', FORGET_LIST_NOTE)}"
+        rest = rest[len(FORGET_LIST_NOTE):].strip()
+    return f"{head} {rest}" if rest else head
+
+
+def _first_sentences(text: str, pattern: re.Pattern[str]) -> tuple[re.Match[str], str] | None:
+    """The shortest run of ``text``'s opening sentences that ``pattern`` matches whole, and the text after it."""
+    end = 0
+    while True:
+        end = text.find(".", end) + 1
+        if end <= 0:
+            return None
+        match = pattern.match(text[:end])
+        if match is not None:
+            return match, text[end:]
 
 
 def every_kept_receipt() -> set[str]:

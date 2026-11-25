@@ -723,6 +723,8 @@
     "memory.keep_not_wanted": "Гаразд, не зберігатиму це.",
     "memory.already_forgotten": "Це вже було забуто.",
     "memory.forget_applied": "Забуто. Видалено записів пам’яті: {count}.",
+    "memory.forget_list_note": "У цьому чаті список забутого VOOL на цьому комп'ютері зберігає лише захищений відбиток забутих слів, тож вони більше ніколи не використовуються.",
+    "memory.forget_no_match": "Нічого не видалено. У цьому чаті не знайдено спогадів, що збігаються з «{target}».",
     "memory.you_told_me": "Ви мені сказали:",
     "bot.approval_needed": "Для цього потрібна ваша згода на комп’ютері. Відкрийте там цей чат у VOOL і дозвольте. Результат я надішлю сюди.",
     "bot.approval_needed_what": "Для цього потрібна ваша згода на комп’ютері: {what}. Відкрийте там цей чат у VOOL і дозвольте. Результат я надішлю сюди.",
@@ -5630,7 +5632,7 @@
     "mail.saved.details_on": "Сповіщення називають відправника й тему.",
     "mail.saved.details_off": "Сповіщення кажуть лише, скільки листів прийшло."
   },
-  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
+  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

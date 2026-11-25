@@ -723,6 +723,8 @@
     "memory.keep_not_wanted": "알겠어요, 저장하지 않을게요.",
     "memory.already_forgotten": "이미 잊힌 내용이에요.",
     "memory.forget_applied": "잊었어요. 삭제한 기억 항목: {count}개.",
+    "memory.forget_list_note": "이 채팅에서 이 컴퓨터의 VOOL 잊기 목록은 잊은 단어의 잠긴 지문만 보관하므로 다시는 사용되지 않습니다.",
+    "memory.forget_no_match": "아무것도 삭제되지 않았습니다. 이 채팅에서 \"{target}\"와(과) 일치하는 기억을 찾지 못했습니다.",
     "memory.you_told_me": "알려 주신 내용:",
     "bot.approval_needed": "이 작업은 컴퓨터에서 승인이 필요합니다. 그곳의 VOOL에서 이 채팅을 열고 허용해 주세요. 결과는 여기로 보내드릴게요.",
     "bot.approval_needed_what": "이 작업은 컴퓨터에서 승인이 필요합니다: {what}. 그곳의 VOOL에서 이 채팅을 열고 허용해 주세요. 결과는 여기로 보내드릴게요.",
@@ -5630,7 +5632,7 @@
     "mail.saved.details_on": "알림에 보낸 사람과 제목이 표시됩니다.",
     "mail.saved.details_off": "알림에는 도착한 이메일 수만 표시됩니다."
   },
-  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
+  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

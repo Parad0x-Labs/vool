@@ -723,6 +723,8 @@
     "memory.keep_not_wanted": "わかりました、それは保存しません。",
     "memory.already_forgotten": "それはすでに忘れられています。",
     "memory.forget_applied": "忘れました。削除した記憶の項目: {count}。",
+    "memory.forget_list_note": "このチャットでは、このコンピューター上のVOOLの忘却リストは忘れた言葉のロックされた指紋だけを保持するため、それらが再び使われることはありません。",
+    "memory.forget_no_match": "何も削除されませんでした。このチャットには「{target}」に一致する記憶がありません。",
     "memory.you_told_me": "あなたが教えてくれたこと:",
     "bot.approval_needed": "これにはパソコンでのあなたの許可が必要です。そちらの VOOL でこのチャットを開いて許可してください。結果はここに送ります。",
     "bot.approval_needed_what": "これにはパソコンでのあなたの許可が必要です：{what}。そちらの VOOL でこのチャットを開いて許可してください。結果はここに送ります。",
@@ -5630,7 +5632,7 @@
     "mail.saved.details_on": "通知に差出人と件名が表示されます。",
     "mail.saved.details_off": "通知には届いたメールの件数だけが表示されます。"
   },
-  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
+  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

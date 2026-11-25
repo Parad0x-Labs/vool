@@ -82,6 +82,9 @@ def _receipt_reference(
             separators=(",", ":"),
         )
         receipt_id = f"tool-receipt-{hashlib.sha256(digest_input.encode('utf-8')).hexdigest()}"
+        from core.secret_redaction import register_minted_id
+
+        register_minted_id(receipt_id)
     return {"receipt_id": receipt_id, "safe_summary": safe_summary}
 
 
@@ -193,6 +196,9 @@ def normalize_tool_history_message(agent: Any, item: dict[str, Any]) -> dict[str
         "receipt_id": f"tool-receipt-{hashlib.sha256(digest_input.encode('utf-8')).hexdigest()}",
         "safe_summary": safe_summary,
     }
+    from core.secret_redaction import register_minted_id
+
+    register_minted_id(receipt_reference["receipt_id"])
     return {
         "role": "user",
         "content": agent._tool_history_observation_prompt(receipt_reference),

@@ -723,6 +723,8 @@
     "memory.keep_not_wanted": "D’accord, je ne le garde pas.",
     "memory.already_forgotten": "C’était déjà oublié.",
     "memory.forget_applied": "Oublié. Entrées de mémoire supprimées : {count}.",
+    "memory.forget_list_note": "Dans ce chat, la liste d'oubli de VOOL sur cet ordinateur ne garde qu'une empreinte verrouillée des mots oubliés, qui ne seront donc plus jamais utilisés.",
+    "memory.forget_no_match": "Rien n'a été supprimé. Aucun souvenir de ce chat ne correspond à « {target} ».",
     "memory.you_told_me": "Tu m’as dit :",
     "bot.approval_needed": "Il faut ton accord sur ton ordinateur. Ouvre cette conversation dans VOOL là-bas et autorise-la. J’enverrai le résultat ici.",
     "bot.approval_needed_what": "Il faut ton accord sur ton ordinateur : {what}. Ouvre cette conversation dans VOOL là-bas et autorise-la. J’enverrai le résultat ici.",
@@ -5630,7 +5632,7 @@
     "mail.saved.details_on": "Les alertes indiquent l’expéditeur et l’objet.",
     "mail.saved.details_off": "Les alertes indiquent seulement combien d’e-mails sont arrivés."
   },
-  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
+  "source_catalog_sha256": "764b0e1ff6b025d9261881d11d7dae23a9929fff2a249abeccf2a4eb01291a33",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -41,6 +41,7 @@ def clear_exact_secrets_for_tests() -> None:
     with _exact_lock:
         _exact_secrets.clear()
         _public_identifiers.clear()
+        _minted_digests.clear()
 
 
 # Key-SHAPED strings the runtime itself minted as public -- a confirmed transaction signature is
@@ -61,9 +62,30 @@ def register_public_identifier(value: str) -> None:
             _public_identifiers.pop(next(iter(_public_identifiers)))
 
 
+# The sha256 tails of ids the runtime minted itself ("tool-receipt-<64 hex>", "tool-action-<64 hex>"). One with no
+# "0" in it (about 1 in 60) fits the base58 alphabet, so the secret check read it as a Solana key and the privacy
+# gate kept a cloud model's next request on the computer because a tool result quoted it (disclosure suite, CI on
+# 4e06fdc5c and 0c3d44046, 2026-11-25). Only the exact minted value is public: a run someone wrote into an id of their
+# own is still read as a key. Kept apart from the wallet's signatures, so receipts never push those out. Bounded.
+_minted_digests: dict[str, None] = {}
+_MINTED_CAP = 4096
+_MINTED_TAIL_RE = re.compile(r"-([0-9a-f]{64})")
+
+
+def register_minted_id(identifier: str) -> None:
+    """Mark the digest tail of one id the runtime minted ("tool-receipt-<sha256 hex>") as public."""
+    found = _MINTED_TAIL_RE.fullmatch(str(identifier or "").strip()[-65:])
+    if found is None:
+        return
+    with _exact_lock:
+        _minted_digests[found.group(1)] = None
+        while len(_minted_digests) > _MINTED_CAP:
+            _minted_digests.pop(next(iter(_minted_digests)))
+
+
 def _is_public_identifier(value: str) -> bool:
     with _exact_lock:
-        return value in _public_identifiers
+        return value in _public_identifiers or value in _minted_digests
 
 
 def _mask_key_shaped(match: re.Match[str]) -> str:
@@ -121,12 +143,10 @@ _API_KEY_RE = re.compile(
     r")\b"
 )
 # Long base58 (>= 64 chars) — a Solana secret key / seed. A 32-44 char base58 (a public address) is
-# deliberately NOT matched, so ordinary wallet addresses in chat stay readable. A run that is the tail of a
-# hyphen-joined name ("tool-receipt-<64 hex>", "tool-action-<64 hex>") is that name, VOOL's own id, not a key pasted
-# on its own: a 64-hex id with no "0" in it (about 1 in 60) fits the base58 alphabet, and the privacy gate kept a
-# cloud model's next request on the computer because the tool result quoted one (disclosure suite, CI on 4e06fdc5c
-# and 0c3d44046, 2026-11-25). A bare run is still read as a key, digest-shaped or not.
-_B58_SECRET_RE = re.compile(r"(?<![0-9A-Za-z]-)\b[1-9A-HJ-NP-Za-km-z]{64,88}\b")
+# deliberately NOT matched, so ordinary wallet addresses in chat stay readable. The digest of an id VOOL minted
+# itself ("tool-receipt-<64 hex>") is registered as public where it is minted (`register_minted_id`); any other run,
+# digest-shaped or not and wherever it sits, is still read as a key.
+_B58_SECRET_RE = re.compile(r"\b[1-9A-HJ-NP-Za-km-z]{64,88}\b")
 # Bitcoin WIF private key: 51-52 base58 chars starting 5/K/L. Distinguishable from a Solana
 # public address (32-44 chars) by length + prefix, so this does not mask ordinary addresses.
 _WIF_RE = re.compile(r"\b[5KL][1-9A-HJ-NP-Za-km-z]{50,51}\b")
