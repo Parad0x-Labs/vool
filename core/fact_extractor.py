@@ -609,6 +609,11 @@ class FactExtractor:
             return False
         if fact.block not in ALLOWED_BLOCKS:
             return False
+        if fact.action in {"ADD", "UPDATE"} and _only_a_file_name(fact.new if fact.action == "UPDATE" else fact.content):
+            # The rules say no file paths, and a file name alone tells nothing about the person: "plumber-notes.txt",
+            # learned from "please create plumber-notes.txt saying ...", was the only held fact and was answered to
+            # "which locker did I say I use at the gym?" as "You told me: plumber-notes.txt" (iMac gate on 174b25378).
+            return False
         if fact.action == "ADD":
             content = _safe_memory_text(fact.content)
             if not content:
@@ -961,6 +966,31 @@ def _existing_singleton_line(existing: str, *, block: str, content: str) -> str:
 def _memory_line_exists(existing: str, addition: str) -> bool:
     normalized_addition = " ".join(str(addition or "").split()).lower()
     return any(" ".join(line.split()).lower() == normalized_addition for line in str(existing or "").splitlines())
+
+
+_FILE_EXTENSIONS = frozenset((
+    "txt", "md", "pdf", "doc", "docx", "odt", "rtf", "pages", "xls", "xlsx", "ods", "csv", "tsv", "numbers", "ppt",
+    "pptx", "odp", "key", "json", "yaml", "yml", "toml", "ini", "cfg", "log", "py", "js", "ts", "tsx", "jsx",
+    "html", "htm", "css", "sh", "zip", "tar", "gz", "png", "jpg", "jpeg", "gif", "heic", "webp", "svg", "mp3",
+    "wav", "m4a", "mp4", "mov", "avi", "mkv",
+))
+_LABELLED_RE = re.compile(r"^[^\s:]{1,40}:\s*(\S+)$")
+
+
+def _only_a_file_name(value: str) -> bool:
+    """Whether a learned line is nothing but a file name or path (with at most a one-word label before it).
+
+    A path ("~/Desktop/a.md", "/srv/x/notes") or a single word ending in a file type ("plumber-notes.txt"). An email
+    address or a web address is not one."""
+    text = " ".join(str(value or "").split()).strip(" .,;\"'`")
+    labelled = _LABELLED_RE.match(text)
+    token = labelled.group(1) if labelled else text
+    if not token or " " in token or "@" in token or "://" in token:
+        return False
+    if re.match(r"^(?:/|~|\.{1,2}/|[A-Za-z]:\\)", token):
+        return True
+    stem, dot, extension = token.rpartition(".")
+    return bool(stem and dot and extension.lower() in _FILE_EXTENSIONS)
 
 
 def _clean_fact_value(value: str, *, title_case: bool = False) -> str:
