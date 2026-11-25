@@ -194,12 +194,15 @@ def test_a_late_quote_reply_for_a_dismissed_preview_never_resurrects_a_settled_c
         page.locator("#vwSheetLater").click()  # dismissed while its quote is still in transit
         page.wait_for_selector("#vwSheet", state="detached")
         sends = node.send_count()
-        _approve_elsewhere(daemon, pid)  # settled elsewhere meanwhile
-        page.wait_for_function(f"document.querySelector('.vw-card[data-proposal=\"{pid}\"] .vw-transfer-label') !== null", timeout=15_000)
+        # The page's quote must reach the server before the one approved elsewhere: a quote made later replaces the
+        # earlier one, and when the page's own landed second the approval was refused as superseded (CI on 95fae99a0).
+        # Its reply is still held, so it reaches the page only after the transfer settled.
         for _ in range(100):
             if held:
                 break
             page.wait_for_timeout(100)
+        _approve_elsewhere(daemon, pid)  # settled elsewhere meanwhile
+        page.wait_for_function(f"document.querySelector('.vw-card[data-proposal=\"{pid}\"] .vw-transfer-label') !== null", timeout=15_000)
         route, response = held.pop()
         route.fulfill(response=response)  # the late reply lands on a closed preview
         page.wait_for_timeout(500)
