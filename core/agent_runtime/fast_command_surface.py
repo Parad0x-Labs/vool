@@ -2093,11 +2093,13 @@ def fast_path_result(
         "topic_hints": [],
         "prompt_assembly_report": {},
         "model_execution": {"source": "fast_path", "used_model": False},
-        # Runtime code composed these bytes. The turn's judges (tool ask, web ask) meter served usage before a fast lane
-        # answers, and the grounding lifecycle read that usage as a model having written the answer: iMac gate22 on
-        # 1e85219dc, "what time is it in Lima right now?" was answered from the clock, then replaced at publication by
-        # "Web lookups are off" because nothing had been retrieved to support "model prose".
-        "runtime_rendered_final": True,
+        # The answer is a runtime fact read by runtime code (the clock). The turn's judges (tool ask, web ask) meter
+        # served usage before a fast lane answers, and the grounding lifecycle read that usage as a model having written
+        # the answer: iMac gate22 on 1e85219dc, "what time is it in Lima right now?" was answered from the clock, then
+        # replaced at publication by "Web lookups are off" because nothing had been retrieved to support "model prose".
+        # Only lanes that ANSWER from such a fact say so: a lane that asks back or declines a current-information ask
+        # ("which one do you mean?", "I did not open that link") keeps the lifecycle's web-off answer in its place.
+        "runtime_rendered_final": reason in _RUNTIME_FACT_LANES,
         "media_analysis": {"used_provider": False, "reason": "fast_path"},
         "curiosity": {"mode": "skipped", "reason": "fast_path"},
         "backend": agent.backend_name,
@@ -2108,6 +2110,10 @@ def fast_path_result(
         "response_class": turn_result.response_class.value,
         **_fast_path_route_metadata(reason, route_prefix=route_prefix, source_context=source_context),
     }
+
+
+#: Fast lanes whose answer is a fact the runtime itself holds, read by code: published as composed.
+_RUNTIME_FACT_LANES = frozenset({"date_time_fast_path"})
 
 
 def action_fast_path_result(

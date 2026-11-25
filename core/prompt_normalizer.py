@@ -919,7 +919,9 @@ def _build_conversational_request(
     # when the shape request is ambiguous.  The focused guidance above carries
     # the only source the model should transform.
     reference_now = None if focused_assistant_followup else turn_reference_now(source_context, current_turn_id)
-    runtime_truth = "" if reference_now is None else _runtime_turn_truth(source_context, reference_now=reference_now)
+    runtime_truth = "" if reference_now is None else _runtime_turn_truth(
+        source_context, reference_now=reference_now, asked_text=current_user_raw_text or user_text
+    )
     if runtime_truth:
         turn_directives.append(runtime_truth)
         system_segments.append(("runtime_truth", _PAYLOAD_SYSTEM_BOOTSTRAP, runtime_truth))
@@ -1462,7 +1464,67 @@ def _coming_days_text(now: datetime) -> str:
     return f"Coming days: {days} (a named weekday is the first of these; a time alone keeps its day)."
 
 
-def _runtime_turn_truth(source_context: dict[str, Any] | None, *, reference_now: datetime | None = None) -> str:
+#: Canonical city names that are also everyday words or first names: read as a place they would put a clock line into
+#: ordinary messages ("over the easter weekend", "my friend Sofia", "an oral exam", "wake me at 7").
+_PLACE_NAMES_THAT_ARE_WORDS = frozenset({
+    "center", "easter", "oral", "wake", "midway", "canary", "jersey", "knox", "regina", "sofia", "beulah", "nome",
+    "chita", "salta", "dawson", "darwin",
+})
+
+
+def _places_named(text: str) -> list[tuple[str, str]]:
+    """(zone, label) for each city the text names by its own name, anywhere, in first-mention order.
+
+    Read by the name alone, not by an English "in <place>" in front of it: "à Tokyo", "w Sydney" and "in Sydney" name
+    the same city. The names are the time zone database's canonical cities (core.agent_runtime.fast_paths_utility
+    explains why that table and not a wider one) and VOOL's own aliases; Antarctic stations are left out, their names
+    are ordinary words and surnames (Davis, Casey, Palmer, Troll)."""
+    from core.agent_runtime.fast_paths_utility import _UTILITY_TIMEZONE_ALIASES, _canonical_zone_leaves
+
+    lowered = " ".join(str(text or "").split()).lower()
+    if not lowered:
+        return []
+    found: list[tuple[int, str, str]] = []
+    named = [(leaf, (zone, leaf.title())) for leaf, zone in _canonical_zone_leaves().items()]
+    named += [(marker, resolved) for marker, resolved in _UTILITY_TIMEZONE_ALIASES.items() if "/" not in marker]
+    for name, (zone, label) in named:
+        if str(zone).startswith("Antarctica/") or name in _PLACE_NAMES_THAT_ARE_WORDS:
+            continue
+        match = re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", lowered)
+        if match:
+            found.append((match.start(), str(zone), str(label)))
+    places: list[tuple[str, str]] = []
+    for _at, zone, label in sorted(found):
+        if all(zone != seen for seen, _label in places):
+            places.append((zone, label))
+    return places
+
+
+def _named_place_times_text(text: str, now: datetime) -> str:
+    """The clock in the places the message names (a city or country whose time zone VOOL knows), in any language.
+
+    iMac gate23 on 97d3db22e (qwen3:8b, Web lookups off): "Wie spät ist es gerade in Sydney?" never reached the
+    date and time lane, whose readers know English clock phrasings only, and was refused as a web lookup. The clock is
+    a runtime fact: stated here, the model answers any wording, in the person's language, from it."""
+    try:
+        from zoneinfo import ZoneInfo
+
+        places = _places_named(text)[:3]
+        parts = []
+        for zone, label in places:
+            local = now.astimezone(ZoneInfo(str(zone)))
+            parts.append(f"{label}: {local.strftime('%A %d %B, %H:%M')} ({local.strftime('%Z')}, UTC offset "
+                         f"{local.strftime('%z')})")
+    except Exception:
+        return ""
+    if not parts:
+        return ""
+    return "If the person asks the time or date in a place this message names, it is now: " + "; ".join(parts) + "."
+
+
+def _runtime_turn_truth(
+    source_context: dict[str, Any] | None, *, reference_now: datetime | None = None, asked_text: str = ""
+) -> str:
     """Server-owned UI and scope facts the answering model must not pretend it cannot see."""
 
     context = dict(source_context or {})
@@ -1500,6 +1562,9 @@ def _runtime_turn_truth(source_context: dict[str, Any] | None, *, reference_now:
         "invent a time, date, duration or amount."
     )
     facts.append(_coming_days_text(now))
+    place_times = _named_place_times_text(asked_text, now)
+    if place_times:
+        facts.append(place_times)
     workspace_path = str(context.get("workspace") or context.get("workspace_root") or "").strip()
     folder_name = Path(workspace_path).name if workspace_path else ""
     if folder_name:

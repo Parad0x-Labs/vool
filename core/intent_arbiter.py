@@ -1823,7 +1823,8 @@ def _web_ask_prompt(message: str) -> str:
         "opening hours, timetables, scores)?",
         'Answer {"answer": "no"} when an encyclopedia, a textbook or general knowledge answers it (what something is, '
         "who wrote or made something, how something works, a capital, a definition, maths, counting days or dates "
-        "from today's date), or when it asks to write, translate or explain something.",
+        "from today's date, the time or date now here or in any city or country: the computer's clock gives it), or "
+        "when it asks to write, translate or explain something.",
         'Answer {"answer": "no"} as well when the message only TELLS the assistant something (the person\'s own news, '
         "what happened to them or their people, how they feel) and asks nothing to be found out, and when it asks "
         "about the person's own life, people or things (what they own, where they keep something, what they told "
@@ -1843,6 +1844,7 @@ def _web_ask_prompt(message: str) -> str:
         'Message: "kiek dienų liko iki Joninių?" -> {"answer": "no"}',
         'Message: "busca en internet el precio del billete de tren a Madrid" -> {"answer": "yes"}',
         'Message: "¿cuál es la capital de Perú?" -> {"answer": "no"}',
+        'Message: "che ore sono adesso a Toronto?" -> {"answer": "no"}',
         "",
         f'Message: "{flat}" ->',
         'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
