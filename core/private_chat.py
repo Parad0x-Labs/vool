@@ -46,6 +46,7 @@ __all__ = [
     "chat_has_private_request_in_flight",
     "end_private_request",
     "is_private",
+    "judge_keep_refusal",
     "keep_this_turn_out",
     "localized_reply",
     "mark_request_private",
@@ -611,6 +612,61 @@ def keep_this_turn_out(source_context: Any, session_id: str | None = None) -> No
     if isinstance(source_context, dict):
         source_context[PRIVATE_TURN_KEY] = True
     mark_request_private(session_id=sid)
+
+
+#: The shape of a message that may ask that what it says is not kept, in English: a "not" word a few words before a
+#: keeping word ("don't store that anywhere", "never write this down"), or a phrase that keeps something to the two of
+#: them ("keep that bit to yourself", "between us"). Only a reason to ask the judge (`judge_keep_refusal`), never a
+#: decision: the model reads the message.
+_MAY_REFUSE_KEEP_RE = re.compile(
+    r"\b(?:don'?t|dont|do\s+not|never|not|no)\b(?:\W+\w+){0,4}?\W+"
+    r"(?:record|recrod|sav|log|stor|remember|memori|keep|note|writ|track)\w*"
+    r"|\b(?:to\s+(?:yourself|ourselves)|between\s+(?:us|you\s+and\s+me|the\s+two\s+of\s+us)|off\s+the\s+record"
+    r"|privately|in\s+private|confidential|secret)\b",
+    re.IGNORECASE,
+)
+
+
+def may_refuse_keeping(text: str) -> bool:
+    """Whether a message's words may ask that it is not kept, in any language VOOL reads privacy words in."""
+    raw = str(text or "").translate(_APOSTROPHES)
+    return bool(_MAY_REFUSE_KEEP_RE.search(raw)) or looks_like_privacy_request(raw)
+
+
+def judge_keep_refusal(text: str, source_context: Any, session_id: str | None = None) -> bool:
+    """Keep this turn out when the person asks, in their own words, that what it says is not kept: the turn's model
+    reads the message (`core.intent_arbiter.arbitrate_keep_wanted`), asked only when its words may ask that.
+
+    The private-chat words read whole requests ("don't record this"); a refusal inside a message slips past them: on
+    the iMac gate of 64798c0fb "btw my running coach ... has a ferret called ..., but don't store that anywhere" was
+    judged no memory ask at all, answered with "I'll keep that in mind", and the message was stored with the chat.
+    Returns whether the turn was kept out. No answer changes nothing."""
+    context = source_context if isinstance(source_context, dict) else None
+    if not str(text or "").strip() or turn_is_private(context, session_id) or not may_refuse_keeping(text):
+        return False
+    try:
+        from core.intent_arbiter import arbitrate_keep_wanted
+
+        verdict = arbitrate_keep_wanted(str(text), chat_id=str(session_id or ""), source_context=context)
+    except Exception as exc:
+        _log.info("keep refusal: not judged (%s)", type(exc).__name__)
+        return False
+    if verdict != "no":
+        return False
+    _log.info("keep refusal: the person asked that this message is not kept; the turn is kept out")
+    keep_this_turn_out(context, session_id)
+    if context is not None:
+        context.pop(NOT_ON_KEY, None)
+    return True
+
+
+def this_turn_prompt_block() -> str:
+    """The system note on a turn the person asked not to keep while the chat itself is saved as usual."""
+    return (
+        "The user asked that THIS message is not kept, and it is not: nothing from it is saved. Answer it as usual. "
+        "Never say you will remember, keep in mind, note or save anything from it; if you mention it, say you won't "
+        "keep it. The chat itself is not private."
+    )
 
 
 def remember_refused_reply(source_context: Mapping[str, Any] | None, session_id: str | None = None) -> str:

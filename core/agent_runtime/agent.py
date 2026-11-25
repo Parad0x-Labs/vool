@@ -2351,6 +2351,17 @@ class VoolAgent(
                 route_id="private_chat_command",
             )
         private_turn = turn_is_private(runtime_source_context, session_id)
+        if not private_turn:
+            # A message that asks, inside other words, that it is not kept ("..., but don't store that anywhere") is
+            # kept out here, before its words are first stored: the turn's model reads them, asked only when they may
+            # ask that (core.private_chat.judge_keep_refusal). The judge is bound early for it and again below.
+            from core.private_chat import judge_keep_refusal, may_refuse_keeping
+
+            if may_refuse_keeping(user_input):
+                from core.agent_runtime import turn_judge as early_turn_judge
+
+                early_turn_judge.bind_for_turn(self, runtime_source_context, session_id)
+                private_turn = judge_keep_refusal(user_input, runtime_source_context, session_id)
         # A turn with no request in it is stopped HERE, ahead of everything that would record it.
         # It used to run the whole front door and die at `TaskEnvelopeV1.__post_init__` --
         # `ValueError: goal is required`, because the envelope goal is the request text stripped and
