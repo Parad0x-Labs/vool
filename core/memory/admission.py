@@ -653,6 +653,34 @@ _DISOWNED_SPEECH_RE = re.compile(
     r"\s{0,32},?\s{0,32}(?:but\s{1,32})?not\s{1,32}(?:mine|ours)\b", re.IGNORECASE)
 
 
+#: One header line of a pasted email or message: a one-word label, a colon, a value ("From: ...", "Betreff: ...").
+_HEADER_LINE_RE = re.compile(r"^\s*[^\W\d_][\w-]{0,24}\s*:\s*\S")
+_ADDRESS_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+
+
+def holds_a_pasted_message(text: str) -> bool:
+    """Whether the text holds a pasted email or message, read by its shape in any language: a block of two or more
+    header lines (label, colon, value) at least one of which carries an address, set off by a blank line before it
+    (or opening the text) and followed by a blank line and a body. A contact card ("Name: ... / Email: ...") has no
+    body behind a blank line and is not one."""
+    lines = str(text or "").splitlines()
+    index = 0
+    while index < len(lines):
+        if _HEADER_LINE_RE.match(lines[index]) and (index == 0 or not lines[index - 1].strip()):
+            end = index
+            while end < len(lines) and _HEADER_LINE_RE.match(lines[end]):
+                end += 1
+            block = lines[index:end]
+            body = [line for line in lines[end + 1:] if line.strip()]
+            if (len(block) >= 2 and any(_ADDRESS_RE.search(line) for line in block)
+                    and end < len(lines) and not lines[end].strip() and body):
+                return True
+            index = max(end, index + 1)
+            continue
+        index += 1
+    return False
+
+
 def classify_user_text(user_input: str) -> UserTextOrigin:
     """Classify one user-role message into authored / source / hypothetical spans.
 

@@ -6297,6 +6297,13 @@ class VoolAgent(
             # A skill picked this ask: the conductor's steps never read it, so the turn stays whole
             # for the lane that does (core.tool_offer_assembly.skill_picks_turn).
             return None
+        from core.memory.admission import holds_a_pasted_message
+
+        if holds_a_pasted_message(str(raw_input or effective_input)):
+            # A pasted email or message is the one thing the ask works on, never more asks: split, its header
+            # lines and body came back as unanswerable requests beside the summary (Mac gate 16 on 0680a8678:
+            # "From: ... -- I couldn't do this part").
+            return None
         from core.model_own_tools import turn_has_provider_search
 
         if turn_has_provider_search(source_context):

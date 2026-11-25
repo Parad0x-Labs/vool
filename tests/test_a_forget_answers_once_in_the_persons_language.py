@@ -64,3 +64,25 @@ def test_a_no_match_names_the_target_in_the_persons_language():
 def test_english_stays_english():
     english = f"Forget applied. Removed 2 memory entries. {FORGET_LIST_NOTE}"
     assert in_the_persons_language(english, "please forget the tortoise thing") == english
+
+
+def test_the_final_check_keeps_the_verified_outcome_in_the_persons_language(monkeypatch):
+    """The final check puts the executed outcome back over any other reply; it puts it back in the person's language
+    (Mac gate 16 on 0680a8678: a Polish forget was rendered in Polish and then put back into English there)."""
+    from types import SimpleNamespace
+
+    import core.memory.command_result as command_result
+    from core.agent_runtime.action_honesty_validator import enforce_final_action_honesty
+
+    executed = f"Forget applied. Removed 1 memory entry. {FORGET_LIST_NOTE}"
+    execution = SimpleNamespace(response=executed, outcome=executed, status="applied")
+    monkeypatch.setattr(command_result, "verified_forget_outcome", lambda *a, **k: execution)
+    order = "Dzięki. A teraz zapomnij proszę, co mówiłem o żółwiu sąsiadki."
+    shown = in_the_persons_language(executed, order)
+    assert shown.startswith("Zapomniane")
+    final = enforce_final_action_honesty({"response": shown}, user_input=order, session_id="pl-chat")
+    assert final["response"] == shown and "action_honesty_validator" not in final
+    replaced = enforce_final_action_honesty({"response": "Usunąłem wszystko."}, user_input=order, session_id="pl-chat")
+    assert replaced["response"] == shown  # a reply that is not the outcome is still replaced by it
+    english = enforce_final_action_honesty({"response": "done"}, user_input="forget the tortoise", session_id="en")
+    assert english["response"] == executed

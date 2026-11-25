@@ -2090,10 +2090,16 @@ def enforce_final_action_honesty(
         session_id=session_id, source_context=source_context,
     )
     if command_outcome is not None:
+        from core.i18n.lane_receipts import in_the_persons_language
+
         original = str(output.get("response") or "")
-        output["response"] = command_outcome.response
+        # The executed outcome, in the words the memory lane gives it in the person's language: a fixed rendering of
+        # the same outcome, never a reply of the model's. Mac gate 16 on 0680a8678: a Polish forget was rendered in
+        # Polish by the lane and put back into English here.
+        shown = in_the_persons_language(command_outcome.response, user_input)
+        output["response"] = shown
         output["_memory_command_outcome"] = command_outcome.outcome
-        if original != command_outcome.response:
+        if original != shown:
             output["action_honesty_validator"] = {
                 "applied": True,
                 "reason": "forget_reply_differed_from_execution",
