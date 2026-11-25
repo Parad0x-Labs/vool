@@ -2140,13 +2140,45 @@ def _select_reminder_target(
     named = _reminder_named_by(raw_text, reachable)
     if named is not None:
         return named
-    if len(pending) == 1 and not _reminder_words(raw_text):
-        # Only a request that names no reminder at all means the chat's one pending reminder. "delete my reminder
-        # about the dentist appointment" named one that does not exist, and the chat's only reminder ("renew the car
-        # insurance") was cancelled in its place (iMac gate on 0d419ddb5). Words that name nothing reachable are
-        # answered with the reminders there are, and nothing changes.
+    if len(pending) == 1 and _means_the_one_reminder(raw_text, pending[0]):
         return pending[0]
     return None
+
+
+def _means_the_one_reminder(raw_text: str, only: dict[str, Any]) -> bool:
+    """Whether an order whose words named no reminder means the chat's one pending reminder.
+
+    "delete my reminder about the dentist appointment" named one that does not exist, and the chat's only reminder
+    ("renew the car insurance") was cancelled in its place (iMac gate on 0d419ddb5). The time a move gives is no name:
+    read as one, "move the reminder to 2027-09-20 14:00" was refused (CI on 0c3d44046). An order with words left that
+    name nothing there is judged by the chat's model, in any language ("lösche meine Erinnerung"); with no judgement it
+    is answered with the reminders there are, and nothing changes."""
+    words = _reminder_words(_without_time_words(raw_text))
+    if not words:
+        return True
+    try:
+        from core import intent_arbiter
+
+        verdict = intent_arbiter.arbitrate_means_the_one_reminder(raw_text, str(only.get("note") or ""))
+    except Exception:
+        verdict = None
+    return verdict == "yes"
+
+
+def _without_time_words(text: str) -> str:
+    """The order with every span the time reader would read as a time taken out (core.operator.when)."""
+    from core.operator.when import time_expression_spans
+
+    raw = str(text or "")
+    kept, last = [], 0
+    for start, end in time_expression_spans(raw):
+        if start >= last:
+            kept.append(raw[last:start])
+            last = end
+        elif end > last:
+            last = end
+    kept.append(raw[last:])
+    return " ".join("".join(kept).split())
 
 
 #: The order's own words, which name no reminder ("scrap the reminder ... thanks").

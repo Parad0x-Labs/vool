@@ -1796,6 +1796,93 @@ def arbitrate_particular_ask(
     )
 
 
+def _reminder_ask_prompt(message: str) -> str:
+    """Whether a message asks to be reminded at some time, put on its own when the tool judgement picked Reminders and
+    the memory question read the same message as something to remember. On the gate iMac (3c92e8df3, qwen3:8b) both
+    "zapamiętaj: mój szwagier ma psa o imieniu Burek" ("remember: my brother-in-law has a dog named Burek") and "my
+    godson Jonas has a goldfish called Bulvė" were picked Reminders beside a keep, and the model wrote a reminder out of
+    the fact."""
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
+    return "\n".join([
+        "Does this message ask the assistant to remind the person of something later (set, show, move or cancel a",
+        "reminder)? Telling a fact, or asking the assistant to remember a fact, is no. Answer yes or no. Any language.",
+        "",
+        'Message: "remind me tomorrow at 9 to call mom" -> {"answer": "yes"}',
+        'Message: "remember that my locker number is 42" -> {"answer": "no"}',
+        'Message: "my neighbour has a parrot called Kiwi" -> {"answer": "no"}',
+        'Message: "primink man rytoj 8 val. išgerti vaistus" -> {"answer": "yes"}',
+        'Message: "įsimink: mano sesers katė vardu Pūkas" -> {"answer": "no"}',
+        'Message: "erinnere mich am Freitag an den Zahnarzt" -> {"answer": "yes"}',
+        'Message: "merk dir: mein Fahrrad ist blau" -> {"answer": "no"}',
+        'Message: "set a reminder to water the plants" -> {"answer": "yes"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_reminder_ask(
+    message: str,
+    *,
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a message asks for a reminder: ``"yes"`` / ``"no"``, or None when nothing judged it. Asked only when a
+    Reminders pick and a keep reading of the same message disagree (core.plugin_ask)."""
+    if not str(message or "").strip():
+        return None
+    prompt = _reminder_ask_prompt(message)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
+        operation="reminder_ask_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+        patient=True,
+    )
+
+
+def _means_the_one_reminder_prompt(message: str, reminder: str) -> str:
+    """Whether a cancel, move or edit means the chat's only pending reminder, asked when its words named none."""
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
+    note = " ".join(str(reminder or "").split())[:200].replace('"', "'")
+    return "\n".join([
+        "The person has exactly one reminder. Does this message mean that reminder? Answer no only when the",
+        "message names a reminder about something else. Words for 'my reminder', a new time or a new wording",
+        "are not something else. Any language.",
+        "",
+        'Reminder: "renew the car insurance". Message: "delete my reminder about the dentist" -> {"answer": "no"}',
+        'Reminder: "renew the car insurance". Message: "cancel my reminder" -> {"answer": "yes"}',
+        'Reminder: "call mom". Message: "move it to friday 3pm" -> {"answer": "yes"}',
+        'Reminder: "pay rent". Message: "lösche meine Erinnerung" -> {"answer": "yes"}',
+        'Reminder: "pay rent". Message: "atšauk priminimą apie vaistus" -> {"answer": "no"}',
+        'Reminder: "water the plants". Message: "przesuń przypomnienie na jutro na 9" -> {"answer": "yes"}',
+        "",
+        f'Reminder: "{note}". Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_means_the_one_reminder(
+    message: str,
+    reminder: str,
+    *,
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a reminder order means the chat's only pending reminder: ``"yes"`` / ``"no"``, or None when nothing
+    judged it (core.operator.handlers). Asked only when the order's words named no reminder there."""
+    if not str(message or "").strip() or not str(reminder or "").strip():
+        return None
+    prompt = _means_the_one_reminder_prompt(message, reminder)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", source_context=source_context, prompt=prompt, operation="one_reminder_arbitration",
+        model=model, runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def arbitrate_whole_memory_ask(
     message: str,
     *,

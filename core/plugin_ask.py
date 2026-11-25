@@ -374,6 +374,19 @@ def _memory_kind_confirmed(
                  **({"patient": True} if any(key not in _MEMORY_KINDS for key in keys) else {}))
     picked = {_MEMORY_KINDS[key] for key in keys if key in _MEMORY_KINDS}
     tools = tuple(key for key in keys if key not in _MEMORY_KINDS)
+    if "reminders" in tools and (kind == "keep" or "keep" in picked):
+        # A Reminders pick and a keep reading of one message disagree on remind against remember. On the gate iMac
+        # (3c92e8df3, qwen3:8b) "zapamiętaj: mój szwagier ma psa o imieniu Burek" and a plainly told fact were both
+        # picked Reminders beside a keep; the model wrote a reminder out of the fact, raised an approval for it, and
+        # the fact was not kept. A yes/no of its own settles it; no answer leaves the pick as it was.
+        if asked("reminder", intent_arbiter.arbitrate_reminder_ask) == "no":
+            _log.info("tool ask: reminders pick dropped beside a keep reading")
+            tools = tuple(key for key in tools if key != "reminders")
+            keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)
+            if kind == "keep":
+                # The Reminders pick was the tool judgement's reading of "remember" placed on the wrong choice: with it
+                # dropped, both readings name the keep.
+                picked.add("keep")
     named = picked | ({kind} if kind in {"keep", "recall", "forget"} else set())
     decided = ""
     # Two readings that each name a different kind of memory ask are unsure of it: a forget typed without accents
