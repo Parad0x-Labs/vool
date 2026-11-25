@@ -1265,7 +1265,8 @@ def _all_words_in_name(needle_words: list[str], lowered_name: str) -> bool:
 
 
 def _walk_safe_roots_for_files(
-    name: str, *, workspace_root: Path | None = None, any_word_order: bool = False, first_root: Path | None = None
+    name: str, *, workspace_root: Path | None = None, any_word_order: bool = False, first_root: Path | None = None,
+    _only_roots: list[Any] | None = None,
 ) -> tuple[list[str], list[Any], int, bool] | None:
     """The `machine.find_file` walk: (matches, roots searched, folders scanned, timed out), or None
     when no safe root is readable. Shared with the read-only readers' guessed-path lookup, so a
@@ -1277,12 +1278,27 @@ def _walk_safe_roots_for_files(
     # "daily 4" is the file on disk as "Daily_4.png" or "daily-4.jpg": also compare letters and digits only, with
     # accents taken off both sides ("kelionių planas 417" is kelioniu-planas-417.txt).
     squeezed_needle = "".join(needle_words)
-    roots = [root for root in _readable_machine_roots() if os.path.isdir(root)]
-    # The folder this chat is bound to is searched first, wherever it lives: a project on another disk
-    # is no home folder, and a Lithuanian find of a file in it walked the whole home for 40 s and
-    # reported "not found" (iMac gate on 122dfc5e9).
-    if first_root is not None and os.path.isdir(first_root):
-        roots = [first_root, *(root for root in roots if Path(root) != Path(first_root))]
+    if _only_roots is not None:
+        roots = list(_only_roots)
+    else:
+        roots = [root for root in _readable_machine_roots() if os.path.isdir(root)]
+        # The folder this chat is bound to is searched first, wherever it lives: a project on another disk
+        # is no home folder, and a Lithuanian find of a file in it walked the whole home for 40 s and
+        # reported "not found" (iMac gate on 122dfc5e9). What it holds answers the find: the home is walked
+        # only when the project has no match (the same gate on 56d5fb4a0 found the file in the project,
+        # then walked 142,523 home folders to its time limit and said the search was cut short).
+        if first_root is not None and os.path.isdir(first_root):
+            inside = _walk_safe_roots_for_files(name, workspace_root=workspace_root, any_word_order=any_word_order,
+                                                _only_roots=[first_root])
+            if inside is not None and inside[0]:
+                return inside
+            rest = [root for root in roots if Path(root) != Path(first_root)]
+            outside = _walk_safe_roots_for_files(name, workspace_root=workspace_root, any_word_order=any_word_order,
+                                                 _only_roots=rest) if rest else None
+            scanned = inside[2] if inside is not None else 0
+            if outside is None:
+                return inside
+            return outside[0], [first_root, *outside[1]], scanned + outside[2], outside[3] or bool(inside and inside[3])
     if not roots:
         return None
 

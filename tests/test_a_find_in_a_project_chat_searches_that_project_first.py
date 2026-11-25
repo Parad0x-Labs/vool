@@ -58,3 +58,47 @@ def test_the_disk_root_is_never_a_bound_project(home) -> None:
     from core.runtime_execution_tools import _bound_project_root
 
     assert _bound_project_root({"workspace": "/", "workspace_binding": "explicit"}) is None
+
+
+def test_a_match_in_the_project_ends_the_search_there(home, tmp_path, monkeypatch) -> None:
+    """iMac gate on 56d5fb4a0: the file was found in the project, then 142,523 home folders were walked to the time
+    limit and the answer said the search was cut short."""
+    import core.runtime_execution_tools as tools
+
+    project = tmp_path / "Volumes" / "Work" / "farm"
+    project.mkdir(parents=True)
+    (project / "quarterly-budget-final-v2.txt").write_text("x")
+    (home / "Documents").mkdir()
+    (home / "Documents" / "budget-final-old.txt").write_text("y")
+    walked: list[list[str]] = []
+    real = tools._walk_safe_roots_for_files
+
+    def spy(name, **kwargs):
+        if kwargs.get("_only_roots") is not None:
+            walked.append([str(root) for root in kwargs["_only_roots"]])
+        return real(name, **kwargs)
+
+    monkeypatch.setattr(tools, "_walk_safe_roots_for_files", spy)
+    found = tools._machine_find_file({"name": "budget final"}, project_root=project)
+
+    assert [Path(p).name for p in found.details["matches"]] == ["quarterly-budget-final-v2.txt"]
+    assert walked == [[str(project)]], walked
+    assert "time limit" not in found.response_text
+
+
+def test_with_no_match_in_the_project_the_home_is_still_searched(home, tmp_path) -> None:
+    from core.runtime_execution_tools import _machine_find_file
+
+    project = tmp_path / "Volumes" / "Work" / "farm"
+    project.mkdir(parents=True)
+    (project / "other.txt").write_text("x")
+    (home / "Documents").mkdir()
+    (home / "Documents" / "budget-final-old.txt").write_text("y")
+
+    found = _machine_find_file({"name": "budget final"}, project_root=project)
+
+    assert [Path(p).name for p in found.details["matches"]] == ["budget-final-old.txt"], found.response_text
+    import core.runtime_execution_tools as tools
+
+    walked = tools._walk_safe_roots_for_files("budget final", first_root=project)
+    assert walked is not None and str(walked[1][0]) == str(project), walked
