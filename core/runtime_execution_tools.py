@@ -1265,7 +1265,7 @@ def _all_words_in_name(needle_words: list[str], lowered_name: str) -> bool:
 
 
 def _walk_safe_roots_for_files(
-    name: str, *, workspace_root: Path | None = None, any_word_order: bool = False
+    name: str, *, workspace_root: Path | None = None, any_word_order: bool = False, first_root: Path | None = None
 ) -> tuple[list[str], list[Any], int, bool] | None:
     """The `machine.find_file` walk: (matches, roots searched, folders scanned, timed out), or None
     when no safe root is readable. Shared with the read-only readers' guessed-path lookup, so a
@@ -1278,6 +1278,11 @@ def _walk_safe_roots_for_files(
     # accents taken off both sides ("kelionių planas 417" is kelioniu-planas-417.txt).
     squeezed_needle = "".join(needle_words)
     roots = [root for root in _readable_machine_roots() if os.path.isdir(root)]
+    # The folder this chat is bound to is searched first, wherever it lives: a project on another disk
+    # is no home folder, and a Lithuanian find of a file in it walked the whole home for 40 s and
+    # reported "not found" (iMac gate on 122dfc5e9).
+    if first_root is not None and os.path.isdir(first_root):
+        roots = [first_root, *(root for root in roots if Path(root) != Path(first_root))]
     if not roots:
         return None
 
@@ -1342,7 +1347,7 @@ def _walk_safe_roots_for_files(
 
 
 def _machine_find_file(
-    arguments: dict[str, Any], *, workspace_root: Path | None = None
+    arguments: dict[str, Any], *, workspace_root: Path | None = None, project_root: Path | None = None
 ) -> RuntimeExecutionResult:
     """Find a FILE by name under the safe machine roots.
 
@@ -1371,7 +1376,7 @@ def _machine_find_file(
             response_text="Tell me the file name to look for.",
             details={},
         )
-    walked = _walk_safe_roots_for_files(name, workspace_root=workspace_root)
+    walked = _walk_safe_roots_for_files(name, workspace_root=workspace_root, first_root=project_root)
     if walked is None:
         return RuntimeExecutionResult(
             handled=True, ok=False, status="unavailable",
@@ -1387,7 +1392,8 @@ def _machine_find_file(
         stem, suffix = Path(name.replace("\\", "/")).stem, Path(name).suffix.lower()
         words = " ".join(_name_words(_folded_name(stem)))
         if words and words.lower() != name.lower():
-            again = _walk_safe_roots_for_files(words, workspace_root=workspace_root, any_word_order=True)
+            again = _walk_safe_roots_for_files(words, workspace_root=workspace_root, any_word_order=True,
+                                               first_root=project_root)
             if again is not None:
                 kept = [m for m in again[0] if not suffix or Path(m).suffix.lower() == suffix]
                 if kept:
@@ -1404,7 +1410,7 @@ def _machine_find_file(
             lead = " ".join(words[:size])
             if size == 1 and not re.search(r"[0-9._-]", lead):
                 break
-            again = _walk_safe_roots_for_files(lead, workspace_root=workspace_root)
+            again = _walk_safe_roots_for_files(lead, workspace_root=workspace_root, first_root=project_root)
             if again is not None and again[0]:
                 matches, roots, timed_out = again[0], again[1], again[3]
                 scanned_dirs += again[2]
@@ -3993,7 +3999,8 @@ def _dispatch_runtime_tool(
         if intent == "machine.find_folder":
             return _machine_find_folder(arguments, workspace_root=workspace_root)
         if intent == "machine.find_file":
-            return _machine_find_file(arguments, workspace_root=workspace_root)
+            return _machine_find_file(arguments, workspace_root=workspace_root,
+                                      project_root=_bound_project_root(source_context))
         if intent == "machine.display_inspect":
             return _machine_display_inspect(arguments)
         if intent == "machine.find_largest":
@@ -5479,6 +5486,23 @@ def _workspace_identity(workspace_root: Path) -> RuntimeExecutionResult:
             "resolved_target": str(root),
         },
     )
+
+
+def _bound_project_root(source_context: dict[str, Any] | None) -> Path | None:
+    """The folder this chat is bound to (a project, or a folder the person named), or None for the default."""
+    context = source_context or {}
+    if str(context.get("workspace_binding") or "") not in {"project", "explicit"}:
+        return None
+    try:
+        root = _workspace_root(context).resolve()
+    except Exception:
+        return None
+    from core.runtime_state_protection import refusal as _protected_refusal
+
+    # The disk root is no project, and this runtime's own state is never walked, bound or not.
+    if root == Path(root.anchor) or _protected_refusal(root, write=False):
+        return None
+    return root
 
 
 def _workspace_root(source_context: dict[str, Any] | None) -> Path:
