@@ -58,6 +58,12 @@ def test_the_particular_question_is_asked_of_the_turns_model(monkeypatch):
 @pytest.mark.parametrize("text", [
     "my aunt Ona's goat is named Snaigė, but please don't store that",
     "my pin is 1234 dont save this",
+    # Gate on f5cff3511: the same ask in other places of the message switched the whole chat.
+    "my neighbour Greta keeps a rabbit called Morkus, don't save that though",
+    "Greta keeps a rabbit called Morkus. please don't save that",
+    "don't save this: Greta keeps a rabbit called Morkus",
+    "don't record this\nmy boss is Grumblewick",
+    "I need to vent, keep this between us",
     "mano PIN 2580, nesaugok šito",
     "mój PIN to 2580, nie zapisuj tego",
 ])
@@ -67,9 +73,10 @@ def test_a_dont_store_closing_a_told_fact_is_this_turn_only(text):
     assert not command.rest.lower().endswith((" but", ",")), command.rest
 
 
-@pytest.mark.parametrize("text", ["don't record this", "private chat", "don't record this\nmy boss is Grumblewick",
-                                  "I need to vent, keep this between us"])
-def test_a_request_said_alone_or_first_still_switches_the_chat(text):
+@pytest.mark.parametrize("text", ["don't record this", "private chat", "private chat, my salary is 90k",
+                                  "stop recording, my salary is 90k", "prywatny czat. mój PIN to 2580",
+                                  "privater Chat. mein Gehalt ist 90k"])
+def test_a_request_said_alone_or_naming_private_chat_still_switches_the_chat(text):
     command = parse_private_command(text)
     assert command is not None and command.action == ON and not command.this_turn_only, (text, command)
 

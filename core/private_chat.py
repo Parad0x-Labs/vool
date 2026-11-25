@@ -422,6 +422,11 @@ _WHOLE_ON_RE = re.compile(
     re.IGNORECASE,
 )
 _OFF_RE = _clause_re(_OFF_PHRASES)
+#: A request that names private chat itself, not only "this": the chat's switch even beside other words.
+_MODE_RE = re.compile(
+    r"\b(?:chat|conversation|mode|talk|session|incognito|privately|recording|saving|logging|go\s+private)\b",
+    re.IGNORECASE,
+)
 _BARE_ON_RE = re.compile(r"^\s*" + _LEAD + rf"(?:{_BARE_TURN_ON})" + _TAIL + r"\s*[.!?]*\s*$", re.IGNORECASE)
 _STATUS_RE = re.compile(r"^\s*" + _LEAD + "(?:" + "|".join(f"(?:{p})" for p in _STATUS_PHRASES) + ")" + _TAIL + r"\s*[.!?]*\s*$", re.IGNORECASE)
 _FILLER_RE = re.compile(r"^[\s.,;:!?—–\-]*(?:(?:but|and|so|ok|okay|please|thanks|thank\s+you|now|just)[\s.,;:!?—–\-]*)*$", re.IGNORECASE)
@@ -440,10 +445,12 @@ class PrivateCommand:
 
     action: str
     rest: str = ""
-    #: The request closed a message that told something ("my aunt's goat is Snaigė, but please don't store that"):
-    #: it asks that THIS message is not kept, so this turn is private and the chat stays as it is. Read as the
-    #: chat's switch, that one fact turned the whole chat private without a word, and the next "remember: ..." in
-    #: it was refused (iMac gate on 0c3d44046). A request said alone, or leading the message, switches the chat.
+    #: The request came with something the person told ("my aunt's goat is Snaigė, but please don't store that",
+    #: "don't save this: ...", "..., don't save that though") and does not name private chat itself: it asks that
+    #: THIS message is not kept, so this turn is private and the chat stays as it is, wherever in the message the
+    #: request stands. Read as the chat's switch, one fact turned the whole chat private without a word, and the next
+    #: "remember: ..." in it was refused (iMac gates on 0c3d44046 and f5cff3511). A request said alone, or one that
+    #: names private chat ("private chat, ...", "stop recording ..."), switches the chat.
     this_turn_only: bool = False
 
     @property
@@ -481,9 +488,7 @@ def parse_private_command(text: str, *, currently_private: bool = False) -> Priv
     if _WHOLE_ON_RE.match(raw):
         return PrivateCommand(ON)
     off = _OFF_RE.search(raw)
-    on = _ON_RE.search(raw)
-    at_end = None if on is not None else _on_at_end(raw)
-    on = on or at_end
+    on = _ON_RE.search(raw) or _on_at_end(raw)
     if off and _rest_without(raw, off):
         off = None
     if off and on:
@@ -501,7 +506,7 @@ def parse_private_command(text: str, *, currently_private: bool = False) -> Priv
         other = parse_other_language(raw, currently_private=currently_private)
         return PrivateCommand(*other) if other is not None else None
     rest = _rest_without(raw, chosen)
-    return PrivateCommand(action, rest, this_turn_only=bool(rest) and chosen is at_end)
+    return PrivateCommand(action, rest, this_turn_only=action == ON and bool(rest) and not _MODE_RE.search(chosen.group(0)))
 
 
 def _on_at_end(raw: str) -> re.Match[str] | None:

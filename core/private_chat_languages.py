@@ -896,21 +896,43 @@ def parse(text: str, *, currently_private: bool = False) -> tuple[str, str] | tu
     if len(sentences) > 1:
         for index, sentence in enumerate(sentences):
             if _on(sentence):
-                rest = " ".join(sentences[:index] + sentences[index + 1:])
-                return (ON, rest, True) if index == len(sentences) - 1 and index > 0 and rest else (ON, rest)
+                return _on_with(" ".join(sentences[:index] + sentences[index + 1:]), sentence)
     first = sentences[0]
     clauses = _CLAUSE_SPLIT.split(first)
     if len(clauses) > 1 and _on(clauses[0]):
-        return ON, _trim(" ".join([*clauses[1:], *sentences[1:]]))
+        return _on_with(_trim(" ".join([*clauses[1:], *sentences[1:]])), clauses[0])
     conj = _matchers()["conj"].search(first)
     if conj is not None and _on(first[: conj.start()]):
-        return ON, _trim(" ".join([first[conj.end():], *sentences[1:]]))
+        return _on_with(_trim(" ".join([first[conj.end():], *sentences[1:]])), first[: conj.start()])
     last = sentences[-1]
     clauses = _CLAUSE_SPLIT.split(last)
     if len(clauses) > 1 and _on(clauses[-1]) and not _reported(clauses[-2]):
-        rest = _trim(" ".join([*sentences[:-1], ",".join(clauses[:-1])]))
-        return (ON, rest, True) if rest else (ON, rest)
+        return _on_with(_trim(" ".join([*sentences[:-1], ",".join(clauses[:-1])])), clauses[-1])
     return None
+
+
+def _names_private_chat(command: str) -> bool:
+    """Whether the request names private chat itself (a word of some language's own name for it, such as "czat",
+    "pokalbis", "privado"), not only "don't save this"."""
+    folded = fold(command)
+    words = set(folded.split())
+    for tag, table in LANGUAGES.items():
+        name = fold(table.get("on_canonical") or "")
+        if not name:
+            continue
+        if tag in _SPACELESS:
+            if name in folded:
+                return True
+        elif words & set(name.split()):
+            return True
+    return False
+
+
+def _on_with(rest: str, command: str) -> tuple[str, str] | tuple[str, str, bool]:
+    """ON with what else the message said. A request that comes with something the person told, and does not name
+    private chat itself, is about that message only (`core.private_chat.PrivateCommand.this_turn_only`), wherever in
+    the message it stands."""
+    return (ON, rest, True) if rest and not _names_private_chat(command) else (ON, rest)
 
 
 def mentions_privacy(text: str) -> bool:

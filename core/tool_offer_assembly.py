@@ -1973,6 +1973,13 @@ def assemble_tool_offer(
         # (qwen3:8b): "suggest a good tripod for travel and tell me what it costs today" called
         # web.research, and the refusal was the whole reply, with no tripod in it.
         specs = [spec for spec in specs if str(spec.get("intent") or "") not in WEB_LOOKUP_INTENTS]
+    elif not effective_web_available(source_context) and _judged_no_web_ask(user_text, source_context):
+        # Web lookups off and the message judged to ask nothing of the internet: the lookup tools are not offered,
+        # so a model that reaches for one anyway cannot end the turn on the web-off refusal. Gate iMac on f5cff3511
+        # (qwen3:8b): "what is Greta's rabbit called?" (nothing saved about Greta) went to the tool lane, the model
+        # called a web lookup, and the whole reply was "Web lookups are off ... paste the article text". A message
+        # the judge reads as a web ask, or one nobody judged, keeps the offer and its refusal.
+        specs = [spec for spec in specs if str(spec.get("intent") or "") not in WEB_LOOKUP_INTENTS]
     if not task_seats and _ARCHAEOLOGY_TRACE in set(resolve_demand_signals(str(user_text or "")).explicit_intents):
         # A file-history question with no code task open: the archaeology trace answers it. A code
         # task's report beside it was ranked in by the word "task" alone, and the model took it,
@@ -2149,3 +2156,14 @@ __all__ = [
     "skill_provenance_rows",
     "vool_browse_private_read_seats",
 ]
+
+
+def _judged_no_web_ask(user_text: object, source_context: object) -> bool:
+    """Whether this message was judged to ask nothing of the internet (`core.online_asks.web_ask_verdict` read "no")."""
+    try:
+        from core.online_asks import web_ask_verdict
+
+        return web_ask_verdict(str(user_text or ""), source_context=source_context if isinstance(source_context, dict)
+                               else None) == "no"
+    except Exception:
+        return False

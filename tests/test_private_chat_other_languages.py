@@ -301,8 +301,14 @@ def test_a_private_turn_in_german_leaves_none_of_its_words(served):
     daemon, home = served
     chat = "openclaw:" + "4d" * 10
     _stream(daemon, "Mein Hund heißt Bello.", chat, "de")
+    # "Don't save this" beside what the person tells keeps THIS message out and leaves the chat as it is: read as
+    # the chat's switch, the next "remember ..." in the chat was refused (gate iMac on 0c3d44046 and f5cff3511).
     answer, commit = _stream(daemon, f"Speicher das nicht, die Feier ist in der {SECRET}-Halle.", chat, "de")
-    assert _private(commit) and _on_now(commit) is True, answer
+    assert _private(commit) and _on_now(commit) is not True, answer
+    assert SECRET not in json.dumps(_history(daemon, chat), ensure_ascii=False)
+    # The chat's own switch, in German, makes every message after it private.
+    answer, commit = _stream(daemon, "Privater Chat", chat, "de")
+    assert answer == _reply("de", "on") and _on_now(commit) is True, answer
     # The memory command is read in English; the refusal answers in the page's language.
     refused, _ = _stream(daemon, f"remember that the party is at the {SECRET} hall", chat, "de")
     assert refused == _reply("de", "remember_refused"), refused
