@@ -168,3 +168,19 @@ def test_a_pasted_mail_does_not_pick_the_reply_language(ask):
     assert response_language_policy_for_text(ask + mail).expected_language != "en"
     # The same mail under an English ask is still answered in English.
     assert response_language_policy_for_text("What is this about, in short?" + mail).expected_language == "en"
+
+
+@pytest.mark.parametrize("ask", ["Puoi riassumere questo messaggio?", "Kun je dit kort samenvatten?"])
+def test_a_plain_letter_ask_over_a_pasted_mail_names_whose_language_counts(ask):
+    """iMac gate21 on 006e4a888: an Italian and a Dutch ask with plain a-z letters over a pasted English mail went to the
+    model with no language line, and the reply came back in the mail's English."""
+    from core.response_language_policy import response_language_policy_for_text, response_language_provider_instruction
+
+    text = (ask + "\n\nFrom: Hill Cycles <shop@example.com>\nSubject: Repair done\n\n"
+            "Your bike is ready. The new chain and brake pads came to 61 euros; pick it up any weekday before 5.")
+    line = response_language_provider_instruction(
+        response_language_policy_for_text(text).to_dict(), earlier_user_texts=[], latest_text=text)
+    assert "own words in front of the pasted text" in line
+    # The same ask with nothing pasted adds no line in an English chat: the prompt stays byte for byte.
+    assert response_language_provider_instruction(
+        response_language_policy_for_text(ask).to_dict(), earlier_user_texts=[], latest_text=ask) == ""

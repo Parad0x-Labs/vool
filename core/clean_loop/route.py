@@ -967,6 +967,18 @@ def skill_keeps_turn(text: str, source_context: Mapping[str, Any] | None) -> str
         return ""
 
 
+def _own_words_before_a_paste(text: str) -> str | None:
+    """The owner's own lines in front of a pasted mail or message, or None when the text holds no paste."""
+    try:
+        from core.memory.admission import holds_a_pasted_message, text_before_a_pasted_message
+
+        if not holds_a_pasted_message(str(text or "")):
+            return None
+        return text_before_a_pasted_message(str(text or ""))
+    except Exception:
+        return None
+
+
 def _moved_to_a_folder(source_context: Mapping[str, Any] | None) -> bool:
     """Whether the owner moved the last ask to a folder ("try the documents folder instead"): a lookup inside a folder is a
     file search, whatever the ask's own words ("a note about...") would have sent to the notes tools."""
@@ -998,6 +1010,15 @@ def decide(
     fenced = _owner_context_blocks(dict(source_context or {}), session_id)
     if fenced in {"private_turn", "not_owner_local"}:
         return RouteDecision(False, fenced)
+    # A pasted mail or message is material to work on, not the owner's ask: every word check below reads the owner's
+    # own lines in front of it (the paste found by its shape, core.memory.admission). iMac gate21 on 006e4a888: an
+    # Italian "what is this about" over a pasted shop mail was admitted to this files loop because the sender's
+    # address held "service", and a Portuguese one was read as a write order from the mail's "move your appointment".
+    own = _own_words_before_a_paste(text)
+    if own is not None:
+        if not own.strip():
+            return RouteDecision(False, "pasted_material")
+        text = own
     if _memory_lane_owns(text, session_id, source_context):
         return RouteDecision(False, "memory_command")
     if _asks_about_this_chat(text, session_id):

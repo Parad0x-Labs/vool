@@ -594,6 +594,15 @@ def earlier_turns_used_another_language(earlier_user_texts: list[str] | tuple[st
     return False
 
 
+def _holds_pasted_message(text: str) -> bool:
+    try:
+        from core.memory.admission import holds_a_pasted_message
+
+        return holds_a_pasted_message(str(text or ""))
+    except Exception:
+        return False
+
+
 def _has_letter_english_does_not_use(text: str) -> bool:
     """A letter outside plain a-z (ą, é, ß, ж, 字): the text is plainly not English even when no single language owns
     the letter. Quoted material is left out: a quoted word is a subject, not the language the person writes in."""
@@ -625,6 +634,15 @@ def response_language_provider_instruction(
         # Also said when the latest message itself carries a letter English does not use: on the iMac gate of
         # 3dd1243b9, "jaki kolor ma rower mojego sąsiada?" (Polish, its "ą" shared with Lithuanian, so no single
         # language) came after an English turn and was answered in English.
+        # A pasted mail or message pulls the same way as an earlier turn: on the iMac gate21 of 006e4a888, "Mi dici in
+        # breve di cosa parla?" and "Waar gaat dit bericht over?" (plain a-z letters, no single language) over a pasted
+        # English mail got no line, and qwen3:8b answered in the mail's English. The person's own words are the lines in
+        # front of the paste (read by its shape, core.memory.admission).
+        if _holds_pasted_message(latest_text):
+            return (
+                "Respond in the language of the person's own words in front of the pasted text, not in the language "
+                "of the pasted text, even if earlier messages used another."
+            )
         if earlier_turns_used_another_language(earlier_user_texts) or _has_letter_english_does_not_use(latest_text):
             return "Respond in the language of the person's latest message, even if earlier messages used another."
         return ""
