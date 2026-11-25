@@ -113,3 +113,19 @@ def test_the_model_the_page_asked_for_answers_when_the_lookup_names_none(monkeyp
 
     monkeypatch.setattr(local_ollama_inventory, "installed_ollama_model_names", lambda **_k: installed)
     assert turn_judge._requested_ollama_model({"requested_model": requested}) == expected
+
+
+@pytest.mark.parametrize(("context", "expected"), [
+    ({"runtime_default_model": "qwen3:8b"}, ("qwen3:8b", "general")),
+    ({"requested_model": "auto", "runtime_default_model": "qwen3:8b"}, ("qwen3:8b", "general")),
+    ({"requested_model": "qwen3:4b", "runtime_default_model": "qwen3:8b"}, ("qwen3:4b", "general")),
+    ({"runtime_default_model": "qwen3:14b"}, None),
+])
+def test_a_first_turn_with_no_pick_is_judged_by_the_computers_own_default_model(monkeypatch, context, expected):
+    """iMac gate on f0a19600e: the first turn of a chat on the default model had no requested model stamped and no
+    manifest, so it was judged by nobody and a Lithuanian fact was not kept."""
+    from core import local_ollama_inventory
+    from core.agent_runtime import turn_judge
+
+    monkeypatch.setattr(local_ollama_inventory, "installed_ollama_model_names", lambda **_k: ("qwen3:8b", "qwen3:4b"))
+    assert turn_judge._requested_ollama_model(context) == expected

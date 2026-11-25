@@ -94,18 +94,22 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
 
 
 def _requested_ollama_model(source_context: dict) -> tuple[str, str] | None:
-    """The Ollama model the person picked for this chat, when the manifest lookup names none.
+    """The Ollama model the person picked for this chat, or this computer's default one, when the manifest lookup names
+    none.
 
     On the first turn of a new chat the lookup named no model, and every judgement of that turn went to the largest
     model another app had loaded (qwen3.5:9b) while the chat was answered by qwen3:8b (iMac gate on cf0d43952). The
     model the page sent is the one that answers; it is used when Ollama has it installed."""
-    requested = str((source_context or {}).get("requested_model") or "").strip()
-    if not requested:
-        return None
+    context = source_context or {}
+    requested = str(context.get("requested_model") or "").strip()
     try:
         from core.auto_local_only_mode import is_auto_selection
 
-        if is_auto_selection(requested):
+        if not requested or is_auto_selection(requested):
+            # The chat door leaves the computer's own default model out of requested_model (it is Auto's model), and
+            # stamps it apart: on the iMac (f0a19600e) the first turn had neither and was judged by nobody.
+            requested = str(context.get("runtime_default_model") or "").strip()
+        if not requested:
             return None
         from core.local_ollama_inventory import installed_ollama_model_names
 

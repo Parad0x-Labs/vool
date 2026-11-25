@@ -8702,6 +8702,9 @@ def _dispatch_post_inner(
                 # The owner named this model in setup: it is a pin, not Auto's guess.
                 source_context["model_selection"] = "pin"
                 source_context["cloud_only_default_applied"] = True
+        # The model this computer answers with when the chat names none of its own: the turn's judgements are asked of
+        # it on a first turn, before a model of the turn is known (core.agent_runtime.turn_judge).
+        source_context["runtime_default_model"] = str(model_name or "").strip()
         # Bind the Auto lane for this turn BEFORE any routing runs. The flag is stamped into
         # `source_context`, which is what survives the shallow copies and the thread-pool hops the
         # provider calls take — see `core.auto_local_only_mode`. Stamped server-side from the
