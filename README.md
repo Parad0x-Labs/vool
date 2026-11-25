@@ -183,6 +183,10 @@ A signature proves the signed record was not changed; it does not prove every mo
 
 Wallet and payment features are optional, off until you set them up, and every payment needs your approval.
 
+## ❤ Support VOOL
+
+VOOL is free, open-source and MIT-licensed. If you enjoy using it and want to support continued development, you can [sponsor the project on GitHub](https://github.com/sponsors/Parad0x-Labs). Completely optional, always appreciated. Sponsoring does not unlock, restrict or prioritize any feature.
+
 ---
 
 <p align="center">Built by <a href="https://github.com/Parad0x-Labs"><strong>Parad0x Labs</strong></a> · Contributors: <a href="https://github.com/Parad0x-Labs"><strong>sls_0x</strong></a> · <a href="https://github.com/KAS-049"><strong>KAS</strong></a> · <a href="https://github.com/ermitdab"><strong>ermitdab</strong></a> · <strong>SteveON</strong> · <strong>P3dr0</strong></p>

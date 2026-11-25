@@ -2676,6 +2676,8 @@
     "settings.updates.checking": "Tikrinama…",
     "settings.updates.check_failed": "VOOL šiuo metu nepavyko patikrinti atnaujinimų. Bandykite vėliau.",
     "settings.technical_details": "Techninė informacija",
+    "settings.support.link": "Paremti kūrimą GitHub",
+    "settings.support.text": "VOOL yra nemokama, atvirojo kodo ir turi MIT licenciją. Rėmimas neprivalomas ir nieko neatrakina bei nekeičia.",
     "settings.usage.reading": "Skaitomas naudojimas…",
     "settings.usage.unreadable": "Nepavyko perskaityti naudojimo.",
     "settings.usage.tokens_one": "{tokens} žodžių dalių per 1 atsakymą",
@@ -5628,7 +5630,7 @@
     "mail.saved.details_on": "Pranešimuose nurodomas siuntėjas ir tema.",
     "mail.saved.details_off": "Pranešimuose nurodoma tik, kiek laiškų atėjo."
   },
-  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
+  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2676,6 +2676,8 @@
     "settings.updates.checking": "Проверка…",
     "settings.updates.check_failed": "VOOL сейчас не смог проверить обновления. Попробуйте позже.",
     "settings.technical_details": "Технические подробности",
+    "settings.support.link": "Поддержать разработку на GitHub",
+    "settings.support.text": "VOOL бесплатный, с открытым исходным кодом и лицензией MIT. Спонсорство необязательно и ничего не открывает и не меняет.",
     "settings.usage.reading": "Чтение расхода…",
     "settings.usage.unreadable": "Не удалось прочитать расход.",
     "settings.usage.tokens_one": "{tokens} кусков слов за 1 ответ",
@@ -5628,7 +5630,7 @@
     "mail.saved.details_on": "Уведомления называют отправителя и тему.",
     "mail.saved.details_off": "Уведомления сообщают только, сколько писем пришло."
   },
-  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
+  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

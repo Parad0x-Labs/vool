@@ -2676,6 +2676,8 @@
     "settings.updates.checking": "جارٍ التحقق…",
     "settings.updates.check_failed": "تعذّر على VOOL البحث عن تحديثات الآن. حاول مرة أخرى لاحقًا.",
     "settings.technical_details": "تفاصيل تقنية",
+    "settings.support.link": "ادعم التطوير على GitHub",
+    "settings.support.text": "VOOL مجاني ومفتوح المصدر ومرخّص بموجب MIT. الرعاية اختيارية ولا تفتح أي ميزة ولا تغيّر شيئًا.",
     "settings.usage.reading": "جارٍ قراءة الاستخدام…",
     "settings.usage.unreadable": "تعذّرت قراءة الاستخدام.",
     "settings.usage.tokens_one": "{tokens} من قطع الكلمات في إجابة واحدة",
@@ -5628,7 +5630,7 @@
     "mail.saved.details_on": "تذكر التنبيهات المرسل والموضوع.",
     "mail.saved.details_off": "تذكر التنبيهات عدد الرسائل التي وصلت فقط."
   },
-  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
+  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

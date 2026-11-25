@@ -2676,6 +2676,8 @@
     "settings.updates.checking": "Checking…",
     "settings.updates.check_failed": "VOOL could not check for updates just now. Try again later.",
     "settings.technical_details": "Technical details",
+    "settings.support.link": "Support development on GitHub",
+    "settings.support.text": "VOOL is free, open-source and MIT-licensed. Sponsoring is optional and does not unlock or change anything.",
     "settings.usage.reading": "Reading usage…",
     "settings.usage.unreadable": "Usage could not be read.",
     "settings.usage.tokens_one": "{tokens} word pieces over 1 answer",

@@ -2676,6 +2676,8 @@
     "settings.updates.checking": "Kontrol ediliyor…",
     "settings.updates.check_failed": "VOOL şu anda güncellemeleri kontrol edemedi. Daha sonra yeniden deneyin.",
     "settings.technical_details": "Teknik ayrıntılar",
+    "settings.support.link": "GitHub'da geliştirmeyi destekle",
+    "settings.support.text": "VOOL ücretsiz, açık kaynaklı ve MIT lisanslıdır. Sponsorluk isteğe bağlıdır; hiçbir şeyin kilidini açmaz, hiçbir şeyi değiştirmez.",
     "settings.usage.reading": "Kullanım okunuyor…",
     "settings.usage.unreadable": "Kullanım okunamadı.",
     "settings.usage.tokens_one": "1 yanıtta {tokens} kelime parçası",
@@ -5628,7 +5630,7 @@
     "mail.saved.details_on": "Uyarılar gönderen ve konuyu belirtir.",
     "mail.saved.details_off": "Uyarılar yalnızca kaç e-posta geldiğini söyler."
   },
-  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
+  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

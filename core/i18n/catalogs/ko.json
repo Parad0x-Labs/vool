@@ -2676,6 +2676,8 @@
     "settings.updates.checking": "확인 중…",
     "settings.updates.check_failed": "VOOL이 지금 업데이트를 확인하지 못했습니다. 나중에 다시 시도하세요.",
     "settings.technical_details": "기술 세부 정보",
+    "settings.support.link": "GitHub에서 개발 후원하기",
+    "settings.support.text": "VOOL은 무료 오픈 소스이며 MIT 라이선스입니다. 후원은 선택 사항이며 아무것도 잠금 해제하거나 바꾸지 않습니다.",
     "settings.usage.reading": "사용량을 읽는 중…",
     "settings.usage.unreadable": "사용량을 읽을 수 없습니다.",
     "settings.usage.tokens_one": "답변 1개에 낱말 조각 {tokens}개",
@@ -5628,7 +5630,7 @@
     "mail.saved.details_on": "알림에 보낸 사람과 제목이 표시됩니다.",
     "mail.saved.details_off": "알림에는 도착한 이메일 수만 표시됩니다."
   },
-  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
+  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

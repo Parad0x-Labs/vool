@@ -2676,6 +2676,8 @@
     "settings.updates.checking": "正在检查…",
     "settings.updates.check_failed": "VOOL 暂时无法检查更新。请稍后再试。",
     "settings.technical_details": "技术详情",
+    "settings.support.link": "在 GitHub 上支持开发",
+    "settings.support.text": "VOOL 免费、开源，采用 MIT 许可。赞助完全自愿，不会解锁或改变任何功能。",
     "settings.usage.reading": "正在读取用量…",
     "settings.usage.unreadable": "无法读取用量。",
     "settings.usage.tokens_one": "1 个回答共 {tokens} 个词块",
@@ -5628,7 +5630,7 @@
     "mail.saved.details_on": "提醒会显示发件人和主题。",
     "mail.saved.details_off": "提醒只显示收到了几封邮件。"
   },
-  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
+  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

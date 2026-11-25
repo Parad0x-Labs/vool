@@ -2676,6 +2676,8 @@
     "settings.updates.checking": "Đang kiểm tra…",
     "settings.updates.check_failed": "VOOL chưa kiểm tra được bản cập nhật lúc này. Hãy thử lại sau.",
     "settings.technical_details": "Chi tiết kỹ thuật",
+    "settings.support.link": "Ủng hộ phát triển trên GitHub",
+    "settings.support.text": "VOOL miễn phí, mã nguồn mở và theo giấy phép MIT. Tài trợ là tùy chọn và không mở khóa hay thay đổi gì.",
     "settings.usage.reading": "Đang đọc mức sử dụng…",
     "settings.usage.unreadable": "Không đọc được mức sử dụng.",
     "settings.usage.tokens_one": "{tokens} mảnh từ trong 1 câu trả lời",
@@ -5628,7 +5630,7 @@
     "mail.saved.details_on": "Thông báo nêu người gửi và tiêu đề.",
     "mail.saved.details_off": "Thông báo chỉ cho biết có bao nhiêu email đến."
   },
-  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
+  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

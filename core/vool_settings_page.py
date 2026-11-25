@@ -3290,6 +3290,7 @@ function widgetUpdates(stack) {
   }
 }
 
+const SPONSOR_PAGE = 'https://github.com/sponsors/Parad0x-Labs';
 function widgetBuild(stack) {
   const src = state.sources['/api/runtime/version'];
   const err = state.sourceErr['/api/runtime/version'];
@@ -3329,6 +3330,13 @@ function widgetBuild(stack) {
   });
   bar.appendChild(copy); bar.appendChild(st);
   stack.appendChild(bar);
+  /* Optional support line. A plain link to the public sponsor page: nothing is sent from here,
+     and sponsoring changes nothing in the app. */
+  const support = el('p', 'help', T('settings.support.text', 'VOOL is free, open-source and MIT-licensed. Sponsoring is optional and does not unlock or change anything.') + ' ');
+  const sponsor = el('a', '', T('settings.support.link', 'Support development on GitHub'));
+  sponsor.href = SPONSOR_PAGE; sponsor.target = '_blank'; sponsor.rel = 'noopener noreferrer';
+  support.appendChild(sponsor);
+  stack.appendChild(support);
   if (setupHiddenByChoice()) stack.appendChild(setupRestoreControl());
 }
 

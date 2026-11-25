@@ -2676,6 +2676,8 @@
     "settings.updates.checking": "जाँच हो रही है…",
     "settings.updates.check_failed": "VOOL अभी अपडेट नहीं जाँच सका। बाद में फिर कोशिश करें।",
     "settings.technical_details": "तकनीकी विवरण",
+    "settings.support.link": "GitHub पर विकास का समर्थन करें",
+    "settings.support.text": "VOOL मुफ़्त, ओपन-सोर्स और MIT-लाइसेंस वाला है। स्पॉन्सर करना वैकल्पिक है और इससे कुछ भी अनलॉक या बदलता नहीं है।",
     "settings.usage.reading": "उपयोग पढ़ा जा रहा है…",
     "settings.usage.unreadable": "उपयोग पढ़ा नहीं जा सका।",
     "settings.usage.tokens_one": "1 जवाब में {tokens} शब्दों के टुकड़े",
@@ -5628,7 +5630,7 @@
     "mail.saved.details_on": "सूचनाएँ भेजने वाले और विषय का नाम बताती हैं।",
     "mail.saved.details_off": "सूचनाएँ केवल यह बताती हैं कि कितने ईमेल आए।"
   },
-  "source_catalog_sha256": "89660c125a64f6197c3489b48148c3480d12cfa22740b76d35902753fca03042",
+  "source_catalog_sha256": "146da9e4024b0250746c98f8f2f483ebcd3251e33f86b44e0c830145eb049afd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
