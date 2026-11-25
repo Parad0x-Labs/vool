@@ -167,13 +167,16 @@ __all__ = [
     "whole_memory_erase_request",
 ]
 
-_REMEMBER_RE = re.compile(r"^(?:remember(?: that)?|note(?: that)?|store(?: this)?)\s+(.+)$", re.IGNORECASE)
+# A "please" may stand after the verb as well as before it: "remember please my barber's name is ..." was kept as
+# "please my barber's name is ..." (iMac gate on f0a19600e).
+_REMEMBER_RE = re.compile(r"^(?:remember(?: that)?|note(?: that)?|store(?: this)?)\s+(?:(?:please|pls)[\s,:]+)?(.+)$",
+                          re.IGNORECASE)
 _MEMORY_CAPTURE_RE = re.compile(
     # The lead-in's words ("This is important," / "In this chat,") stay on one line: crossing a line break they took
     # a comma inside quoted material for their end and read the material's verb as the command's.
     r"^(?:(?:this is|in this)\b[^.!?\n]*(?:[.!?]\s*|,\s*))?"
     r"(?:please\s+)?(?P<verb>remember(?: that)?|note(?: that)?|store(?: this)?|keep|retain|save)\s+"
-    r"(?P<fact>.+)$",
+    r"(?:(?:please|pls)[\s,:]+(?:that\s+)?)?(?P<fact>.+)$",
     re.IGNORECASE,
 )
 
