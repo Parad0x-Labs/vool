@@ -1,6 +1,7 @@
 """One disposable offline worker; only explicit runtime code and guest input are readable."""
 import hashlib
 import json
+import logging
 import os
 import platform
 import re
@@ -19,6 +20,8 @@ from core.artifact_readers._sandbox import extraction_budget, run_confined
 from core.artifact_readers._types import ReaderFailed, ReaderRefused, ReaderUnavailable
 
 from .terms import MAX_OUTPUT, OFFERED, LendError, demand, identity
+
+_log = logging.getLogger(__name__)
 
 
 def confinement_available():
@@ -161,6 +164,12 @@ def execute(root, data, value, *, job_id):
                         raise LendError('TIMEOUT') from None
                     raise
             demand(result.returncode != 2, 'TIMEOUT')
+            if result.returncode != 0:
+                # The exit code and the kind of error the fixed program ended on (the name before the colon of its
+                # last stderr line), never the message after it, which may carry the guest's bytes.
+                last = (bytes(result.stderr or b'').decode('utf-8', 'replace').strip().splitlines() or [''])[-1]
+                kind = re.match(r'[A-Za-z_][\w.]*(?=:|$)', last.strip())
+                _log.warning('lend worker exited %s (%s)', result.returncode, kind.group(0) if kind else '-')
             demand(result.returncode == 0, 'JOB_FAILED')
             stats = json.loads(result.stdout)
             output = _read(directory/'output.bin', MAX_OUTPUT)

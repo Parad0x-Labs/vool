@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 import secrets
 import shutil
@@ -12,6 +13,8 @@ from core.drop.service import CHUNK, _private_directory, _read, _write
 from core.drop.session import b64, unb64
 
 from .terms import MAX_OUTPUT, LendError, demand, file_name, identity, sha
+
+_log = logging.getLogger(__name__)
 
 TERMINAL = {'complete', 'declined', 'failed', 'timeout', 'revoked', 'expired', 'used_up', 'delivery_failed'}
 
@@ -228,6 +231,12 @@ class Jobs:
         except (LendError, DropError, OSError) as exc:
             failure = 'expired' if self.drop.clock() >= value['terms']['expires'] else (
                 'timeout' if getattr(exc, 'code', '') == 'TIMEOUT' else 'failed')
+            # Codes and kinds only, never the guest's bytes: a job that failed on the runner said only "failed"
+            # (CI macOS on bb5351e0e, five lend tests), and the worker's own reason was lost.
+            cause = exc.__cause__
+            _log.warning('lend job %s ended %s: %s %s (cause: %s %s)', identity(key), failure, type(exc).__name__,
+                         getattr(exc, 'code', ''), type(cause).__name__ if cause else '-',
+                         getattr(cause, 'code', '') if cause else '')
         with self.drop.scope():
             job = self.get('jobs', key)
             value = self.get('invites', job['invite'])
