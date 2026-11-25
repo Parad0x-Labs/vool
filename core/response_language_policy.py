@@ -356,7 +356,20 @@ def _operator_language_preference(principal: str, session_id: str) -> str:
 
 def _strip_quoted_material(text: str) -> str:
     """Remove quoted spans and meta-linguistic objects: they are subjects to talk ABOUT,
-    never output commitments and not the operator's own prose."""
+    never output commitments and not the operator's own prose.
+
+    A pasted email or message is material in the same way: the person's own words are the ones in front of it (read by
+    the paste's shape in any language, core.memory.admission). Mac gate20 on 1d605955a: "O czym jest ten list, w dwóch
+    zdaniach?" over an English library mail, after a German turn, was decided by the mail's English, no language line
+    went to the model, and the answer followed the earlier German."""
+    try:
+        from core.memory.admission import text_before_a_pasted_message
+
+        own = text_before_a_pasted_message(text)
+        if own.strip():
+            text = own
+    except Exception:
+        pass
     stripped = _QUOTED_SPAN.sub(" ", text)
     stripped = _METALINGUISTIC_LEADIN.sub(" ", stripped)
     return stripped

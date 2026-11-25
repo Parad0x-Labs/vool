@@ -254,3 +254,38 @@ def test_a_forgotten_sentence_quoted_back_is_judged_as_before(monkeypatch):
     monkeypatch.setattr(cr, "revoked_tokens_for_chat", lambda *_a, **_k: ("papers",))
     result = _validated(f'You said: "{PAPERS}"', said=PAPERS, ask="what did I say I did about the oil delivery?")
     assert result["action_honesty_validator"]["claim_kind"] == "mutation"
+
+
+# ------------------------------------------------------------ a pasted mail said back, in any language
+
+_MAIL = ("Worum geht es in dieser Nachricht?\n\nVon: Autowerkstatt Kranich <termine@example.de>\nBetreff: Inspektion\n\n"
+         "Ihr Wagen ist am Mittwoch um 9 Uhr zur Inspektion eingeplant. Bitte bringen Sie den Zweitschlüssel mit.")
+_SUMMARY = ("Die Nachricht informiert, dass Ihr Wagen am Mittwoch um 9 Uhr zur Inspektion eingeplant ist. "
+            "Sie werden gebeten, den Zweitschlüssel mitzubringen.")
+
+
+@pytest.mark.parametrize("relayed", ["yes", "no", None])
+def test_a_summary_of_a_pasted_mail_is_asked_whether_it_only_passes_it_on(monkeypatch, relayed):
+    """Mac gate20 on 1d605955a: a German summary of a pasted garage mail had its first sentence cut and replaced by "no
+    email account is connected, nothing was sent". The said-back reader knows English done words only; the relay
+    judge reads any language. The judge here is a stand-in: what it answers is the test's choice."""
+    from core import intent_arbiter
+
+    asked = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_claim_relayed",
+                        lambda reply, given, **_k: asked.append((reply, given)) or relayed)
+    published, record = gate(_SUMMARY, said=(), request=_MAIL)
+    if record.get("publication") == "stood_down:no_action_claims":
+        pytest.skip("this summary reads as no claim on this line")
+    assert asked and "Zweitschlüssel" in asked[0][1]
+    if relayed == "yes":
+        assert published == _SUMMARY and record["publication"] == "stood_down:relays_given_text"
+    else:
+        assert record["publication"] == "action_claims_corrected"
+
+
+def test_a_claim_with_no_material_of_the_persons_is_not_put_to_the_relay_judge(monkeypatch):
+    from core import intent_arbiter
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_claim_relayed", lambda *a, **k: pytest.fail("asked without material"))
+    gate("Your appointment is scheduled for Friday at 9.", said=(), request="book me in for Friday at 9")

@@ -1282,6 +1282,37 @@ def _with_kept_line(text: str, turn_id: str, source_context: Any, publication: s
         return text, record
 
 
+def _relays_what_was_given(spans: list, request: str, source_context: Any) -> bool:
+    """Whether the claim sentences only pass on what the person's own pasted text or attachment says happened.
+
+    Mac gate20 on 1d605955a: "Worum geht es in dieser Nachricht?" over a pasted garage mail was answered "Die Nachricht
+    informiert, dass Ihr Fahrzeug am Dienstag um 8 Uhr zur Inspektion eingeplant ist ...", and the sentence was cut
+    and replaced by "no email account is connected, nothing was sent". The said-back reader here knows English done
+    words only; the judge the final check already asks for this (`core.intent_arbiter.arbitrate_claim_relayed`) reads
+    any language. Asked only when the turn carries material of the person's own (a paste after the ask, or an
+    attachment); no answer leaves the claims as they are."""
+    try:
+        from core.plain_task_routing import _SUPPLIED_MATERIAL_RE
+
+        context = source_context if isinstance(source_context, dict) else {}
+        attached = [
+            str(item.get("text") or "") for item in list(context.get("external_evidence") or [])
+            if isinstance(item, dict) and str(item.get("origin") or "") == "chat_attachment" and str(item.get("text") or "").strip()
+        ]
+        if not attached and not _SUPPLIED_MATERIAL_RE.search(request):
+            return False
+        from core import intent_arbiter
+
+        claimed = " ".join(dict.fromkeys(str(c[3]) for c in spans))
+        given = "\n\n".join([request, *attached])
+        return intent_arbiter.arbitrate_claim_relayed(
+            claimed, given, chat_id=str(context.get("runtime_session_id") or context.get("session_id") or ""),
+            source_context=context,
+        ) == "yes"
+    except Exception:
+        return False
+
+
 def gate_action_claims(
     content: str,
     *,
@@ -1377,6 +1408,8 @@ def gate_action_claims(
             return text, {"action_claims": sources, "publication": "illustrative_frame"}
     except Exception:
         pass
+    if request and _relays_what_was_given(spans, request, source_context):
+        return text, {"action_claims": sources, "publication": "stood_down:relays_given_text"}
     if _any_execution(turn_id, source_context):
         # A tool that ran backs what it is about, not every claim beside it. Measured on the installed fe98e849
         # (real-app check v3 and the outside tooling audit, 2026-11-22): "hey make a remidner to book a haircut

@@ -83,6 +83,31 @@ def _operator_intent_in_user_words(
     return in_user_words
 
 
+def _order_left_by_a_pasted_message(operator_intent: Any, typed_turn: str, parse_operator_action_intent_fn: Any) -> Any:
+    """The operator action a turn holding a pasted email or message may run: None when the order came from the mail.
+
+    A pasted mail gives an order no authority: the order is the person's own words in front of it. The mail may still
+    supply the details of an order those words give ("put this in my calendar" over an invitation), so the whole text
+    keeps its reading when the person's words parse as an action or the turn's tool judge, which reads those words
+    with the mail shown as material (core.plugin_ask), picked a tool. Mac gate20 on 1d605955a: "Résume-moi ce
+    message" over a club mail saying "The club opens on Saturday at 10" ran a calendar availability check with no
+    tool picked, and failed."""
+    if operator_intent is None:
+        return None
+    from core.memory.admission import holds_a_pasted_message, text_before_a_pasted_message
+
+    if not holds_a_pasted_message(typed_turn):
+        return operator_intent
+    from core import plugin_ask
+
+    own_words = text_before_a_pasted_message(typed_turn).strip()
+    if own_words and parse_operator_action_intent_fn(own_words) is not None:
+        return operator_intent
+    if plugin_ask.judged_builtins(typed_turn) or plugin_ask.judged_plugins(typed_turn):
+        return operator_intent
+    return None
+
+
 _EXPLICIT_NAMED_TOOL_RE = re.compile(
     r"\b(?:local\s+)?tool\s+(?:named|called)\s+[`\"']?"
     r"(?P<name>[A-Za-z][A-Za-z0-9_.-]{1,127})",
@@ -305,6 +330,9 @@ def prepare_turn_task_bundle(
         # message cannot grant this action the right to consume the whole turn.
         if not lane_may_claim_whole_turn(effective_input, "operator_action_dispatch"):
             operator_intent = None
+        operator_intent = _order_left_by_a_pasted_message(
+            operator_intent, str(getattr(interpreted, "raw_text", "") or user_input or ""), parse_operator_action_intent_fn,
+        )
         # An explicitly pinned model outranks the text-shape fast path: the operator chose a
         # brain for this chat -- and for a paid route, approved it -- so a parser match on the
         # wording must not eat the turn (measured: a pinned, approved UsePod drive asking

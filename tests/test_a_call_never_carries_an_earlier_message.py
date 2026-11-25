@@ -143,7 +143,7 @@ def _said_of(payload: dict) -> str:
 def test_the_served_loop_hands_back_a_replayed_reminder_and_runs_the_asked_one(again, tmp_path) -> None:
     """``again``: the person does ask for the same thing again; the model sends it again after being told, and it runs."""
     import json
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta, timezone
     from typing import Any
 
     from core.entity_ambiguity import AMBIGUITY_SYSTEM_PROMPT
@@ -159,8 +159,10 @@ def test_the_served_loop_hands_back_a_replayed_reminder_and_runs_the_asked_one(a
     ))
     if again:
         ask = rng.choice(("same again please", "noch einmal bitte", "dar karta", "otra vez, por favor"))
-    earlier_call = {"due_iso": "2026-11-25T19:15", "note": note, "text": said}
-    asked_call = {"due_iso": "2026-11-26T09:30", "note": asked_note, "text": ask}
+    # Due times stay ahead of the clock: a reminder in the past is refused, and the test ran into that on its due day.
+    day = datetime.now() + timedelta(days=2)
+    earlier_call = {"due_iso": f"{day:%Y-%m-%d}T19:15", "note": note, "text": said}
+    asked_call = {"due_iso": f"{day + timedelta(days=1):%Y-%m-%d}T09:30", "note": asked_note, "text": ask}
     state = {"turn": 0}
 
     def call(arguments: dict) -> dict:

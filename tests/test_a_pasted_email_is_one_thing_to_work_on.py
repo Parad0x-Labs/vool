@@ -129,3 +129,42 @@ def test_an_address_alone_is_not_the_word_email():
 
     assert classify("what does mira@example.com stand for")["task_class"] != "integration_orchestration"
     assert classify("send an email to my landlord")["task_class"] == "integration_orchestration"
+
+
+def test_a_pasted_mail_gives_no_order_of_its_own(monkeypatch):
+    """Mac gate20 on 1d605955a: a French ask to sum up a pasted club mail ran a calendar availability check, read from
+    the mail's own words (no tool was picked), and failed."""
+    from core import plugin_ask
+    from core.agent_runtime.turn_dispatch import _order_left_by_a_pasted_message
+    from core.operator.parser import parse_operator_action_intent
+
+    mail = ("Riassumi questa mail per favore.\n\nFrom: Town Library <desk@example.org>\nSubject: New hours\n\n"
+            "The library opens on Monday at 9. Readers get a free bookmark and the new desks can be tried for the first time.")
+    read = parse_operator_action_intent(" ".join(mail.split()))
+    assert read is not None   # the mail's own words read as an order: the case this guards
+    plugin_ask.forget()
+    assert _order_left_by_a_pasted_message(read, mail, parse_operator_action_intent) is None
+    # The same order typed without a pasted mail is the person's own.
+    plain = "Am I free on Saturday at 10?"
+    assert _order_left_by_a_pasted_message("kept", plain, parse_operator_action_intent) == "kept"
+    # A tool the judge picked for the person's words keeps the mail as the order's material.
+    monkeypatch.setattr(plugin_ask, "judged_builtins", lambda text: ("calendar",))
+    assert _order_left_by_a_pasted_message(read, mail, parse_operator_action_intent) is read
+
+
+@pytest.mark.parametrize("ask", [
+    "Mohl bys mi shrnout, co v tom píšou?",
+    "Kas šiame laiške parašyta? Trumpai.",
+    "Resume-me isto em duas frases, por favor.",
+])
+def test_a_pasted_mail_does_not_pick_the_reply_language(ask):
+    """Mac gate20 on 1d605955a: an ask in Polish over a pasted English mail was answered in English. The mail's
+    words decided the language; only the person's own lines may."""
+    from core.response_language_policy import response_language_policy_for_text
+
+    mail = ("\n\nFrom: Garden Centre <shop@example.com>\nSubject: Your order is ready\n\n"
+            "Your order of two lemon trees and a bag of soil is ready for pickup. We are open every day from 8 "
+            "until 6 and the parking is at the back of the building.")
+    assert response_language_policy_for_text(ask + mail).expected_language != "en"
+    # The same mail under an English ask is still answered in English.
+    assert response_language_policy_for_text("What is this about, in short?" + mail).expected_language == "en"
