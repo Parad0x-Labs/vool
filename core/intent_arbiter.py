@@ -586,6 +586,7 @@ def bind_turn_judge(source_context: object, judge: Callable[[str], str] | None) 
     """Set, or with None clear, the judge of this turn: a ``prompt -> text`` callable. Called once at the turn's
     start, for every turn, so a judge never outlives its turn on a thread."""
     _THIS_THREAD.judge = judge
+    _THIS_THREAD.request_id = _current_request()
     turn = _turn_key(source_context)
     if not turn:
         return
@@ -597,8 +598,27 @@ def bind_turn_judge(source_context: object, judge: Callable[[str], str] | None) 
         _TURN_JUDGES.popitem(last=False)
 
 
+def _current_request() -> str:
+    try:
+        from core.semantic.semantic_admissions import current_request_id
+
+        return str(current_request_id() or "").strip()
+    except Exception:
+        return ""
+
+
 def _bound_judge(source_context: object) -> Callable[[str], str] | None:
-    return _TURN_JUDGES.get(_turn_key(source_context)) or getattr(_THIS_THREAD, "judge", None)
+    """The judge bound for this turn: by the turn's key, else the one this thread bound for the request it is serving
+    now. A thread's judge is never lent to another request: a pooled thread that served a turn kept its judge, and a
+    later call outside any turn on that thread (a tool offer assembled for another request) asked the earlier turn's
+    model (CI on 95fae99a0: a test with the network off saw a lookup of 127.0.0.1 from a judge left by a test before
+    it)."""
+    bound = _TURN_JUDGES.get(_turn_key(source_context))
+    if bound is not None:
+        return bound
+    if getattr(_THIS_THREAD, "request_id", "") != _current_request():
+        return None
+    return getattr(_THIS_THREAD, "judge", None)
 
 
 def _judged_for_the_turn(
