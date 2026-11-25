@@ -333,6 +333,10 @@ def test_singleton_initialization_is_locked_against_concurrent_first_access():
         second.join(timeout=5)
         release.set()
         first.join(timeout=5)
+        # The second asker waits on the init lock the stalled first constructor holds; it gets its journal only after
+        # the release above. Joined only before the release, its answer could land after the check below and read
+        # as one asker (CI on 56d5fb4a0: "saw 1 distinct instances" with one of two answers in).
+        second.join(timeout=5)
     finally:
         BackgroundEffectJournal.__init__ = original_init
         eg.reset_background_effect_journal()
