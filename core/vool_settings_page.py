@@ -2164,6 +2164,11 @@ function renderPane() {
   const pane = $('#pane');
   const keepTop = pane ? pane.scrollTop : 0;
   if (keepTop) body.style.minHeight = body.offsetHeight + 'px';
+  /* A panel kept across repaints (the phone settings) is put back as the same nodes, but taking it out
+     drops the caret: a re-read landing while the owner types sent the next keys nowhere. The field that had
+     the caret gets it back, with its selection, when it is on the page again after the repaint. */
+  const typing = document.activeElement && body.contains(document.activeElement) ? document.activeElement : null;
+  const typingAt = typing && typeof typing.selectionStart === 'number' ? [typing.selectionStart, typing.selectionEnd, typing.selectionDirection] : null;
   body.textContent = '';
   const kit = !LEGACY_GROUPS.has(g.id);
   const card = el('div', kit ? 'card vs-card' : 'card');
@@ -2234,6 +2239,10 @@ function renderPane() {
   if (card.childNodes.length || !Object.keys(cardNodes).length) body.appendChild(card);
   Object.keys(state.rows).forEach(paintState);
   body.style.minHeight = '';
+  if (typing && typing.isConnected && body.contains(typing) && document.activeElement !== typing) {
+    typing.focus({ preventScroll: true });
+    if (typingAt) { try { typing.setSelectionRange(typingAt[0], typingAt[1], typingAt[2]); } catch (_) { /* a field kind without a caret */ } }
+  }
   if (state.focusRow) {
     const target = body.querySelector('[data-row="' + CSS.escape(state.focusRow) + '"]');
     if (target) { $('#pane').scrollTop = state.onlyRow ? 0 : target.offsetTop; target.classList.add('hit'); }
