@@ -4003,7 +4003,8 @@ def _dispatch_runtime_tool(
         if intent == "workspace.list_files":
             return _list_files(arguments, workspace_root=workspace_root)
         if intent == "machine.list_directory":
-            return _list_machine_directory(arguments, workspace_root=workspace_root)
+            return _list_machine_directory(arguments, workspace_root=workspace_root,
+                                           project_root=_bound_project_root(source_context))
         if intent == "machine.inspect_specs":
             return _memoized_runtime_result(
                 "machine.inspect_specs",
@@ -6217,10 +6218,15 @@ def _spoken_root_label(raw_path: Any, target: Path) -> str:
 
 
 def _list_machine_directory(
-    arguments: dict[str, Any], *, workspace_root: Path
+    arguments: dict[str, Any], *, workspace_root: Path, project_root: Path | None = None
 ) -> RuntimeExecutionResult:
     try:
-        target = _resolve_machine_directory(arguments.get("path"))
+        # "here" in a chat bound to a folder is that folder: "kur laikau savo sodo planą?" in a project chat was
+        # listed as {"path": "."} by qwen3:8b (iMac gate on c78c018da), and "." is no home folder.
+        if project_root is not None and str(arguments.get("path") or "").strip() in {"", ".", "./"}:
+            target = project_root
+        else:
+            target = _resolve_machine_directory(arguments.get("path"))
     except ValueError:
         allowed_roots = _readable_root_labels()
         return RuntimeExecutionResult(
