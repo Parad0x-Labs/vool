@@ -618,6 +618,54 @@ def _judged_about_the_persons_own(text: str) -> bool:
     return bool(picked & _PERSONS_OWN_CHOICES) and "web" not in picked
 
 
+#: The time zone the clock question named for a message (casefolded, whitespace-folded text -> (when, zone)), read by
+#: the turn's facts (core.prompt_normalizer._named_place_times_text): "Lisboa" is not a name the time zone database
+#: holds, the judge knows the place.
+_CLOCK_ZONES: dict[str, tuple[float, str]] = {}
+
+
+def judged_clock_zone(text: str) -> str:
+    """The IANA zone the clock question named for this message, or ""."""
+    key = " ".join(str(text or "").split()).casefold()
+    with _WEB_VERDICTS_LOCK:
+        held = _CLOCK_ZONES.get(key)
+    if held is None or _time.monotonic() - held[0] > _WEB_VERDICT_LIFETIME_S:
+        return ""
+    return held[1]
+
+
+def _asks_the_clock(flat: str, *, source_context: dict | None, session_id: str) -> bool:
+    """Whether a message the web question read as an internet ask only asks the time or date now, here or in a place:
+    the clock answers that, and the turn's facts carry the time there (core.prompt_normalizer._named_place_times_text).
+
+    Asked when the message names a city the time zone database holds, or when Web lookups are off (the reading would
+    otherwise refuse the turn). No answer keeps the web reading."""
+    try:
+        from core.prompt_normalizer import _places_named
+
+        if not _places_named(flat):
+            from core.remote_fetch_policy import effective_web_available
+
+            if effective_web_available():
+                return False
+        from core import intent_arbiter
+
+        verdict = str(intent_arbiter.arbitrate_clock_ask(
+            flat, chat_id=str(session_id or ""), source_context=source_context
+        ) or "")
+    except Exception:
+        return False
+    if not verdict.startswith("yes"):
+        return False
+    zone = verdict.partition("|")[2]
+    if zone:
+        with _WEB_VERDICTS_LOCK:
+            if len(_CLOCK_ZONES) > 128:
+                _CLOCK_ZONES.clear()
+            _CLOCK_ZONES[flat.casefold()] = (_time.monotonic(), zone)
+    return True
+
+
 def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id: str = "") -> str | None:
     """Whether the message needs the internet, judged from what it says in any language: "yes", "no", or None
     when no model judged it (`core.intent_arbiter.arbitrate_web_ask`). One verdict per message in a turn, so the
@@ -647,6 +695,8 @@ def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id
             verdict = intent_arbiter.arbitrate_web_ask(flat, chat_id=str(session_id or ""), source_context=source_context)
         except Exception:
             verdict = None
+        if verdict == "yes" and _asks_the_clock(flat, source_context=source_context, session_id=session_id):
+            verdict = "no"
         return verdict if verdict in ("yes", "no") else None
     key = f"{turn}\x00{flat.casefold()}"
     now = _time.monotonic()
@@ -662,6 +712,8 @@ def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id
         verdict = None
     import logging
 
+    if verdict == "yes" and _asks_the_clock(flat, source_context=source_context, session_id=session_id):
+        verdict = "no"
     logging.getLogger(__name__).info("web ask verdict: %s", verdict if verdict in ("yes", "no") else "none")
     if verdict not in ("yes", "no"):
         return None   # nothing judged it: not remembered, a later reader may still get a judgement

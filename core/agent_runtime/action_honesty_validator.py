@@ -2676,6 +2676,23 @@ def _every_address_is_pasted_below_the_ask(text: str) -> bool:
     return bool(addresses) and all(address_pasted_below_the_ask(raw, address) for address in addresses)
 
 
+def _says_the_web_is_off(response: str) -> bool:
+    """Whether a reply holds one of the runtime's own web-unavailable declines (core.remote_fetch_policy)."""
+    try:
+        from core import remote_fetch_policy as policy
+
+        declines = [
+            getattr(policy, name, "") for name in (
+                "WEB_OFF_LOOKUP_TEXT", "OFFLINE_LOOKUP_TEXT", "MACHINE_OFFLINE_LOOKUP_TEXT", "WEB_FORCED_OFF_LOOKUP_TEXT",
+                "WEB_OFF_TEXT", "OFFLINE_TEXT", "MACHINE_OFFLINE_TEXT", "WEB_FORCED_OFF_TEXT",
+            )
+        ]
+    except Exception:
+        return False
+    folded = " ".join(str(response or "").split()).casefold()
+    return any(text and " ".join(str(text).split()).casefold() in folded for text in declines)
+
+
 def response_describes_unfetched_url(*, user_input: str, response: str, fetch_attempts: int) -> bool:
     """Whether the model answered ABOUT a URL it never fetched. If a URL is named with a
     review/check/score intent and no web fetch happened this turn, any substantive answer is a
@@ -2688,6 +2705,12 @@ def response_describes_unfetched_url(*, user_input: str, response: str, fetch_at
     if _every_address_is_pasted_below_the_ask(text):
         return False
     resp = str(response or "").strip()
+    if _says_the_web_is_off(resp):
+        # Already the runtime's own decline, with the reason the page was not read (Web lookups off, an Offline chat,
+        # a computer kept local). iMac gate24 on a1cf06d6d: "please open https://example.org/menu ..." with Web lookups
+        # off had web.fetch refused with "Web lookups are off ... turn them on in Settings", and this backstop put
+        # "Ask me to fetch it and I'll read the page itself" in its place: a fetch that could not run.
+        return False
     # The sentinel is a substring OF `_UNFETCHED_URL_RESPONSE`, so the guard recognises its own
     # output and does not judge its own decline a fabrication. It broke silently when the message
     # was reworded and the sentinel was not, which is why it is now derived from the message.

@@ -1510,6 +1510,14 @@ def _named_place_times_text(text: str, now: datetime) -> str:
         from zoneinfo import ZoneInfo
 
         places = _places_named(text)[:3]
+        try:
+            from core.online_asks import judged_clock_zone
+
+            judged = judged_clock_zone(text)
+        except Exception:
+            judged = ""
+        if judged and all(judged != zone for zone, _label in places):
+            places.append((judged, judged.rsplit("/", 1)[-1].replace("_", " ")))
         parts = []
         for zone, label in places:
             local = now.astimezone(ZoneInfo(str(zone)))

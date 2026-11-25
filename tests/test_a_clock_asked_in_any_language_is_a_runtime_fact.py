@@ -42,3 +42,47 @@ def test_a_place_name_that_is_an_everyday_word_adds_nothing(said):
     from core.prompt_normalizer import _named_place_times_text
 
     assert _named_place_times_text(said, datetime(2026, 11, 25, 22, 40, tzinfo=timezone.utc)) == ""
+
+
+def test_the_clock_question_reads_back_a_zone_the_database_knows():
+    from core.intent_arbiter import _clock_ask_reader
+
+    assert _clock_ask_reader('{"answer": "yes", "zone": "America/Sao_Paulo"}') == "yes|America/Sao_Paulo"
+    assert _clock_ask_reader('{"answer": "yes", "zone": "Middle/Earth"}') == "yes"
+    assert _clock_ask_reader('{"answer": "no"}') == "no"
+
+
+def _web_verdict(monkeypatch, text, *, web_on, clock):
+    from core import intent_arbiter, online_asks, remote_fetch_policy
+
+    asked = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_web_ask", lambda *a, **k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_clock_ask", lambda *a, **k: asked.append(a) or clock)
+    monkeypatch.setattr(remote_fetch_policy, "effective_web_available", lambda *a, **k: web_on)
+    online_asks._WEB_VERDICTS.clear()
+    online_asks._CLOCK_ZONES.clear()
+    return online_asks.web_ask_verdict(text), asked
+
+
+def test_a_clock_ask_in_a_place_named_in_its_own_language_is_not_a_web_ask(monkeypatch):
+    """iMac gate24 on a1cf06d6d: "Que horas são agora em Lisboa?" (Web lookups off) was refused as a web lookup;
+    "Lisboa" is not a name the time zone database holds, so the judge names the zone and the turn's facts carry it."""
+    from core.online_asks import judged_clock_zone
+    from core.prompt_normalizer import _named_place_times_text
+
+    ask = "A que horas fecha o dia em Montevidéu agora?"
+    verdict, asked = _web_verdict(monkeypatch, ask, web_on=False, clock="yes|America/Montevideo")
+    assert verdict == "no" and asked
+    assert judged_clock_zone(ask) == "America/Montevideo"
+    line = _named_place_times_text(ask, datetime(2026, 11, 25, 23, 0, tzinfo=timezone.utc))
+    assert "Montevideo" in line and "20:00" in line, line
+
+
+def test_anything_else_about_a_place_stays_a_web_ask(monkeypatch):
+    verdict, asked = _web_verdict(monkeypatch, "how many tourists visit Prague a year?", web_on=True, clock="no")
+    assert verdict == "yes" and asked   # Prague is named: asked, and its no keeps the web reading
+
+
+def test_with_the_web_on_and_no_known_place_the_clock_is_not_asked(monkeypatch):
+    verdict, asked = _web_verdict(monkeypatch, "what is in the headlines this evening?", web_on=True, clock="yes")
+    assert verdict == "yes" and not asked

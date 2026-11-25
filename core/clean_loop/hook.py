@@ -389,7 +389,11 @@ def loop_should_decline(
         if follow_up and not steps:
             return ""
         return "found_nothing_fell_through"
-    words = route.own_content_words(text)
+    # A number of three digits or more that the ask names ("invoice 4471", "recipes-8586") is as distinctive as any word:
+    # the word reader drops bare numbers, and the Lithuanian "Rask failą recipes-8586" was left with only its verb and
+    # "file" ("rask", "fail"), which no file name holds, so the file the find returned was thrown away (CI on
+    # 006e4a888, test_setup_first_tries_served: the try never ticked).
+    words = route.own_content_words(text) | set(re.findall(r"(?<!\d)\d{3,}(?!\d)", str(text or "")))
     seen = [str(x) for x in getattr(loop_result, "seen", None) or []]
     observed = [str(r.get("response_preview") or "") for r in (receipts or []) if (r.get("execution") or {}).get("ok", True)]
     blob = " ".join([*seen, *observed]).lower()

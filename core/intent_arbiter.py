@@ -1872,6 +1872,78 @@ def arbitrate_web_ask(
     )
 
 
+def _clock_ask_prompt(message: str) -> str:
+    """Whether a message asks what the time or date is NOW, here or in a place, and that place's time zone.
+
+    Asked only of a message the web question read as needing the internet, when it names a city VOOL knows or Web
+    lookups are off (core.online_asks.web_ask_verdict). iMac gate24 on a1cf06d6d (qwen3:8b): "Que horas são agora em
+    Lisboa?" and a Danish ask for the time in Tokyo were read as web asks even with the clock named in the web
+    question, and were refused "Web lookups are off". The zone is asked for because a place is named in the person's
+    language ("Lisboa", "Tokio"); the runtime checks it against the time zone database before using it."""
+    flat = " ".join(str(message or "").split())[:300].replace('"', "'")
+    return "\n".join([
+        "A person wrote one message to their assistant. Question: does it ask what the time or the date is NOW, here or "
+        "in a city or country? The computer's clock answers that.",
+        'If yes, also give the IANA time zone of the place it names ("" when it names none): '
+        '{"answer": "yes", "zone": "Asia/Seoul"}.',
+        'Answer {"answer": "no"} when it asks anything else about the place: weather, prices, news, opening hours, '
+        "how many people live there, what to see, when something happens there.",
+        "",
+        'Message: "is it already morning in Seoul?" -> {"answer": "yes", "zone": "Asia/Seoul"}',
+        'Message: "kiek valandų dabar Rygoje?" -> {"answer": "yes", "zone": "Europe/Riga"}',
+        'Message: "quelle date est-on à Auckland ?" -> {"answer": "yes", "zone": "Pacific/Auckland"}',
+        'Message: "how many people live in Cairo?" -> {"answer": "no"}',
+        'Message: "wie wird das Wetter morgen in Madrid?" -> {"answer": "no"}',
+        'Message: "a che ora apre il museo a Parigi?" -> {"answer": "no"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object.',
+    ])
+
+
+def _clock_ask_reader(content: str) -> str | None:
+    """"no", "yes", or "yes|<zone>" when the judge named a zone the time zone database knows."""
+    verdict = _named_answer(content, {"yes": "yes", "no": "no"})
+    if verdict != "yes":
+        return verdict
+    zone = ""
+    try:
+        start, end = str(content or "").find("{"), str(content or "").rfind("}")
+        data = json.loads(str(content)[start:end + 1]) if 0 <= start < end else {}
+        zone = str(data.get("zone") or "").strip() if isinstance(data, dict) else ""
+    except Exception:
+        zone = ""
+    if zone:
+        try:
+            from zoneinfo import ZoneInfo
+
+            ZoneInfo(zone)
+        except Exception:
+            zone = ""
+    return f"yes|{zone}" if zone else "yes"
+
+
+def arbitrate_clock_ask(
+    message: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """``"yes"`` (or ``"yes|<IANA zone>"``) when the message asks the current time or date, here or in a place;
+    ``"no"`` when it asks something else; None when nothing judged it."""
+    if not str(message or "").strip():
+        return None
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(_clock_ask_prompt(message), source_context, _clock_ask_reader)
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_clock_ask_prompt(message), operation="clock_ask_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(), parse=_clock_ask_reader,
+    )
+
+
 def _whole_memory_prompt(message: str) -> str:
     flat = " ".join(str(message or "").split())[:400].replace('"', "'")
     return "\n".join([
