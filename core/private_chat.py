@@ -43,6 +43,7 @@ __all__ = [
     "REPLY_NOT_KEPT_THIS_TURN",
     "REPLY_REMEMBER_REFUSED",
     "PrivateCommand",
+    "chat_has_private_request_in_flight",
     "end_private_request",
     "is_private",
     "localized_reply",
@@ -245,6 +246,28 @@ def chat_has_request_in_flight(session_id: str, *, besides: str = "") -> bool:
     sid = _clean(session_id)
     with _LOCK:
         return any(owner == sid and rid != besides for rid, owner in _DOOR_REQUESTS.items())
+
+
+def chat_has_private_request_in_flight(session_id: str) -> bool:
+    """Whether a private turn of ``session_id`` is still running, read from any thread.
+
+    The bound request answers only on the turn's own thread. A chat whose first message keeps only itself out ("...,
+    don't save that") is not switched private, so on every other thread (the page's preview poll) the chat read as
+    having no namespace, its disclosure scope as changed, and the turn was stopped while it worked: "Cancelled before
+    publication" (iMac gate on 3c92e8df3)."""
+    sid = _clean(session_id)
+    if not sid:
+        return False
+    with _LOCK:
+        owners = {owner for rid, owner in _DOOR_REQUESTS.items() if rid in _PRIVATE_REQUESTS}
+    if sid in owners:
+        return True
+    if not owners:
+        return False
+    from core.chat_session_identity import canonical_chat_session_id
+
+    wanted = canonical_chat_session_id(sid)
+    return any(canonical_chat_session_id(owner) == wanted for owner in owners)
 
 
 def end_private_request(request_id: str) -> int:

@@ -115,7 +115,7 @@ def test_a_chat_that_starts_private_leaves_no_chat_until_recording_is_back_on(tm
             starts = {
                 "b2" * 10: ["don't record this", f"The surprise party is at {SECRET} Hall."],
                 "c3" * 10: ["private chat"],
-                "d4" * 10: [f"off the record, the gift is a {SECRET} lamp"],
+                "d4" * 10: [f"private chat, the gift is a {SECRET} lamp"],
             }
             for key, messages in starts.items():
                 for text in messages:
@@ -126,6 +126,15 @@ def test_a_chat_that_starts_private_leaves_no_chat_until_recording_is_back_on(tm
                 # A reload of the private chat still knows it is private, and shows none of it.
                 history = _get(daemon, f"/api/chat/history?session=openclaw:{key}")
                 assert history.get("private_chat") is True and history.get("messages") == [], history
+            # A first message that keeps only itself out ("off the record, ...") is a private turn, not a private
+            # chat: it leaves no chat behind either, and the chat is not switched (iMac gate on f5cff3511).
+            alone = "e5" * 10
+            _, commit = _stream(daemon, f"off the record, the gift is a {SECRET} lamp", "openclaw:" + alone)
+            assert commit.get("display_metadata", {}).get("private_chat") is True, commit
+            assert _rows_for(daemon, alone) == [], _rows_for(daemon, alone)
+            assert _namespace_rows_naming(home, alone) == [], alone
+            history = _get(daemon, f"/api/chat/history?session=openclaw:{alone}")
+            assert history.get("private_chat") is not True and history.get("messages") == [], history
             sidebar = _get(daemon, "/api/chat/sessions").get("sessions") or []
             assert "New chat" not in [row.get("title") for row in sidebar], sidebar
             assert _rows_for(daemon, plain), "control: the ordinary chat is still listed"

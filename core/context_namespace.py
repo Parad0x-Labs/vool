@@ -80,6 +80,9 @@ def _chat_is_private_now(clean_chat: str) -> bool:
 
     if private_chat.is_private(clean_chat):
         return True
+    if private_chat.chat_has_private_request_in_flight(clean_chat):
+        # A private turn of this chat still running, read from another thread (the page's poll).
+        return True
     if not private_chat.request_is_private():
         return False
     owner = private_chat.private_request_session()
