@@ -158,11 +158,11 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         title = str(arguments.get("title") or "VOOL Meeting").strip()
         start_iso = str(arguments.get("start_iso") or "").strip()
         named_day = _argument(arguments, "day")
-        if start_iso and named_day:
+        if start_iso:
             from core.operator.handlers import _owner_today
-            from core.operator.when import align_to_weekday, typed_weekday
+            from core.operator.when import align_to_weekday, typed_weekday, weekday_named_in
 
-            weekday = typed_weekday(named_day)
+            weekday = typed_weekday(named_day) if named_day else weekday_named_in(_argument(arguments, "text"))
             if weekday is not None:
                 start_iso = align_to_weekday(start_iso, weekday, _owner_today())
         duration_minutes = max(15, int(arguments.get("duration_minutes") or 30))

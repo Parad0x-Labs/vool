@@ -1193,9 +1193,12 @@ def _typed_reminder_when(intent: OperatorActionIntent, parse_when_fn: Any) -> tu
     typed = str(getattr(intent, "due_iso", "") or "").strip()
     if not typed:
         return None
-    from core.operator.when import WhenResolution, align_to_weekday, typed_weekday, when_text_from_iso
+    from core.operator.when import WhenResolution, align_to_weekday, typed_weekday, weekday_named_in, when_text_from_iso
 
     weekday = typed_weekday(str(getattr(intent, "due_weekday", "") or ""))
+    if weekday is None:
+        # A call that left the day out: the weekday the request itself names, in any of VOOL's languages.
+        weekday = weekday_named_in(str(getattr(intent, "raw_text", "") or ""))
     if weekday is not None:
         typed = align_to_weekday(typed, weekday, _owner_today())
     words = when_text_from_iso(typed)

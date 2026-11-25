@@ -16,6 +16,7 @@ import calendar
 import contextlib
 import math
 import re
+import unicodedata
 from calendar import monthrange
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -267,6 +268,61 @@ def typed_weekday(value: str) -> int | None:
         if name.startswith(word) or word == name:
             return index
     return None
+
+
+#: Weekday names in the languages VOOL's own pages speak (core/i18n/catalogs), casefolded, Monday first. A word
+#: matches a name it equals or, for a name ending in "-", one it starts with (inflected forms: "penktadienį",
+#: "пятницу", "piątku"). Names with no word breaks around them (Chinese, Japanese, Korean, Arabic, Hebrew, Hindi,
+#: Vietnamese) are found anywhere in the text. Calendar names from CLDR; a reading of fact, not of phrasing.
+_WEEKDAY_WORDS: tuple[tuple[str, ...], ...] = (
+    ("monday", "pirmadien-", "montag-", "lundi", "lunes", "lunedì", "lunedi", "segunda-feira", "poniedział-",
+     "понедельник-", "понеділ-", "pazartesi-"),
+    ("tuesday", "antradien-", "dienstag-", "mardi", "martes", "martedì", "martedi", "terça-feira", "terca-feira",
+     "wtorek", "wtorku", "вторник-", "вівтор-", "salı-", "sali"),
+    ("wednesday", "trečiadien-", "treciadien-", "mittwoch-", "mercredi", "miércoles", "miercoles", "mercoledì",
+     "mercoledi", "quarta-feira", "środa", "środę", "środy", "środzie", "среда", "среду", "среды", "середа", "середу",
+     "середи", "çarşamba-", "carsamba-"),
+    ("thursday", "ketvirtadien-", "donnerstag-", "jeudi", "jueves", "giovedì", "giovedi", "quinta-feira", "czwartek", "czwartku",
+     "четверг-", "четвер", "четверга", "perşembe-", "persembe-"),
+    ("friday", "penktadien-", "freitag-", "vendredi", "viernes", "venerdì", "venerdi", "sexta-feira", "piątek",
+     "piątku", "пятниц-", "п'ятниц-", "пʼятниц-", "cuma", "cumaya", "cumadan", "cuma'ya"),
+    ("saturday", "šeštadien-", "sestadien-", "samstag-", "sonnabend-", "samedi", "sábado", "sabado", "sabato",
+     "sobota", "sobotę", "soboty", "sobocie", "суббот-", "субот-", "cumartesi-"),
+    ("sunday", "sekmadien-", "sonntag-", "dimanche", "domingo", "domenica", "niedziel-", "воскресень-", "неділ-",
+     "pazar", "pazara", "pazardan", "pazar'a"),
+)
+_WEEKDAY_ANYWHERE: tuple[tuple[str, ...], ...] = (
+    ("星期一", "周一", "礼拜一", "月曜", "월요일", "الاثنين", "الإثنين", "יום שני", "सोमवार", "thứ hai"),
+    ("星期二", "周二", "礼拜二", "火曜", "화요일", "الثلاثاء", "יום שלישי", "मंगलवार", "thứ ba"),
+    ("星期三", "周三", "礼拜三", "水曜", "수요일", "الأربعاء", "الاربعاء", "יום רביעי", "बुधवार", "thứ tư"),
+    ("星期四", "周四", "礼拜四", "木曜", "목요일", "الخميس", "יום חמישי", "गुरुवार", "thứ năm"),
+    ("星期五", "周五", "礼拜五", "金曜", "금요일", "الجمعة", "יום שישי", "शुक्रवार", "thứ sáu"),
+    ("星期六", "周六", "礼拜六", "土曜", "토요일", "السبت", "יום שבת", "शनिवार", "thứ bảy"),
+    ("星期日", "星期天", "周日", "礼拜天", "日曜", "일요일", "الأحد", "الاحد", "יום ראשון", "रविवार", "chủ nhật"),
+)
+_WORD_RE = re.compile(r"[^\W\d_][\w'ʼ-]*", re.UNICODE)
+
+
+def weekday_named_in(text: str) -> int | None:
+    """The one weekday (0 = Monday) the person's words name, in any of VOOL's languages; None for none or several.
+
+    The tool call's own "day" field is the first reading (``typed_weekday``); this is for a call that left it out.
+    iMac gate on 88337f6b8 (qwen3:8b): "primink penktadienį 17 val. paimti siuntinį iš paštomato" (Friday) was typed as
+    Thursday 26 November with no day, and stored there; "šeštadienį" (Saturday) the run before the same."""
+    clean = unicodedata.normalize("NFC", str(text or "")).casefold()
+    if not clean:
+        return None
+    named: set[int] = set()
+    words = _WORD_RE.findall(clean)
+    for index, names in enumerate(_WEEKDAY_WORDS):
+        for word in words:
+            if any(word == name or (name.endswith("-") and word.startswith(name[:-1])) for name in names):
+                named.add(index)
+                break
+    for index, names in enumerate(_WEEKDAY_ANYWHERE):
+        if any(name in clean for name in names):
+            named.add(index)
+    return next(iter(named)) if len(named) == 1 else None
 
 
 def align_to_weekday(iso: str, weekday: int, today: date) -> str:
