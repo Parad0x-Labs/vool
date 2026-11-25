@@ -18,6 +18,12 @@ import json
 from core.i18n import catalog_for, get_locale
 from core.ui_palette import APPEARANCE_JS, DARK_PALETTE_CSS, LIGHT_PALETTE_CSS, appearance_html_attrs
 
+from .picture import PICTURE_JS
+
+#: The lines about VOOL under the picture of the hour, the same six the start page of the
+#: browser window shows.
+_POINTS = ("home_point_memory", "home_point_cost", "home_point_local", "home_point_account", "home_point_ask", "home_point_forget")
+
 _KEYS = (
     "browser", "note", "takeover", "resume", "approve", "refuse", "open", "address", "chat", "fill",
     "download", "upload", "up", "down", "ready", "approval_required", "running", "stopped", "refused",
@@ -44,12 +50,14 @@ def render(chat: str, locale: str, appearance: tuple[str, int] | None = None) ->
     for name in ("off", "on", "starting", "down"):
         labels["route_" + name] = cat.text("settings.private_web.state." + name)
     labels["route_local_only"] = cat.text("settings.private_web.local_only")
-    config = json.dumps({"chat": chat, "labels": labels}, ensure_ascii=False).replace("<", "\\u003c")
+    points = [cat.text("live." + key) for key in _POINTS]
+    config = json.dumps({"chat": chat, "labels": labels, "points": points}, ensure_ascii=False).replace("<", "\\u003c")
     return (
         _PAGE.replace("__PALETTE__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS)
         .replace("__APPEARANCE_ATTRS__", appearance_html_attrs(appearance))
         .replace("__APPEARANCE_JS__", APPEARANCE_JS)
         .replace("__TITLE__", html.escape(labels["browser"]))
+        .replace("__PICTURE__", PICTURE_JS)
         .replace("__CONFIG__", config)
         .replace("__LANG__", html.escape(locale))
         .replace("__DIR__", (get_locale(locale) or get_locale("en")).direction)
@@ -152,14 +160,25 @@ main{flex:1;display:flex;min-height:0;gap:0}
 #hot button{cursor:pointer}
 #hot button:hover,#hot button:focus-visible{outline:0;box-shadow:0 0 0 2px #fff,0 0 0 4px #2f6feb}
 #hot button.field{cursor:text}
-.blank{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center}
-.blank .inner{max-width:400px}
-.blank .orb{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;margin:0 auto 14px;background:var(--accent-soft);color:var(--accent)}
-.blank .orb .ic{width:24px;height:24px}
-.blank h2{font-size:17px;margin:0 0 6px;font-weight:600}
-.blank p{margin:0;color:var(--muted)}
-.blank a{color:var(--accent)}
-.blank .btn{margin-top:14px}
+/* The empty view: the picture of the hour VOOL's start page has, drawn here by this page.
+   Its words stand on the print's own paper and ink, whatever theme the app is in. If the
+   picture cannot be drawn, the words keep the app's colours and nothing else changes. */
+.blank{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;text-align:start;background:var(--paper,transparent);color:var(--ink,var(--text))}
+#sky{position:absolute;inset:0;width:100%;height:100%}
+[dir=rtl] #sky{transform:scaleX(-1)}
+.blank .inner{position:relative;max-width:30rem;margin:9% 1.5rem 0;margin-inline-start:max(1.5rem,7%)}
+.blank .mark{font-size:2.2rem;line-height:1.5;letter-spacing:.42em;font-weight:600;margin:0 0 1rem}
+.blank h2{font:italic 500 1.45rem/1.3 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;margin:0 0 .3rem}
+.blank p{margin:0;color:var(--quiet,var(--muted))}
+.blank .btn{height:auto;margin-top:1.1rem;padding:.6rem 1rem;border:1.5px solid var(--line,var(--border));border-radius:.2rem;background:var(--field,var(--panel));color:var(--ink,var(--text));box-shadow:4px 4px 0 var(--line,transparent)}
+.blank .btn:focus-visible{outline:2px solid var(--ink,var(--accent));outline-offset:3px}
+#point{position:relative;margin:auto 0 0;padding:1rem 1.5rem 1.6rem;padding-inline-start:max(1.5rem,7%);max-width:34rem;color:#eee8d5;font:italic 500 1.7rem/1.2 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+#point::before{content:"";display:block;width:3.2rem;border-top:2px solid #eee8d5;margin-bottom:.7rem}
+#point:empty{display:none}
+/* A low or narrow pane, where the land would run under the words: they get paper of their own. */
+.blank.small .inner{margin:1.2rem;padding:1.2rem;background:var(--paper,transparent);border:1.5px solid var(--line,transparent);box-shadow:5px 5px 0 var(--line,transparent)}
+.blank.small .mark{font-size:1.6rem;margin-bottom:.6rem}
+.blank.small #point{font-size:1.3rem;padding-bottom:1rem}
 .foot{display:flex;align-items:center;gap:8px;padding-top:8px;color:var(--muted);font-size:12px;min-width:0}
 .foot .ic{width:14px;height:14px}
 #note{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -227,7 +246,7 @@ main{flex:1;display:flex;min-height:0;gap:0}
     <div class="viewport" id="viewport">
       <div class="progress" id="progress" hidden></div>
       <div class="shot" id="shot"><img id="frame" alt="" hidden draggable="false"><div id="hot"></div></div>
-      <div class="blank" id="blank"><div class="inner"><div class="orb">__I_globe__</div><h2 id="blankTitle"></h2><p id="blankBody"></p><button class="btn" id="blankWindow" type="button" hidden></button></div></div>
+      <div class="blank" id="blank"><svg id="sky" aria-hidden="true"></svg><div class="inner"><div class="mark" aria-hidden="true">VOOL</div><h2 id="blankTitle"></h2><p id="blankBody"></p><button class="btn" id="blankWindow" type="button" hidden></button></div><p id="point"></p></div>
     </div>
     <div class="foot">__I_shield__<span id="note"></span><span id="url"></span></div>
   </div>
@@ -307,6 +326,7 @@ function paint(j){
     // With the Browser switched off there is no window to offer.
     $('blankWindow').hidden=off;
   }
+  paintSky();
   fitShot();
   paintHot(j,busy||!!pending);
   paintList(j);
@@ -315,6 +335,27 @@ function paint(j){
 function fitShot(){const j=current||{};const [vw,vh]=j.view||[1100,720];const vp=$('viewport');
   const w=Math.max(120,Math.min(vp.clientWidth,(vp.clientHeight-2)*vw/vh));$('shot').style.width=w+'px';}
 window.addEventListener('resize',fitShot);
+// The empty view shows the picture of the hour that VOOL's start page shows: the same drawing,
+// from the clock and the date, with one of VOOL's lines under it. It is drawn when the empty
+// view comes up and again every few minutes while it stays up. A fault in drawing it leaves
+// the words as they were and never stops the pane.
+const picture=(DIRECTION=>{
+__PICTURE__
+return {paint,dress};})(document.documentElement.dir);
+let skyAt=0;
+function paintSky(now){
+  const box=$('blank');
+  if(box.hidden){skyAt=0;return;}
+  const vp=$('viewport'); box.classList.toggle('small',vp.clientHeight<520||vp.clientWidth<760);
+  if(!now&&Date.now()-skyAt<5*60*1000)return;
+  skyAt=Date.now(); const when=now||new Date();
+  try{
+    const {look,at}=picture.paint($('sky'),when);
+    box.dataset.sky=look.name; picture.dress(box.style,look);
+    $('point').textContent=cfg.points[(when.getDate()+at)%cfg.points.length];
+  }catch(e){ $('sky').replaceChildren(); box.removeAttribute('data-sky'); box.removeAttribute('style'); $('point').textContent=''; }
+}
+window.addEventListener('resize',()=>paintSky());
 function icon(name){const t=document.createElement('template');t.innerHTML=ICONS[name];return t.content.firstChild;}
 const ICONS={lock:`__I_lock__`,globe:`__I_globe__`};
 function kindOf(n){

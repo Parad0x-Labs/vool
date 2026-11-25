@@ -36,6 +36,16 @@ Press **Open in a browser window**. It is on the browser bar, on the empty page 
 A real browser window opens, with VOOL's start page: a search box and the sites you visit most.
 Behind them is a picture of the hour: the sun by day, the moon by night as full as it is that night, and a new landscape each day.
 The picture is drawn on your computer. Nothing is fetched for it.
+The empty page of the Browser inside VOOL shows the same picture.
+
+In the bottom corner of the start page are a sun and a moon. Press the sun to keep the page light,
+or the moon to keep it dark, whatever the hour. Press the same one again and the page follows the
+clock again. This changes VOOL's start page only: the browser's own bars and the sites you open
+keep following your computer's light or dark setting.
+
+In a new profile the start page fills the whole tab. The engine's own strip under a new tab, with
+its customise button, is switched off. It is one of the browser's own settings, and VOOL sets it
+for a new profile only.
 
 * Sign-ins, bookmarks and history are kept between starts, in VOOL's own profile.
 * Search starts as DuckDuckGo. You can choose another search in the browser's settings.

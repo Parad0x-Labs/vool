@@ -194,6 +194,10 @@ def default_preferences() -> dict[str, Any]:
         # Read by the engine on macOS only; see ``start_page_is_agreed_to``.
         _AGREED_ONCE: False,
         "bookmark_bar": {"show_on_all_tabs": True},
+        # The engine's own strip under a new tab ("Customise ...", and who the page is by).
+        # VOOL's start page fills the tab. Like the rest here it is written for a new
+        # profile only, and it is the engine's own setting, the person's to change.
+        "NewTabPage": {"FooterVisible": False},
     })
 
 

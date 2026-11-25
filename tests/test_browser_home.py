@@ -252,7 +252,7 @@ def test_a_place_is_kept_on_the_start_page_for_top_skills_and_plugins_and_shows_
         return await page.is_hidden("#picks"), await page.inner_html("#picks"), await page.evaluate(
             "[...document.querySelectorAll('main > *')].map((el) => el.id || el.tagName)")
 
-    assert browser._call(look()) == (True, "", ["H1", "hello", "search", "visited", "picks"])
+    assert browser._call(look()) == (True, "", ["H1", "hello", "search", "visited", "picks", "look"])
 
 
 def test_a_private_window_is_the_engines_own_private_kind_and_keeps_the_engines_page(browser, site):
@@ -510,3 +510,28 @@ def test_the_start_page_speaks_every_language_vool_has(home):
         assert ('const DIRECTION = "rtl"' in files["home.js"]) == (language in ("ar", "he")), language
         seen.add(tuple(words.values()))
     assert len(seen) == len(LANGUAGES)
+
+
+def test_the_start_page_gets_the_whole_tab_with_no_strip_of_the_engines_under_it(browser, site):
+    """The engine draws a strip of its own under a new tab that another page stands in for
+    ("Customise ...", and who the page is by). VOOL's start page fills the tab instead:
+    a new tab gives it exactly the room any page gets in that window."""
+    base, _ = site
+    browser.open("")
+    first = next(p for p in browser.context_for_agent().pages if not p.is_closed())
+
+    async def rooms():
+        await first.wait_for_selector("#q")
+        other = await browser.context_for_agent().new_page()
+        await other.goto(base + "/")
+        await other.wait_for_selector("#h")
+        await other.bring_to_front()
+        site_room = await other.evaluate("[innerWidth, innerHeight]")
+        await first.bring_to_front()
+        await first.wait_for_timeout(500)
+        return await first.evaluate("[innerWidth, innerHeight]"), site_room
+
+    start_room, site_room = browser._call(rooms())
+    assert start_room == site_room, (start_room, site_room)
+    # The setting is one the person can change in the browser, and VOOL writes it for a new profile only.
+    assert desk_module.default_preferences()["NewTabPage"] == {"FooterVisible": False}

@@ -128,6 +128,98 @@ def test_where_the_language_reads_from_the_right_the_picture_is_turned_and_the_f
     assert turned["line"] not in {catalog_for("en").text("live." + key) for key in LINES}
 
 
+#: The page at a moment of ITS choosing: what the person pressed is taken into account, as
+#: it is when the page opens and every few minutes after.
+_SHOWN = """([y, m, d, h, min]) => {
+  show(new Date(y, m - 1, d, h, min));
+  const shade = (colour) => { const [r, g, b] = colour.match(/[\\d.]+/g).slice(0, 3).map((v) => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return .2126 * r + .7152 * g + .0722 * b; };
+  const ink = shade(getComputedStyle(document.querySelector('h1')).color), paper = shade(getComputedStyle(document.body).backgroundColor);
+  return {
+    part: document.documentElement.dataset.sky, sun: !!document.getElementById('sun'), moon: !!document.getElementById('moon'),
+    scheme: document.documentElement.style.colorScheme, readable: (Math.max(ink, paper) + .05) / (Math.min(ink, paper) + .05),
+    pressed: ['lookLight', 'lookDark'].filter((id) => document.getElementById(id).getAttribute('aria-pressed') === 'true'),
+    kept: localStorage.getItem('look'),
+  };
+}"""
+MORNING, NIGHT = [2026, 11, 25, 10, 0], [2026, 11, 25, 23, 30]
+DARK_PARTS = {"night", "first_light", "last_light"}
+
+
+def test_the_sun_and_the_moon_in_the_corner_show_the_page_by_day_or_by_night_and_a_second_press_gives_it_back_to_the_clock(browser, site):
+    page = first_page(browser)
+    browser._call(page.set_viewport_size({"width": 1280, "height": 720}))
+    shown = lambda moment: browser._call(page.evaluate(_SHOWN, moment))  # noqa: E731
+    part_now = lambda: browser._call(page.evaluate("document.documentElement.dataset.sky"))  # noqa: E731
+    words = catalog_for("en")
+
+    # Nothing pressed: the page follows the clock, and neither is marked.
+    seen = shown(MORNING)
+    assert (seen["part"], seen["sun"], seen["moon"], seen["scheme"], seen["pressed"], seen["kept"]) == ("day", True, False, "light", [], None)
+    assert shown(NIGHT)["part"] == "night"
+    # Each is a button a person can find by its name, in the page's language.
+    names = browser._call(page.evaluate("['lookLight', 'lookDark'].map((id) => { const b = document.getElementById(id); return [b.tagName, b.getAttribute('aria-label'), b.title]; })"))
+    light, dark = words.text("settings.appearance.theme_light"), words.text("settings.appearance.theme_dark")
+    assert names == [["BUTTON", light, light], ["BUTTON", dark, dark]]
+
+    # The moon is pressed: the page is dark at once, whatever the hour is on this machine.
+    browser._call(page.click("#lookDark"))
+    assert part_now() in DARK_PARTS
+    seen = shown(MORNING)
+    assert (seen["part"], seen["moon"], seen["sun"], seen["scheme"], seen["pressed"], seen["kept"]) == ("night", True, False, "dark", ["lookDark"], "dark")
+    assert seen["readable"] >= 7
+    # An hour that is dark by itself keeps its own picture: first light is not turned into deep night.
+    assert shown([2026, 11, 25, 5, 0])["part"] == "first_light" and shown(NIGHT)["part"] == "night"
+
+    # It is remembered: the page opened again is still dark, and still says which one is pressed.
+    browser._call(page.reload())
+    browser._call(page.wait_for_selector("#q"))
+    assert part_now() in DARK_PARTS
+    assert browser._call(page.evaluate("[lookDark.getAttribute('aria-pressed'), lookLight.getAttribute('aria-pressed')]")) == ["true", "false"]
+
+    # The sun is pressed, from the keyboard: light in the middle of the night, and readable.
+    browser._call(page.focus("#lookLight"))
+    browser._call(page.keyboard.press("Enter"))
+    assert part_now() not in DARK_PARTS
+    seen = shown(NIGHT)
+    assert (seen["part"], seen["sun"], seen["moon"], seen["scheme"], seen["pressed"], seen["kept"]) == ("day", True, False, "light", ["lookLight"], "light")
+    assert seen["readable"] >= 7
+    assert shown([2026, 11, 25, 18, 0])["part"] == "evening"
+
+    # Pressed a second time: nothing is kept, neither is marked, and the clock decides again.
+    browser._call(page.click("#lookLight"))
+    seen = shown(NIGHT)
+    assert (seen["part"], seen["pressed"], seen["kept"]) == ("night", [], None)
+    assert shown(MORNING)["part"] == "day"
+
+    # In any window the two are inside it, big enough to press, and on none of the page's words:
+    # not the name, the greeting, the search box or the line under the picture.
+    async def placed(width, height):
+        await page.set_viewport_size({"width": width, "height": height})
+        return await page.evaluate(
+            "() => { const box = (id) => document.getElementById(id).getBoundingClientRect(), apart = (a, b) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;"
+            " const name = document.createRange(); name.selectNodeContents(document.querySelector('h1'));"
+            " const sun = box('lookLight'), moon = box('lookDark'), words = [name.getBoundingClientRect(), box('hello'), box('q'), box('point')];"
+            " return [sun, moon].every((b) => b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.width >= 32 && b.height >= 32 && words.every((w) => apart(b, w)))"
+            " && apart(sun, moon) && document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight; }")
+
+    for size in ((1280, 720), (700, 420), (1280, 500), (380, 640)):
+        assert browser._call(placed(*size)) is True, size
+    # Nothing was asked of anyone for it.
+    outside = browser._call(page.evaluate("() => performance.getEntriesByType('resource').map((entry) => entry.name).filter((name) => new URL(name).origin !== location.origin)"))
+    assert outside == [] and asked(site[1]) == []
+
+
+def test_the_two_looks_have_a_name_each_in_every_language(home):
+    import json
+
+    for language in LANGUAGES:
+        script = start._files(language)["home.js"]
+        named = json.loads(script.split("const WORDS = ", 1)[1].split(";\n", 1)[0])
+        light, dark = named["look_light"], named["look_dark"]
+        assert light.strip() and dark.strip() and light != dark, language
+        assert (light, dark) == (catalog_for(language).text("settings.appearance.theme_light"), catalog_for(language).text("settings.appearance.theme_dark")), language
+
+
 def test_the_six_lines_are_six_different_ones_in_every_language_and_the_page_holds_no_other(home):
     for language in LANGUAGES:
         words = [catalog_for(language).text("live." + key) for key in LINES]
