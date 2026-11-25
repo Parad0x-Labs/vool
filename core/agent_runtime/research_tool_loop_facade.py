@@ -4229,6 +4229,9 @@ class ResearchToolLoopFacadeMixin:
                         executed_steps=executed_steps,
                         effective_input=effective_input,
                         source_context=loop_source_context,
+                    ) or self._listing_proposal_the_turn_never_asked_for(
+                        execution=execution,
+                        executed_steps=executed_steps,
                     ):
                         return None
 
@@ -4852,6 +4855,26 @@ class ResearchToolLoopFacadeMixin:
                 validation_state=final_validation,
             ),
         }, executed_steps)
+
+    def _listing_proposal_the_turn_never_asked_for(
+        self,
+        *,
+        execution: Any,
+        executed_steps: list[dict[str, Any]],
+    ) -> bool:
+        """Whether this failure is only a folder listing the model proposed on a turn whose words named no folder: the
+        semantic preflight refused it before anything ran, and no step of the turn ran. A model-picked tool is a
+        proposal, never the turn's demand, so the turn is answered on the ordinary path.
+
+        iMac gate on 4e06fdc5c (qwen3:8b): "kokį paukštį turi mano dviračio meistras?" ("what bird does my bike
+        mechanic have?") had the model call machine.list_directory on the Desktop; the refusal "I did not inspect a
+        local directory because this turn did not establish a machine or path target" was the whole reply, in English,
+        to a Lithuanian question about the person's life."""
+        if bool(getattr(execution, "ok", False)):
+            return False
+        if str(getattr(execution, "status", "") or "") != "blocked_by_semantic_preflight":
+            return False
+        return not any(str(step.get("mode") or "") == "tool_executed" for step in executed_steps or [])
 
     def _web_step_refused_by_turn_veto(
         self,
