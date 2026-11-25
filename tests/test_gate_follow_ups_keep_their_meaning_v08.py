@@ -176,3 +176,28 @@ def test_the_runtimes_own_rows_are_not_read_as_a_cut_off_answer():
     assert inspect_answer_completeness(without_closure_section(served)).incomplete is False
     # The rows themselves still look unfinished to the detector; only the answer is its business.
     assert inspect_answer_completeness(served).incomplete is True
+
+
+# --- "again" in a question asks to be reminded; it reruns nothing ------------------------------------------------
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "sorry, which city was cheapest again?",
+        "ok so who did i say the plumber was again",
+        "quick q: what's the second total again?",
+        "hmm how much did it come to again",
+    ],
+)
+def test_a_reminder_question_is_not_a_redo_of_the_last_task(ask):
+    assert compose_continuation(ask, "list what we covered in this chat") == ""
+    from core.conversation_state import _opens_a_question
+
+    assert _opens_a_question(ask)
+
+
+@pytest.mark.parametrize("order", ["do it again", "again please", "ok redo that with 4 people", "run it once more"])
+def test_an_order_to_redo_is_still_a_redo(order):
+    from core.conversation_state import _opens_a_question
+
+    assert not _opens_a_question(order)

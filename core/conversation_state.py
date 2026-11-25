@@ -894,6 +894,25 @@ def _try_with_a_subject(compact: str, pending: PendingRequest) -> bool:
 
 
 
+def _opens_a_question(compact: str) -> bool:
+    """Whether the message opens with an interrogative word, after any discourse words in front of it."""
+    from core.agent_runtime.filler_words import DISCOURSE_MARKER_TOKENS
+
+    words = re.findall(r"[^\W\d_]+(?:'[^\W\d_]+)?", str(compact or "").casefold())
+    lead = {"hmm", "hm", "um", "uh", "ah", "oh", "hey", "hi", "right", "wait", "remind", "me", "tell", "so", "sorry"}
+    for word in words:
+        if word in _QUESTION_WORDS:
+            return True
+        if word not in DISCOURSE_MARKER_TOKENS and word not in lead:
+            return False
+    return False
+
+
+_QUESTION_WORDS = frozenset(
+    {"what", "what's", "whats", "who", "who's", "whom", "whose", "why", "how", "how's", "when", "where", "which"}
+)
+
+
 def resolve(
     session_id: str,
     text: str,
@@ -934,8 +953,12 @@ def resolve(
     # `core.attempt_followup` has already had its turn (it runs before this resolver in the turn spine).
     if pending is not None and len(compact.split()) <= 14:
         has_cue, rest = _split_cue(compact)
-        if re.match(r"^(?:what|who|whom|whose|why|how|when|where|which)\b", compact, re.IGNORECASE):
-            has_cue = False  # a question ABOUT retrying ("how do i try again?") is not a retry
+        if _opens_a_question(compact):
+            # A question ABOUT retrying ("how do i try again?") is not a retry, and neither is a question that asks to be
+            # reminded ("and what was the halved number again?"): its "again" reruns nothing. The question may sit behind
+            # discourse words ("and", "ok so", "quick q:"): read from the start only, it reran the chat rundown in place
+            # of the number (iMac gate on 7ce02be05).
+            has_cue = False
         unfinished = pending.outcome in _UNFINISHED
         if not has_cue and pending.turns_since <= _CUE_MAX_AGE and (unfinished or pending.outcome in {DONE, ANSWERED}) and _read_only(pending):
             redirect = _redirect_change(compact, pending)

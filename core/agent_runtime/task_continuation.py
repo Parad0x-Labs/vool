@@ -38,6 +38,10 @@ _VERB_RE = re.compile(
     r"explain|write|send|open|read|find|remind|remember|forget|delete|i|you|my|me)\b",
     re.IGNORECASE,
 )
+#: A question of its own: an interrogative word that opens what the message asks.
+_ASKS_ITS_OWN_QUESTION_RE = re.compile(
+    r"\b(?:what(?:'s|s)?|which|who(?:'s|m|se)?|where|when|why|how)\b", re.IGNORECASE
+)
 #: A word that points back at what was just said rather than naming something new.
 _POINTS_BACK_RE = re.compile(
     r"\b(?:it|that|this|those|these|them|the\s+(?:result|answer|total|sum|number|same))\b", re.IGNORECASE
@@ -83,7 +87,15 @@ def compose_continuation(text: str, previous_request: str) -> str:
         pass
     if not _TASK_HEAD_RE.match(previous):
         return ""
-    if _REDO_RE.search(current) or _COUNT_CHANGE_RE.search(current):
+    redo = _REDO_RE.search(current)
+    if redo and not _COUNT_CHANGE_RE.search(current) and _ASKS_ITS_OWN_QUESTION_RE.search(current) and not any(
+        match.group(0).casefold() != "again" for match in _REDO_RE.finditer(current)
+    ):
+        # "and what was the halved number again?", "who was it again": "again" in a question asks to be reminded of
+        # something already said; it orders no redo. Carried as a redo, that ask became "Redo my previous request —
+        # <the chat rundown> — with this change: ..." and the rundown was served again (iMac gate on 7ce02be05).
+        return ""
+    if redo or _COUNT_CHANGE_RE.search(current):
         change = re.sub(
             r"\s*\b(?:(?:redo|re-?do|recalculate|recompute|update|do|run|try)\s+(?:it|that|this)(?:\s+again)?|"
             r"redo|re-?do|recalculate|recompute|again)\b",
