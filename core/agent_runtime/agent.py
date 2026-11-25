@@ -5730,7 +5730,10 @@ class VoolAgent(
             f"It's in this chat's workspace: `{absolute or top_folders[0]}`.\n"
             f"Files created/updated there: {listed}."
         )
-        if len(top_folders) == 1:
+        # A file written at the workspace's top is no folder: "seed-order.txt is a top-level folder there" was said
+        # of the very file asked about (iMac gate on c78c018da).
+        if len(top_folders) == 1 and any(len(PurePosixPath(path).parts) > 1 for path in paths
+                                         if not path.startswith(("/", "~"))):
             response += (
                 f" (`{top_folders[0]}` is a top-level folder there.)"
             )

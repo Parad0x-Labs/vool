@@ -1637,9 +1637,10 @@ def _location_answer_has_verified_past_receipt(
         claim for claim in (_claimed_file_names(_deliverable_claim_fragments(response)) or set()) if "/" in claim
     }
     for receipt in verified:
-        written = str(dict(receipt.get("arguments") or {}).get("path") or "").strip()
-        name = written.replace("\\", "/").rsplit("/", 1)[-1]
-        if name and name in response:
+        for written in _written_paths(receipt):
+            name = written.replace("\\", "/").rsplit("/", 1)[-1]
+            if not name or name not in response:
+                continue
             same_name = {claim for claim in qualified_claims if claim.rsplit("/", 1)[-1] == name}
             if same_name and not any(
                 _file_claim_matches_output(claim, {written}, source_context) for claim in same_name
@@ -1647,6 +1648,26 @@ def _location_answer_has_verified_past_receipt(
                 continue
             return True
     return False
+
+
+def _written_paths(receipt: dict[str, Any]) -> list[str]:
+    """The paths a verified write receipt names: its call's arguments, else its typed record's parameters and target.
+
+    A write made by the write lane keeps its path in the typed record only: its receipt's arguments were {} on the
+    iMac gate (c78c018da), so "where did you put that file?" answered with the file's true path and was replaced with
+    "I cannot verify the claimed action" for naming a file no record seemed to hold."""
+    paths: list[str] = []
+    argument = str(dict(receipt.get("arguments") or {}).get("path") or "").strip()
+    if argument:
+        paths.append(argument)
+    record = dict(dict(receipt.get("execution") or {}).get("action_record") or {})
+    target = str(record.get("target") or "").strip()
+    if target and "://" not in target and not target.startswith(("{", "[")) and target not in paths:
+        paths.append(target)
+    for name in sorted(_output_file_names(record.get("parameters"), identities_only=True)):
+        if name and name not in paths:
+            paths.append(name)
+    return paths
 
 
 def _active_mission_forbidden_terms(session_id: str | None) -> list[str]:
