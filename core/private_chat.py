@@ -40,6 +40,7 @@ __all__ = [
     "PRIVATE_TASK_SUMMARY",
     "PRIVATE_TURN_KEY",
     "REPLY_KEYS",
+    "REPLY_NOT_KEPT_THIS_TURN",
     "REPLY_REMEMBER_REFUSED",
     "PrivateCommand",
     "end_private_request",
@@ -54,6 +55,7 @@ __all__ = [
     "private_request_session",
     "private_since",
     "record_chat_ref",
+    "remember_refused_reply",
     "request_is_private",
     "session_id_from",
     "set_private",
@@ -438,6 +440,11 @@ class PrivateCommand:
 
     action: str
     rest: str = ""
+    #: The request closed a message that told something ("my aunt's goat is Snaigė, but please don't store that"):
+    #: it asks that THIS message is not kept, so this turn is private and the chat stays as it is. Read as the
+    #: chat's switch, that one fact turned the whole chat private without a word, and the next "remember: ..." in
+    #: it was refused (iMac gate on 0c3d44046). A request said alone, or leading the message, switches the chat.
+    this_turn_only: bool = False
 
     @property
     def bare(self) -> bool:
@@ -449,6 +456,7 @@ def _rest_without(text: str, match: re.Match[str]) -> str:
     rest = re.sub(r"^\s*[,;:—–\-]+\s*", "", rest)
     rest = re.sub(r"^\s*(?:but|and|so|just|though)\b[\s,]*", "", rest, flags=re.IGNORECASE)
     rest = re.sub(r"[\s,;:\u2014\u2013\-]+$", "", rest)
+    rest = re.sub(r"[\s,;:]*\b(?:but|and|so|though)$", "", rest, flags=re.IGNORECASE)
     rest = re.sub(r"\(\s*\)|\[\s*\]", " ", rest)
     rest = " ".join(rest.split()) if "\n" not in rest else rest.strip()
     return "" if _FILLER_RE.match(rest) or not re.search(r"\w", rest) else rest.strip()
@@ -473,7 +481,9 @@ def parse_private_command(text: str, *, currently_private: bool = False) -> Priv
     if _WHOLE_ON_RE.match(raw):
         return PrivateCommand(ON)
     off = _OFF_RE.search(raw)
-    on = _ON_RE.search(raw) or _on_at_end(raw)
+    on = _ON_RE.search(raw)
+    at_end = None if on is not None else _on_at_end(raw)
+    on = on or at_end
     if off and _rest_without(raw, off):
         off = None
     if off and on:
@@ -490,7 +500,8 @@ def parse_private_command(text: str, *, currently_private: bool = False) -> Priv
 
         other = parse_other_language(raw, currently_private=currently_private)
         return PrivateCommand(*other) if other is not None else None
-    return PrivateCommand(action, _rest_without(raw, chosen))
+    rest = _rest_without(raw, chosen)
+    return PrivateCommand(action, rest, this_turn_only=bool(rest) and chosen is at_end)
 
 
 def _on_at_end(raw: str) -> re.Match[str] | None:
@@ -555,6 +566,24 @@ REPLY_KEYS = {
     "private.reply.failed_on": REPLY_FAILED_ON,
 }
 _KEY_OF_REPLY = {text: key for key, text in REPLY_KEYS.items()}
+
+
+#: A keep refused on a turn that alone is private: the person asked that this message is not kept
+#: (`PrivateCommand.this_turn_only`); the chat is saved as usual, so "Private chat is on" would be untrue.
+REPLY_NOT_KEPT_THIS_TURN = "Okay, I won't keep that."
+
+
+def remember_refused_reply(source_context: Mapping[str, Any] | None, session_id: str | None = None) -> str:
+    """Why a keep on a private turn saved nothing: the chat is private, or only this message was asked not to be
+    kept. On the gate iMac a "don't store that" closing one fact answered later keeps with "Private chat is on"."""
+    sid = session_id_from(source_context, session_id)
+    try:
+        chat_private = bool(sid) and is_private(sid)
+    except Exception:
+        chat_private = True
+    if sid and not chat_private:
+        return REPLY_NOT_KEPT_THIS_TURN
+    return localized_reply(REPLY_REMEMBER_REFUSED, source_context)
 
 
 def localized_reply(reply: str, source_context: Mapping[str, Any] | None) -> str:
@@ -690,7 +719,9 @@ def observe_private_door(
     except Exception:
         command = None
     private = currently or bool(page_believes_private)
-    if command is not None and command.action == ON:
+    if command is not None and command.action == ON and command.this_turn_only:
+        private = True
+    elif command is not None and command.action == ON:
         private = True
         if sid and not currently:
             try:
@@ -729,7 +760,9 @@ def observe_private_turn(
     command = parse_private_command(raw_user_input, currently_private=currently)
     reply: str | None = None
     turn_private = currently
-    if command is not None and command.action in {ON, OFF}:
+    if command is not None and command.action == ON and command.this_turn_only:
+        turn_private = True
+    elif command is not None and command.action in {ON, OFF}:
         want_on = command.action == ON
         if not sid:
             reply = REPLY_FAILED if command.bare else None

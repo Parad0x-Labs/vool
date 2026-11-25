@@ -1751,6 +1751,51 @@ def _whole_memory_prompt(message: str) -> str:
     ])
 
 
+def _particular_ask_prompt(message: str) -> str:
+    """The other side of `_whole_memory_prompt`, asked as its own question: does the message ask for one particular
+    thing? On the gate iMac (0c3d44046) qwen3:8b answered the whole-memory question "yes" three times of three for
+    "what's the name of Ona's goat?" and "which locker did I say I use at the gym?", and an unrelated saved fact was
+    answered as if it were the goat's name. A question the person asks about one thing is never the whole list."""
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
+    return "\n".join([
+        "Does this message ask about one particular thing (a name, a place, a number, a code, a date, a person, a pet,",
+        "an object), rather than for everything the assistant remembers? Answer yes or no. Any language.",
+        "",
+        'Message: "what\'s my neighbour\'s dog called?" -> {"answer": "yes"}',
+        'Message: "what do you remember about me?" -> {"answer": "no"}',
+        'Message: "kokia mano spintelės kodas?" -> {"answer": "yes"}',
+        'Message: "ką apie mane žinai?" -> {"answer": "no"}',
+        'Message: "Wo habe ich mein Fahrrad abgestellt?" -> {"answer": "yes"}',
+        'Message: "Was hast du dir alles über mich gemerkt?" -> {"answer": "no"}',
+        'Message: "list everything I told you" -> {"answer": "no"}',
+        'Message: "which gym did I say I go to?" -> {"answer": "yes"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_particular_ask(
+    message: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a recall asks about one particular thing: ``"yes"`` / ``"no"``, or None when nothing judged it. Asked
+    only after `arbitrate_whole_memory_ask` said yes (core.persistent_memory)."""
+    if not str(message or "").strip():
+        return None
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(_particular_ask_prompt(message), source_context)
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_particular_ask_prompt(message), operation="particular_ask_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def arbitrate_whole_memory_ask(
     message: str,
     *,

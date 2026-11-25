@@ -122,6 +122,7 @@ def test_an_ask_for_everything_remembered_lists_what_is_held(seed, monkeypatch):
     monkeypatch.setattr(pm, "_held_for_judgement", lambda **_k: list(held))
     monkeypatch.setattr(pm, "_judged_items_named", lambda *_a, **_k: [])
     monkeypatch.setattr(intent_arbiter, "arbitrate_whole_memory_ask", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_particular_ask", lambda *_a, **_k: "no")
     reply = pm._judged_recall_reply(asked, session_id="whole", policy=None, source_context={}, forgotten_too=False)
     assert reply is not None and all(fact in reply for fact in held), reply
     monkeypatch.setattr(intent_arbiter, "arbitrate_whole_memory_ask", lambda *_a, **_k: "no")

@@ -220,6 +220,8 @@ def test_a_turn_that_may_not_read_gets_no_chat_read_no_row_read_and_no_judge(iso
                  "small update: the chalet booking moved to 14 september"):
         assert not persistent_memory.everyday_memory_turn(text, session_id="seed", source_context=dict(AGENT))
     monkeypatch.setattr(private_chat, "turn_is_private", lambda context, session_id=None: True)
+    # The chat itself is private (not only this one turn), so the refusal names private chat.
+    monkeypatch.setattr(private_chat, "is_private", lambda session_id: True)
     assert not persistent_memory.everyday_memory_turn("and the keys are with the caretaker", session_id="seed",
                                                       source_context={})
     # An explicit lead is still the lane's, which refuses it in its own words and writes nothing.

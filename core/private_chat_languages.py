@@ -871,10 +871,12 @@ def _reported(head: str) -> bool:
     return head.replace(" ", "").endswith(matchers["reported_spaceless"])
 
 
-def parse(text: str, *, currently_private: bool = False) -> tuple[str, str] | None:
+def parse(text: str, *, currently_private: bool = False) -> tuple[str, str] | tuple[str, str, bool] | None:
     """``(action, rest)`` for a command in one of the other languages, or None.
 
-    ``rest`` is the folded message without the command ("" when the message is only the command).
+    ``rest`` is the folded message without the command ("" when the message is only the command). A request that
+    closes a message which told something comes back as ``(ON, rest, True)``: only this turn is private
+    (`core.private_chat.PrivateCommand.this_turn_only`).
     """
     folded = fold(text)
     if not folded or len(folded) > 4000:
@@ -894,7 +896,8 @@ def parse(text: str, *, currently_private: bool = False) -> tuple[str, str] | No
     if len(sentences) > 1:
         for index, sentence in enumerate(sentences):
             if _on(sentence):
-                return ON, " ".join(sentences[:index] + sentences[index + 1:])
+                rest = " ".join(sentences[:index] + sentences[index + 1:])
+                return (ON, rest, True) if index == len(sentences) - 1 and index > 0 and rest else (ON, rest)
     first = sentences[0]
     clauses = _CLAUSE_SPLIT.split(first)
     if len(clauses) > 1 and _on(clauses[0]):
@@ -905,7 +908,8 @@ def parse(text: str, *, currently_private: bool = False) -> tuple[str, str] | No
     last = sentences[-1]
     clauses = _CLAUSE_SPLIT.split(last)
     if len(clauses) > 1 and _on(clauses[-1]) and not _reported(clauses[-2]):
-        return ON, _trim(" ".join([*sentences[:-1], ",".join(clauses[:-1])]))
+        rest = _trim(" ".join([*sentences[:-1], ",".join(clauses[:-1])]))
+        return (ON, rest, True) if rest else (ON, rest)
     return None
 
 

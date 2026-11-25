@@ -3259,7 +3259,7 @@ def _judged_memory_turn(
     if kind not in {"keep", "recall"}:
         return None
     from core.memory import keep_receipt
-    from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
+    from core.private_chat import remember_refused_reply, turn_is_private
     from core.request_trust import turn_speaks_for_owner
 
     if not turn_speaks_for_owner(source_context, str(session_id or "")):
@@ -3274,7 +3274,7 @@ def _judged_memory_turn(
     if kind == "keep":
         if turn_is_private(source_context, policy.chat_id):
             keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
-            return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
+            return True, remember_refused_reply(source_context, policy.chat_id)
         led: list[bool] = []
         facts = _judged_keep_statements(text, led=led)
         if not facts:
@@ -3517,12 +3517,16 @@ def _asks_for_the_whole_memory(
     Measured on 02ff11496 (fresh audit): "what are all the things you remember about me?" with 40 facts held was
     answered "I don't have that saved": the recall judge names the facts a question is about, and a question about
     everything is about none of them in particular. Only the English shapes opened the inventory."""
-    from core.intent_arbiter import arbitrate_whole_memory_ask
+    from core.intent_arbiter import arbitrate_particular_ask, arbitrate_whole_memory_ask
 
+    # Both readings must agree: the whole list is shown only when the message asks for it AND is not about one
+    # particular thing. qwen3:8b read "what's the name of Ona's goat?" as "tell me everything" (gate iMac,
+    # 0c3d44046), and the one unrelated fact held was answered as the goat's name.
+    context = source_context if isinstance(source_context, dict) else None
     try:
-        return arbitrate_whole_memory_ask(
-            question, chat_id=str(session_id or ""),
-            source_context=source_context if isinstance(source_context, dict) else None) == "yes"
+        if arbitrate_whole_memory_ask(question, chat_id=str(session_id or ""), source_context=context) != "yes":
+            return False
+        return arbitrate_particular_ask(question, chat_id=str(session_id or ""), source_context=context) == "no"
     except Exception as exc:
         LOGGER.warning("whole-memory question unavailable: %s", type(exc).__name__)
         return False
@@ -3695,12 +3699,12 @@ def _everyday_remember_turn(
         return None
     lead, policy, replaced, opened, restore = decided
     from core.memory import keep_receipt
-    from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
+    from core.private_chat import remember_refused_reply, turn_is_private
     from core.request_trust import turn_speaks_for_owner
 
     if turn_is_private(source_context, policy.chat_id):
         keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
-        return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
+        return True, remember_refused_reply(source_context, policy.chat_id)
     if not turn_speaks_for_owner(source_context, policy.chat_id):
         keep_receipt.note_refused(keep_receipt.REFUSED_AGENT_TURN)
         return True, AGENT_TURN_REMEMBER_REFUSED
@@ -4010,11 +4014,11 @@ def maybe_handle_memory_command(
         # Private chat (core.private_chat): nothing from a private chat is saved, an explicit
         # "remember" included. Said plainly instead of claiming a save that never happens.
         from core.memory import keep_receipt
-        from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
+        from core.private_chat import remember_refused_reply, turn_is_private
 
         if turn_is_private(source_context, session_id):
             keep_receipt.note_refused(keep_receipt.REFUSED_PRIVATE_CHAT)
-            return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
+            return True, remember_refused_reply(source_context, session_id)
         # A team agent's turn carries the orchestrator's brief, not the owner speaking: a "remember" in it
         # would file the brief as the owner's fact (core.request_trust.turn_speaks_for_owner).
         from core.request_trust import turn_speaks_for_owner

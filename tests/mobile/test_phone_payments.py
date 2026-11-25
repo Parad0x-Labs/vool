@@ -227,6 +227,8 @@ def test_owner_controls_work_in_chromium_and_use_exact_human_amounts(money, tmp_
             assert saved_response.value.status == 200, {
                 "answer": answer,
                 "requested_cap": saved_response.value.request.post_data_json.get("payment_cap_human"),
+                # Which side lost the PIN (CI on 174b25378, once): the page sent none, or the wallet refused it.
+                "pin_sent": len(str(saved_response.value.request.post_data_json.get("credential") or "")),
             }
             assert answer['rules']['wallet_view'] is True and answer['rules']['payment_propose'] is True, {
                 'request_rules': saved_response.value.request.post_data_json['rules'], 'saved_rules': answer['rules']}
