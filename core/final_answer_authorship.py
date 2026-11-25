@@ -1802,7 +1802,24 @@ def _claims_a_change_was_made(line: str) -> bool:
     return any(not _NOTHING_SUBJECT_RE.search(line[: found.start()]) for found in _COMPLETION_CLAIM_RE.finditer(line))
 
 
-def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str, Any]] | None:
+def _judged_to_ask_for_no_tool(request_text: str) -> bool:
+    """Whether the turn's tool judge read the person's message and said it asks for no tool and no plugin at all.
+
+    Read only; False when nothing judged the message, so the checks that use it hold as before."""
+    text = str(request_text or "").strip()
+    if not text:
+        return False
+    try:
+        from core.plugin_ask import judged_at_all, judged_builtins, judgement
+
+        return judged_at_all(text) and not judged_builtins(text) and judgement(text) == ()
+    except Exception:
+        return False
+
+
+def _unrun_listed_intents(
+    text: str, source_context: Any, *, request_text: str = ""
+) -> tuple[str, dict[str, Any]] | None:
     """A reply that lists the runtime's own intents as if they ran, when some never ran this turn.
 
     Measured 2026-11-12 (database run 5): "Adding the 'email' column to the 'customers' table" over
@@ -1827,7 +1844,11 @@ def _unrun_listed_intents(text: str, source_context: Any) -> tuple[str, dict[str
     # database run 7 (2026-11-12): "The column 'email' has been successfully added" after only
     # vool-database.migrate.preview ran; the table was unchanged.
     changing_ran_any = any(_intent_changes_something(i) for i in executed)
-    if executed and not changing_ran_any:
+    # A message judged to ask for no tool at all is a question, and its answer explains the world: "seasoned firewood
+    # burns hotter because the moisture has been removed through drying" was replaced whole by "This change has not
+    # been made" because a folder listing had run in the project chat (iMac gate on 3fe69f744). No change was asked
+    # for, so no sentence of the answer can claim one this turn's tools did not make.
+    if executed and not changing_ran_any and not _judged_to_ask_for_no_tool(request_text):
         claimed = [i for i, line in enumerate(lines) if _claims_a_change_was_made(line)]
         if claimed:
             for index in claimed:
@@ -1949,7 +1970,8 @@ def gate_execution_claims(
         return text, {"publication": "stood_down:recorded_runtime_render"}
     claims = execution_claims(text)
     if not claims:
-        listed = _unrun_listed_intents(text, source_context) or _preview_only_stated(text, source_context)
+        listed = (_unrun_listed_intents(text, source_context, request_text=request_text)
+                  or _preview_only_stated(text, source_context))
         if listed is not None:
             return listed
         return text, {"publication": "stood_down:no_execution_claims"}
@@ -1960,7 +1982,8 @@ def gate_execution_claims(
     except Exception:
         pass
     if _turn_executed_anything(turn_id, source_context):
-        listed = _unrun_listed_intents(text, source_context) or _preview_only_stated(text, source_context)
+        listed = (_unrun_listed_intents(text, source_context, request_text=request_text)
+                  or _preview_only_stated(text, source_context))
         if listed is not None:
             return listed
         return text, {"execution_claims": [c[2] for c in claims], "publication": "execution_evidence_present"}
