@@ -104,6 +104,7 @@ def test_spending_is_enforced_counted_told_apart_and_warned_about(rig):
     service.reply = _or_scripted
     answer, proof = _turn(daemon, f"[plain] which {uuid.uuid4().hex[:4]} fruit is yellow?", session)
     spend = proof["compact"]["spend"]
+    assert spend is not None, ("no paid call on this answer's record", answer, proof.get("state"), proof["compact"].get("route"))
     assert spend["estimated_usd"] > 0 and spend["billed_usd"] == 0, spend
     keys = [part.get("key") for part in proof["compact"]["cost"]["parts"]]
     assert "proof.usage.estimated" in keys and "proof.usage.unreported" not in keys, keys
