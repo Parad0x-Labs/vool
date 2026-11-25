@@ -1232,15 +1232,35 @@ _FIND_FOLDER_TIME_BUDGET_S = 10.0
 _FIND_FILE_MAX_MATCHES = 25
 
 
+_UNSPLIT_LETTERS = str.maketrans({"ł": "l", "ø": "o", "đ": "d", "ð": "d", "þ": "th", "æ": "ae", "œ": "oe", "ı": "i"})
+
+
+def _folded_name(text: str) -> str:
+    """A file name as a person may type it in any language: lower case with its accents taken off ("Kelionių" is
+    "kelioniu", "Ölwechsel" is "olwechsel", "Łódź" is "lodz"). "surask failą kelionių planas 417" found nothing while
+    the project held kelioniu-planas-417.txt (iMac gate on 7ce02be05): the letters-and-digits comparison only knew
+    a to z, so the "ų" was dropped from the ask and never matched the "u" on disk. Letters of other scripts stay
+    letters, so a Cyrillic or Greek name matches by its words too."""
+    import unicodedata
+
+    decomposed = unicodedata.normalize("NFKD", str(text or "").casefold().translate(_UNSPLIT_LETTERS))
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _name_words(folded: str) -> list[str]:
+    """The words of a folded name: a space, a dash, an underscore, a dot or any other mark separates them alike."""
+    return [word for word in re.split(r"[\W_]+", folded) if word]
+
+
 def _squeezed_word_match(squeezed_needle: str, lowered_name: str) -> bool:
     """``"day4"`` matches ``Day_4.png`` / ``day 4.jpg`` from a word start, never inside ``holiday4``."""
-    words = [word for word in re.split(r"[^0-9a-z]+", lowered_name) if word]
+    words = _name_words(_folded_name(lowered_name))
     return any("".join(words[index:]).startswith(squeezed_needle) for index in range(len(words)))
 
 
 def _all_words_in_name(needle_words: list[str], lowered_name: str) -> bool:
     """Every word of ``"garden notes"`` starts a word of ``notes-garden.txt``, in any order."""
-    words = [word for word in re.split(r"[^0-9a-z]+", lowered_name) if word]
+    words = _name_words(_folded_name(lowered_name))
     return all(any(word.startswith(wanted) for word in words) for wanted in needle_words)
 
 
@@ -1253,9 +1273,10 @@ def _walk_safe_roots_for_files(
     that carries every word of ``name`` in another order (a guessed "garden notes.txt" is the file
     on disk as "notes-garden.txt"); the readers' lookup asks for it, a typed find does not."""
     needle = name.lower()
-    needle_words = [word for word in re.split(r"[^0-9a-z]+", needle) if word]
-    # "daily 4" is the file on disk as "Daily_4.png" or "daily-4.jpg": also compare letters and digits only.
-    squeezed_needle = re.sub(r"[^0-9a-z]", "", needle)
+    needle_words = _name_words(_folded_name(name))
+    # "daily 4" is the file on disk as "Daily_4.png" or "daily-4.jpg": also compare letters and digits only, with
+    # accents taken off both sides ("kelionių planas 417" is kelioniu-planas-417.txt).
+    squeezed_needle = "".join(needle_words)
     roots = [root for root in _readable_machine_roots() if os.path.isdir(root)]
     if not roots:
         return None
@@ -1364,7 +1385,7 @@ def _machine_find_file(
         # its words in any order, of the same kind, the way the readers' guessed-path lookup does. Skills
         # A/B on the v0.8 head (2026-11-13, loop off): "I couldn't find a file named 'lease.pdf'".
         stem, suffix = Path(name.replace("\\", "/")).stem, Path(name).suffix.lower()
-        words = " ".join(w for w in re.split(r"[^0-9A-Za-z]+", stem) if w)
+        words = " ".join(_name_words(_folded_name(stem)))
         if words and words.lower() != name.lower():
             again = _walk_safe_roots_for_files(words, workspace_root=workspace_root, any_word_order=True)
             if again is not None:
