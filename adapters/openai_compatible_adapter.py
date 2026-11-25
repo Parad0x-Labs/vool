@@ -2252,12 +2252,20 @@ class OpenAICompatibleAdapter(ModelAdapter):
             max_output_tokens=max_tokens,
             header_names=tuple(headers),
         )
+        # The ceiling is a GPU-host number. The certifier already scales the per-call budget for a
+        # machine with no GPU (core/local_compute_budget), so the ceiling scales by the same one
+        # rule: capped at the GPU number it cut the scaled 600 s back to 300 s. Measured on the Intel
+        # smoke of 4e06fdc5c (2026-11-25): the cold qwen3:8b runner took 231 s to load, the first
+        # probe call hit the 300 s cap with no exchange, and the model was left uncertified.
+        from core.local_compute_budget import local_compute_seconds
+
+        ceiling = local_compute_seconds(300.0)
         started = time.perf_counter()
         response = self._http().post(
             endpoint,
             json=permit.consume(),
             headers=headers,
-            timeout=_request_timeout(max(1.0, min(float(timeout_seconds or 90.0), 300.0))),
+            timeout=_request_timeout(max(1.0, min(float(timeout_seconds or 90.0), ceiling))),
         )
         latency_ms = (time.perf_counter() - started) * 1000.0
         try:
