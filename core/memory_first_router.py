@@ -80,6 +80,7 @@ from core.ordinary_chat_response_guard import (
     ordinary_chat_safe_fallback,
     prior_turn_literal_hashes,
     recover_bounded_ordinary_chat_output,
+    remove_unrequested_comparisons,
     remove_unrequested_prior_turn_literals,
     remove_unsolicited_generic_follow_up,
     retrieved_record_speakers,
@@ -4366,6 +4367,23 @@ class MemoryFirstRouter:
                         response.output_text,
                         ordinary_policy,
                         current_user_text=current_user_text,
+                    )
+                    trimmed_check = inspect_ordinary_chat_output(
+                        trimmed,
+                        ordinary_policy,
+                        current_user_text=current_user_text,
+                    )
+                    if trimmed and trimmed_check.allowed:
+                        response.output_text = trimmed
+                        ordinary_check = trimmed_check
+                    else:
+                        response.output_text = ordinary_chat_safe_fallback()
+                elif ordinary_check.reasons in {("unrequested_prior_reference",), ("unrequested_contrast_topic",)}:
+                    # A reply that still compares to something never raised loses those sentences,
+                    # not the whole answer: "hi there" in a chat with no history ended as the
+                    # "couldn't produce a normal chat response" fallback over one such sentence.
+                    trimmed = remove_unrequested_comparisons(
+                        response.output_text, current_user_text=current_user_text
                     )
                     trimmed_check = inspect_ordinary_chat_output(
                         trimmed,

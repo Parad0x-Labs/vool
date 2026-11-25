@@ -1501,6 +1501,31 @@ def remove_unsolicited_generic_follow_up(text: str) -> str:
     ).strip()
 
 
+def _unrequested_comparison_in(sentence: str, normalized_user_text: str) -> bool:
+    for pattern in (_UNREQUESTED_COMPARISON_RE, _CONTRAST_TOPIC_RE):
+        for match in pattern.finditer(sentence):
+            topic = " ".join(match.group("topic").lower().split())
+            if topic and topic not in normalized_user_text:
+                return True
+    return False
+
+
+def remove_unrequested_comparisons(text: str, *, current_user_text: str = "") -> str:
+    """The reply without the sentences that compare to something the person never raised.
+
+    Used only after the one rewrite still carried such a sentence. Measured 2026-11-25 on the iMac
+    (7ce02be05, qwen3:8b): "hi there" in a new chat, with no earlier turn at all, got "I couldn't produce
+    a normal chat response" because both tries of the greeting held one unasked-for comparison. The
+    rest of the reply was a fine answer; only the offending sentences go.
+    """
+    normalized_user_text = " ".join(str(current_user_text or "").lower().split())
+    return "".join(
+        sentence
+        for sentence in _SENTENCE_RE.findall(str(text or "").strip())
+        if sentence.strip() and not _unrequested_comparison_in(sentence, normalized_user_text)
+    ).strip()
+
+
 def numbered_parts_instruction(required_parts: int) -> str:
     """Render only the server-derived explicit user numbering contract."""
 
