@@ -1732,6 +1732,11 @@ def cross_chat_recall(
                                chats_searched=result.chats_searched)
     if not meaning_known:
         return None  # rows near in meaning that nobody could judge: unknown is not "absent", the ordinary path answers
+    if _judged_a_file_on_this_computer(question):
+        # Nothing saved or said answers it, and the turn's judge read the message as a file on this computer: "can you
+        # find my boiler warranty document?" was answered "I don't have that saved, and I looked through your other
+        # chats" while the file sat in Documents and no find ran (iMac gate on 6f13177cc). The file tool answers it.
+        return None
     chats = f"{result.chats_searched} chat" + ("" if result.chats_searched == 1 else "s")
     projects = (
         f" or {result.projects_searched} project" + ("" if result.projects_searched == 1 else "s")
@@ -1749,6 +1754,16 @@ def cross_chat_recall(
             "without finding it. If you tell me, I'll remember it for every chat."
         )
     return CrossChatRecall(response=response, found=False, chats_searched=result.chats_searched)
+
+
+def _judged_a_file_on_this_computer(question: str) -> bool:
+    """Whether the turn's tool judgement read the message as a file or folder on this computer (read only)."""
+    try:
+        from core import plugin_ask
+
+        return bool(set(plugin_ask.judged_builtins(question)) & plugin_ask.COMPUTER_FILE_CHOICES)
+    except Exception:
+        return False
 
 
 __all__ = [

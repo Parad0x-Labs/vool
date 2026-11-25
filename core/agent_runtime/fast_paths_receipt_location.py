@@ -69,6 +69,12 @@ def maybe_handle_action_receipt_location_request(
     if kind is None:
         return None
 
+    if receipt is None and _judged_a_find_on_disk(user_input):
+        # No write of this chat to point at, and the turn's judge read the whole message as a find on this
+        # computer: "I need the electric bill, where is it?" asks for the bill, not for a file this chat
+        # wrote. Claimed here it was answered "I have no file-write receipt ... I will not guess by
+        # searching your disk" and no search ran (iMac gate on 6f13177cc). The find runs below.
+        return None
     if receipt is None:
         response = render_missing_receipt_answer()
         details: dict[str, Any] = {"receipt_found": False}
@@ -93,6 +99,18 @@ def maybe_handle_action_receipt_location_request(
         reason="action_receipt_location",
         classification_details=details,
     )
+
+
+def _judged_a_find_on_disk(user_input: str) -> bool:
+    """Whether this turn's tool judgement picked the find on this computer for the message (read only)."""
+    try:
+        from core.plugin_ask import judged_at_all, judged_builtins, judged_builtins_of_message_holding
+
+        # The whole message is what the judge read; a clause cut out of it is looked up in the message holding it.
+        picked = judged_builtins(user_input) if judged_at_all(user_input) else judged_builtins_of_message_holding(user_input)
+    except Exception:
+        return False
+    return "find" in picked
 
 
 __all__ = ["maybe_handle_action_receipt_location_request"]
