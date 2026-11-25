@@ -1607,6 +1607,15 @@ def _owner_folder_demand(text: str, source_context: dict[str, Any] | None) -> bo
         return False
 
 
+def _owner_local_turn(source_context: dict[str, Any] | None) -> bool:
+    try:
+        from core.request_trust import request_is_owner_local
+
+        return request_is_owner_local(source_context)
+    except Exception:
+        return False
+
+
 class VoolAgent(
     RuntimeCheckpointSupportMixin,
     VoolBookRuntimeMixin,
@@ -2951,6 +2960,22 @@ class VoolAgent(
         from core import plugin_ask
 
         plugin_ask.judge_turn(raw_turn_text, also=effective_input, source_context=runtime_source_context, session_id=session_id)
+        if not runtime_source_context.get("_semantic_machine_list_directory_admitted") and (
+            set(plugin_ask.judged_builtins(raw_turn_text)) & {"find", "read"}
+        ) and _owner_local_turn(runtime_source_context):
+            # The folder listing was admitted above, before this judgement existed, by English word probes alone:
+            # "kur laikau savo sodo planą?" ("where do I keep my garden plan?"), judged Find, had the model list the
+            # chat's project folder and the listing refused it as "no machine or path target" (iMac gate on
+            # c78c018da). The judge's reading is the demand in any language; the frame check still decides.
+            runtime_source_context["_semantic_machine_list_directory_admitted"] = admit_deterministic_candidate(
+                preflight,
+                explicit_text_whole_turn_candidate(
+                    preflight,
+                    route_id="machine.list_directory",
+                    source_id="core.agent_runtime.intent_claims.list_directory.v1",
+                    allowed_frames=frozenset({SemanticFrame.REAL, SemanticFrame.UNKNOWN}),
+                ),
+            ).admitted
         agent_memory_runtime.keep_what_the_turn_states(
             raw_turn_text, session_id=session_id, source_context=runtime_source_context, access_policy=access_policy,
         )

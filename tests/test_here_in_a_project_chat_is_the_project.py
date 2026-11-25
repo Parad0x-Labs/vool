@@ -73,3 +73,37 @@ def test_a_judged_memory_recall_is_no_folder_demand() -> None:
 
     plugin_ask._record_builtins(ASKS[0], ("memory_recall",))
     assert not _owner_folder_demand(ASKS[0], {OWNER_LOCAL_KEY: True})
+
+
+@pytest.fixture
+def turn(tmp_path, runtime_storage_reset, monkeypatch):
+    import tempfile
+
+    from core.agent_runtime.agent import VoolAgent
+
+    workspace = Path(tempfile.mkdtemp(prefix="vool-here-ws-"))
+    monkeypatch.setenv("VOOL_WORKSPACE_ROOT", str(workspace))
+    agent = VoolAgent(backend_name="test-backend", device="here-turns", persona_id="default")
+    return agent
+
+
+@pytest.mark.parametrize(("picked", "admitted"), [(("find",), True), (("read",), True), (("memory_recall",), False), ((), False)])
+def test_a_turn_judged_a_find_may_list_a_folder(picked, admitted, turn, monkeypatch) -> None:
+    """The listing was admitted before the judge ran, by English word probes alone; the judge's reading now counts."""
+    from core.agent_runtime import memory_runtime
+
+    text = random.Random(f"turn-{picked}").choice(ASKS)
+    seen: dict = {}
+
+    def judged(message, source_context, session_id):
+        plugin_ask._record_builtins(message, picked)
+        return None
+
+    def keep(message, *, source_context, **_kw):
+        seen.setdefault("admitted", source_context.get("_semantic_machine_list_directory_admitted"))
+
+    monkeypatch.setattr(plugin_ask, "_judge_turn", judged)
+    monkeypatch.setattr(memory_runtime, "keep_what_the_turn_states", keep)
+    turn.run_once(text, session_id_override="here-chat", source_context={"chat_id": "here-chat"})
+
+    assert bool(seen.get("admitted")) is admitted, (text, picked, seen)
