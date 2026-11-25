@@ -17,9 +17,10 @@ from core.semantic.semantic_admissions import bound_request_context
 PEOPLE = ("my yoga teacher Ona", "my landlord Petras", "our neighbour Mia", "my boss Karl")
 PETS = ("a ferret called Bolt", "two goldfish", "a cat named Saga", "an old pony")
 REFUSALS = ("but don't store that anywhere", "please never write this down", "keep that part to yourself",
-            "this stays between us", "das bitte nicht speichern", "don't keep it in your memory, ok?")
+            "this stays between us", "das bitte nicht speichern", "don't keep it in your memory, ok?",
+            "but leave that out of your notes", "skip saving this bit")
 PLAIN = ("what is the capital of Peru?", "remind me at 9 to call mum", "my dog is not a fan of baths",
-         "I keep forgetting where I park")
+         "I keep forgetting where I park", "forget my gym locker number", "jot this down: my locker is 31")
 
 
 @pytest.fixture
@@ -66,3 +67,10 @@ def test_the_model_is_told_only_this_message_is_kept_out_not_that_the_chat_is_pr
     block = private_chat.this_turn_prompt_block()
     assert "THIS message is not kept" in block and "not private" in block
     assert "PRIVATE CHAT IS ON" not in block
+
+
+def test_a_forget_order_is_never_made_a_private_turn(judged) -> None:
+    asked = judged("no")
+    context: dict = {}
+    assert private_chat.judge_keep_refusal("forget what I said about my locker, don't keep it", context, "c") is False
+    assert asked == [] and private_chat.PRIVATE_TURN_KEY not in context

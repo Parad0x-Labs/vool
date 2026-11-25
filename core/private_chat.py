@@ -627,10 +627,19 @@ _MAY_REFUSE_KEEP_RE = re.compile(
 )
 
 
+#: A word about keeping, and a word that leaves something out, anywhere in one message ("leave that out of your
+#: notes", "skip saving this one"): together they may ask that it is not kept. Only a reason to ask the judge.
+_KEEPING_WORD_RE = re.compile(r"\b(?:record|sav|log|stor|remember|memor|keep|kept|note|notes|writ|track|file|jot)\w*",
+                              re.IGNORECASE)
+_LEAVING_WORD_RE = re.compile(r"\b(?:out|leave|leaving|skip|skipping|without|omit|drop|ignore|forget)\b", re.IGNORECASE)
+
+
 def may_refuse_keeping(text: str) -> bool:
     """Whether a message's words may ask that it is not kept, in any language VOOL reads privacy words in."""
     raw = str(text or "").translate(_APOSTROPHES)
-    return bool(_MAY_REFUSE_KEEP_RE.search(raw)) or looks_like_privacy_request(raw)
+    if _MAY_REFUSE_KEEP_RE.search(raw) or looks_like_privacy_request(raw):
+        return True
+    return bool(_KEEPING_WORD_RE.search(raw) and _LEAVING_WORD_RE.search(raw))
 
 
 def judge_keep_refusal(text: str, source_context: Any, session_id: str | None = None) -> bool:
@@ -644,6 +653,15 @@ def judge_keep_refusal(text: str, source_context: Any, session_id: str | None = 
     context = source_context if isinstance(source_context, dict) else None
     if not str(text or "").strip() or turn_is_private(context, session_id) or not may_refuse_keeping(text):
         return False
+    try:
+        from core.persistent_memory import memory_command_owns_turn
+
+        if memory_command_owns_turn(str(text)):
+            # A memory command is the memory lane's own: a keep asks its own keep-wanted question, and a forget must
+            # never be made a private turn.
+            return False
+    except Exception:
+        pass
     try:
         from core.intent_arbiter import arbitrate_keep_wanted
 
