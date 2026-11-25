@@ -285,6 +285,13 @@ def single_plain_know_question(
 
     if recall_question_needs_no_planner(as_question(message)):
         return False
+    # The same in any wording: the turn's judge read the question as one about the person's own life (a memory recall).
+    # Gate iMac on 3c92e8df3: "what's the name of Tadas's tortoise?", judged a recall in a new chat, was asked back "Are
+    # you referring to the person named Tadas or another entity named Tadas?" instead of being told it is not saved.
+    from core.persistent_memory import judged_memory_ask
+
+    if judged_memory_ask(message) == "recall":
+        return False
     # "what bike do I have", "which hotel am I staying at": the referent is the speaker's own, so
     # there is nothing in the world to disambiguate (measured: "Did you mean: bike?").
     if re.search(r"\b(?:do|did|have|had|am|was|will)\s+i\b|\bi(?:'m|'ve)\b", message, re.IGNORECASE):
