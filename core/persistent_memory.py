@@ -2983,6 +2983,13 @@ def _everyday_decision(
 #: A sentence with words in front of a forget order: the front (no sentence end inside it), then the order.
 _FORGET_ASK_SHAPE_RE = re.compile(
     r"^(?P<lead>[^.!?\n]{1,60}?)[\s,]+(?P<order>(?:forget|erase)\s+(?!(?:about\s+)?it\b)\S.*)$", re.IGNORECASE)
+#: The same order given as its own sentence after a short one ("thanks. please forget the piano lesson info now."): the
+#: front ends at a sentence mark, and the order may open with a lead-in the readers list. On the installed app
+#: (6f5532699, qwen3:8b) such a message went to the chat lane, the model said it had removed the fact, the claim was
+#: corrected, and the fact was answered in the next chat; "forget my piano lesson" alone was carried out.
+_FORGET_ASK_AFTER_A_SENTENCE_RE = re.compile(
+    r"^(?P<lead>[^\n]{1,60}?[.!?;])\s+(?P<order>(?:(?:please|pls|ok(?:ay)?|and|also|now|then|so|just)[\s,]+)*"
+    r"(?:forget|erase)\s+(?!(?:about\s+)?it\b)\S.*)$", re.IGNORECASE)
 #: A front that speaks of the person's own forgetting, or denies the order ("I always", "we never", "don't"): no order
 #: to the assistant, and never put to a judge. It only ever makes this reader stricter.
 _FORGET_ASK_NOT_AN_ORDER_RE = re.compile(
@@ -3018,12 +3025,21 @@ def _forget_order_in_other_words(
         # rule and needs no judgement. Measured on the real app: "could you forget my library card number?" was
         # left to the model, which was then corrected for claiming a memory write, and the number was served after.
         return listed
-    if memory_command_owns_turn(clean):
-        return None  # another command of the memory lane, or an order inside a longer message: its readers decide
-    shaped = _FORGET_ASK_SHAPE_RE.match(clean)
-    if shaped is None:
-        return None
-    lead, order = shaped.group("lead").strip(" ,"), shaped.group("order").strip()
+    after_a_sentence = _FORGET_ASK_AFTER_A_SENTENCE_RE.match(clean)
+    if after_a_sentence is not None and memory_command_owns_turn(after_a_sentence.group("lead")):
+        after_a_sentence = None  # the front is a memory command of its own ("remember ... . forget ..."): readers decide
+    if after_a_sentence is not None:
+        # The front is a sentence of its own; the order is the rest, its lead-in taken off as the readers would.
+        shaped = after_a_sentence
+        lead = shaped.group("lead").strip(" ,")
+        order = _FORGET_ORDER_LEAD_IN_RE.sub("", shaped.group("order").strip(), count=1)
+    else:
+        if memory_command_owns_turn(clean):
+            return None  # another command of the memory lane, or an order inside a longer message: its readers decide
+        shaped = _FORGET_ASK_SHAPE_RE.match(clean)
+        if shaped is None:
+            return None
+        lead, order = shaped.group("lead").strip(" ,"), shaped.group("order").strip()
     if not lead or len(lead.split()) > 6 or _FORGET_ASK_NOT_AN_ORDER_RE.search(lead) or not _FORGET_RE.match(order):
         return None
     if not _turn_may_read_memory(source_context, session_id):

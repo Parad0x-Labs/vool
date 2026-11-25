@@ -176,3 +176,40 @@ def test_the_persons_own_forgetting_forgets_nothing(saved, judge):
     handled, _reply = maybe_handle_memory_command("I always forget my library card number.", session_id=CHAT, source_context=dict(OWNER))
     assert "40721" in _entries()
     assert not str(_reply).startswith("Forget applied")
+
+
+# ------------------------------------------------------------ an order given as its own sentence after a short one
+# Installed app 6f5532699 (qwen3:8b): "thanks. please forget the ... info now." went to the chat lane, the model said it
+# had removed the fact, the claim was corrected, and the fact was answered in the next chat.
+
+
+@pytest.mark.parametrize("text", ["cheers. please forget my work parking bay now.",
+                                  "Great, thank you! Now erase my work parking bay.",
+                                  "ok that's sorted; forget my work parking bay"])
+def test_an_order_after_a_short_sentence_is_judged_with_that_sentence_as_its_front(saved, judge, text):
+    asked, _ = judge
+    order = _order(text)
+    assert order and order.lower().startswith(("forget my work parking bay", "erase my work parking bay")), order
+    assert len(asked) == 1 and asked[0][1] == order
+
+
+def test_the_order_after_a_short_sentence_forgets_the_saved_fact(saved, judge):
+    handled, reply = maybe_handle_memory_command("cheers. please forget my work parking bay now.", session_id=CHAT,
+                                                 source_context=dict(OWNER))
+    assert handled
+    assert str(reply).startswith("Forget applied. Removed 1 memory entry."), reply
+    assert "131" not in _entries()
+    assert "40721" in _entries()
+
+
+@pytest.mark.parametrize("text", ["cheers. I never forget my library card", "That went well. I always forget my keys."])
+def test_a_sentence_about_the_persons_own_forgetting_is_still_no_order(saved, judge, text):
+    asked, _ = judge
+    assert _order(text) is None
+    assert asked == []
+
+
+def test_a_front_that_is_a_memory_command_of_its_own_is_left_to_the_readers(saved, judge):
+    asked, _ = judge
+    assert _order("Remember that my bike is green. Forget my work parking bay.") is None
+    assert asked == []
