@@ -410,6 +410,23 @@ def _memory_kind_confirmed(
         if agreed or (asked("forget", intent_arbiter.arbitrate_forget_order) == "yes"
                       and (about_told or asked("told as fact", intent_arbiter.arbitrate_told_as_fact) != "yes")):
             decided = "forget"
+    if not decided and not tools and named & {"forget", "recall"} and _has_pending_reminders():
+        # A word for reminder is also a word for memory in some languages ("Erinnerung"): "lösche meine Erinnerung"
+        # ("delete my reminder"), with a reminder pending, was judged a memory forget and answered "I have nothing
+        # saved about that", and the reminder stayed (iMac gate on 95fae99a0). With a reminder there to act on, a
+        # forget or recall reading is asked whether the message is about a reminder.
+        if asked("reminder", intent_arbiter.arbitrate_reminder_ask) == "yes":
+            _log.info("memory kind judged: %s read as a reminder order", ",".join(sorted(named)))
+            return tools + ("reminders",)
+    if not decided and not tools and kind == "keep" and not picked:
+        # The memory question alone read a keep and the tool judgement picked nothing: "zapamiętaj proszę: moja
+        # sąsiadka Ewa ma kota o imieniu Mruczek" was not kept and the model's "I'll remember that" was corrected to
+        # "I did not write anything to memory" (iMac gate on 95fae99a0). One reading alone kept three accentless
+        # Lithuanian forgets as facts (probe of 32f3c9e38), so a second reading decides: the message tells a fact and
+        # is no forget order.
+        if (asked("told as fact", intent_arbiter.arbitrate_told_as_fact) == "yes"
+                and asked("forget", intent_arbiter.arbitrate_forget_order) != "yes"):
+            picked.add("keep")
     if not decided and not tools and kind == "keep" and "keep" in picked:
         if _continues_a_contact_save(text, source_context):
             _log.info("memory kind judged: keep read as the contact save before it continued")
@@ -420,6 +437,17 @@ def _memory_kind_confirmed(
     _log.info("memory kind judged: %s (tool judgement picked %s, memory question %s)", decided or "none",
               ",".join(keys) or "none", kind)
     return tools + ((f"memory_{decided}",) if decided else ())
+
+
+def _has_pending_reminders() -> bool:
+    """Whether the owner has any reminder still to come, in any chat. A store fault reads as none."""
+    try:
+        from core.operator.reminders import list_owner_reminders
+        from storage.db import get_connection
+
+        return bool(list_owner_reminders(get_connection_fn=get_connection))
+    except Exception:
+        return False
 
 
 def judged_builtins(text: str) -> tuple[str, ...]:

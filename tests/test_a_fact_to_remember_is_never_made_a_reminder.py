@@ -72,3 +72,42 @@ def test_the_question_is_asked_of_the_turns_model(monkeypatch) -> None:
     monkeypatch.setattr(intent_arbiter, "_judged_for_the_turn", lambda p, _c, parse=None: prompts.append(p) or "no")
     assert intent_arbiter.arbitrate_reminder_ask(FACTS[0]) == "no"
     assert len(prompts) == 1 and FACTS[0] in prompts[0]
+
+
+# iMac gate on 95fae99a0: "zapamiętaj proszę: ..." was judged keep by the memory question alone and not kept, and a
+# German reminder delete ("Erinnerung" is also "memory") was judged a memory forget while a reminder was pending.
+KEEPS = ("zapamiętaj: mój kolega Marek ma papugę Kiwi", "įsimink: mano dėdės ožka vardu Baltė",
+         "merk dir bitte, meine Nichte heißt Lotte")
+REMINDER_ORDERS = ("entferne meine Erinnerung", "zeig mir meine Erinnerungen", "atšauk priminimą")
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_a_keep_read_by_the_memory_question_alone_is_kept_when_the_message_tells_a_fact(seed, readings, monkeypatch):
+    text = random.Random(f"keep-{seed}").choice(KEEPS)
+    readings("keep", None)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
+    assert plugin_ask._memory_kind_confirmed(text, (), {}, "chat-1") == ("memory_keep",)
+
+
+def test_a_keep_read_alone_is_not_kept_when_the_message_tells_no_fact(readings, monkeypatch) -> None:
+    readings("keep", None)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "no")
+    assert plugin_ask._memory_kind_confirmed("pamirsk ka pasakojau apie valti", (), {}, "chat-1") == ()
+
+
+@pytest.mark.parametrize("kind", ["forget", "recall"])
+@pytest.mark.parametrize("seed", range(3))
+def test_a_memory_reading_of_a_reminder_order_goes_to_the_reminders_while_one_is_pending(kind, seed, readings,
+                                                                                          monkeypatch) -> None:
+    text = random.Random(f"order-{seed}").choice(REMINDER_ORDERS)
+    asked = readings(kind, "yes")
+    monkeypatch.setattr(plugin_ask, "_has_pending_reminders", lambda: True)
+    assert plugin_ask._memory_kind_confirmed(text, (), {}, "chat-1") == ("reminders",)
+    assert asked == [text]
+
+
+def test_with_no_reminder_pending_a_forget_is_not_asked_about_reminders(readings, monkeypatch) -> None:
+    asked = readings("forget", "yes")
+    monkeypatch.setattr(plugin_ask, "_has_pending_reminders", lambda: False)
+    assert "reminders" not in plugin_ask._memory_kind_confirmed("vergiss mein Fahrrad", (), {}, "chat-1")
+    assert asked == []

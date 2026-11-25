@@ -888,7 +888,8 @@ def _done_claim_prompt(reply: str) -> str:
         'Answer {"answer": "none"} for everything else, including: information or an answer; what a calendar, list, '
         "folder or account already holds; instructions or steps for the reader to follow; a poem, story, list, table or "
         "other text written out in the reply, including the person's own items sorted, grouped or rewritten there; "
-        "an offer, a plan or a question; a refusal or saying it cannot or did not do it.",
+        "an offer, a plan or a question (\"if you tell me, I'll remember it\" is an offer); a refusal or saying it "
+        "cannot or did not do it.",
         "",
         'Reply: "Dodano mleko i jajka do listy zakupów." -> {"answer": "done"}',
         'Reply: "Morgen hast du zwei Einträge: 9 Uhr Zahnarzt und 15 Uhr Training." -> {"answer": "none"}',
@@ -902,6 +903,8 @@ def _done_claim_prompt(reply: str) -> str:
         'Reply: "Shall I look up a taxi number near you?" -> {"answer": "none"}',
         'Reply: "Noted, I\'ll ping you on Friday at 4 to call the garage." -> {"answer": "done"}',
         'Reply: "Got it, the gym one is gone." -> {"answer": "done"}',
+        'Reply: "I don\'t have that saved. If you tell me, I\'ll remember it." -> {"answer": "none"}',
+        'Reply: "To neturiu išsaugota. Jei pasakysite, įsiminsiu." -> {"answer": "none"}',
         'Reply: "| Gang | Artikel | | Obst | Äpfel, Birnen | | Kühlregal | Joghurt | Gesamt: 3" -> {"answer": "none"}',
         "",
         f'Reply: "{body}" ->',
@@ -1804,8 +1807,9 @@ def _reminder_ask_prompt(message: str) -> str:
     the fact."""
     flat = " ".join(str(message or "").split())[:400].replace('"', "'")
     return "\n".join([
-        "Does this message ask the assistant to remind the person of something later (set, show, move or cancel a",
-        "reminder)? Telling a fact, or asking the assistant to remember a fact, is no. Answer yes or no. Any language.",
+        "Does this message ask the assistant to remind the person of something later, or to set, show, move, cancel",
+        "or delete such a reminder? Telling a fact, asking the assistant to remember a fact, or to forget what it was",
+        "told, is no. Answer yes or no. Any language.",
         "",
         'Message: "remind me tomorrow at 9 to call mom" -> {"answer": "yes"}',
         'Message: "remember that my locker number is 42" -> {"answer": "no"}',
@@ -1815,6 +1819,9 @@ def _reminder_ask_prompt(message: str) -> str:
         'Message: "erinnere mich am Freitag an den Zahnarzt" -> {"answer": "yes"}',
         'Message: "merk dir: mein Fahrrad ist blau" -> {"answer": "no"}',
         'Message: "set a reminder to water the plants" -> {"answer": "yes"}',
+        'Message: "entferne die Erinnerung fürs Training" -> {"answer": "yes"}',
+        'Message: "vergiss, was ich dir über mein Fahrrad gesagt habe" -> {"answer": "no"}',
+        'Message: "kokie mano priminimai?" -> {"answer": "yes"}',
         "",
         f'Message: "{flat}" ->',
         'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
@@ -1854,7 +1861,7 @@ def _means_the_one_reminder_prompt(message: str, reminder: str) -> str:
         'Reminder: "renew the car insurance". Message: "delete my reminder about the dentist" -> {"answer": "no"}',
         'Reminder: "renew the car insurance". Message: "cancel my reminder" -> {"answer": "yes"}',
         'Reminder: "call mom". Message: "move it to friday 3pm" -> {"answer": "yes"}',
-        'Reminder: "pay rent". Message: "lösche meine Erinnerung" -> {"answer": "yes"}',
+        'Reminder: "pay rent". Message: "streich bitte die Erinnerung" -> {"answer": "yes"}',
         'Reminder: "pay rent". Message: "atšauk priminimą apie vaistus" -> {"answer": "no"}',
         'Reminder: "water the plants". Message: "przesuń przypomnienie na jutro na 9" -> {"answer": "yes"}',
         "",

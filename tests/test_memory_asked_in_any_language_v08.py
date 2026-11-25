@@ -396,7 +396,10 @@ _READINGS = [
     ("Memory, recall", "forget", "no", None, "recall"),
     ("Memory, recall", "none", None, None, "recall"),        # bef26afe4: a recall the tool judgement had right
     (None, "keep", None, "no", ""),                          # bef26afe4: "parasyk trumpa eilerasti ..." read as a keep
-    (None, "keep", None, "yes", ""),                         # a keep never stands on one reading
+    # iMac gate on 95fae99a0: "zapamiętaj proszę: moja sąsiadka Ewa ma kota ..." was read keep by the memory question
+    # alone and not kept. One reading stands when a second one says the message tells a fact and is no forget order.
+    (None, "keep", None, "yes", "keep"),
+    (None, "keep", "yes", "yes", ""),
     ("Memory, forget", None, None, None, ""),                # a forget never stands on an unreadable second reading
     ("Memory, forget", None, "yes", None, "forget"),
     (None, "forget", None, None, ""),
