@@ -713,10 +713,20 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
     # A pasted email or message is material, not the ask: the judge (and the word readers deciding whether to ask it)
     # read the person's own words in front of it, with the paste shown as text already in the message
     # (core.memory.admission reads the paste by its shape, in any language).
-    from core.memory.admission import text_before_a_pasted_message
+    from core.memory.admission import holds_a_pasted_message, text_before_a_pasted_message
 
-    own = text_before_a_pasted_message(text)
-    material = text[text.find(own) + len(own):].strip() if own and own != text else ""
+    pasted = holds_a_pasted_message(text)
+    own = text_before_a_pasted_message(text) if pasted else text
+    if pasted and not own.strip():
+        # Nothing but a pasted mail: no words of the person's own ask anything of a tool. iMac gate22 on 1e85219dc: a
+        # bare pasted parcel mail was judged a file find and the Desktop was searched.
+        _record_builtins(text, ())
+        _log.info("tool ask: the message is only pasted material; no tool is asked for")
+        if not rows:
+            return None
+        _record(text, (), signature)
+        return ()
+    material = text[text.find(own) + len(own):].strip() if pasted and own != text else ""
     builtins = [*BUILTIN_CHOICES, *MEMORY_CHOICES] if _builtins_to_ask(own if material else text, source_context) else []
     if not rows and not builtins:
         return None

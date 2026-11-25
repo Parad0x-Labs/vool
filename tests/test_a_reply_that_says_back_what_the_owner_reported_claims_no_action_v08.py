@@ -269,8 +269,9 @@ def test_a_summary_of_a_pasted_mail_is_asked_whether_it_only_passes_it_on(monkey
     """Mac gate20 on 1d605955a: a German summary of a pasted garage mail had its first sentence cut and replaced by "no
     email account is connected, nothing was sent". The said-back reader knows English done words only; the relay
     judge reads any language. The judge here is a stand-in: what it answers is the test's choice."""
-    from core import intent_arbiter
+    from core import intent_arbiter, plugin_ask
 
+    plugin_ask.forget()   # nothing judged the ask: the relay question decides
     asked = []
     monkeypatch.setattr(intent_arbiter, "arbitrate_claim_relayed",
                         lambda reply, given, **_k: asked.append((reply, given)) or relayed)
@@ -289,3 +290,38 @@ def test_a_claim_with_no_material_of_the_persons_is_not_put_to_the_relay_judge(m
 
     monkeypatch.setattr(intent_arbiter, "arbitrate_claim_relayed", lambda *a, **k: pytest.fail("asked without material"))
     gate("Your appointment is scheduled for Friday at 9.", said=(), request="book me in for Friday at 9")
+
+
+_VET = ("Me puedes contar que dice esto?\n\nFrom: Linden Vet Clinic <desk@example.org>\nSubject: Booking\n\n"
+        "Bella's booster shot is booked for Wednesday at 10:20. Please bring her vaccination card.")
+_VET_SUMMARY = "Your booster appointment has been scheduled for Wednesday at 10:20. Bring her vaccination card."
+
+
+def test_a_summary_over_a_paste_whose_ask_orders_nothing_stands_without_a_model(monkeypatch):
+    """iMac gate22 on 1e85219dc: a Spanish ask over a vet's mail had its "is scheduled for Thursday at 9:40" sentence
+    cut for "no calendar is configured", and a French one over a German club mail had "moved to Monday" cut for "no
+    email account". The own words ordered nothing (the turn's judge picked no tool), so nothing was claimed done."""
+    from core import intent_arbiter, plugin_ask
+
+    plugin_ask.forget()
+    plugin_ask._record_builtins(_VET, ())
+    monkeypatch.setattr(intent_arbiter, "arbitrate_claim_relayed", lambda *a, **k: pytest.fail("a model was asked"))
+    published, record = gate(_VET_SUMMARY, said=(), request=_VET)
+    if record.get("publication") == "stood_down:no_action_claims":
+        pytest.skip("this summary reads as no claim on this line")
+    assert published == _VET_SUMMARY and record["publication"] == "stood_down:relays_given_text", record
+    plugin_ask.forget()
+
+
+def test_an_order_over_a_paste_keeps_the_full_check(monkeypatch):
+    from core import intent_arbiter, plugin_ask
+
+    order = _VET.replace("Me puedes contar que dice esto?", "Ponlo en mi calendario, por favor.")
+    plugin_ask.forget()
+    plugin_ask._record_builtins(order, ("calendar",))
+    monkeypatch.setattr(intent_arbiter, "arbitrate_claim_relayed", lambda *a, **k: "no")
+    published, record = gate(_VET_SUMMARY, said=(), request=order)
+    plugin_ask.forget()
+    if record.get("publication") == "stood_down:no_action_claims":
+        pytest.skip("this summary reads as no claim on this line")
+    assert record["publication"] == "action_claims_corrected", record

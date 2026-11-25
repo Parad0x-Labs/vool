@@ -1282,6 +1282,39 @@ def _with_kept_line(text: str, turn_id: str, source_context: Any, publication: s
         return text, record
 
 
+def _typed_turn(request: str, context: dict) -> str:
+    """The person's message as typed, line breaks kept (the canonical request's verbatim text), else the request."""
+    try:
+        from core.turn_contract import TURN_REQUEST_KEY
+
+        verbatim = str(getattr(context.get(TURN_REQUEST_KEY), "user_text", "") or "")
+    except Exception:
+        verbatim = ""
+    return verbatim if verbatim.strip() else str(request or "")
+
+
+def _own_words_order_nothing(typed: str) -> bool:
+    """Whether the person's own lines in front of a pasted mail ask for nothing to be done: the turn's judge read them
+    and picked no tool, and they hold no operator order. Then a reply sentence saying something was scheduled, moved or
+    sent can only be passing on what the pasted mail says: nothing was asked to be done, so nothing was claimed done.
+
+    iMac gate22 on 1e85219dc: "the vaccination is scheduled for Thursday at 9:40" (a Spanish ask over a vet's mail) and
+    "le training est déplacé à lundi à 18h00" (a French ask over a club's German mail) were cut and replaced by "no
+    calendar is configured" and "no email account is connected"; the relay question to the model was not asked in the
+    first and answered "new" in the second. An order over a paste ("send this to Jonas", "put this on my calendar") is
+    judged a tool, or parsed as an order, and keeps the full check."""
+    from core import plugin_ask
+    from core.memory.admission import text_before_a_pasted_message
+    from core.operator.parser import parse_operator_action_intent
+
+    if not plugin_ask.judged_at_all(typed):
+        return False
+    if plugin_ask.judged_builtins(typed) or plugin_ask.judged_plugins(typed):
+        return False
+    own = " ".join(text_before_a_pasted_message(typed).split())
+    return not own or parse_operator_action_intent(own) is None
+
+
 def _relays_what_was_given(spans: list, request: str, source_context: Any) -> bool:
     """Whether the claim sentences only pass on what the person's own pasted text or attachment says happened.
 
@@ -1292,19 +1325,24 @@ def _relays_what_was_given(spans: list, request: str, source_context: Any) -> bo
     any language. Asked only when the turn carries material of the person's own (a paste after the ask, or an
     attachment); no answer leaves the claims as they are."""
     try:
+        from core.memory.admission import holds_a_pasted_message
         from core.plain_task_routing import _SUPPLIED_MATERIAL_RE
 
         context = source_context if isinstance(source_context, dict) else {}
+        typed = _typed_turn(request, context)
+        pasted = holds_a_pasted_message(typed)
+        if pasted and _own_words_order_nothing(typed):
+            return True
         attached = [
             str(item.get("text") or "") for item in list(context.get("external_evidence") or [])
             if isinstance(item, dict) and str(item.get("origin") or "") == "chat_attachment" and str(item.get("text") or "").strip()
         ]
-        if not attached and not _SUPPLIED_MATERIAL_RE.search(request):
+        if not attached and not pasted and not _SUPPLIED_MATERIAL_RE.search(request):
             return False
         from core import intent_arbiter
 
         claimed = " ".join(dict.fromkeys(str(c[3]) for c in spans))
-        given = "\n\n".join([request, *attached])
+        given = "\n\n".join([typed if pasted else request, *attached])
         return intent_arbiter.arbitrate_claim_relayed(
             claimed, given, chat_id=str(context.get("runtime_session_id") or context.get("session_id") or ""),
             source_context=context,

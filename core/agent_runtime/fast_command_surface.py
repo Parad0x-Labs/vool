@@ -2093,6 +2093,11 @@ def fast_path_result(
         "topic_hints": [],
         "prompt_assembly_report": {},
         "model_execution": {"source": "fast_path", "used_model": False},
+        # Runtime code composed these bytes. The turn's judges (tool ask, web ask) meter served usage before a fast lane
+        # answers, and the grounding lifecycle read that usage as a model having written the answer: iMac gate22 on
+        # 1e85219dc, "what time is it in Lima right now?" was answered from the clock, then replaced at publication by
+        # "Web lookups are off" because nothing had been retrieved to support "model prose".
+        "runtime_rendered_final": True,
         "media_analysis": {"used_provider": False, "reason": "fast_path"},
         "curiosity": {"mode": "skipped", "reason": "fast_path"},
         "backend": agent.backend_name,

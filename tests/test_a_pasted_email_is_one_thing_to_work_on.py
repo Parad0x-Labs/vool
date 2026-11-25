@@ -184,3 +184,17 @@ def test_a_plain_letter_ask_over_a_pasted_mail_names_whose_language_counts(ask):
     # The same ask with nothing pasted adds no line in an English chat: the prompt stays byte for byte.
     assert response_language_provider_instruction(
         response_language_policy_for_text(ask).to_dict(), earlier_user_texts=[], latest_text=ask) == ""
+
+
+def test_a_message_that_is_only_a_pasted_mail_asks_no_tool(monkeypatch):
+    """iMac gate22 on 1e85219dc: a pasted parcel mail with no line of the person's own was judged a file find, and the
+    Desktop was searched. Nothing in it is the person's ask, so no judge is asked and no tool is picked."""
+    from core import intent_arbiter, plugin_ask
+
+    mail = ("From: Northway Parcels <track@example.com>\nSubject: Out for delivery\n\n"
+            "Your parcel with the garden hose will arrive tomorrow between 9 and 13. No signature is needed.")
+    plugin_ask.forget()
+    monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", lambda *a, **k: pytest.fail("a judge was asked"))
+    plugin_ask._judge_turn(mail, {}, "bare-paste")
+    assert plugin_ask.judged_at_all(mail) and plugin_ask.judged_builtins(mail) == ()
+    plugin_ask.forget()
