@@ -2315,7 +2315,10 @@ def classify(user_input: str, context: dict[str, Any] | None = None) -> dict[str
     routing_input = text_before_a_pasted_message(routing_input) or routing_input
     from core.retrieval_constraints import analyze_retrieval_constraints
 
-    raw_text = redact_text(routing_input).lower()
+    # An address is not the word "email": the redactor's "<email>" stand-in met the integration list's "email" and
+    # made "Streść mi to krótko." over a pasted mail integration work (Mac gate19 on c77cf9f90). The stand-in is read
+    # as a bare address mark here, so only words the person wrote decide the class.
+    raw_text = redact_text(routing_input).lower().replace("<email>", "<@>")
     # A prohibited operation is not positive task authority. Keep the complete
     # request for risk detection; classify only the existing parser's eligible work.
     # Authority-sensitive lookup checks below need raw_text: stripping their

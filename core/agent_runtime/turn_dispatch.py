@@ -165,9 +165,10 @@ def prepare_turn_task_bundle(
     # on the round 7 line (Mac, qwen3:8b): "Turn this into an X article:" over an article with
     # links read as research, which opens the tool gate on its own (core.execution.planner), and
     # the turn spent a tool round (137-161 s, no tool call) before its answer.
-    from core.agent_runtime.turn_planner import pasted_material_head
+    from core.agent_runtime.turn_planner import pasted_material_head_of_turn
 
-    classified_text = pasted_material_head(effective_input) or effective_input
+    raw_turn = str(getattr(interpreted, "raw_text", "") or user_input or "")
+    classified_text = pasted_material_head_of_turn(effective_input, raw_turn) or effective_input
     classification = classify_fn(classified_text, context=classification_context)
     agent._update_task_class(task.task_id, classification["task_class"])
     agent._update_runtime_checkpoint_context(

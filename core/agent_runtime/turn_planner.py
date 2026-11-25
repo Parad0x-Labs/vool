@@ -278,6 +278,22 @@ def single_shape_needs_no_planner(text: str) -> bool:
     return bool(pasted_material_head(text))
 
 
+def pasted_material_head_of_turn(text: str, raw_text: str = "") -> str:
+    """`pasted_material_head` of the turn's text, read from the person's raw words when the text lost its lines.
+
+    The text the lanes read has its line breaks folded into spaces, and a pasted email is found by its lines (the
+    header block, the blank line, the body). Mac gate19 on c77cf9f90: "Streść mi to krótko." over a pasted mail was
+    classified from the folded text, the mail's address (redacted to "<email>") read as the word "email", and the turn
+    became integration work answered as a plan with step lines. The raw head counts only when the text still opens
+    with it, so a turn the intake narrowed keeps its own reading."""
+    head = pasted_material_head(text)
+    if head or not str(raw_text or "").strip() or raw_text == text:
+        return head
+    raw_head = pasted_material_head(raw_text)
+    folded = " ".join(str(text or "").split())
+    return raw_head if raw_head and folded.startswith(" ".join(raw_head.split())) else ""
+
+
 def pasted_material_head(text: str) -> str:
     """The ask before the paste when *text* is one request over supplied material, else "".
 
@@ -296,13 +312,12 @@ def pasted_material_head(text: str) -> str:
         # give me the gist of this?" was read whole, and the turn searched the Desktop for its subject line.
         from core.memory.admission import text_before_a_pasted_message
 
+        # Not gated on a count of the ask's own units: the comma splitter cut "Kannst du mir sagen, worum es hier
+        # geht?" in two (Mac gate19 on c77cf9f90), and the whole mail was read as the ask again. The pasted message
+        # is one object whatever the ask says about it; the conductor leaves such a turn whole as well.
         own = text_before_a_pasted_message(message).strip(" \t\r\n:-")
         if own and own != message:
-            from core.agent_runtime.answer_coverage import demand_units
-
-            own_units = demand_units(own)
-            if own_units is None or len(own_units) <= 1:
-                return own
+            return own
         from core.plain_task_routing import _SUPPLIED_MATERIAL_RE
 
         material = _SUPPLIED_MATERIAL_RE.search(message)

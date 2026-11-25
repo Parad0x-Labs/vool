@@ -63,7 +63,11 @@ def test_the_kind_of_task_is_read_from_the_persons_own_words():
     assert classify(pasted)["task_class"] == classify(asked)["task_class"]
 
 
-@pytest.mark.parametrize("text", _EMAILS[:2] + _EMAILS[3:])
+_ASKED_IN_TWO_PARTS = ("Kannst du mir sagen, worum es hier geht?\n\nFrom: Marina Lotte <desk@example.it>\nSubject: Booking\n\n"
+                       "Your mooring at berth 12 is confirmed; the deposit is due by 20 May.")
+
+
+@pytest.mark.parametrize("text", _EMAILS[:2] + _EMAILS[3:] + [_ASKED_IN_TWO_PARTS])
 def test_the_words_in_front_of_a_pasted_email_are_the_ask(text):
     """Mac gate 18 on bb5351e0e: a mail under a short ask was read whole by the tool gate."""
     from core.agent_runtime.turn_planner import pasted_material_head
@@ -102,3 +106,26 @@ def test_the_tool_judge_reads_the_ask_with_the_email_shown_as_material(monkeypat
     prompt = intent_arbiter._plugin_ask_prompt(message, "", ["Read a file"], material)
     assert "Pasted text:" in prompt and prompt.rstrip().endswith('{"answer": [0]} for none of them')
     assert intent_arbiter._plugin_ask_prompt(message, "", ["Read a file"]).count("Pasted text:") == 0
+
+
+def test_the_ask_is_found_in_the_persons_own_lines_when_the_lanes_text_is_folded():
+    """Mac gate19 on c77cf9f90: the lanes read the turn with its line breaks folded into spaces, so the pasted mail was
+    not found and its address made the turn integration work, answered as a plan with step lines glued on."""
+    from core.agent_runtime.turn_planner import pasted_material_head_of_turn
+    from core.task_router import classify
+
+    raw = ("Streść mi to krótko.\n\nOd: Przychodnia Zdrowie <rejestracja@example.pl>\nTemat: Wizyta\n\n"
+           "Przypominamy o wizycie u okulisty w czwartek o 10:30. Prosimy zabrać skierowanie.")
+    folded = " ".join(raw.split())
+    head = pasted_material_head_of_turn(folded, raw)
+    assert head == "Streść mi to krótko."
+    assert classify(head)["task_class"] != "integration_orchestration"
+    # A turn the intake narrowed to other words keeps its own reading.
+    assert pasted_material_head_of_turn("Something else entirely.", raw) == ""
+
+
+def test_an_address_alone_is_not_the_word_email():
+    from core.task_router import classify
+
+    assert classify("what does mira@example.com stand for")["task_class"] != "integration_orchestration"
+    assert classify("send an email to my landlord")["task_class"] == "integration_orchestration"
