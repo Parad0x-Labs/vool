@@ -259,7 +259,12 @@ def test_real_servers_chromium_full_flow_and_red_controls(served):
             expect(aa.locator('.vl-job-state')).to_have_text('Complete')
             b.screenshot(path=str(evidence/'blue-guest-result.png'), full_page=True)
             aa.locator('.vl-receipt').first.locator(':scope > summary').click()
-            aa.locator('.vl-receipt').first.scroll_into_view_if_needed()
+            expect(aa.locator('.vl-receipt').first).to_have_attribute('open', '')
+            # The page checks on its own every 5 seconds and rebuilds its cards. An opened receipt stays open across
+            # that: before, it closed under the person (and the test's scroll hit a detached node, macOS CI on
+            # 5a8cd0abf, 2026-11-26).
+            a.wait_for_timeout(6500)
+            expect(aa.locator('.vl-receipt').first).to_have_attribute('open', '')
             expect(aa.locator('.vl-receipt').first).to_contain_text('SHA-256')
             receipt = aa.locator('.vl-receipt').first
             expect(receipt.locator('.vl-receipt-main')).to_contain_text('Complete')
@@ -267,6 +272,8 @@ def test_real_servers_chromium_full_flow_and_red_controls(served):
             assert not __import__('re').search(r'[0-9a-f]{64}', receipt.locator('.vl-receipt-main').inner_text())
             assert not receipt.locator('.vl-receipt-digests').evaluate('(node) => node.open')
             receipt.locator('.vl-receipt-digests > summary').click()
+            expect(receipt.locator('.vl-receipt-digests pre')).to_be_visible()
+            a.wait_for_timeout(6500)
             expect(receipt.locator('.vl-receipt-digests pre')).to_be_visible()
             a.screenshot(path=str(evidence/'blue-host-receipt.png'), full_page=True)
             for page, base in zip((a,b), bases, strict=True):
