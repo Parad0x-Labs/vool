@@ -718,6 +718,24 @@ def _actions_confirmed(
         if key == "contacts" and _CONTACT_VALUE_RE.search(" ".join(str(text or "").split())):
             kept.append(key)
             continue
+        if key == "find":
+            # A Find pick is asked a yes/no of its own. Unasked, "per kokias šalis ji teka?" after a question about the
+            # Volga was picked Find and answered "Local directory ~/Desktop does not exist" (iMac gate32 on 71cadd43f).
+            # The shared yes/no reads a question about the person's own things as no, and dropped real Lithuanian finds;
+            # this one kept 18 of 18 finds in eight languages and dropped 10 of 15 world questions (iMac probe g32,
+            # qwen3:8b). No answer keeps the pick.
+            try:
+                verdict = intent_arbiter.arbitrate_find_ask(
+                    text, previous=_previous_request(text, source_context), chat_id=str(session_id or ""),
+                    source_context=source_context)
+            except Exception as exc:
+                _log.info("tool ask: find pick not confirmed (%s)", type(exc).__name__)
+                verdict = None
+            if verdict == "no":
+                _log.info("tool ask: find pick dropped by its own yes/no")
+                continue
+            kept.append(key)
+            continue
         if key in _ACTION_CHOICES_CONFIRMED:
             description = next((row[1] for row in BUILTIN_CHOICES if row[0] == key), "")
             try:

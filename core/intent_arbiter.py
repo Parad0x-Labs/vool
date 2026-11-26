@@ -2171,6 +2171,53 @@ def arbitrate_world_follow_up(
     )
 
 
+def _find_ask_prompt(message: str, previous: str = "") -> str:
+    """Whether a message asks to find something the person keeps on this computer, asked of a Find pick only.
+
+    The shared yes/no (`_choice_ask_prompt`) reads "asking about the person's own life" as no, which a find of their
+    own bill or report is, so a Find pick was never confirmed. Unconfirmed, a follow-up about the world that points
+    back ("per kokias šalis ji teka?" after a question about the Volga) was picked Find, the files loop listed a
+    folder and the reply was "Local directory ~/Desktop does not exist" (iMac gate32 on 71cadd43f, qwen3:8b)."""
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
+    before = " ".join(str(previous or "").split())[:300].replace('"', "'")
+    return "\n".join([
+        "A person wrote to their assistant. Does the message ask to find, show or open something the person keeps on",
+        "this computer: a file or a folder of theirs (a document, bill, report, photo, spreadsheet or download)?",
+        "A question about the world (a place, a river, a person, a book, history, science) is no, also when it",
+        "points back with 'it', 'he' or 'there' at what the earlier message asked. Answer yes or no. Any language.",
+        "",
+        'Message: "where is the scan of my lease?" -> {"answer": "yes"}',
+        'Message: "surask mano nuotraukas iš Paryžiaus" -> {"answer": "yes"}',
+        'Earlier: "what is the tallest mountain in Asia?" Message: "how high is it?" -> {"answer": "no"}',
+        'Earlier: "wer hat den Faust geschrieben?" Message: "wann ist er gestorben?" -> {"answer": "no"}',
+        "",
+        *([f'Earlier: "{before}"'] if before else []),
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_find_ask(
+    message: str,
+    *,
+    previous: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """``"yes"`` / ``"no"``: whether the message asks to find something of the person's on this computer; None when
+    nothing judged it (core.plugin_ask keeps the pick then)."""
+    if not str(message or "").strip():
+        return None
+    prompt = _find_ask_prompt(message, previous)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
+        operation="find_ask_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def _choice_ask_prompt(message: str, choice: str) -> str:
     """Whether a message asks for one tool the judgement over the whole list picked for it."""
     flat = " ".join(str(message or "").split())[:400].replace('"', "'")
