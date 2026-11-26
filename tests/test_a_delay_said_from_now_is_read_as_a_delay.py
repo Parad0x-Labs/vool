@@ -23,6 +23,11 @@ NOW = datetime(2026, 3, 4, 10, 0, tzinfo=timezone.utc)
     # iMac gate38: "half an hour from now" was set an hour later with "half" as the reminder's text.
     ("put a reminder half an hour from now to stir the soup", 30),
     ("an hour and a half from now tell me to leave", 90),
+    # iMac gate40: "a quarter of an hour from now" was set an hour later with "a quarter of" in the reminder's text.
+    ("nudge me a quarter of an hour from now to take the bread out", 15),
+    ("three quarters of an hour from now remind me to call the garage", 45),
+    ("remind me in a quarter of an hour to check the kettle", 15),
+    ("in three quarters of an hour tell me to move the car", 45),
 ])
 def test_an_amount_from_now_is_a_delay(said: str, minutes: int) -> None:
     when = parse_when_expression(normalize_time_words(said), now_fn=lambda: NOW)
@@ -37,3 +42,14 @@ def test_from_now_without_an_amount_is_left_as_it_was() -> None:
 
 def test_half_an_hour_from_now_leaves_no_half_behind() -> None:
     assert "half" not in normalize_time_words("remind me half an hour from now to stir the soup").replace("in half an hour", "")
+
+
+def test_a_quarter_of_an_hour_from_now_leaves_no_quarter_behind() -> None:
+    said = normalize_time_words("nudge me a quarter of an hour from now to take the bread out")
+    assert said.count("quarter") == 1 and "in a quarter of an hour" in said
+
+
+def test_a_part_of_the_hour_with_more_after_it_is_asked_about() -> None:
+    when = parse_when_expression(normalize_time_words("remind me in a quarter of an hour and a half to stir"),
+                                 now_fn=lambda: NOW)
+    assert not when.ok and "minutes" in when.problem

@@ -102,10 +102,16 @@ _IN_RELATIVE_RE = re.compile(
 # "and a half" after the hour adds half an hour ("in an hour and a half" = 90 minutes) and an
 # "and a quarter" adds a quarter ("in an hour and a quarter" = 75 minutes). Both halves at
 # once ("in half an hour and a half") name no delay anyone says, so that reading is asked about.
+# A part of the hour said before it reads the same way: "in a quarter of an hour" is 15 minutes and "in three
+# quarters of an hour" 45 (iMac gate40 on 50f8bed75: "a quarter of an hour from now" was read as "an hour from now",
+# with "a quarter of" left in the reminder's text).
 _IN_WORDY_RELATIVE_RE = re.compile(
-    r"\bin\s+(?P<half>half\s+)?an?\s+hour\b(?:\s+and\s+a\s+(?P<more>half|quarter)\b)?",
+    r"\bin\s+(?:(?P<half>half\s+(?:of\s+)?)|(?P<part>(?:a|one)\s+quarter|three\s+quarters)\s+of\s+)?an?\s+hour\b"
+    r"(?:\s+and\s+a\s+(?P<more>half|quarter)\b)?",
     re.IGNORECASE,
 )
+#: The minutes a part of the hour said before it names.
+_HOUR_PARTS = {"quarter": 900.0, "quarters": 2700.0}
 # A calendar date in words: "5 November", "5th of Nov", "November 5th", with an optional year.
 # The day number must stand alone (not part of a clock time like "18:30" or a decimal), so
 # "may" or "march" next to a clock time is never a date.
@@ -402,7 +408,8 @@ _FROM_NOW_RE = re.compile(
 #: after "in", which the parser knows. iMac gate38: "half an hour from now" was read as "half" + "an hour from now" and
 #: set for an hour later, with "half" as the reminder's text.
 _WORDED_HOUR_FROM_NOW_RE = re.compile(
-    r"\b(?:(?:in|for|after)\s+)?((?:half\s+)?an?\s+hour(?:\s+and\s+a\s+(?:half|quarter))?)\s+from\s+now\b",
+    r"\b(?:(?:in|for|after)\s+)?((?:half\s+(?:of\s+)?|(?:a|one)\s+quarter\s+of\s+|three\s+quarters\s+of\s+)?"
+    r"an?\s+hour(?:\s+and\s+a\s+(?:half|quarter))?)\s+from\s+now\b",
     re.IGNORECASE,
 )
 
@@ -480,7 +487,8 @@ def _parse_when_expression(
             # "and a half" after the hour adds half an hour ("in an hour and a half" = 90 min),
             # "and a quarter" a quarter ("in an hour and a quarter" = 75 min).
             more = (wordy.group("more") or "").lower()
-            if wordy.group("half") and more:
+            part = (wordy.group("part") or "").lower().split()
+            if (wordy.group("half") or part) and more:
                 return WhenResolution(
                     ok=False, tz_name=tz_name,
                     problem=(
@@ -488,7 +496,7 @@ def _parse_when_expression(
                         "Say it in minutes, for example 'in 45 minutes' or 'in 90 minutes'."
                     ),
                 )
-            seconds = 1800.0 if wordy.group("half") else 3600.0
+            seconds = 1800.0 if wordy.group("half") else _HOUR_PARTS[part[-1]] if part else 3600.0
             if more == "half":
                 seconds += 1800.0
             elif more == "quarter":
