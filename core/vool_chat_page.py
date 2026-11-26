@@ -2875,7 +2875,7 @@ async function loadSpendCard() {
     try {
       const r = await fetch('/api/spend/keep-defaults', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       if (r.ok) { live.hidden = true; live.innerHTML = ''; }
-    } catch (e) { console.warn('spend card: keep failed', e); }
+    } catch (e) { /* not saved: the card stays, so it can be pressed again */ }
   });
 }
 
