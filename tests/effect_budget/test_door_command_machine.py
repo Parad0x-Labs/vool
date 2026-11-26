@@ -75,15 +75,22 @@ def call_counter(monkeypatch: pytest.MonkeyPatch) -> dict:
     """Count every subprocess spawn a dispatch could cause. Outbound transport is
     guarded by the suite's own network seal (any real socket a dispatch opens
     raises there), so the refusal's zero-transport leg is proven by the seal."""
-    counts = {"subprocess": 0}
+    counts: dict = {"subprocess": 0, "calls": []}
     real_run, real_popen = subprocess.run, subprocess.Popen
 
-    def _run(*a, **k):
+    def _note(a, k) -> None:
+        # Who spawned it and with what: the suite's other tests can leave a thread running
+        # that spawns its own child mid-test, which is not this dispatch's doing.
         counts["subprocess"] += 1
+        argv = a[0] if a else k.get("args")
+        counts["calls"].append({"thread": threading.get_ident(), "argv": repr(argv), "cwd": str(k.get("cwd") or "")})
+
+    def _run(*a, **k):
+        _note(a, k)
         return real_run(*a, **k)
 
     def _popen(*a, **k):
-        counts["subprocess"] += 1
+        _note(a, k)
         return real_popen(*a, **k)
 
     monkeypatch.setattr(subprocess, "run", _run)
@@ -137,6 +144,7 @@ class TestZeroBudgetRefusal:
             assert spent.ok, spent.response_text
             assert (workspace / "first.txt").read_bytes() == b"seed"
             before_subprocess = call_counter["subprocess"]
+            spent_calls = list(call_counter["calls"])
 
             refused = _dispatch(
                 "sandbox.run_command",
@@ -152,7 +160,14 @@ class TestZeroBudgetRefusal:
             # ZERO side effects past the refusal: no new subprocess (transport is held
             # to zero by the suite's network seal), no journal pair for the refused
             # turn, no bytes on disk.
-            assert call_counter["subprocess"] == before_subprocess, "zero subprocess calls"
+            # A child this dispatch could have caused: spawned on this test's own thread (where the
+            # spent dispatch spawned its own), or naming the workspace or the refused command.
+            caused = [call for call in call_counter["calls"][before_subprocess:]
+                      if call["thread"] == threading.get_ident() or str(workspace) in call["argv"] + call["cwd"]
+                      or "second.txt" in call["argv"]]
+            assert caused == [], ("zero subprocess calls", caused)
+            assert any(call["thread"] == threading.get_ident() for call in spent_calls), (
+                "the spent dispatch spawned on this thread, so a refused one would too", spent_calls)
             assert not (workspace / "second.txt").exists(), "zero writes"
             entries = default_store().entries()
             intended = [e for e in entries if e.get("turn_id") == "cm-turn-t2" and e.get("kind") == "coverage_scan_intended"]

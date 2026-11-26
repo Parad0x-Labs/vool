@@ -1298,7 +1298,15 @@ class LiveSession:
         text = (await self._page.locator("body").inner_text())[:50000]
         self.title = (await self._page.title())[:300]
         self.result["page"] = Untrusted.wrap(text, url=self.url, origin=urlsplit(self.url).netloc, title=self.title)
-        self.frame = base64.b64encode(await self._page.screenshot(type="jpeg", quality=65, timeout=3000)).decode()
+        try:
+            shot = await self._page.screenshot(type="jpeg", quality=65, timeout=3000)
+        except Exception as exc:
+            # The page is read; only its picture was slow. A busy computer paints late, so the
+            # picture gets one longer try before the look counts as failed.
+            if type(exc).__name__ != "TimeoutError" or self.closed:
+                raise
+            shot = await self._page.screenshot(type="jpeg", quality=65, timeout=TIMEOUT * 1000)
+        self.frame = base64.b64encode(shot).decode()
         self.revision += 1
 
     def take_over(self, value: bool) -> dict[str, Any]:

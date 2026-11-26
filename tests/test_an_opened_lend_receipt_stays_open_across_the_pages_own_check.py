@@ -8,13 +8,13 @@ proof runs on any machine with chromium. All names and values are invented.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from core.lend_fragment import render_lend_fragment
 from tests.served_browser import launch_chromium
 
 _ORIGIN = "http://lend-page.test"
-_EXPIRES = (datetime.now(UTC) + timedelta(days=2)).isoformat()
+_EXPIRES = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
 _TERMS = {"capability": "clean_pdf", "jobs": 1, "max_bytes": 2_000_000, "max_length": 50000, "max_seconds": 60,
           "expires": _EXPIRES, "auto": False}
 _POLL = {
@@ -22,7 +22,7 @@ _POLL = {
     "invites": [{"id": "inv-otter", "role": "host", "state": "ready", "terms": _TERMS, "guest": "G" * 43, "used": 1}],
     "jobs": [{"id": "job-otter", "role": "host", "invite": "inv-otter", "name": "seed-catalogue.pdf", "size": 48213,
               "state": "complete",
-              "receipt": {"state": "complete", "seconds": 3, "finished": datetime.now(UTC).isoformat(),
+              "receipt": {"state": "complete", "seconds": 3, "finished": datetime.now(timezone.utc).isoformat(),
                           "terms_digest": "a" * 64, "input_digest": "b" * 64, "result_digest": "c" * 64}}],
 }
 
