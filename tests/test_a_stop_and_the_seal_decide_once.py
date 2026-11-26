@@ -494,12 +494,15 @@ class _Model:
         if AMBIGUITY_SYSTEM_PROMPT[:60] in system:
             return '{"ambiguous": false, "referents": [], "clarification": ""}'
         last_user = next((str(m.get("content") or "") for m in reversed(messages) if m.get("role") == "user"), "")
-        if STORY in last_user:
+        # A later turn's judgement can quote the chat's earlier message ('Earlier: "..."', the web question): that
+        # call is the later turn's, not the held story's own.
+        own = "\n".join(line for line in last_user.split("\n") if not line.startswith(("Earlier: ", "Previous message: ")))
+        if STORY in own:
             self.release.wait(60)
             return HELD_DRAFT
-        if QUESTION in last_user:
+        if QUESTION in own:
             return ANSWER
-        if NAME in last_user:
+        if NAME in own:
             return " "  # the provider answers with no content
         return None
 
