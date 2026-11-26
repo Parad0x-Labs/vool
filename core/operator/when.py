@@ -398,6 +398,15 @@ _FROM_NOW_RE = re.compile(
 )
 
 
+#: The worded hour delays "from now" ("half an hour from now", "an hour and a half from now") read as the same words
+#: after "in", which the parser knows. iMac gate38: "half an hour from now" was read as "half" + "an hour from now" and
+#: set for an hour later, with "half" as the reminder's text.
+_WORDED_HOUR_FROM_NOW_RE = re.compile(
+    r"\b(?:(?:in|for|after)\s+)?((?:half\s+)?an?\s+hour(?:\s+and\s+a\s+(?:half|quarter))?)\s+from\s+now\b",
+    re.IGNORECASE,
+)
+
+
 def _from_now_as_delay(match: re.Match) -> str:
     amount = " ".join(match.group(1).lower().split())
     number = "1" if amount in {"a", "an"} else str(_NUMBER_WORDS.get(amount, amount))
@@ -411,6 +420,7 @@ def normalize_time_words(text: str) -> str:
     clean = str(text or "")
     for pattern, replacement in _TIME_SHORTHAND:
         clean = pattern.sub(replacement, clean)
+    clean = _WORDED_HOUR_FROM_NOW_RE.sub(lambda m: f"in {' '.join(m.group(1).split())}", clean)
     clean = _FROM_NOW_RE.sub(_from_now_as_delay, clean)
     return _SPELLED_DELAY_RE.sub(lambda m: f"in {_NUMBER_WORDS[' '.join(m.group(1).lower().split())]} {m.group(2)}", clean)
 
