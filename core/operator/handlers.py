@@ -1226,6 +1226,14 @@ def handle_schedule_reminder(
     if _dc.is_dataclass(intent):
         intent = _dc.replace(intent, raw_text=normalize_time_words(intent.raw_text))
     typed = _typed_reminder_when(intent, parse_when_fn)
+    if typed is not None and str(intent.raw_text or "").strip():
+        # The person's own words, when VOOL's reader takes a due time from them, outrank the time a model typed: iMac
+        # gate41 on 9141095e4 (qwen3:8b), "give me a nudge three quarters of an hour from now to take the washing in"
+        # was typed in_minutes 226 and "and another one in a quarter of an hour ..." 105. The typed time stays for words
+        # the reader cannot take (other languages, a time it does not know).
+        spoken, spoken_problem = _reminder_when(intent.raw_text, parse_when_fn)
+        if spoken is not None and not spoken_problem and getattr(spoken, "ok", False):
+            typed = (spoken, "")
     note = " ".join(str(getattr(intent, "reminder_note", "") or "").split()) or _reminder_note_from_text(intent.raw_text)
     when, day_problem = typed if typed is not None else _reminder_when(intent.raw_text, parse_when_fn)
     if day_problem:
