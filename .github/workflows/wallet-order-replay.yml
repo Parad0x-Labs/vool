@@ -75,7 +75,7 @@ jobs:
         # probe at the end fails this step loudly — instead of letting the render suites
         # cascade or a launch hang the shard.
         run: |
-          python -m playwright install --with-deps chromium
+          python -m playwright install --with-deps chromium || { sudo apt-get update && python -m playwright install --with-deps chromium; }
           bins=()
           while IFS= read -r bin; do
             [ -n "$bin" ] || continue

@@ -267,6 +267,26 @@ def test_manual_diagnostics_cannot_impersonate_full_gate_checks():
     assert "'diagnostic' || 'full'" in workflow["concurrency"]["group"]
 
 
+def test_the_selected_tests_rerun_cannot_impersonate_the_gate_and_runs_on_the_same_provisioning():
+    """The fast rerun of only what was red (sls, 2026-11-26) runs only when dispatched with focused_ci (so every gate
+    job is out of that run), names itself as no gate, and provisions exactly as the tests matrix does."""
+    workflow = _load_workflow()
+    selected = workflow["jobs"]["selected_tests"]
+    assert selected["name"] == "selected-tests-not-merge-gate"
+    assert selected["if"].startswith("github.event_name == 'workflow_dispatch' && inputs.focused_ci && ")
+    inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
+    assert inputs["tests"]["default"] == "" and inputs["shards"]["default"] == ""
+    renamed = {"Provision the served-browser lane for the selected tests":
+               "Provision the served-browser lane (Playwright chromium)"}
+    tests_steps = workflow["jobs"]["tests"]["steps"]
+    upto = next(n for n, step in enumerate(tests_steps) if step.get("name") == "Resolve this shard's test files")
+    provisioning = [dict(step, **({"name": renamed[step["name"]]} if step.get("name") in renamed else {}))
+                    for step in selected["steps"][:upto]]
+    assert provisioning == tests_steps[:upto]
+    run = _named_step(selected, "Run the selected tests")["run"]
+    assert "--phase-timeout 600" in run and "ops/pytest_timing.py" in run and "--collect-only" not in run
+
+
 CI_YML = WORKFLOW_PATH
 LLM_YML = REPO_ROOT / ".github" / "workflows" / "llm_acceptance.yml"
 
