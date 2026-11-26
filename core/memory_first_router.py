@@ -2438,7 +2438,8 @@ class MemoryFirstRouter:
             if str(getattr(message, "role", "") or "") == "user"
         ][:-1]
         _language_provider_instruction = response_language_provider_instruction(
-            turn_language_policy, earlier_user_texts=_earlier_user_texts, latest_text=current_user_text
+            turn_language_policy, earlier_user_texts=_earlier_user_texts, latest_text=current_user_text,
+            source_context=source_context if isinstance(source_context, dict) else None,
         )
         if _language_provider_instruction:
             system_prompt = f"{system_prompt}\n\n{_language_provider_instruction}"

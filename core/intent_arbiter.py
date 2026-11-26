@@ -1964,6 +1964,57 @@ def arbitrate_clock_ask(
     )
 
 
+def _own_language_prompt(words: str) -> str:
+    """Which language the person's own words are in, asked only of the words in front of a pasted mail or message.
+
+    The letters of a few plain words name no single language ("Vad handlar det här mejlet om?" holds an "ä" that
+    Swedish, German, Finnish and Estonian share), so the reply line said "the language of the person's own words",
+    and qwen3:8b answered in the paste's English (iMac gates 27, 28 and 30: Polish, German and Swedish asks over
+    English mail). Named ("Respond in Spanish."), the same model answered in the person's language (gate26)."""
+    from core.response_language_policy import LANGUAGE_NAMES
+
+    flat = " ".join(str(words or "").split())[:300].replace('"', "'")
+    codes = ", ".join(sorted(LANGUAGE_NAMES))
+    return "\n".join([
+        "Which language are these words written in? Answer with its two-letter code, one of: " + codes + '.',
+        "",
+        'Words: "can you sum this up for me?" -> {"answer": "en"}',
+        'Words: "kas čia parašyta?" -> {"answer": "lt"}',
+        'Words: "was steht in dieser Nachricht?" -> {"answer": "de"}',
+        'Words: "hvad står der her?" -> {"answer": "da"}',
+        'Words: "resume esto, por favor" -> {"answer": "es"}',
+        "",
+        f'Words: "{flat}" ->',
+        'Reply with ONLY the JSON object.',
+    ])
+
+
+def _own_language_reader(content: str) -> str | None:
+    from core.response_language_policy import LANGUAGE_NAMES
+
+    return _named_answer(content, {code: code for code in LANGUAGE_NAMES})
+
+
+def arbitrate_own_language(
+    words: str,
+    *,
+    request_id: str = "",
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """The two-letter code of the language the words are in, or None when nothing judged it."""
+    if not str(words or "").strip():
+        return None
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(_own_language_prompt(words), source_context, _own_language_reader)
+    return arbitrate_followup(
+        "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
+        prompt=_own_language_prompt(words), operation="own_language_arbitration", model=model,
+        runner_role="general", call_role=_judgement_role(), parse=_own_language_reader,
+    )
+
+
 def _whole_memory_prompt(message: str) -> str:
     flat = " ".join(str(message or "").split())[:400].replace('"', "'")
     return "\n".join([

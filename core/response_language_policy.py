@@ -615,6 +615,7 @@ def response_language_provider_instruction(
     *,
     earlier_user_texts: list[str] | tuple[str, ...] | None = None,
     latest_text: str = "",
+    source_context: dict[str, Any] | None = None,
 ) -> str:
     """The one bounded system-prompt line that carries the policy onto the provider request.
 
@@ -639,6 +640,10 @@ def response_language_provider_instruction(
         # English mail got no line, and qwen3:8b answered in the mail's English. The person's own words are the lines in
         # front of the paste (read by its shape, core.memory.admission).
         if _holds_pasted_message(latest_text):
+            named = LANGUAGE_NAMES.get(_judged_own_language(latest_text, source_context) or "")
+            if named:
+                return (f"Respond in {named}, the language of the person's own words in front of the pasted text, not "
+                        "in the language of the pasted text.")
             return (
                 "Respond in the language of the person's own words in front of the pasted text, not in the language "
                 "of the pasted text, even if earlier messages used another."
@@ -650,6 +655,26 @@ def response_language_provider_instruction(
         return ""
     name = LANGUAGE_NAMES.get(expected)
     return f"Respond in {name}." if name else ""
+
+
+def _judged_own_language(latest_text: str, source_context: dict[str, Any] | None) -> str | None:
+    """The language the turn's judge reads the person's own words in front of a paste to be in (a code of
+    LANGUAGE_NAMES), or None: no turn, no judge, or no own words. Asked only over a paste whose letters named none."""
+    if not isinstance(source_context, dict):
+        return None
+    try:
+        from core.intent_arbiter import _turn_key, arbitrate_own_language
+        from core.memory.admission import text_before_a_pasted_message
+
+        if not _turn_key(source_context):
+            return None
+        own = " ".join(text_before_a_pasted_message(latest_text).split())
+        if not own:
+            return None
+        return arbitrate_own_language(own, chat_id=str(source_context.get("session_id") or ""),
+                                      source_context=source_context)
+    except Exception:
+        return None
 
 
 def response_language_safe_fallback() -> str:
