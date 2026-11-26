@@ -1846,8 +1846,10 @@ def _web_ask_prompt(message: str) -> str:
         'Message: "¿cuál es la capital de Perú?" -> {"answer": "no"}',
         'Message: "che ore sono adesso a Toronto?" -> {"answer": "no", "zone": "America/Toronto"}',
         'Message: "jaki dziś dzień tygodnia w Sydney?" -> {"answer": "no", "zone": "Australia/Sydney"}',
+        'Message: "welcher Tag ist heute?" -> {"answer": "no"}',
         "",
-        'When it asks the time or date now in a place, add that place\'s IANA time zone as "zone".',
+        'When it asks the time or date now in a place it names, add that place\'s IANA time zone as "zone". A message '
+        "that names no place gets no zone.",
         f'Message: "{flat}" ->',
         'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
     ])
@@ -1895,6 +1897,7 @@ def _clock_ask_prompt(message: str) -> str:
         'Message: "is it already morning in Seoul?" -> {"answer": "yes", "zone": "Asia/Seoul"}',
         'Message: "kiek valandų dabar Rygoje?" -> {"answer": "yes", "zone": "Europe/Riga"}',
         'Message: "quelle date est-on à Auckland ?" -> {"answer": "yes", "zone": "Pacific/Auckland"}',
+        'Message: "hvad er klokken nu?" -> {"answer": "yes", "zone": ""}',
         'Message: "how many people live in Cairo?" -> {"answer": "no"}',
         'Message: "wie wird das Wetter morgen in Madrid?" -> {"answer": "no"}',
         'Message: "a che ora apre il museo a Parigi?" -> {"answer": "no"}',

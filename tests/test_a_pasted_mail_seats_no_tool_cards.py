@@ -54,3 +54,25 @@ def test_a_message_with_no_paste_is_read_whole(monkeypatch):
     read = _cards_by_meaning(monkeypatch)
     tool_card_router.routed_intents("my dentist visit is booked, can you add it", owner_local=True)
     assert read == ["my dentist visit is booked, can you add it"], read
+
+
+ASK_ONLY = ("Qu'est-ce que dit ce courriel ?\n\nFrom: Harbour Swim Club <desk@example.org>\nSubject: Renewal\n\n"
+            "Your season pass renews on 3 January; the fee is 52 EUR.")
+
+
+def test_the_persons_words_over_a_paste_the_judge_picked_nothing_for_seat_no_card(monkeypatch):
+    """iMac gate29 on 9ea86d1a4: "De quoi parle ce mail ?" over a gym's mail was judged no tool, and the cards seated
+    Contacts by "mail"; the model looked the sender up as a contact instead of saying what the mail is about."""
+    def match(text, **_k):
+        return (CardMatch("contacts.resolve", 0.7, "what is the email of pierre", "contacts", True),)
+
+    monkeypatch.setattr(tool_card_router, "match_cards", match)
+    monkeypatch.setattr(tool_card_router, "card_routing_enabled", lambda: True)
+    monkeypatch.setattr(tool_card_router, "_usable", lambda intent: True)
+    plugin_ask.forget()
+    assert [m.intent for m in tool_card_router.routed_intents(ASK_ONLY, owner_local=True)] == ["contacts.resolve"]
+    plugin_ask._record_builtins(ASK_ONLY, ())
+    assert tool_card_router.routed_intents(ASK_ONLY, owner_local=True) == ()
+    plugin_ask._record_builtins(ASK_ONLY, ("contacts",))
+    assert [m.intent for m in tool_card_router.routed_intents(ASK_ONLY, owner_local=True)] == ["contacts.resolve"]
+    plugin_ask.forget()

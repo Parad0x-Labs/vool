@@ -481,9 +481,16 @@ def routed_intents(
     # clinic's mail was offered the calendar and process tools, and the model proposed a calendar event instead of
     # saying what the mail is about. The person's own words in front of it are what the cards are read against.
     try:
-        from core.plugin_ask import own_words_over_a_paste
+        from core import plugin_ask
 
-        own = own_words_over_a_paste(text)
+        own = plugin_ask.own_words_over_a_paste(text)
+        # Over a paste the turn's judge read the person's words with the paste shown as material, in any language; when
+        # it picked nothing, they ask nothing of a tool, and no card reading of a few of them seats one. iMac gate29 on
+        # 9ea86d1a4: "De quoi parle ce mail ?" over a gym's mail was judged no tool, and the cards seated Contacts
+        # by "mail": the model looked the gym up as a contact instead of saying what the mail is about.
+        if own is not None and plugin_ask.judged_at_all(text) and not (
+                plugin_ask.judged_builtins(text) or plugin_ask.judged_plugins(text)):
+            return ()
     except Exception:
         own = None
     if own is not None:
