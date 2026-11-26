@@ -234,9 +234,16 @@ def test_real_servers_chromium_full_flow_and_red_controls(served):
             assert a.evaluate('window.filenameInjected') is None
             a.screenshot(path=str(evidence/'ux-host-approval.png'), full_page=True)
             aa.get_by_role('button', name='Run', exact=True).click()
-            expect(aa.locator('.vl-job-state')).to_have_text('Result sent. Waiting for delivery confirmation.', timeout=45000)
+            # The run ends in "Result sent. Waiting for delivery confirmation." until the guest has the result. Both
+            # pages also check on their own every 5 seconds, so the guest's own check can take the result and confirm
+            # it before the host's page shows the waiting state; the host then reads "Complete" straight away (macOS CI
+            # on cbcb090a4, 2026-11-26). Either is right here; the guest's check below and the host's own Complete
+            # after it show the delivery happened.
+            expect(aa.locator('.vl-job-state')).to_have_text(
+                __import__('re').compile(r'^\s*(Result sent\. Waiting for delivery confirmation\.|Complete)\s*$'), timeout=45000)
             bb.get_by_role('button', name='Check for jobs', exact=True).click()
             expect(bb.locator('.vl-job-state')).to_have_text('Complete')
+            expect(aa.locator('.vl-job-state')).to_have_text('Complete', timeout=30000)
             with b.expect_download() as download:
                 bb.get_by_role('button', name='Save result', exact=True).click()
             path = evidence/'browser-result.pdf'

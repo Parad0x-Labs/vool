@@ -104,3 +104,53 @@ certify_for_authorship(manifest({model!r}))
     said = str((answered.get("message") or {}).get("content") or "")
     assert "Web lookups are off" not in said, said
     assert seen["place_line"], said
+
+
+def test_a_clock_the_web_question_reads_no_still_reaches_the_model_with_the_time_there(tmp_path) -> None:
+    """iMac gate25 on cbcb090a4: "Która godzina jest teraz w Nowym Jorku?" was read "no" for the web, so the clock
+    question never ran and the answer call held no time in New York; the model wrote the computer's own time. The web
+    question's "no" names the place's zone, and the answer call carries the time there."""
+    from tests._blackbox_served_rig import REPO_ROOT, SEED_MANIFEST, ScriptedProvider, ServedDaemon, run_in_home
+
+    model, session = "qwen3-stub:2b", "clock-web-no"
+    ask = "Kolik je teď hodin v Novém Yorku, prosím?"
+    seen = {"place_line": False}
+
+    def reply_fn(body: dict[str, Any]) -> Any:
+        messages = [m for m in body.get("messages") or [] if isinstance(m, dict)]
+        prompt = " ".join(str(m.get("content") or "") for m in messages)
+        if "which of these tools does the message ask" in prompt:
+            return json.dumps({"answer": [14]})
+        if "need the INTERNET" in prompt:
+            return json.dumps({"answer": "no", "zone": "America/New_York"})
+        if '{"answer"' in prompt:
+            return json.dumps({"answer": "no"})
+        if "If the person asks the time or date in a place this message names" in prompt and "New York:" in prompt:
+            seen["place_line"] = True
+        return "V New Yorku je teď uvedený čas."
+
+    home = tmp_path / "home"
+    provider = ScriptedProvider({model: "ok"}, reply_fn=reply_fn)
+    daemon = ServedDaemon(home, env_extra={
+        "OLLAMA_HOST": provider.base_url, "VOOL_OLLAMA_URL": provider.base_url,
+        "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat", "HOME": str(tmp_path / "owner-home"),
+    })
+    provider.__enter__()
+    try:
+        try:
+            daemon.start(timeout=240)
+        except Exception as exc:  # pragma: no cover - environment, not the guard
+            pytest.skip(f"served daemon could not boot here: {exc}")
+        seed = SEED_MANIFEST + '''
+from tests._authorship_certification import certify_for_authorship
+certify_for_authorship(manifest({model!r}))
+'''
+        run_in_home(home, seed.format(root=REPO_ROOT, base_url=provider.base_url, registered=[model], model=model))
+        answered = daemon.chat(ask, session_id=session, model=model, mode="auto")
+    finally:
+        daemon.stop()
+        provider.__exit__(None, None, None)
+
+    said = str((answered.get("message") or {}).get("content") or "")
+    assert "Web lookups are off" not in said, said
+    assert seen["place_line"], said

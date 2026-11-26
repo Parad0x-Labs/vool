@@ -476,6 +476,20 @@ def routed_intents(
 
     if not owner_local or not card_routing_enabled():
         return ()
+    # A pasted mail or message is material, not the ask: its words ("your cleaning is booked for Tuesday at 14:15")
+    # fit cards the person asked nothing of. iMac gate25 on cbcb090a4: "Waar gaat deze mail over?" over a dental
+    # clinic's mail was offered the calendar and process tools, and the model proposed a calendar event instead of
+    # saying what the mail is about. The person's own words in front of it are what the cards are read against.
+    try:
+        from core.plugin_ask import own_words_over_a_paste
+
+        own = own_words_over_a_paste(text)
+    except Exception:
+        own = None
+    if own is not None:
+        text = own
+    if not str(text or "").strip():
+        return ()
     try:
         matches = match_cards(text, surface=surface, floor=floor)
     except Exception:

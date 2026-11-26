@@ -86,3 +86,30 @@ def test_anything_else_about_a_place_stays_a_web_ask(monkeypatch):
 def test_with_the_web_on_and_no_known_place_the_clock_is_not_asked(monkeypatch):
     verdict, asked = _web_verdict(monkeypatch, "what is in the headlines this evening?", web_on=True, clock="yes")
     assert verdict == "yes" and not asked
+
+
+def test_the_web_question_reads_back_a_zone_with_its_no():
+    from core.intent_arbiter import _web_ask_reader
+
+    assert _web_ask_reader('{"answer": "no", "zone": "America/New_York"}') == "no|America/New_York"
+    assert _web_ask_reader('{"answer": "no", "zone": "Nowhere/Town"}') == "no"
+    assert _web_ask_reader('{"answer": "yes", "zone": "Europe/Oslo"}') == "yes"
+
+
+def test_a_clock_ask_the_web_question_answers_no_still_carries_the_time_there(monkeypatch):
+    """iMac gate25 on cbcb090a4 (Web lookups off): "Która godzina jest teraz w Nowym Jorku?" was read "no" for the web,
+    rightly, so the clock question was never asked, and the city named in Polish gave the turn no time there: the
+    model wrote the computer's own time with a New York label. The web question's "no" names the zone itself."""
+    from core import intent_arbiter, online_asks
+    from core.prompt_normalizer import _named_place_times_text
+
+    ask = "Kolik je teď hodin v Novém Yorku?"
+    asked = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_web_ask", lambda *a, **k: "no|America/New_York")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_clock_ask", lambda *a, **k: asked.append(a) or "no")
+    online_asks._WEB_VERDICTS.clear()
+    online_asks._CLOCK_ZONES.clear()
+    assert online_asks.web_ask_verdict(ask) == "no"
+    assert not asked
+    line = _named_place_times_text(ask, datetime(2026, 11, 25, 23, 42, tzinfo=timezone.utc))
+    assert "New York:" in line and "18:42" in line and "Wednesday" in line, line

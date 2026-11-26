@@ -1844,8 +1844,10 @@ def _web_ask_prompt(message: str) -> str:
         'Message: "kiek dienų liko iki Joninių?" -> {"answer": "no"}',
         'Message: "busca en internet el precio del billete de tren a Madrid" -> {"answer": "yes"}',
         'Message: "¿cuál es la capital de Perú?" -> {"answer": "no"}',
-        'Message: "che ore sono adesso a Toronto?" -> {"answer": "no"}',
+        'Message: "che ore sono adesso a Toronto?" -> {"answer": "no", "zone": "America/Toronto"}',
+        'Message: "jaki dziś dzień tygodnia w Sydney?" -> {"answer": "no", "zone": "Australia/Sydney"}',
         "",
+        'When it asks the time or date now in a place, add that place\'s IANA time zone as "zone".',
         f'Message: "{flat}" ->',
         'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
     ])
@@ -1858,17 +1860,18 @@ def arbitrate_web_ask(
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
 ) -> str | None:
-    """Whether a message needs the internet: ``"yes"`` / ``"no"``, or None when nothing judged it. Asked only after the
-    tool judgement picked the web (core.plugin_ask); None and "no" keep the web out of the turn."""
+    """Whether a message needs the internet: ``"yes"`` / ``"no"`` (``"no|<IANA zone>"`` for the time or date now in a
+    place), or None when nothing judged it. Asked only after the tool judgement picked the web (core.plugin_ask); None
+    and "no" keep the web out of the turn."""
     if not str(message or "").strip():
         return None
     model = _judge_model_for(source_context)
     if not model:
-        return _judged_for_the_turn(_web_ask_prompt(message), source_context)
+        return _judged_for_the_turn(_web_ask_prompt(message), source_context, _web_ask_reader)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_web_ask_prompt(message), operation="web_ask_arbitration", model=model,
-        runner_role="general", call_role=_judgement_role(),
+        runner_role="general", call_role=_judgement_role(), parse=_web_ask_reader,
     )
 
 
@@ -1903,8 +1906,22 @@ def _clock_ask_prompt(message: str) -> str:
 
 def _clock_ask_reader(content: str) -> str | None:
     """"no", "yes", or "yes|<zone>" when the judge named a zone the time zone database knows."""
+    return _answer_with_zone(content, "yes")
+
+
+def _web_ask_reader(content: str) -> str | None:
+    """"yes", "no", or "no|<zone>": the web question's "no" for the time or date now in a place carries the place's zone.
+
+    iMac gate25 on cbcb090a4 (qwen3:8b, Web lookups off): "Która godzina jest teraz w Nowym Jorku?" was read "no" for
+    the web, rightly, but the city is named in Polish, so the turn's facts held no time there and the model gave the
+    computer's own time with a New York label. The zone the judge names is checked against the time zone database."""
+    return _answer_with_zone(content, "no")
+
+
+def _answer_with_zone(content: str, zoned: str) -> str | None:
+    """A yes/no answer, with "|<zone>" added to the `zoned` answer when the judge named a known IANA zone."""
     verdict = _named_answer(content, {"yes": "yes", "no": "no"})
-    if verdict != "yes":
+    if verdict != zoned:
         return verdict
     zone = ""
     try:
@@ -1920,7 +1937,7 @@ def _clock_ask_reader(content: str) -> str | None:
             ZoneInfo(zone)
         except Exception:
             zone = ""
-    return f"yes|{zone}" if zone else "yes"
+    return f"{verdict}|{zone}" if zone else verdict
 
 
 def arbitrate_clock_ask(

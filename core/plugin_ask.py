@@ -47,6 +47,9 @@ _LIFETIME_S = 1800.0
 _JUDGED: OrderedDict[str, tuple[float, tuple[str, ...], tuple[Any, ...]]] = OrderedDict()
 #: The built-in tools the judge picked, by turn text: (stamp, choice keys).
 _BUILTINS: OrderedDict[str, tuple[float, tuple[str, ...]]] = OrderedDict()
+#: The person's own words in front of a pasted mail or message, by turn text: (stamp, own words, "" when none). Kept
+#: because a later reader may only have the text with its line breaks folded, and the paste is read by its lines.
+_PASTED_OWN: OrderedDict[str, tuple[float, str]] = OrderedDict()
 
 #: VOOL's own personal tools as the judge reads them: (key, description, the tools a pick seats). The descriptions say
 #: what each does for the person, so a judge reading any language can tell a reminder from a calendar event. Saying
@@ -309,6 +312,7 @@ def forget() -> None:
     with _LOCK:
         _JUDGED.clear()
         _BUILTINS.clear()
+        _PASTED_OWN.clear()
         _CHOICES.clear()
 
 
@@ -482,6 +486,35 @@ def judged_builtins_of_message_holding(part: str) -> tuple[str, ...]:
         if now - at <= _LIFETIME_S and key in message:
             return picked
     return ()
+
+
+def _record_paste(text: str, own: str) -> None:
+    key = _key(text)
+    if not key:
+        return
+    with _LOCK:
+        _PASTED_OWN[key] = (time.monotonic(), " ".join(str(own or "").split()))
+        _PASTED_OWN.move_to_end(key)
+        while len(_PASTED_OWN) > _KEPT:
+            _PASTED_OWN.popitem(last=False)
+
+
+def own_words_over_a_paste(text: str) -> str | None:
+    """The person's own words in front of a pasted mail or message this text holds ("" when it is only the paste), or
+    None when it holds none. Read from the text's lines, or, for text whose line breaks were folded, from what the
+    turn's judge read. Read only."""
+    from core.memory.admission import holds_a_pasted_message, text_before_a_pasted_message
+
+    if holds_a_pasted_message(str(text or "")):
+        return " ".join(text_before_a_pasted_message(str(text or "")).split())
+    key = _key(text)
+    if not key:
+        return None
+    with _LOCK:
+        entry = _PASTED_OWN.get(key)
+    if entry is None or time.monotonic() - entry[0] > _LIFETIME_S:
+        return None
+    return entry[1]
 
 
 def judged_at_all(text: str) -> bool:
@@ -717,6 +750,8 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
 
     pasted = holds_a_pasted_message(text)
     own = text_before_a_pasted_message(text) if pasted else text
+    if pasted:
+        _record_paste(text, own)
     if pasted and not own.strip():
         # Nothing but a pasted mail: no words of the person's own ask anything of a tool. iMac gate22 on 1e85219dc: a
         # bare pasted parcel mail was judged a file find and the Desktop was searched.

@@ -657,13 +657,26 @@ def _asks_the_clock(flat: str, *, source_context: dict | None, session_id: str) 
         return False
     if not verdict.startswith("yes"):
         return False
-    zone = verdict.partition("|")[2]
-    if zone:
-        with _WEB_VERDICTS_LOCK:
-            if len(_CLOCK_ZONES) > 128:
-                _CLOCK_ZONES.clear()
-            _CLOCK_ZONES[flat.casefold()] = (_time.monotonic(), zone)
+    _hold_clock_zone(flat, verdict.partition("|")[2])
     return True
+
+
+def _hold_clock_zone(flat: str, zone: str) -> None:
+    if not zone:
+        return
+    with _WEB_VERDICTS_LOCK:
+        if len(_CLOCK_ZONES) > 128:
+            _CLOCK_ZONES.clear()
+        _CLOCK_ZONES[" ".join(flat.split()).casefold()] = (_time.monotonic(), zone)
+
+
+def _zone_of_a_no(flat: str, verdict: str | None) -> str | None:
+    """The web question's "no|<zone>" (the time or date now in a place) read as "no", with the zone kept for the turn's
+    facts (core.prompt_normalizer._named_place_times_text): the place may be named in any language ("Nowym Jorku")."""
+    if isinstance(verdict, str) and verdict.startswith("no|"):
+        _hold_clock_zone(flat, verdict.partition("|")[2])
+        return "no"
+    return verdict
 
 
 def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id: str = "") -> str | None:
@@ -695,6 +708,7 @@ def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id
             verdict = intent_arbiter.arbitrate_web_ask(flat, chat_id=str(session_id or ""), source_context=source_context)
         except Exception:
             verdict = None
+        verdict = _zone_of_a_no(flat, verdict)
         if verdict == "yes" and _asks_the_clock(flat, source_context=source_context, session_id=session_id):
             verdict = "no"
         return verdict if verdict in ("yes", "no") else None
@@ -710,6 +724,7 @@ def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id
         verdict = intent_arbiter.arbitrate_web_ask(flat, chat_id=str(session_id or ""), source_context=source_context)
     except Exception:
         verdict = None
+    verdict = _zone_of_a_no(flat, verdict)
     import logging
 
     if verdict == "yes" and _asks_the_clock(flat, source_context=source_context, session_id=session_id):

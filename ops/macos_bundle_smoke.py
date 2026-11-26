@@ -520,11 +520,24 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
         o_archs = subprocess.run(["lipo", "-archs", str(ollama)], capture_output=True, text=True).stdout.split()
         run.record("bundled ollama slice", arch in o_archs, o_archs)
         pull_env = {**env, "OLLAMA_HOST": "127.0.0.1:11434"}
+        # The model comes from the public Ollama registry, outside this build. A stalled download there ends the pull
+        # with exit 1 (macOS Intel smoke on cbcb090a4, 2026-11-26: every part "stalled; retrying", then exit 1), so
+        # the pull is tried up to three times; ollama keeps what it already has and goes on from there. Every try's
+        # exit is recorded, and the model must still be pulled for the smoke to pass.
+        exits: list[int] = []
         with (scratch / "ollama-pull.log").open("w") as log:
-            pulled = subprocess.run(
-                [str(ollama), "pull", model], env=pull_env, stdout=log, stderr=subprocess.STDOUT, timeout=1800
-            )
-        run.record(f"bundled ollama pulled {model}", pulled.returncode == 0, f"exit {pulled.returncode}")
+            for attempt in range(3):
+                if attempt:
+                    log.write(f"\n--- pull try {attempt + 1} after exit {exits[-1]} ---\n")
+                    log.flush()
+                    time.sleep(20)
+                pulled = subprocess.run(
+                    [str(ollama), "pull", model], env=pull_env, stdout=log, stderr=subprocess.STDOUT, timeout=1800
+                )
+                exits.append(pulled.returncode)
+                if pulled.returncode == 0:
+                    break
+        run.record(f"bundled ollama pulled {model}", pulled.returncode == 0, f"exits {exits}")
         registered = request(origin, "/api/models/local/register", {"model_name": model}, timeout=120)
         (scratch / "model-register.json").write_text(json.dumps(registered, indent=2) + "\n")
         # A registered local model may not write final answers until it passes the sealed tool
