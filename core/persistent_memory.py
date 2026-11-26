@@ -3727,6 +3727,20 @@ def _judged_recall_with_nothing_behind_it(
         LOGGER.info("judged recall with nothing held: this chat holds the answer %s", verdict or "not judged")
         if verdict != "no":
             return None
+        # Read alone, a follow-up pointing back at what the chat asks about ("when was he born?" after "who wrote the
+        # novel Moby-Dick?") is judged a recall. It asks about the world, not anything the person told VOOL, so the
+        # model answers it (iMac gate31 on ceadac1d4). A question about the person's own life stays "not saved".
+        try:
+            from core.intent_arbiter import arbitrate_world_follow_up
+
+            world = arbitrate_world_follow_up(text, earlier, chat_id=str(session_id or ""),
+                                              source_context=dict(source_context or {}) or None)
+        except Exception as exc:
+            LOGGER.warning("recall in this chat: world question unreadable (%s)", type(exc).__name__)
+            world = None
+        if world == "yes":
+            LOGGER.info("judged recall with nothing held: a question about the world the chat asks about")
+            return None
     return JUDGED_RECALL_NOTHING
 
 

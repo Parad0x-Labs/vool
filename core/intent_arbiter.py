@@ -2122,6 +2122,55 @@ def arbitrate_answered_in_chat(
     )
 
 
+def _world_follow_up_prompt(question: str, earlier: list[str]) -> str:
+    """Whether a question nothing saved answers asks about the world rather than about the person's own life.
+
+    The memory question reads a message alone, so a follow-up that points back with "he" or "there" can read as a
+    recall: "who wrote the novel Moby-Dick?" then "when was he born?" was judged a recall, nothing saved named it, this
+    chat's messages do not tell the answer, and the reply was "I don't have that saved" (iMac gate31 on ceadac1d4). A
+    question about a book, a public person or a place the chat asks about is the model's to answer."""
+    flat = " ".join(str(question or "").split())[:300].replace('"', "'")
+    lines = [" ".join(str(m or "").split())[:300].replace('"', "'") for m in list(earlier)[:6]][::-1]
+    said = "\n".join(f'- "{line}"' for line in lines if line) or "- (none)"
+    return "\n".join([
+        "Below are the person's earlier messages in this chat, then a question they ask now.",
+        "Is the question about the world (a public person, a book, a film, a place, history, science), reading 'he',",
+        "'she', 'it' or 'there' as what the earlier messages ask about? A question about the person themselves, their",
+        "family, friends, pets, home or things is no. Answer yes or no. Any language.",
+        "",
+        "Example: earlier: \"who painted the Mona Lisa?\". Question: \"where did he grow up?\" -> {\"answer\": \"yes\"}",
+        "Example: earlier: \"koks aukščiausias Afrikos kalnas?\". Question: \"kiek jis aukštas?\" -> {\"answer\": \"yes\"}",
+        "Example: earlier: \"my neighbour Rūta just got a parrot\". Question: \"what's it called?\" -> {\"answer\": \"no\"}",
+        "Example: earlier: \"hi there\". Question: \"where do I keep my passport?\" -> {\"answer\": \"no\"}",
+        "",
+        "Earlier messages:",
+        said,
+        f'Question: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_world_follow_up(
+    question: str,
+    earlier: list[str],
+    *,
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """``"yes"`` when a recall nothing saved answers asks about the world the chat talks about, ``"no"`` when it is
+    about the person's own life, None when nothing judged it (core.persistent_memory)."""
+    if not str(question or "").strip() or not earlier:
+        return None
+    prompt = _world_follow_up_prompt(question, earlier)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
+        operation="world_follow_up_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def _choice_ask_prompt(message: str, choice: str) -> str:
     """Whether a message asks for one tool the judgement over the whole list picked for it."""
     flat = " ".join(str(message or "").split())[:400].replace('"', "'")
