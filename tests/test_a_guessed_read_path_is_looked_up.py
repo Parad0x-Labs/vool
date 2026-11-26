@@ -243,12 +243,15 @@ def test_a_word_inside_another_word_is_not_a_match(home: Path) -> None:
     assert "lagarden-notes.txt" not in execution.response_text
 
 
-def test_a_typed_find_keeps_its_plain_name_test(home: Path) -> None:
+def test_a_typed_find_by_plain_words_takes_them_in_any_order(home: Path) -> None:
+    # A typed find used to keep the said order: iMac gate36 on 42d3f4c44 (Offline, qwen3:8b) looked for "pension letter"
+    # and missed letter-from-my-company-pension.txt, while a guessed "garden notes.txt" already took any order.
     (home / "Downloads" / "notes-garden.txt").write_text("x", encoding="utf-8")
+    (home / "Downloads" / "lagarden-notes-old.txt").write_text("y", encoding="utf-8")
     execution = execute_tool_intent(
         {"intent": "machine.find_file", "arguments": {"name": "garden notes"}},
         task_id="t-guess", session_id="s-guess",
         source_context={**OWNER, "workspace": str(Path.cwd()), "workspace_root": str(Path.cwd())},
         hive_activity_tracker=HiveActivityTracker(config=HiveActivityTrackerConfig(enabled=False, watcher_api_url=None)),
     )
-    assert "notes-garden.txt" not in execution.response_text
+    assert "notes-garden.txt" in execution.response_text and "lagarden" not in execution.response_text

@@ -1405,9 +1405,12 @@ def _machine_find_file(
         # file's words, not its whole name: the file on disk is "Flat_Lease_2026.pdf". Looked up again by
         # its words in any order, of the same kind, the way the readers' guessed-path lookup does. Skills
         # A/B on the v0.8 head (2026-11-13, loop off): "I couldn't find a file named 'lease.pdf'".
+        # A name that is already plain words is looked up in any order too: "pension letter" is the file on disk as
+        # letter-from-my-company-pension.txt (iMac gate36 on 42d3f4c44, Offline, qwen3:8b: "No file matching"); the
+        # first walk matched only the words in the order they were said.
         stem, suffix = Path(name.replace("\\", "/")).stem, Path(name).suffix.lower()
         words = " ".join(_name_words(_folded_name(stem)))
-        if words and words.lower() != name.lower():
+        if words and (words.lower() != name.lower() or len(words.split()) > 1):
             again = _walk_safe_roots_for_files(words, workspace_root=workspace_root, any_word_order=True,
                                                first_root=project_root)
             if again is not None:
