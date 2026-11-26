@@ -40,16 +40,44 @@ def mutation_declaration() -> dict:
     return capability.to_dict()
 
 
+#: How long a read or a change waits for another one holding the store's lock.
+_LOCK_WAIT_S = 3.0
+
+
+@contextmanager
+def _held(lock_path: Path):
+    """The store's lock, waited for. The lock itself never waits: a ratings list asked while another request held it
+    failed at once as "store unreadable", and the settings page showed a project's ratings as a failure (CI shard 7
+    on 571e05675: "Keep it exact." never appeared). A save clicked during a list failed the same way."""
+    from core.cross_process_lock import LockUnavailable, PublicationLock
+
+    deadline = time.monotonic() + _LOCK_WAIT_S
+    delay = 0.01
+    while True:
+        lock = PublicationLock(lock_path)
+        try:
+            lock.__enter__()
+        except LockUnavailable:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, 0.2)
+            continue
+        break
+    try:
+        yield
+    finally:
+        lock.__exit__(None, None, None)
+
+
 @contextmanager
 def _store(home: Path | None = None, *, write: bool = True):
-    from core.cross_process_lock import PublicationLock
-
     path = (Path(home) if home is not None else active_vool_home()) / STORE_FILENAME
     if not write and not path.exists():
         yield {'scopes': {}}
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    with PublicationLock(path.with_suffix('.lock')):
+    with _held(path.with_suffix('.lock')):
         state = json.loads(path.read_text()) if path.exists() else {'scopes': {}}
         if not isinstance(state, dict) or not isinstance(state.get('scopes'), dict):
             raise ValueError('unreadable feedback')
