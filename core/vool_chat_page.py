@@ -546,8 +546,8 @@ header a:hover { text-decoration:underline; }
 .empty-greet { color:var(--ink); font-size:22px; font-weight:600; margin-bottom:4px; }
 .empty-sub { color:var(--ink); font-size:16px; margin-bottom:18px; }
 .empty-starts { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:0 auto 18px; }
-.empty-start { background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer; }
-.empty-start:hover, .empty-start:focus-visible { border-color:var(--accent); }
+.empty-start, .spend-card-btn { background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer; }
+.empty-start:hover, .empty-start:focus-visible, .spend-card-btn:hover, .spend-card-btn:focus-visible { border-color:var(--accent); }
 /* On a phone the starters stack on the left, clear of the pet's resting spot on the right, and stay
    under menus and panels (no z-index of their own). */
 @media (max-width:600px) { .empty-starts { flex-direction:column; align-items:flex-start; } }
@@ -560,6 +560,8 @@ kbd { direction:ltr; unicode-bidi:isolate; }
 .spend-card { text-align:left; margin:12px auto 0; max-width:440px; border:1px solid var(--line, var(--muted)); border-radius:12px; padding:10px 14px; display:flex; flex-direction:column; gap:8px; font-size:13px; }
 .spend-card b { font-weight:700; }
 .spend-card-acts { display:flex; gap:8px; flex-wrap:wrap; }
+/* Both boxes set display:flex, which beats the hidden attribute: an empty box would show as a bare outline. */
+.today-box[hidden], .spend-card[hidden] { display:none; }
 .today-sec { display:flex; flex-direction:column; gap:3px; }
 .today-sec > b { font-size:12px; color:var(--muted); font-weight:600; }
 .today-row { color:var(--ink); }
@@ -2865,8 +2867,8 @@ async function loadSpendCard() {
   const money = (usd) => { const n = Number(usd) || 0; try { return new Intl.NumberFormat(appLocale(), { style: 'currency', currency: 'USD' }).format(n); } catch (e) { return '$' + n.toFixed(2); } };
   live.innerHTML = '<b>' + esc(pageT('spend_card.title', 'Spending limits for paid models')) + '</b>'
     + '<div>' + esc(pageTF('spend_card.body', 'You can use paid online models now. VOOL keeps them to {daily} a day and {monthly} a month, and never sends a paid answer past a limit. You can set your own limits.', { daily: money(got.limits.daily), monthly: money(got.limits.monthly) })) + '</div>'
-    + '<div class="spend-card-acts"><button type="button" class="empty-start" data-spend-set>' + esc(pageT('spend_card.set', 'Set my limits')) + '</button>'
-    + '<button type="button" class="empty-start" data-spend-keep>' + esc(pageT('spend_card.keep', 'Keep these')) + '</button></div>';
+    + '<div class="spend-card-acts"><button type="button" class="spend-card-btn" data-spend-set>' + esc(pageT('spend_card.set', 'Set my limits')) + '</button>'
+    + '<button type="button" class="spend-card-btn" data-spend-keep>' + esc(pageT('spend_card.keep', 'Keep these')) + '</button></div>';
   live.hidden = false;
   live.querySelector('[data-spend-set]').addEventListener('click', () => openSettings('budgets/spend'));
   live.querySelector('[data-spend-keep]').addEventListener('click', async () => {
