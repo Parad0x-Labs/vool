@@ -1980,6 +1980,13 @@ def assemble_tool_offer(
         # called a web lookup, and the whole reply was "Web lookups are off ... paste the article text". A message
         # the judge reads as a web ask, or one nobody judged, keeps the offer and its refusal.
         specs = [spec for spec in specs if str(spec.get("intent") or "") not in WEB_LOOKUP_INTENTS]
+    elif not effective_web_available(source_context) and _judged_something_of_the_persons_own(user_text):
+        # The web cannot run on this turn and the turn's judge read the message as asking for something of the
+        # person's own (a file, a reminder, a contact, what they told VOOL) beside or instead of the web: that part is
+        # answerable here, and a lookup offered beside it only gives the model a call that cannot run. iMac gate39 on
+        # f31c60b65 (Offline, qwen3:8b): a file ask was judged find + web, web.search stood in the offer of an Offline
+        # turn, and the turn ended on a plan instead of the find.
+        specs = [spec for spec in specs if str(spec.get("intent") or "") not in WEB_LOOKUP_INTENTS]
     if not task_seats and _ARCHAEOLOGY_TRACE in set(resolve_demand_signals(str(user_text or "")).explicit_intents):
         # A file-history question with no code task open: the archaeology trace answers it. A code
         # task's report beside it was ranked in by the word "task" alone, and the model took it,
@@ -2036,6 +2043,12 @@ def assemble_tool_offer(
         narrowed = [spec for spec in specs if str(spec.get("intent") or "") in retry_only]
         if any(str(spec.get("intent") or "") != "respond.direct" for spec in narrowed):
             specs = narrowed
+    if _listing_refused_on_this_turn(source_context):
+        # The turn's semantic preflight found no machine or path target, so core.tool_intent_executor refuses a
+        # folder listing before it runs: a tool the turn cannot call is not offered. iMac gate39 on f31c60b65
+        # (Offline, qwen3:8b): with machine.list_directory offered beside machine.find_file, the model listed the
+        # Desktop for a file ask, the call was refused, and the turn ended without the find.
+        specs = [spec for spec in specs if str(spec.get("intent") or "") != "machine.list_directory"]
     if egress_locked:
         # Last, after every law above that can add a tool (the words' seats, the ranked fill, a
         # family the model expanded, a follow-up's inherited family, a retry): on a turn under the
@@ -2156,6 +2169,26 @@ __all__ = [
     "skill_provenance_rows",
     "vool_browse_private_read_seats",
 ]
+
+
+def _listing_refused_on_this_turn(source_context: object) -> bool:
+    """Whether this turn's semantic preflight ruled a folder listing out (the front door's stamp, read as the
+    executor reads it: present and false)."""
+    return (
+        isinstance(source_context, dict)
+        and "_semantic_machine_list_directory_admitted" in source_context
+        and not bool(source_context.get("_semantic_machine_list_directory_admitted"))
+    )
+
+
+def _judged_something_of_the_persons_own(user_text: object) -> bool:
+    """Whether the turn's judge picked any choice besides the web for this message (core.plugin_ask; read only)."""
+    try:
+        from core.plugin_ask import judged_builtins
+
+        return any(key != "web" for key in judged_builtins(str(user_text or "")))
+    except Exception:
+        return False
 
 
 def _judged_no_web_ask(user_text: object, source_context: object) -> bool:
