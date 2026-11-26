@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from typing import Any
 
 
@@ -201,7 +203,7 @@ def _is_placeholder_direct_message(message: str) -> bool:
     return normalised in _PLACEHOLDER_DIRECT_MESSAGES
 
 
-def tool_intent_direct_message(structured_output: Any) -> str | None:
+def tool_intent_direct_message(structured_output: Any, *, request_text: str = "") -> str | None:
     if not isinstance(structured_output, dict):
         return None
     intent = str(structured_output.get("intent") or "").strip().lower()
@@ -221,7 +223,22 @@ def tool_intent_direct_message(structured_output: Any) -> str | None:
         # passthrough point. Same None route as the placeholder above: the caller keeps working
         # the turn instead of printing it.
         return None
+    if request_text and _said_back(message, request_text):
+        # The person's own message handed back as the reply answers nothing. iMac gate 44 on b92da7e3c (qwen3:8b):
+        # "would a kangaroo on a pogo stick outrun a postman?" came back word for word as the answer. Same None route:
+        # the caller keeps working the turn.
+        return None
     return message
+
+
+def _said_back(message: str, request_text: str) -> bool:
+    """Whether a reply is the request itself, word for word (case, spacing and punctuation aside), in any language."""
+
+    def words(text: str) -> list[str]:
+        return re.findall(r"\w+", str(text or "").casefold())
+
+    said = words(request_text)
+    return bool(said) and words(message) == said
 
 
 def _direct_message_is_internal(message: str) -> bool:

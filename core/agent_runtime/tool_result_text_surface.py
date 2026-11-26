@@ -154,5 +154,5 @@ class ToolResultTextSurfaceMixin:
             source_context=source_context,
         )
 
-    def _tool_intent_direct_message(self, structured_output: Any) -> str | None:
-        return agent_response_policy.tool_intent_direct_message(structured_output)
+    def _tool_intent_direct_message(self, structured_output: Any, *, request_text: str = "") -> str | None:
+        return agent_response_policy.tool_intent_direct_message(structured_output, request_text=request_text)

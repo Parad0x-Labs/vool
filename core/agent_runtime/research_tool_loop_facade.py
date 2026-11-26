@@ -3058,7 +3058,9 @@ class ResearchToolLoopFacadeMixin:
                                 status="code_task_incomplete", correction=code_completion_corrections,
                             )
                             continue
-                    direct_message = self._tool_intent_direct_message(tool_decision.structured_output)
+                    direct_message = self._tool_intent_direct_message(
+                        tool_decision.structured_output, request_text=str(effective_input or "")
+                    )
                     if (
                         selected_response
                         and direct_message is not None
