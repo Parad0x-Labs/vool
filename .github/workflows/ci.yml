@@ -147,8 +147,11 @@ jobs:
         # glob order prefers); Chromium's sandbox itself stays kernel-enforced. The bounded
         # probe at the end fails this step loudly — instead of letting the render suites
         # cascade or a launch hang the shard.
+        # The Ubuntu mirror can drop a package between its index and the download (run on 584863ad5:
+        # libasound2t64 404 from security.ubuntu.com mid-install), so a failed install is tried once
+        # more on a fresh index.
         run: |
-          python -m playwright install --with-deps chromium
+          python -m playwright install --with-deps chromium || { sudo apt-get update && python -m playwright install --with-deps chromium; }
           bins=()
           while IFS= read -r bin; do
             [ -n "$bin" ] || continue
@@ -354,7 +357,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,browser,companion,evm,keys]"
       - name: Provision the served-browser lane (Playwright chromium)
-        run: python -m playwright install --with-deps chromium
+        # A failed install (a package the mirror dropped since its index) is tried once more on a fresh index.
+        run: python -m playwright install --with-deps chromium || { sudo apt-get update && python -m playwright install --with-deps chromium; }
       - name: Provision ffmpeg for the lent recording job (Homebrew)
         # Lend a job offers "recording" only where Homebrew's ffmpeg and ffprobe exist
         # (core/lend/worker.available); the hosted image has neither, so the invite was refused
