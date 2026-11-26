@@ -60,6 +60,12 @@ def prepare_live_info_request(
             # Nothing to look up ("explain how the bitcoin price is determined"): the model's to
             # answer offline, not a refusal.
             return "", "", None
+        if _judged_to_need_no_web(user_input, source_context):
+            # The turn's own web judgement read the message as needing nothing from the internet: the topic words
+            # this lane reads are no lookup, and the model answers it. iMac gate40 on 50f8bed75 (Offline, qwen3:8b):
+            # "who built the Colosseum in Rome?" was judged "web ask verdict: no" and still answered with the
+            # Offline web refusal from this lane.
+            return "", "", None
         return live_mode, "", disabled_live_info_result(
             agent,
             session_id=session_id,
@@ -112,3 +118,16 @@ def _explicit_remote_fetch_disabled(source_context: dict[str, object] | None) ->
     # Explicit false means the caller is forcing a local-only turn. Do not let
     # the live-info fast path reinterpret a trusted surface as permission to browse.
     return not bool(source_context.get("allow_remote_fetch"))
+
+
+def _judged_to_need_no_web(user_input: str, source_context: dict[str, object] | None) -> bool:
+    """Whether the turn's web judgement (core.online_asks.web_ask_verdict, one verdict per message in a turn) read
+    this message as needing nothing from the internet."""
+    try:
+        from core.online_asks import web_ask_verdict
+
+        return web_ask_verdict(
+            str(user_input or ""), source_context=source_context if isinstance(source_context, dict) else None,
+        ) == "no"
+    except Exception:
+        return False
