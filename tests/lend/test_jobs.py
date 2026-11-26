@@ -226,19 +226,25 @@ print('limit', resource.getrlimit(resource.RLIMIT_AS)[0])
 small=bytearray(64*1024*1024)
 print('small allocation', len(small))
 del small
+# The worker itself has the headroom, whatever it maps at start over a bare interpreter (macOS CI on 42d3f4c44:
+# every lent job's own program ended in MemoryError).
+room=bytearray(400*1024*1024)
+print('room allocation', len(room))
+del room
 try:
     bytearray(600*1024*1024)
 except MemoryError:
     print('large allocation refused')
 else:
     raise RuntimeError('large allocation permitted')
-print('decoder exit', subprocess.run([sys.executable,'-I','-c',{child!r}]).returncode)
+print('decoder exit', worker['run_decoder']([sys.executable,'-I','-c',{child!r}]).returncode)
 ''')
     result = run_confined(command(scratch, {'max_seconds': 10}), scratch=scratch,
                           timeout=10, extra_read=runtime_reads(), extra_read_files=runtime_files(),
                           allow_mach_lookup=False, allow_child_signals=True)
     assert result.returncode == 0, result.stderr
     assert b'small allocation 67108864' in result.stdout
+    assert b'room allocation 419430400' in result.stdout
     assert b'large allocation refused' in result.stdout
     # The decoder starts under the inherited ceiling, works within it and cannot grow past it.
     assert b'decoder exit 7' in result.stdout

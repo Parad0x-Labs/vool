@@ -80,20 +80,27 @@ def bare_size():
             child.wait()
 
 
+#: The ceiling a decoder this worker starts runs under (`run_decoder`), set by `limit_memory`.
+DECODER_CEILING = None
+
+
 def limit_memory(headroom=MEMORY_HEADROOM):
-    """Install an RLIMIT_AS ceiling at the smaller mapped size plus headroom; decoders inherit it.
+    """Bound this worker's growth and its decoders' growth to the headroom, each from where it starts.
 
     macOS refuses a small absolute RLIMIT_AS (a fresh process already maps hundreds of GiB of
-    shared regions), so the ceiling is relative. It is absolute once set, though, and a decoder
-    starts as a fresh process that maps less than this worker does: a ceiling taken from the
-    worker alone left a decoder the worker's start-up size as extra room. The ceiling is therefore
-    taken from the smaller of this worker and a bare interpreter (measured from outside, see
-    ``bare_size``), so neither grows past the
-    headroom. It bounds growth, not resident memory. Not measurable means not started: the job
-    fails closed.
+    shared regions), so each ceiling is relative, and absolute once set. The worker's is its own
+    mapped size plus the headroom. A decoder starts as a fresh process that maps less than this
+    worker does, so its ceiling is a bare interpreter's size (measured from outside, see
+    ``bare_size``) plus the headroom, lowered in the child before it runs (`run_decoder`).
+
+    One ceiling for both, at the smaller size, left the worker the headroom minus its own start-up
+    size over a bare interpreter: on the macOS CI job (42d3f4c44) every lent PDF and photo job ended
+    "lend worker exited 1 (MemoryError)" inside its own fixed program. It bounds growth, not
+    resident memory. Not measurable means not started: the job fails closed.
     """
     import resource
 
+    global DECODER_CEILING
     try:
         fresh = bare_size()
     except (subprocess.SubprocessError, ValueError) as exc:
@@ -101,12 +108,24 @@ def limit_memory(headroom=MEMORY_HEADROOM):
     if fresh <= 0:
         raise OSError('decoder memory size unavailable')
     own = mapped_size()
-    ceiling = min(own, fresh) + headroom
-    if ceiling <= own:
-        raise OSError('worker memory budget unavailable')
+    ceiling = own + headroom
     resource.setrlimit(resource.RLIMIT_AS, (ceiling, ceiling))
     if resource.getrlimit(resource.RLIMIT_AS) != (ceiling, ceiling):
         raise OSError('worker memory limit not applied')
+    DECODER_CEILING = min(own, fresh) + headroom
+
+
+def _decoder_ceiling():
+    import resource
+
+    resource.setrlimit(resource.RLIMIT_AS, (DECODER_CEILING, DECODER_CEILING))
+
+
+def run_decoder(argv, **kwargs):
+    """`subprocess.run` for a decoder, under the decoder ceiling. Without one set, nothing is started."""
+    if not DECODER_CEILING:
+        raise OSError('decoder memory limit not set')
+    return subprocess.run(argv, preexec_fn=_decoder_ceiling, **kwargs)
 
 
 def clean_pdf(data, limits):
@@ -210,17 +229,17 @@ def recording(limits):
 
     probe = shutil.which('ffprobe', path='/opt/homebrew/bin:/usr/local/bin')
     ffmpeg = shutil.which('ffmpeg', path='/opt/homebrew/bin:/usr/local/bin')
-    duration = subprocess.run([probe, '-v', 'error', '-show_entries', 'format=duration',
-                               '-of', 'default=nw=1:nk=1', 'input.bin'], capture_output=True,
-                              check=True, timeout=limits['max_seconds'])
+    duration = run_decoder([probe, '-v', 'error', '-show_entries', 'format=duration',
+                            '-of', 'default=nw=1:nk=1', 'input.bin'], capture_output=True,
+                           check=True, timeout=limits['max_seconds'])
     seconds = float(duration.stdout)
     if not 0 < seconds <= min(3600, limits['max_length']) or limits['trim_start'] >= seconds:
         raise ValueError('recording length')
-    subprocess.run([ffmpeg, '-v', 'error', '-nostdin', '-protocol_whitelist', 'file,pipe',
-                    '-i', 'input.bin', '-ss', str(limits['trim_start']), '-t', str(limits['trim_length']),
-                    '-map_metadata', '-1', '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', '-f', 'wav', 'output.bin'],
-                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                   timeout=limits['max_seconds'])
+    run_decoder([ffmpeg, '-v', 'error', '-nostdin', '-protocol_whitelist', 'file,pipe',
+                 '-i', 'input.bin', '-ss', str(limits['trim_start']), '-t', str(limits['trim_length']),
+                 '-map_metadata', '-1', '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', '-f', 'wav', 'output.bin'],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=limits['max_seconds'])
     return Path('output.bin').read_bytes(), 'recording.wav'
 
 
