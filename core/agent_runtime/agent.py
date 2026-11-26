@@ -1519,6 +1519,17 @@ def _no_calendar_reply(text: str) -> str | None:
     personal = _re.search(r"\b(?:my|i|i'm|am\s+i|do\s+i|have\s+i|me)\b", clean, _re.IGNORECASE)
     if not clean or len(clean.split()) > 16 or not personal or not _CALENDAR_QUESTION_RE.match(clean):
         return None
+    try:
+        from core import plugin_ask as _plugin_ask
+
+        _picked = set(_plugin_ask.judged_builtins(clean))
+    except Exception:
+        _picked = set()
+    if _picked and not _picked & {"calendar", "reminders"}:
+        # The turn's judge read it, in any language, as an ask for something else of the person's: a word like
+        # "meeting" does not make it a calendar question. iMac gate38: "what did they say at the school meeting? the
+        # notes are somewhere on my mac" was judged a file find and answered "No calendar is connected yet".
+        return None
     if _re.search(r"\b(?:schedule|book|add|create|move|cancel|set)\s+(?:a|an|the|my)\b", clean, _re.IGNORECASE):
         return None  # an order to change the calendar goes to its own lane and approval
     # "plan my meals for this week" asks for a plan to be made: the verb is not the noun "plans".
