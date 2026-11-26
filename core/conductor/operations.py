@@ -4349,6 +4349,21 @@ _MACHINE_FAMILY_INTENTS = {
 }
 
 
+#: The machine families that read files and folders, the only ones a judged file ask may bind.
+_FILE_FAMILIES = frozenset({"list_directory", "find_folder"})
+
+
+def _judged_a_file_ask(request_text: str) -> bool:
+    """Whether the turn's judge picked a computer-file choice for the message this clause is from (core.plugin_ask)."""
+    try:
+        from core.plugin_ask import COMPUTER_FILE_CHOICES, judged_builtins, judged_builtins_of_message_holding
+
+        picked = set(judged_builtins(request_text)) or set(judged_builtins_of_message_holding(request_text))
+        return bool(picked & COMPUTER_FILE_CHOICES)
+    except Exception:
+        return False
+
+
 def _machine_expand(request_text: str) -> list[dict[str, Any]]:
     """The clause -> tool binding, when the runtime's claim registry already owns the clause.
 
@@ -4362,11 +4377,18 @@ def _machine_expand(request_text: str) -> list[dict[str, Any]]:
     """
     from core.agent_runtime.intent_claims import probe_claims
 
+    file_ask = _judged_a_file_ask(request_text)
     bound: list[tuple[str, dict[str, Any]]] = []
     families: set[str] = set()
     for claim in probe_claims(request_text):
         entry = _MACHINE_FAMILY_INTENTS.get(claim.family)
         if entry is None:
+            continue
+        if file_ask and claim.family not in _FILE_FAMILIES:
+            # The turn's judge read the message as asking for a file or folder of the person's: a word reading of the
+            # clause as the machine's specs, disk or processes is not it. iMac gate40 on 50f8bed75: "dig up the boiler
+            # service record somewhere on this machine ..." (judged Find) fell back here after a model timeout and was
+            # answered with the machine's specs.
             continue
         intent, argument_keys = entry
         arguments: dict[str, Any] = {}
