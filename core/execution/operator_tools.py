@@ -113,6 +113,35 @@ def _argument(arguments: dict[str, Any], name: str) -> str:
     return str(arguments.get(name) or "").strip()
 
 
+#: The longest wait a reminder call may give as an amount of time from now: a year, in minutes.
+_LONGEST_WAIT_MINUTES = 366 * 24 * 60
+
+
+def _due_after_a_wait(arguments: dict[str, Any]) -> str | None:
+    """The due time of a reminder the call gave as minutes from now ("in 15 minutes", "za 15 minut", "dans 2 heures"),
+    worked out on the runtime's clock as a UTC time with its offset; None when the call gave none, or not a whole
+    number of minutes in range.
+
+    A model adding minutes to the clock gets it wrong: iMac gate27 on 601705f2c (qwen3:8b), "przypomnij mi za 15 minut,
+    żeby zadzwonić do mamy" sent at 04:09:10 was given due_iso 04:09, a time already past by the approval. The runtime
+    works the day out from a named weekday the same way (`day`)."""
+    raw = arguments.get("in_minutes")
+    if raw is None or isinstance(raw, bool) or str(raw).strip() == "":
+        return None
+    try:
+        minutes = float(str(raw).strip())
+    except ValueError:
+        return None
+    if minutes != int(minutes) or not 1 <= minutes <= _LONGEST_WAIT_MINUTES:
+        return None
+    from datetime import timedelta, timezone
+
+    from core.time_authority import CLOCK
+
+    due = (CLOCK.now_utc().astimezone(timezone.utc) + timedelta(minutes=int(minutes))).replace(second=0, microsecond=0)
+    return due.strftime("%Y-%m-%dT%H:%M+00:00")
+
+
 _TYPED_REMINDER_ID_RE = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9a-f]{8}", re.IGNORECASE)
 
 
@@ -195,6 +224,9 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
             due_iso = _argument(arguments, "due_iso") or None
             repeat_every = _argument(arguments, "repeat").casefold() or None
             due_weekday = _argument(arguments, "day") or None
+            after = _due_after_a_wait(arguments)
+            if after:
+                due_iso, due_weekday = after, None
         elif operator_kind == "save_note":
             note_content = str(arguments.get("content") or "").strip() or None
             note_title = _argument(arguments, "title") or None

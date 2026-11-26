@@ -39,5 +39,10 @@ def test_an_ambiguous_comma_fails_closed_to_the_model(question):
 
 
 def test_a_comma_that_separates_items_is_not_a_separator():
-    # "200, 300" is a list, not 200300; the first operand is complete and exact.
-    assert evaluate_direct_math_request("5% of 200, 300 and 400") == "5% of 200 = 10."
+    # "200, 300" is a list, not 200300. It asks three sums, so the exact lane answers none of them rather than the first
+    # alone ("5% of 200 = 10." left 300 and 400 out); the model reads the whole list. iMac gate27 on 601705f2c: "what's
+    # 9 squared minus 7?" was answered "9^2 = 81." the same way.
+    assert evaluate_direct_math_request("5% of 200, 300 and 400") is None
+    assert evaluate_direct_math_request("what's 9 squared minus 7?") is None
+    assert evaluate_direct_math_request("what is the square root of 81 plus 3") is None
+    assert evaluate_direct_math_request("whats 7 cubed") == "7^3 = 343."

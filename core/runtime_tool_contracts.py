@@ -3220,6 +3220,11 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             input_schema={
                 "note": "string (what to remind the person of, in their own words and language)",
                 "due_iso": "string (when: ISO 8601 local date and time, for example 2026-11-23T15:00)",
+                "in_minutes": (
+                    "integer optional (when the person asks to be reminded after an amount of time from now, in any "
+                    "language: that amount in minutes, 15 for a quarter of an hour, 120 for two hours; VOOL works out "
+                    "the time)"
+                ),
                 "day": (
                     "string optional (when the person names a day of the week, in any language: that day in "
                     "English, monday to sunday; VOOL works out its date)"

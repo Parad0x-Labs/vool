@@ -1500,23 +1500,34 @@ def _places_named(text: str) -> list[tuple[str, str]]:
     return places
 
 
-def _ask_the_place_of_a_picked_turn(text: str, source_context: dict[str, Any] | None) -> None:
-    """Put the turn's web question to a message that names no place VOOL knows by name, when the turn's tool judge
-    picked one of VOOL's tools for it: its "no" for the time or date now in a place names that place's zone
+def _ask_the_place_before_the_answer(text: str, source_context: dict[str, Any] | None) -> None:
+    """Put the turn's web question, before the answer, to a message that names no place VOOL knows by name, when the
+    turn's tool judge picked one of VOOL's tools for it or Web lookups are off: its "no" for the time or date now in a
+    place names that place's zone
     (core.online_asks.web_ask_verdict), whatever language the place is named in.
 
     iMac gate26 on 11e7a9468 (qwen3:8b, Web lookups off): "Cât e ceasul acum la Viena?" was picked as a Reminders
     ask, the pick was not confirmed, and the web question ran only after the answer, so the answer call held no time
-    in Vienna and the model gave the computer's own time. A message the judge's first reading picked no tool for asks
-    nothing here, and a web pick has its verdict already (asked once per turn)."""
+    in Vienna and the model gave the computer's own time. A web pick has its verdict already (asked once per turn).
+
+    With Web lookups off the question is put to any such message: the answer's own check (whether it may be out of
+    date, core.agent_runtime.turn_reasoning) puts the same question to it after the answer anyway, and reads this
+    verdict, so it costs no call of its own. iMac gate27 on 601705f2c: "Paljonko kello on nyt Tukholmassa?" was picked
+    no tool, the question ran only after the answer, and the reply gave the computer's own time as Stockholm's. With
+    the web on, a message the judge's first reading picked no tool for asks nothing here."""
     if not isinstance(source_context, dict) or not str(text or "").strip():
         return
     try:
         from core import plugin_ask
         from core.intent_arbiter import _turn_key
 
-        if not _turn_key(source_context) or not (plugin_ask.first_picks(text) or plugin_ask.judged_builtins(text)):
+        if not _turn_key(source_context):
             return
+        if not (plugin_ask.first_picks(text) or plugin_ask.judged_builtins(text)):
+            from core.remote_fetch_policy import effective_web_available
+
+            if effective_web_available(source_context):
+                return
         from core.online_asks import web_ask_verdict
 
         web_ask_verdict(text, source_context=source_context,
@@ -1540,7 +1551,7 @@ def _named_place_times_text(text: str, now: datetime, source_context: dict[str, 
 
             judged = judged_clock_zone(text)
             if not places and not judged and source_context is not None:
-                _ask_the_place_of_a_picked_turn(text, source_context)
+                _ask_the_place_before_the_answer(text, source_context)
                 judged = judged_clock_zone(text)
         except Exception:
             judged = ""

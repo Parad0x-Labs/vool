@@ -857,6 +857,19 @@ def _format_number(value: float) -> str:
     return f"{rounded:.{significant}g}"
 
 
+#: Arithmetic beside a named operation that the operation does not compute: another number, an operator sign, or an
+#: operation word in the words this lane reads ("squared", "percent of" are English too).
+_MORE_ARITHMETIC_RE = re.compile(r"\d|[+*/\u00d7\u00f7^=]|(?<![\w-])-|\b(?:plus|minus|times|divided|multiplied)\b",
+                                 re.IGNORECASE)
+
+
+def _more_arithmetic_beside(body: str, match: re.Match[str]) -> bool:
+    """True when the message asks more arithmetic than the matched operation: "what's 9 squared minus 7?" was answered
+    "9^2 = 81." (iMac gate27 on 601705f2c), the "minus 7" dropped. Such a turn goes to the model, which reads all of
+    it, rather than being served part of the sum as exact."""
+    return bool(_MORE_ARITHMETIC_RE.search(body[:match.start()] + " " + body[match.end():]))
+
+
 def evaluate_named_math_request(text: str) -> str | None:
     """A named arithmetic operation stated in words, computed exactly.
 
@@ -871,7 +884,8 @@ def evaluate_named_math_request(text: str) -> str | None:
 
     percent = _PERCENT_OF_RE.search(body)
     if percent is not None:
-        if _ambiguous_operand(body, percent, "pct") or _ambiguous_operand(body, percent, "n"):
+        if (_ambiguous_operand(body, percent, "pct") or _ambiguous_operand(body, percent, "n")
+                or _more_arithmetic_beside(body, percent)):
             return None
         pct = _math_operand(percent.group("pct"))
         base = _math_operand(percent.group("n"))
@@ -879,7 +893,7 @@ def evaluate_named_math_request(text: str) -> str | None:
 
     power = _POWER_RE.search(body)
     if power is not None:
-        if _ambiguous_operand(body, power, "n"):
+        if _ambiguous_operand(body, power, "n") or _more_arithmetic_beside(body, power):
             return None
         base = _math_operand(power.group("n"))
         exponent = 2 if power.group("word").lower() == "squared" else 3
@@ -887,7 +901,7 @@ def evaluate_named_math_request(text: str) -> str | None:
 
     root = _SQUARE_ROOT_RE.search(body)
     if root is not None:
-        if _ambiguous_operand(body, root, "n"):
+        if _ambiguous_operand(body, root, "n") or _more_arithmetic_beside(body, root):
             return None
         value = _math_operand(root.group("n"))
         if value < 0:

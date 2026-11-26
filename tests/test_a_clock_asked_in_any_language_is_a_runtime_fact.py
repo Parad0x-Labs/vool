@@ -141,10 +141,26 @@ def test_a_clock_ask_the_judge_picked_another_tool_for_still_carries_the_time_th
     assert asked and "Vienna:" in line and "01:44" in line and "Thursday" in line, line
 
 
-def test_a_message_the_judge_picked_nothing_for_is_not_asked_the_web_question(monkeypatch):
+def test_with_the_web_on_a_message_the_judge_picked_nothing_for_is_not_asked_the_web_question(monkeypatch):
+    from core import remote_fetch_policy
     from core.prompt_normalizer import _named_place_times_text
 
     ask = "povesteste-mi ceva despre Viena"
     asked = _picked_turn(monkeypatch, ask, (), "no|Europe/Vienna")
+    monkeypatch.setattr(remote_fetch_policy, "effective_web_available", lambda *a, **k: True)
     assert _named_place_times_text(ask, datetime(2026, 11, 26, 0, 44, tzinfo=timezone.utc), {"turn_id": "t"}) == ""
     assert not asked
+
+
+def test_with_the_web_off_a_clock_ask_the_judge_picked_nothing_for_still_carries_the_time_there(monkeypatch):
+    """iMac gate27 on 601705f2c (Web lookups off): "Paljonko kello on nyt Tukholmassa?" was picked no tool, the web
+    question ran only after the answer (the out-of-date check asks it anyway), and the reply gave the computer's own
+    time as Stockholm's. With the web off the question is asked before the answer, once for the turn."""
+    from core import remote_fetch_policy
+    from core.prompt_normalizer import _named_place_times_text
+
+    ask = "Mikä on kellonaika nyt Oslossa?"
+    asked = _picked_turn(monkeypatch, ask, (), "no|Europe/Oslo")
+    monkeypatch.setattr(remote_fetch_policy, "effective_web_available", lambda *a, **k: False)
+    line = _named_place_times_text(ask, datetime(2026, 11, 26, 2, 7, tzinfo=timezone.utc), {"turn_id": "t"})
+    assert len(asked) == 1 and "Oslo:" in line and "03:07" in line, line
