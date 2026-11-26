@@ -581,6 +581,19 @@ def _model_execution_source(model_execution: Any) -> str:
     return str(getattr(model_execution, "source", "") or "")
 
 
+
+def _a_missing_file_the_ask_never_named(tool_execution: dict[str, Any], text: str) -> bool:
+    """Whether the model's own tool call failed only because the file it guessed is not there, on a message the
+    turn's judge read and picked none of the person's things for."""
+    try:
+        if bool(tool_execution.get("success")) or str(tool_execution.get("status") or "") != "not_found":
+            return False
+        from core import plugin_ask
+
+        return plugin_ask.judged_at_all(text) and not plugin_ask.judged_builtins(text)
+    except Exception:
+        return False
+
 def execute_grounded_turn(
     agent: Any,
     *,
@@ -923,6 +936,12 @@ def execute_grounded_turn(
             workflow_summary="- local fact required a tool; none executed; refused to fabricate",
         )
 
+    if tool_execution is not None and _a_missing_file_the_ask_never_named(tool_execution, effective_input):
+        # The turn's judge read the message (any language) as asking for none of the person's things, and the file the
+        # model guessed is not there: the question is answered as asked, not with the miss. iMac gate38 (Offline,
+        # qwen3:8b): "who wrote Romeo and Juliet?" had the model read Desktop/Romeo_and_Juliet.txt, and the turn
+        # ended failed on "There is no file at ...".
+        tool_execution = None
     if tool_execution is not None:
         return agent._action_fast_path_result(
             task_id=task.task_id,
