@@ -6673,6 +6673,7 @@
       "arguments": [
         "day",
         "due_iso",
+        "in_minutes",
         "note",
         "repeat",
         "text"
@@ -6692,6 +6693,13 @@
           "due_iso": {
             "description": "string (when: ISO 8601 local date and time, for example 2026-11-23T15:00)",
             "type": "string"
+          },
+          "in_minutes": {
+            "description": "integer optional (when the person asks to be reminded after an amount of time from now, in any language: that amount in minutes, 15 for a quarter of an hour, 120 for two hours; VOOL works out the time)",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "note": {
             "description": "string (what to remind the person of, in their own words and language)",
@@ -6715,6 +6723,7 @@
         "required": [
           "note",
           "due_iso",
+          "in_minutes",
           "day",
           "repeat",
           "text"
