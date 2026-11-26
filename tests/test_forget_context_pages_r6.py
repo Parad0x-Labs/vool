@@ -17,9 +17,14 @@ def isolated_pages(tmp_path, runtime_storage_reset):
     import core.runtime_continuity as continuity
     import core.runtime_paths as paths
     import storage.db as database
+    from core.secret_redaction import clear_exact_secrets_for_tests
     from storage.chunk_store import chunk_root
     from storage.migrations import run_migrations
 
+    # Admission masks every exact secret registered in this process: one left by an earlier test that matches these
+    # pages' words changes the stored bytes, and two pages meant to share CAS chunks share none (CI shard 7 on
+    # f31c60b65: the shared-chunk forget was reported clean).
+    clear_exact_secrets_for_tests()
     previous = paths._VOOL_HOME_OVERRIDE
     previous_db = database.active_default_db_path()
     previous_continuity_db = continuity._DB_PATH_OVERRIDE
@@ -39,6 +44,7 @@ def isolated_pages(tmp_path, runtime_storage_reset):
         assert chunk_root().resolve() == (profile / "data" / "cas_chunks").resolve()
         yield profile
     finally:
+        clear_exact_secrets_for_tests()
         continuity.configure_runtime_continuity_db_path(previous_continuity_db)
         database.configure_default_db_path(previous_db)
         paths.configure_runtime_home(previous)
