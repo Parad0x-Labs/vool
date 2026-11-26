@@ -50,6 +50,8 @@ _BUILTINS: OrderedDict[str, tuple[float, tuple[str, ...]]] = OrderedDict()
 #: The person's own words in front of a pasted mail or message, by turn text: (stamp, own words, "" when none). Kept
 #: because a later reader may only have the text with its line breaks folded, and the paste is read by its lines.
 _PASTED_OWN: OrderedDict[str, tuple[float, str]] = OrderedDict()
+#: The built-in choices the judge's first reading picked, by turn text, before any yes/no of their own dropped one.
+_FIRST_PICKS: OrderedDict[str, tuple[float, tuple[str, ...]]] = OrderedDict()
 
 #: VOOL's own personal tools as the judge reads them: (key, description, the tools a pick seats). The descriptions say
 #: what each does for the person, so a judge reading any language can tell a reminder from a calendar event. Saying
@@ -313,6 +315,7 @@ def forget() -> None:
         _JUDGED.clear()
         _BUILTINS.clear()
         _PASTED_OWN.clear()
+        _FIRST_PICKS.clear()
         _CHOICES.clear()
 
 
@@ -497,6 +500,30 @@ def _record_paste(text: str, own: str) -> None:
         _PASTED_OWN.move_to_end(key)
         while len(_PASTED_OWN) > _KEPT:
             _PASTED_OWN.popitem(last=False)
+
+
+def _record_first_picks(text: str, keys: tuple[str, ...]) -> None:
+    key = _key(text)
+    if not key:
+        return
+    with _LOCK:
+        _FIRST_PICKS[key] = (time.monotonic(), tuple(keys))
+        _FIRST_PICKS.move_to_end(key)
+        while len(_FIRST_PICKS) > _KEPT:
+            _FIRST_PICKS.popitem(last=False)
+
+
+def first_picks(text: str) -> tuple[str, ...]:
+    """The built-in choices the judge's first reading of this text picked, kept even when a yes/no of their own then
+    dropped them; () when it picked none or nothing judged it. Read only."""
+    key = _key(text)
+    if not key:
+        return ()
+    with _LOCK:
+        entry = _FIRST_PICKS.get(key)
+    if entry is None or time.monotonic() - entry[0] > _LIFETIME_S:
+        return ()
+    return entry[1]
 
 
 def own_words_over_a_paste(text: str) -> str | None:
@@ -809,6 +836,7 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
     plugins = tuple(dict.fromkeys(shown_plugins[n - 1][0] for n in numbers if n <= len(shown_plugins)))
     if builtins:
         picked_keys = tuple(builtins[n - len(shown_plugins) - 1][0] for n in numbers if n > len(shown_plugins))
+        _record_first_picks(text, picked_keys)
         keys = _web_confirmed(text, picked_keys, source_context, session_id)
         if picked_keys and not keys and not plugins:
             keys = _judged_again_without_the_web(text, builtins, source_context, session_id)

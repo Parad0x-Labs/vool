@@ -113,3 +113,38 @@ def test_a_clock_ask_the_web_question_answers_no_still_carries_the_time_there(mo
     assert not asked
     line = _named_place_times_text(ask, datetime(2026, 11, 25, 23, 42, tzinfo=timezone.utc))
     assert "New York:" in line and "18:42" in line and "Wednesday" in line, line
+
+
+def _picked_turn(monkeypatch, ask, picks, verdict):
+    from core import intent_arbiter, online_asks, plugin_ask
+
+    asked = []
+    plugin_ask.forget()
+    online_asks._WEB_VERDICTS.clear()
+    online_asks._CLOCK_ZONES.clear()
+    if picks:
+        plugin_ask._record_first_picks(ask, picks)
+    monkeypatch.setattr(intent_arbiter, "_turn_key", lambda ctx: "turn-clock-1" if isinstance(ctx, dict) else "")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_web_ask", lambda *a, **k: asked.append(a) or verdict)
+    return asked
+
+
+def test_a_clock_ask_the_judge_picked_another_tool_for_still_carries_the_time_there(monkeypatch):
+    """iMac gate26 on 11e7a9468 (Web lookups off): "Cât e ceasul acum la Viena?" was picked as a Reminders ask, the pick
+    was dropped, and the web question ran only after the answer: no time in Vienna reached the model, which gave the
+    computer's own time. A turn the judge picked a tool for is put the web question before the answer."""
+    from core.prompt_normalizer import _named_place_times_text
+
+    ask = "Ce oră e acum la Viena, te rog?"
+    asked = _picked_turn(monkeypatch, ask, ("reminders",), "no|Europe/Vienna")
+    line = _named_place_times_text(ask, datetime(2026, 11, 26, 0, 44, tzinfo=timezone.utc), {"turn_id": "t"})
+    assert asked and "Vienna:" in line and "01:44" in line and "Thursday" in line, line
+
+
+def test_a_message_the_judge_picked_nothing_for_is_not_asked_the_web_question(monkeypatch):
+    from core.prompt_normalizer import _named_place_times_text
+
+    ask = "povesteste-mi ceva despre Viena"
+    asked = _picked_turn(monkeypatch, ask, (), "no|Europe/Vienna")
+    assert _named_place_times_text(ask, datetime(2026, 11, 26, 0, 44, tzinfo=timezone.utc), {"turn_id": "t"}) == ""
+    assert not asked

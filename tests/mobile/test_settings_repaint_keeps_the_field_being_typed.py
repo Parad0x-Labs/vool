@@ -26,9 +26,14 @@ def test_a_repaint_while_typing_keeps_the_caret_in_the_same_field(money):
             field = row.locator('.phone-advanced .phone-cap input').nth(0)
             field.click()
             page.keyboard.type("0.0")
-            # The phone's own call (refused or not) moves its last-seen time, so the re-read repaints the pane.
-            call(*phone, "wallet.status")
+            # A call the phone may make moves its last-seen time, so the re-read repaints the pane. A refused call moves
+            # nothing (core.web.api.mobile_companion_api refuses before it marks the device): the "wallet.status" this
+            # test made is refused on a fresh pairing, and the re-read found a change only when some other value had
+            # moved since the page was drawn (CI tests (1) on cbcb090a4, and every run here). "devices.me" is one of a
+            # paired phone's basics. The pane is marked before the call, so a re-read the page makes on its own
+            # (window focus) after the call clears the mark as well.
             page.evaluate("document.querySelector('#paneBody > *').dataset.drawnBefore = '1'")
+            assert call(*phone, "devices.me")[0] == 200
             page.evaluate("window.__voolSettings.reconcile()")
             assert page.evaluate("!document.querySelector('#paneBody [data-drawn-before]')"), "the re-read did not repaint"
             page.keyboard.type("1")

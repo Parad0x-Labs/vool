@@ -1500,7 +1500,32 @@ def _places_named(text: str) -> list[tuple[str, str]]:
     return places
 
 
-def _named_place_times_text(text: str, now: datetime) -> str:
+def _ask_the_place_of_a_picked_turn(text: str, source_context: dict[str, Any] | None) -> None:
+    """Put the turn's web question to a message that names no place VOOL knows by name, when the turn's tool judge
+    picked one of VOOL's tools for it: its "no" for the time or date now in a place names that place's zone
+    (core.online_asks.web_ask_verdict), whatever language the place is named in.
+
+    iMac gate26 on 11e7a9468 (qwen3:8b, Web lookups off): "Cât e ceasul acum la Viena?" was picked as a Reminders
+    ask, the pick was not confirmed, and the web question ran only after the answer, so the answer call held no time
+    in Vienna and the model gave the computer's own time. A message the judge's first reading picked no tool for asks
+    nothing here, and a web pick has its verdict already (asked once per turn)."""
+    if not isinstance(source_context, dict) or not str(text or "").strip():
+        return
+    try:
+        from core import plugin_ask
+        from core.intent_arbiter import _turn_key
+
+        if not _turn_key(source_context) or not (plugin_ask.first_picks(text) or plugin_ask.judged_builtins(text)):
+            return
+        from core.online_asks import web_ask_verdict
+
+        web_ask_verdict(text, source_context=source_context,
+                        session_id=str(source_context.get("session_id") or source_context.get("runtime_session_id") or ""))
+    except Exception:
+        return
+
+
+def _named_place_times_text(text: str, now: datetime, source_context: dict[str, Any] | None = None) -> str:
     """The clock in the places the message names (a city or country whose time zone VOOL knows), in any language.
 
     iMac gate23 on 97d3db22e (qwen3:8b, Web lookups off): "Wie spät ist es gerade in Sydney?" never reached the
@@ -1514,6 +1539,9 @@ def _named_place_times_text(text: str, now: datetime) -> str:
             from core.online_asks import judged_clock_zone
 
             judged = judged_clock_zone(text)
+            if not places and not judged and source_context is not None:
+                _ask_the_place_of_a_picked_turn(text, source_context)
+                judged = judged_clock_zone(text)
         except Exception:
             judged = ""
         if judged and all(judged != zone for zone, _label in places):
@@ -1570,7 +1598,7 @@ def _runtime_turn_truth(
         "invent a time, date, duration or amount."
     )
     facts.append(_coming_days_text(now))
-    place_times = _named_place_times_text(asked_text, now)
+    place_times = _named_place_times_text(asked_text, now, context)
     if place_times:
         facts.append(place_times)
     workspace_path = str(context.get("workspace") or context.get("workspace_root") or "").strip()
