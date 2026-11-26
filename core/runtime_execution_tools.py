@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 from collections import Counter
 from dataclasses import dataclass, field
+from dataclasses import replace as _dataclass_replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -1360,6 +1361,38 @@ def _walk_safe_roots_for_files(
             continue
 
     return matches, roots, scanned_dirs, timed_out
+
+
+#: Plain-text kinds a find shows the first lines of when it finds exactly one file.
+_FOUND_TEXT_SUFFIXES = (".txt", ".md", ".markdown", ".csv", ".log", ".json")
+_FOUND_PREVIEW_LINES = 12
+
+
+def _with_the_one_text_file_found_read(
+    found: RuntimeExecutionResult, *, project_root: Path | None = None
+) -> RuntimeExecutionResult:
+    """A find that found exactly one plain-text file carries its first lines, read by `machine.read_file`'s own rules.
+
+    iMac gate37 on f31c60b65 (Offline, qwen3:8b): "and the water meter reading from August?" found the file, no read
+    ran, and the reply gave "1,245 m3" as its content; the file says 0412. A model handed only a file's name writes
+    its contents from nothing, in any language, so the one file found is read for it: the same policy, protected
+    places and redaction as a read the model asks for. A read that fails or is refused leaves the find as it was."""
+    try:
+        matches = list((found.details or {}).get("matches") or ()) if found.ok else []
+        if len(matches) != 1 or not str(matches[0]).lower().endswith(_FOUND_TEXT_SUFFIXES):
+            return found
+        read = _read_machine_file({"path": str(matches[0]), "start_line": 1, "max_lines": _FOUND_PREVIEW_LINES,
+                                   "verbatim": True}, project_root=project_root)
+        lines = [str(row.get("text") or "") for row in (read.details or {}).get("lines") or []] if read.ok else []
+        if not lines:
+            return found
+        total = int((read.details or {}).get("total_lines") or 0)
+        more = f"\n({total} lines in total; only these were read.)" if total > len(lines) else ""
+        text = f"{found.response_text}\nWhat {Path(str(matches[0])).name} says:\n" + "\n".join(lines) + more
+        details = {**dict(found.details or {}), "lines": (read.details or {}).get("lines"), "read_path": str(matches[0])}
+        return _dataclass_replace(found, response_text=text, details=details)
+    except Exception:
+        return found
 
 
 def _machine_find_file(
@@ -4026,8 +4059,11 @@ def _dispatch_runtime_tool(
         if intent == "machine.find_folder":
             return _machine_find_folder(arguments, workspace_root=workspace_root)
         if intent == "machine.find_file":
-            return _machine_find_file(arguments, workspace_root=workspace_root,
-                                      project_root=_bound_project_root(source_context))
+            return _with_the_one_text_file_found_read(
+                _machine_find_file(arguments, workspace_root=workspace_root,
+                                   project_root=_bound_project_root(source_context)),
+                project_root=_bound_project_root(source_context),
+            )
         if intent == "machine.display_inspect":
             return _machine_display_inspect(arguments)
         if intent == "machine.find_largest":
