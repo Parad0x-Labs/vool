@@ -805,9 +805,18 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                 wants_network = bool(reviewed.vool.get("network")) and (
                     _mcp_tool_may_use_network(contract) if is_mcp else handler.get("network") is True)
                 if wants_network:
-                    from core.remote_fetch_policy import remote_fetch_forbidden
+                    from core.remote_fetch_policy import local_only_active, offline_turn_active, remote_fetch_forbidden
                     from core.turn_prohibitions import FAMILY_TOOLS, FAMILY_WEB, conserved_request_prohibitions
 
+                    # Offline: the plugin's listed sites are public addresses (core.plugin_network
+                    # connects to nothing else), and its connections run on the proxy's own thread,
+                    # outside the turn the process guard reads. So the turn is asked here, before any
+                    # proxy exists: no network for the plugin at all.
+                    if offline_turn_active() or local_only_active(context):
+                        raise NetworkRefused(
+                            "This chat is Offline, so nothing leaves this computer. "
+                            "The plugin was not connected to the internet."
+                        )
                     prohibitions = conserved_request_prohibitions(context)
                     if (remote_fetch_forbidden() or context.get("allow_remote_fetch") is False
                             or prohibitions.prohibits_family(FAMILY_WEB) or prohibitions.prohibits_family(FAMILY_TOOLS)):

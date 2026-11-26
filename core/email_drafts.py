@@ -922,7 +922,7 @@ def send_draft(
                 "parent_resolved": result.details.get("parent_resolved"),
             }
             if result.status in {"needs_reapproval", "not_approved", "needs_credentials",
-                                 "quota_exceeded", "identity_unverified"}:
+                                 "quota_exceeded", "identity_unverified", "offline"}:
                 # Refused BEFORE the wire: nothing was dispatched, so the
                 # reservation must not stand. The draft returns to its prior
                 # review state and the reserved id is released.

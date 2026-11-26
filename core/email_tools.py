@@ -351,10 +351,40 @@ def _selected_account(kind: str, account: str) -> tuple[str, dict[str, Any] | No
     from core.email_accounts import select_account
 
     selection = select_account(kind, account=account)
+    result_type = EmailReadResult if kind == "imap" else EmailResult
     if not selection.ok:
-        result_type = EmailReadResult if kind == "imap" else EmailResult
         return "", None, result_type(False, selection.status, selection.message)
-    return selection.account, _load_account(kind, selection.account), None
+    creds = _load_account(kind, selection.account)
+    refusal = _offline_refusal(kind, creds)
+    if refusal:
+        return "", None, result_type(False, "offline", refusal)
+    return selection.account, creds, None
+
+
+#: Every mail read and send selects its account through `_selected_account`, so this is where an
+#: Offline turn stops mail before any connection (the process guard in core.private_web would also
+#: stop it, but as "could not connect").
+OFFLINE_MAIL_TEXT = (
+    "This chat is Offline, so nothing leaves this computer and your mailbox was not opened. "
+    "To read or send mail, choose Computer + web or Local first in the model menu."
+)
+
+
+def _offline_refusal(kind: str, creds: dict[str, Any] | None) -> str:
+    """The Offline refusal for this mailbox, or "" when this turn may reach it.
+
+    A mail server on this computer or the home network stays reachable, as when the account was
+    added (core.email_setup); a provider mailbox (Gmail, Outlook) is always a public address.
+    """
+    from core.remote_fetch_policy import offline_refuses, offline_turn_active
+
+    if not offline_turn_active():
+        return ""
+    host = str((creds or {}).get("host") or "").strip() if isinstance(creds, dict) else ""
+    provider = str((creds or {}).get("provider") or "").strip().lower() if isinstance(creds, dict) else ""
+    if host and provider in {"", "imap", "smtp"}:
+        return OFFLINE_MAIL_TEXT if offline_refuses(f"{kind}://{host}") else ""
+    return OFFLINE_MAIL_TEXT
 
 
 def email_signature_for(*, principal: str | None = None, session_id: str = "") -> str:

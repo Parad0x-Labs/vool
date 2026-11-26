@@ -13,6 +13,11 @@ from typing import Any
 
 from core.execution.constants import image_generation_intent
 
+#: An Offline chat makes pictures on this computer only; said where a cloud key would be offered.
+_OFFLINE_NO_CLOUD_NOTE = (
+    " This chat is Offline, so the picture can only be made on this computer, never by an online "
+    "image service."
+)
 _ENGINE_STARTING_MSG = (
     "Starting the on-device image engine (ComfyUI); the first image after a fresh start "
     "takes a minute or two while the model loads."
@@ -154,9 +159,14 @@ def maybe_handle_image_generation(
             decision=decision_with_request,
         )
 
+    from core.remote_fetch_policy import local_only_active
+
     has_local = lmr.local_render_available()
-    has_fal = media_tools.has_image_service()
-    wants_local = lmr.wants_local_render(user_input)
+    # Offline: nothing leaves this computer, so the picture is the on-device engine's or no one's.
+    # The cloud key is not offered, and the cloud lane below is never reached.
+    offline = local_only_active(source_context)
+    has_fal = media_tools.has_image_service() and not offline
+    wants_local = lmr.wants_local_render(user_input) or offline
 
     # 1) On-device render — the free, private default when the skill is installed, UNLESS the user has
     #    only a cloud key and didn't ask for local. If ComfyUI isn't up yet, VOOL starts it herself, so
@@ -171,7 +181,8 @@ def maybe_handle_image_generation(
         tier, room = gov.plan_render()
         if tier is None:
             freed = (room.note() + " ") if room.actions else ""
-            offer = (" You have a fal.ai cloud key — ask me to render it on the cloud and I will."
+            offer = (_OFFLINE_NO_CLOUD_NOTE if offline
+                     else " You have a fal.ai cloud key — ask me to render it on the cloud and I will."
                      if has_fal else " Or add a fal.ai key with `image key <key>` to render off-device.")
             return reply(
                 f"{freed}Your Mac is extremely low on memory right now (~{room.usable_after_gb:.1f} GB free) — "
@@ -215,7 +226,9 @@ def maybe_handle_image_generation(
             # is present and fine.
             detail = f" {start_note}." if start_note else ""
             offer = (
-                " You do have a fal.ai cloud key — ask me to render it on the cloud and I will."
+                _OFFLINE_NO_CLOUD_NOTE
+                if offline
+                else " You do have a fal.ai cloud key — ask me to render it on the cloud and I will."
                 if has_fal
                 else " You can add a fal.ai key with `image key <your-key>` to render off-device."
             )
@@ -262,7 +275,13 @@ def maybe_handle_image_generation(
             message or "Image generation failed.", ok=False, execution=execution
         )
 
-    # 3) Nothing configured.
+    # 3) Nothing configured (Offline: no on-device engine, and the cloud is not this chat's).
+    if offline:
+        return reply(
+            "Image generation needs the on-device image engine (the local ComfyUI render skill), which "
+            "isn't installed." + _OFFLINE_NO_CLOUD_NOTE,
+            ok=False, reason="image_generate_needs_setup",
+        )
     return reply(
         "Image generation isn't set up yet. Install the local ComfyUI render skill, or paste a fal.ai key "
         "with `image key <your-key>` — the key stays sealed on this machine.",

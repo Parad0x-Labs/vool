@@ -368,6 +368,35 @@ def _local_only_egress_forbidden(
     return True, LOCAL_ONLY_EGRESS_DENIAL
 
 
+def offline_turn_active() -> bool:
+    """Whether the turn running on THIS thread is Offline: zero public egress, whatever door asks.
+
+    The question every transport that is not the HTTP door asks before it connects: the process
+    connection guard (``core.private_web``), plugin network, mail. Read from the turn's own scope
+    (worker pools inherit it), so a background job outside any turn is not this turn's to stop.
+    Inside a turn, an Offline reading that cannot be taken counts as Offline (fail closed).
+    """
+    context = _SCOPE_CONTEXT.get()
+    if context is None:
+        return False
+    try:
+        return bool(local_only_active(context))
+    except Exception:
+        return True
+
+
+def offline_refuses(url: str = "") -> bool:
+    """Whether an Offline turn may NOT reach *url* (an empty one is never local).
+
+    Same law as the HTTP door: a public name is refused before any DNS lookup; a loopback, LAN or
+    literal private address (a LAN mail server, a LAN model box) stays allowed.
+    """
+    if not offline_turn_active():
+        return False
+    forbidden, _reason = _local_only_egress_forbidden(_SCOPE_CONTEXT.get() or {}, str(url or ""), lookup=True)
+    return bool(forbidden)
+
+
 def effective_web_available(source_context: dict[str, Any] | None = None) -> bool:
     """Can THIS turn actually reach the web?
 
@@ -1285,6 +1314,8 @@ __all__ = [
     "local_only_active",
     "lookup_unavailable_reason",
     "note_remote_fetch_attempt",
+    "offline_refuses",
+    "offline_turn_active",
     "open_keyed_request",
     "open_remote",
     "open_remote_url",

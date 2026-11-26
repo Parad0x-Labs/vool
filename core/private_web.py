@@ -74,6 +74,10 @@ class PrivateWebBlocked(ConnectionRefusedError):
     """
 
 
+class OfflineEgressBlocked(PrivateWebBlocked):
+    """A direct connection, DNS lookup or online program was stopped because this chat is Offline."""
+
+
 class SocksError(OSError):
     """The local SOCKS endpoint refused or broke the connection."""
 
@@ -607,19 +611,80 @@ def _argv_of(event: str, args: tuple[Any, ...]) -> list[str]:
     return []
 
 
+#: Names a resolver on this machine or this network answers for, besides the ones
+#: `_name_stays_local` already knows; the same list the HTTP door uses for an Offline turn.
+_OFFLINE_LOCAL_SUFFIXES = (".lan", ".home.arpa", ".internal")
+_offline_probe: Any = None
+
+
+def _offline_turn() -> bool:
+    """Whether the turn on this thread is Offline (core.remote_fetch_policy.offline_turn_active)."""
+    global _offline_probe
+    if _offline_probe is None:
+        try:
+            from core.remote_fetch_policy import offline_turn_active
+        except Exception:
+            return False  # the policy module is not importable yet: no turn can be running
+        _offline_probe = offline_turn_active
+    try:
+        return bool(_offline_probe())
+    except Exception:
+        return True
+
+
+def _block_mode() -> str:
+    """'' when this thread may go online directly, else why not: 'private' (a route is on) or 'offline'."""
+    if not _guard_allows_public():
+        return "private"
+    return "offline" if _offline_turn() else ""
+
+
+def _blocked(mode: str, what: str) -> PrivateWebBlocked:
+    if mode == "offline":
+        return OfflineEgressBlocked(f"This chat is Offline, so {what} was stopped: nothing leaves this computer")
+    return PrivateWebBlocked(f"Private web is switched on, so {what} was stopped")
+
+
+def _offline_name_local(host: Any) -> bool:
+    name = str(host or "").strip().rstrip(".").lower()
+    return bool(name) and ("." not in name or name.endswith(_OFFLINE_LOCAL_SUFFIXES))
+
+
+def _opens_public_link(argv: list[str]) -> bool:
+    for arg in argv[1:]:
+        match = _URL_ARG.match(str(arg).strip())
+        if match and not _host_stays_local(match.group(2).strip("[]")):
+            return True
+    return False
+
+
 def _audit(event: str, args: tuple[Any, ...]) -> None:
     if event in ("subprocess.Popen", "os.system", "os.posix_spawn", "os.exec"):
-        if _guard_allows_public():
+        mode = _block_mode()
+        if not mode:
             return
-        program = _program_goes_online(_argv_of(event, args))
+        argv = _argv_of(event, args)
+        if mode == "offline":
+            # Offline: no route exists to launch a browser through, and a link handed to the
+            # person's own browser leaves this computer too (a model-written address can carry
+            # the chat). A local file or a local address still opens.
+            name = os.path.basename(argv[0]).lower().removesuffix(".exe") if argv else ""
+            if (name in {"open", "xdg-open"} or any(str(a).startswith("--proxy-server=") for a in argv[1:])):
+                program = name if _opens_public_link(argv) else ""
+            else:
+                program = _program_goes_online(argv)
+            if program:
+                raise OfflineEgressBlocked(
+                    f"This chat is Offline, so {program} was not started: it would go online"
+                )
+            return
+        program = _program_goes_online(argv)
         if program:
             raise PrivateWebBlocked(
                 f"Private web is switched on, so {program} was not started: it would go online directly"
             )
         return
     if not event.startswith("socket."):
-        return
-    if _guard_allows_public():
         return
     if event == "socket.connect" or event == "socket.sendto":
         address = args[1] if len(args) > 1 else None
@@ -630,17 +695,28 @@ def _audit(event: str, args: tuple[Any, ...]) -> None:
             return
         if isinstance(host, str) and not _is_ip_literal(host) and _name_stays_local(host):
             return
-        raise PrivateWebBlocked(f"Private web is switched on, so a direct connection to {host} was stopped")
-    if event in ("socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyname_ex"):
-        host = args[0] if args else None
-        if _name_stays_local(host):
+        mode = _block_mode()
+        if not mode:
             return
-        raise PrivateWebBlocked("Private web is switched on, so a direct DNS lookup was stopped")
+        if mode == "offline" and isinstance(host, str) and not _is_ip_literal(host) and _offline_name_local(host):
+            return
+        raise _blocked(mode, f"a direct connection to {host}")
+    if event in ("socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyname_ex"):
+        mode = _block_mode()
+        if not mode:
+            return
+        host = args[0] if args else None
+        if _name_stays_local(host) or (mode == "offline" and _offline_name_local(host)):
+            return
+        raise _blocked(mode, "a direct DNS lookup")
     if event == "socket.gethostbyaddr":
+        mode = _block_mode()
+        if not mode:
+            return
         host = args[0] if args else None
         if isinstance(host, str) and (_ip_stays_local(host) or (_name_stays_local(host) and not _is_ip_literal(host))):
             return
-        raise PrivateWebBlocked("Private web is switched on, so a direct DNS lookup was stopped")
+        raise _blocked(mode, "a direct DNS lookup")
 
 
 _guard_installed = False
@@ -676,6 +752,7 @@ __all__ = [
     "ROUTE_TOR",
     "ROUTE_WIREGUARD",
     "BrowserRoute",
+    "OfflineEgressBlocked",
     "PrivateWebBlocked",
     "RouteState",
     "SocksError",
