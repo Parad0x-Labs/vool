@@ -3646,11 +3646,25 @@ def _judged_recall_reply(
     if named and not _recall_beside_a_file_pick(question, [] if whole else named, session_id=session_id,
                                                 source_context=source_context):
         return None
+    named = [_said_to_its_end(fact) for fact in named]
     if len(named) == 1:
         return f"You told me: {named[0]}"
     if named:
         return "You told me:\n" + "\n".join(f"- {fact}" for fact in named)
     return None
+
+
+def _said_to_its_end(fact: str) -> str:
+    """A saved fact shown as said, closed as a sentence. The person's own words are whole as saved, but one that ends
+    without a stop on a word a sentence cannot end on ("... on the 9th of April, please remember that") read as an
+    answer cut off mid-clause, and the recall went out flagged "Incomplete ... Ask again for the rest" (iMac gate 43 on
+    the installed 7eaa8608c)."""
+    from core.incomplete_answer import _TERMINAL_PUNCTUATION
+
+    text = str(fact or "").rstrip()
+    if not text or text[-1] in _TERMINAL_PUNCTUATION or text[-1] in "。！？":
+        return text
+    return text + "."
 
 
 def held_fact_answer_before_a_lookup(

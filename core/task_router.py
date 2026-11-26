@@ -28,6 +28,8 @@ from core.task_state_machine import transition
 from core.trace_id import ensure_trace
 from storage.db import get_connection
 
+_SHELL_WORD_RE = re.compile(r"\b(?:run|execute)\s|\b(?:command|shell|terminal)")
+
 _PATH_PATTERNS = [
     re.compile(r"[A-Za-z]:\\[^\s]+"),         # Windows paths
     re.compile(r"~/(?:[^\s)]+)"),             # Home-relative Unix paths
@@ -2572,7 +2574,10 @@ def classify(user_input: str, context: dict[str, Any] | None = None) -> dict[str
     elif any(k in text for k in ["read file", "inspect file", "open file", "check file"]):
         task_class = "file_inspection"
         confidence_hint = 0.68
-    elif any(k in text for k in ["run ", "execute ", "command", "shell", "terminal"]):
+    elif _SHELL_WORD_RE.search(text):
+        # Whole words: "could it outrun me?" held "run " inside "outrun", was routed to the command
+        # lane, and the model was offered only sandbox.run_command, so a penguin question came back
+        # as an approval card for `echo` (iMac gate 43 on the installed 7eaa8608c).
         task_class = "shell_guidance"
         confidence_hint = 0.72
 

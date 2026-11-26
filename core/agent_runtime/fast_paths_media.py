@@ -127,6 +127,20 @@ def maybe_handle_image_generation(
         cancelled["success"] = False
         return cancelled
 
+    from core.remote_fetch_policy import local_only_active
+
+    has_local = lmr.local_render_available()
+    # Offline: nothing leaves this computer, so the picture is the on-device engine's or no one's.
+    # The cloud key is not offered, and the cloud lane below is never reached.
+    offline = local_only_active(source_context)
+    has_fal = media_tools.has_image_service() and not offline
+
+    # Nothing that could make the picture is set up: say so before any approval. An approval asked for
+    # a generation no engine can run (Offline, no on-device engine; gate 43 on the installed 7eaa8608c)
+    # left the person a request to allow that could only ever end in "isn't installed".
+    if not has_local and not has_fal:
+        return _needs_setup(reply, offline)
+
     # ONE permission decision for the generation, whichever engine would run it.
     decision = authorize_runtime_tool(
         "image.generate", {"prompt": prompt}, source_context=source_context
@@ -159,13 +173,6 @@ def maybe_handle_image_generation(
             decision=decision_with_request,
         )
 
-    from core.remote_fetch_policy import local_only_active
-
-    has_local = lmr.local_render_available()
-    # Offline: nothing leaves this computer, so the picture is the on-device engine's or no one's.
-    # The cloud key is not offered, and the cloud lane below is never reached.
-    offline = local_only_active(source_context)
-    has_fal = media_tools.has_image_service() and not offline
     wants_local = lmr.wants_local_render(user_input) or offline
 
     # 1) On-device render — the free, private default when the skill is installed, UNLESS the user has
@@ -276,6 +283,10 @@ def maybe_handle_image_generation(
         )
 
     # 3) Nothing configured (Offline: no on-device engine, and the cloud is not this chat's).
+    return _needs_setup(reply, offline)
+
+
+def _needs_setup(reply: Any, offline: bool) -> dict[str, Any]:
     if offline:
         return reply(
             "Image generation needs the on-device image engine (the local ComfyUI render skill), which "

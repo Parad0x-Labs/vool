@@ -380,11 +380,13 @@ def test_processes_is_its_own_tool(home):
 
 
 def test_propose_change_never_executes(home):
+    # Changes off: a proposal is never shown as a card or carried out, so none is kept to be called pending
+    # (iMac gate 43 on the installed 7eaa8608c).
     ctx, calls = _recording_ctx(home)
     outcome = _registry().tool("propose_change").run({"what": "delete Desktop/todo.txt"}, ctx)
     assert calls == []
-    assert outcome.status == "pending_approval"
-    assert ctx.proposals == [{"what": "delete Desktop/todo.txt", "status": "pending_approval", "executed": False}]
+    assert outcome.status == "change_refused" and not outcome.ok
+    assert ctx.proposals == [] and ctx.receipts == []
     assert (home / "Desktop" / "todo.txt").exists()
 
 
@@ -434,19 +436,21 @@ def test_list_then_read_then_answer(home):
     assert "140.00" in last_prompt[-1]["content"]
 
 
-def test_a_write_becomes_a_pending_proposal(home):
+def test_a_write_with_changes_off_is_no_pending_proposal(home):
+    # Changes off: the loop keeps no proposal nothing would ever show, and its answer never says one is waiting
+    # for approval (iMac gate 43 on the installed 7eaa8608c: "waiting for your approval" with no card).
     ctx = ToolContext(home=home, source_context=dict(OWNER))
     brain = _scripted(
         [
             '{"tool": "propose_change", "what": "create Desktop/shopping.txt with milk, bread"}',
-            '{"answer": "I have the shopping list ready to save on your desktop."}',
+            '{"answer": "I can\'t save files from here, so nothing was changed."}',
         ]
     )
     result = run_loop("make me a shopping list file on the desktop", brain=brain, registry=_registry(), ctx=ctx)
-    assert result.proposals and result.proposals[0]["status"] == "pending_approval"
+    assert not result.proposals
     assert not (home / "Desktop" / "shopping.txt").exists()
-    assert result.answer.endswith(PENDING_NOTICE)
-    assert all(r["execution"]["executed"] is False for r in ctx.receipts)
+    assert PENDING_NOTICE not in result.answer
+    assert "not possible" in brain.seen[-1][-1]["content"]
 
 
 def test_the_step_cap_ends_the_loop_with_a_plain_reply(home):

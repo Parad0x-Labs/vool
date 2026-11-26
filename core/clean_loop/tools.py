@@ -1407,22 +1407,13 @@ def propose_change(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
             text='not possible: a change needs its exact steps in "ops", and only files and folders can be changed here',
             ok=False, status="change_refused",
         )
-    proposal = {"what": what or "(unspecified change)", "status": "pending_approval", "executed": False}
-    ctx.proposals.append(proposal)
-    ctx.receipts.append(
-        {
-            "tool_name": "propose_change",
-            "mode": "pending_approval",
-            "status": "pending_approval",
-            "execution": {"executed": False, "ok": True, "status": "pending_approval"},
-            "lane": "clean_local_loop",
-        }
-    )
+    # Changes off: nothing this loop proposes is ever shown as a card or carried out, so a proposal kept here only
+    # let the answer say it was "waiting for your approval" with nothing to approve. iMac gate 43 on the installed
+    # 7eaa8608c: "pop a dentist appointment into my calendar next Tuesday at 3pm" ended "This is waiting for your
+    # approval; nothing has been changed yet." with no card, no calendar tool and nothing pending.
     return ToolOutcome(
-        text="proposal shown to the owner; waiting for their approval (nothing changed yet)",
-        ok=True,
-        status="pending_approval",
-        proposal=proposal,
+        text="not possible: nothing can be changed from here; tell them plainly that nothing was changed",
+        ok=False, status="change_refused",
     )
 
 
