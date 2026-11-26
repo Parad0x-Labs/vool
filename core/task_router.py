@@ -410,6 +410,17 @@ def _is_mailbox_request(text: str) -> bool:
 _OWN_PROJECT_RE = re.compile(r"\b(?:this|my|our|current|the\s+current)\s+(?:own\s+)?(?:project|repo|repository|codebase)\b")
 
 
+#: Words that put a lookup about someone or something in public, matched as whole words (a plural or a possessive
+#: too). Matched inside other words, "cto" in "october" made "find my gas bill from October" a public lookup, and in
+#: an Offline chat the found bill was withheld as an unsupported web answer (iMac gate35 on 584863ad5); "person" in
+#: "personal" did the same for the person's own things.
+_PUBLIC_CONTEXT_RE = re.compile(
+    r"\b(?:solana|founder|ceo|cto|person|guy|girl|crypto\w*|ethereum|bitcoin|helius|blockchain|defi|nft|company|"
+    r"compan(?:y|ies)|startup|project|protocol|influencer|community|communities|developer|engineer|owner|co-founder)"
+    r"(?:s|'s|\u2019s)?\b"
+)
+
+
 def looks_like_public_entity_lookup_request(text: str) -> bool:
     from core.retrieval_constraints import analyze_retrieval_constraints
     from core.stipulated_frame import stipulated_frame_forbids_retrieval
@@ -433,12 +444,7 @@ def looks_like_public_entity_lookup_request(text: str) -> bool:
     # failing check in this project" read as a public lookup ("check" + "project") and, with Web
     # lookups off, the turn was refused before the code task could open (CI #681).
     public_text = _OWN_PROJECT_RE.sub(" ", lowered)
-    has_public_context = any(marker in public_text for marker in (
-        "solana", "founder", "ceo", "cto", "person", "guy", "girl", "crypto",
-        "ethereum", "bitcoin", "helius", "blockchain", "defi", "nft",
-        "company", "startup", "project", "protocol", "influencer",
-        "community", "developer", "engineer", "owner", "co-founder",
-    ))
+    has_public_context = bool(_PUBLIC_CONTEXT_RE.search(public_text))
     if soft_entity_prompt:
         return bool(has_web_or_social_cue or has_public_context)
     return bool(has_lookup_marker and (has_web_or_social_cue or has_public_context))

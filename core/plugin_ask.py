@@ -105,6 +105,11 @@ WORKSPACE_WORK_CHOICES = frozenset({"files", "run"})
 #: not something the person told VOOL (core.persistent_memory._recall_beside_a_file_pick).
 COMPUTER_FILE_CHOICES = frozenset({"changes", "files", "read", "find", "run"})
 _BUILTIN_SEATS = {key: seats for key, _description, seats in BUILTIN_CHOICES}
+
+
+def computer_file_intents() -> frozenset[str]:
+    """The tools the computer-file choices seat: each reads or works on files of this computer, never the web."""
+    return frozenset(intent for key in COMPUTER_FILE_CHOICES for intent in _BUILTIN_SEATS.get(key, ()))
 #: Choices a judge reads one for the other: both are something of the person's at a time they name. A pick of either
 #: seats both, so the model is offered the tools of the one meant. Mac gate on 561e3e9d0 (installed app, qwen3:8b,
 #: 2026-11-23): "parodyk mano priminimus" ("show my reminders"), right after a reminder was set, was judged a calendar

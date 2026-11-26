@@ -620,19 +620,22 @@ def withdraw_required(source_context: dict[str, Any] | None, *, reason: str) -> 
     minted evidence sets, typed observations or a synthesis call. Those are facts about this
     turn and a withdrawal may not erase them.
     """
+    return _withdraw(source_context, reason=reason, keep_web_evidence=False)
+
+
+def _withdraw(source_context: dict[str, Any] | None, *, reason: str, keep_web_evidence: bool) -> bool:
+    """`withdraw_required`'s body. With `keep_web_evidence`, only what the web gave refuses the withdrawal (bound
+    rows, minted evidence sets, a child lifecycle): a turn that read the person's own files has typed observations
+    and a synthesis call too, and neither is a lookup this record exists to judge."""
     if not isinstance(source_context, dict):
         return False
     with _LOCK:
         record = _record_for(source_context)
         if record is None:
             return False
-        if (
-            record.bound_notes
-            or record.evidence_set_ids
-            or record.typed_observations
-            or record.synthesis_calls
-            or record.children
-        ):
+        if record.bound_notes or record.evidence_set_ids or record.children:
+            return False
+        if not keep_web_evidence and (record.typed_observations or record.synthesis_calls):
             return False
         _RECORDS.pop(record.lifecycle_id, None)
         for token, owner in list(_INDEX.items()):
@@ -1100,6 +1103,12 @@ def seal_turn_grounding(
     lifecycle_id = str(source_context.get(LIFECYCLE_ID_KEY) or "")
     if not lifecycle_id:
         return ""
+    if _answered_from_this_computer_alone(source_context):
+        # Nothing on the web could be reached or was read: what the answer rests on is the person's own files, which
+        # no current-information check is about. iMac gate35 on 584863ad5 (Offline, qwen3:8b): the bill a file find
+        # found was withheld as "I didn't look anything up" because a word in the ask held the turn to a web lookup.
+        if _withdraw(source_context, reason="answered_from_this_computer", keep_web_evidence=True):
+            return ""
 
     receipts = source_context.get("web_retrieval_receipts")
     if isinstance(receipts, list) and receipts:
@@ -1312,6 +1321,37 @@ def harvest_execution_records(source_context: dict[str, Any] | None) -> int:
         if not record.retrieval_outcome:
             record.retrieval_outcome = "tool_receipt"
     return record_typed_observations(source_context, entries=rows)
+
+
+def _answered_from_this_computer_alone(source_context: dict[str, Any]) -> bool:
+    """Whether this turn could reach no web, read nothing from it, and ran a tool on this computer's files that worked.
+
+    Read from what the turn did, never from its words: the web's reachability (`effective_web_available`: the Web
+    lookups switch, an Offline chat, a computer kept local), the turn's retrieval receipts, and its own tool ledger
+    against the tools the computer-file choices seat (`core.plugin_ask.computer_file_intents`)."""
+    try:
+        from core.remote_fetch_policy import effective_web_available
+
+        if effective_web_available(source_context):
+            return False
+    except Exception:
+        return False
+    if source_context.get("web_retrieval_receipts"):
+        return False
+    identity = _identity_from(source_context)
+    if not (identity.session_id and identity.turn_id):
+        return False
+    try:
+        from core import execution_records
+        from core.plugin_ask import computer_file_intents
+
+        local = computer_file_intents()
+        records = execution_records.records_for_turn(identity.session_id, identity.turn_id)
+    except Exception:
+        return False
+    if any(str(entry.intent or "").startswith("web") for entry in records):
+        return False
+    return any(entry.ok and str(entry.intent or "") in local for entry in records)
 
 
 def _tool_result_is_evidence(intent: str) -> bool:

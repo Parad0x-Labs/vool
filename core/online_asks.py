@@ -618,14 +618,19 @@ def _judged_about_the_persons_own(text: str) -> bool:
     Measured on 02ff11496 (fresh audit, new chat): "how much is my rent these days" (rent told in an earlier chat)
     was judged a recall, then a second, separate web reading said yes, the turn went to the online door and was
     refused there ("I didn't look anything up for this"). The turn's judge offers the internet as a choice of its
-    own; a message it read as the person's own business, without that choice, is not asked again."""
+    own; a message it read as the person's own business, without that choice, is not asked again.
+
+    The files on the person's computer are theirs too. iMac gate35 on 584863ad5 (Offline, qwen3:8b): a find of the
+    person's own bill, judged a file find, was read as a lookup about a public person by a topic word inside it, and
+    the bill it found was withheld as an unsupported web answer. A word in the message can say "public"; the judge's
+    pick, in any language, says whose thing is asked for."""
     try:
         from core import plugin_ask
 
         picked = set(plugin_ask.judged_builtins(text))
     except Exception:
         return False
-    return bool(picked & _PERSONS_OWN_CHOICES) and "web" not in picked
+    return bool(picked & (_PERSONS_OWN_CHOICES | plugin_ask.COMPUTER_FILE_CHOICES)) and "web" not in picked
 
 
 #: The time zone the clock question named for a message (casefolded, whitespace-folded text -> (when, zone)), read by
