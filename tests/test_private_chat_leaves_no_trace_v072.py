@@ -63,7 +63,14 @@ def _traces(home: Path, key: str) -> list[str]:
         except OSError:
             continue
         if any(n in raw for n in needles) or any(n.decode() in part for n in needles for part in path.parts):
-            found.append(str(path.relative_to(home)))
+            # A database's write-ahead log and shared-memory index are that database: a row not yet checkpointed
+            # sits in "-wal" for a moment, so they are named as the database itself (a hit there still counts).
+            name = str(path.relative_to(home))
+            for side in ("-wal", "-shm"):
+                if name.endswith(".db" + side):
+                    name = name[: -len(side)]
+            if name not in found:
+                found.append(name)
     for path in home.rglob("*.db"):
         conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
         try:
