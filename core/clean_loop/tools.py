@@ -553,6 +553,22 @@ def _shares_a_word(line: str, distinguishing: list[str]) -> bool:
     return any(word.rstrip("s") in tokens or (len(word) >= 6 and word in low) for word in distinguishing)
 
 
+def _what_the_one_hit_says(hits: list[str], outcomes: list[ToolOutcome]) -> list[str]:
+    """The lines a per-word find read from the one file found ("What <name> says:" and after), kept when the hits are
+    that one file. iMac gate38: the per-word finds read the gym card file, this merge kept only its "- name" line, and
+    the model gave today's date as the card's expiry; the file says June."""
+    if len(hits) != 1:
+        return []
+    name = Path(hits[0][2:].split(" (", 1)[0].strip()).name
+    lead = f"What {name} says:"
+    for outcome in outcomes:
+        text = str(outcome.text or "")
+        at = text.find("\n" + lead)
+        if at >= 0:
+            return text[at + 1:].splitlines()
+    return []
+
+
 def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     words = _query_words(args.get("query") or args.get("name") or "")
     if not words:
@@ -597,7 +613,7 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
         lines = [*hits, "these files also mention it inside:", *inside]
         return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines), status=status)
     if hits:
-        return _merge(outcomes, "\n".join(hits[:20]), status=status)
+        return _merge(outcomes, "\n".join([*hits[:20], *_what_the_one_hit_says(hits, outcomes)]), status=status)
     if inside:
         lines = [f"no file name has {', '.join(words)}; these files mention it inside:", *inside]
         return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines), status=status)
