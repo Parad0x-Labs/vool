@@ -1024,6 +1024,26 @@ def _normalization_gains_actions(plan: Plan | None, original: Plan | None) -> bo
     return False
 
 
+def _a_file_find_the_judge_kept(plan: Plan, text: str) -> bool:
+    """Whether a plan that only searches chats is a file find the turn's own judge read and kept.
+
+    The search grammar reads a retrieval verb beside a past cue as a chat search, and "somewhere" is such a cue: iMac
+    gate34 on 571e05675, "can you locate the packing list for my ski trip somewhere on this mac?" was judged a file
+    find (kept by its own yes/no), and this lane answered "I couldn't find ... in any of your 1 chat" with no file
+    tool run. A message that names a chat or a project stays a chat search whatever the judge read."""
+    if not plan.actions or any(action.kind != "search" for action in plan.actions):
+        return False
+    folded, _offsets = fold_with_offsets(str(text or ""))
+    if _CHAT_NOUN.search(folded) or re.search(r"\bprojects?\b", folded):
+        return False
+    try:
+        from core.plugin_ask import judged_builtins
+
+        return "find" in judged_builtins(text)
+    except Exception:
+        return False
+
+
 def maybe_handle_housekeeping_request(
     agent: Any,
     *,
@@ -1054,6 +1074,8 @@ def maybe_handle_housekeeping_request(
     except Exception:
         plan = None
     if plan is None or not may_finalize:
+        return None
+    if _a_file_find_the_judge_kept(plan, text):
         return None
     from core import chat_housekeeping as hk
     from core.agent_runtime.intent_claims import commands_forbidden_in_context

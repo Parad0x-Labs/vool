@@ -115,6 +115,28 @@ def parse_ambiguity_verdict(raw: object) -> AmbiguityVerdict | None:
     )
 
 
+def _folded_words(text: str) -> set[str]:
+    import unicodedata
+
+    decomposed = unicodedata.normalize("NFKD", str(text or "").casefold())
+    plain = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return {word for word in re.split(r"[\W_]+", plain) if len(word) >= 4}
+
+
+def referents_read_the_question(verdict: AmbiguityVerdict, question: str) -> bool:
+    """Whether the referents a verdict lists are meanings of a name in the question, not answers to it.
+
+    The referents of an ambiguous name carry that name ("Springfield, Illinois" and "Springfield, Missouri" for "how
+    big is Springfield?"). Answers do not: iMac gate34 on 571e05675 (qwen3:8b), "who composed The Four Seasons?" was
+    judged ambiguous between "Antonio Vivaldi" and "Giuseppe Tartini", and the person was asked which one they meant
+    instead of being told. At least two referents must share a word with the question; a verdict with fewer than two
+    referents keeps its clarification as it was."""
+    if len(verdict.referents) < 2:
+        return True
+    asked = _folded_words(question)
+    return sum(1 for referent in verdict.referents if _folded_words(referent) & asked) >= 2
+
+
 def render_clarification(verdict: AmbiguityVerdict, question: str) -> str:
     """The reader-facing ask-back. Names the referents the probe found."""
 

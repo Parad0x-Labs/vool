@@ -7288,6 +7288,10 @@ class VoolAgent(
                 )
             if not verdict.ambiguous:
                 return None
+            from core.entity_ambiguity import referents_read_the_question
+
+            if not referents_read_the_question(verdict, question):
+                return None
             return self._fast_path_result(
                 session_id=session_id,
                 user_input=question,
