@@ -440,11 +440,26 @@ def _memory_kind_confirmed(
             _log.info("memory kind judged: keep read as the contact save before it continued")
             return ("contacts",)
         decided = "keep"
+    if not decided and "recall" in named and _judged_a_clock_ask(text):
+        # The turn's own clock question read the message as asking the time or date now: the clock answers it, not
+        # anything the person told VOOL. iMac gate28 on d2262de22: "Mis kell on praegu Varssavis?" was judged a recall
+        # beside it, and the memory lane answered "I don't have that saved".
+        _log.info("memory kind judged: recall read as a clock ask")
+        named.discard("recall")
     if not decided and "recall" in named:
         decided = "recall"
     _log.info("memory kind judged: %s (tool judgement picked %s, memory question %s)", decided or "none",
               ",".join(keys) or "none", kind)
     return tools + ((f"memory_{decided}",) if decided else ())
+
+
+def _judged_a_clock_ask(text: str) -> bool:
+    try:
+        from core.online_asks import judged_a_clock_ask
+
+        return judged_a_clock_ask(text)
+    except Exception:
+        return False
 
 
 def _has_pending_reminders() -> bool:

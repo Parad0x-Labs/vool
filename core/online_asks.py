@@ -662,12 +662,19 @@ def _asks_the_clock(flat: str, *, source_context: dict | None, session_id: str) 
 
 
 def _hold_clock_zone(flat: str, zone: str) -> None:
-    if not zone:
-        return
+    """Holds that a judge read this message as asking the time or date now, with the place's zone ("" for none)."""
     with _WEB_VERDICTS_LOCK:
         if len(_CLOCK_ZONES) > 128:
             _CLOCK_ZONES.clear()
         _CLOCK_ZONES[" ".join(flat.split()).casefold()] = (_time.monotonic(), zone)
+
+
+def judged_a_clock_ask(text: str) -> bool:
+    """Whether a judge of this turn read the message as asking the time or date now, here or in a place. Read only."""
+    key = " ".join(str(text or "").split()).casefold()
+    with _WEB_VERDICTS_LOCK:
+        held = _CLOCK_ZONES.get(key)
+    return held is not None and _time.monotonic() - held[0] <= _WEB_VERDICT_LIFETIME_S
 
 
 def _zone_of_a_no(flat: str, verdict: str | None) -> str | None:

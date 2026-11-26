@@ -164,3 +164,19 @@ def test_with_the_web_off_a_clock_ask_the_judge_picked_nothing_for_still_carries
     monkeypatch.setattr(remote_fetch_policy, "effective_web_available", lambda *a, **k: False)
     line = _named_place_times_text(ask, datetime(2026, 11, 26, 2, 7, tzinfo=timezone.utc), {"turn_id": "t"})
     assert len(asked) == 1 and "Oslo:" in line and "03:07" in line, line
+
+
+def test_a_clock_ask_is_not_answered_as_a_recall(monkeypatch):
+    """iMac gate28 on d2262de22: "Mis kell on praegu Varssavis?" was read as a clock ask by the turn's clock question
+    and as a recall by the memory question; the memory lane answered "I don't have that saved". The clock answers it."""
+    from core import intent_arbiter, online_asks, plugin_ask
+
+    ask = "Kiek dabar valandų Varšuvoje?"
+    online_asks._CLOCK_ZONES.clear()
+    monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *a, **k: "recall")
+    for other in ("arbitrate_forget_order", "arbitrate_told_as_fact", "arbitrate_reminder_ask"):
+        monkeypatch.setattr(intent_arbiter, other, lambda *a, **k: None)
+    assert plugin_ask._memory_kind_confirmed(ask, ("memory_recall",), {}, "chat-clock") == ("memory_recall",)
+    online_asks._hold_clock_zone(ask, "Europe/Warsaw")
+    assert plugin_ask._memory_kind_confirmed(ask, ("memory_recall",), {}, "chat-clock") == ()
+    online_asks._CLOCK_ZONES.clear()
