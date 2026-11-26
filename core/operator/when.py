@@ -387,6 +387,23 @@ _SPELLED_DELAY_RE = re.compile(
 )
 
 
+#: A delay said as an amount "from now" ("25 minutes from now", "for two hours from now", "in 10 minutes from now") is the
+#: same delay as "in 25 minutes". iMac gate35 on 584863ad5: "set a reminder for 25 minutes from now to call the plumber"
+#: was answered "I could not read a date or time in that".
+_FROM_NOW_RE = re.compile(
+    r"\b(?:(?:in|for|after)\s+)?(\d+(?:\.\d+)?|"
+    + "|".join(sorted((re.escape(word) for word in _NUMBER_WORDS), key=len, reverse=True))
+    + r"|an?)\s+(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?)\s+from\s+now\b",
+    re.IGNORECASE,
+)
+
+
+def _from_now_as_delay(match: re.Match) -> str:
+    amount = " ".join(match.group(1).lower().split())
+    number = "1" if amount in {"a", "an"} else str(_NUMBER_WORDS.get(amount, amount))
+    return f"in {number} {match.group(2)}"
+
+
 def normalize_time_words(text: str) -> str:
     """Everyday shorthand for times read as the clock words the parser knows: "tmrw" -> "tomorrow",
     "10 in the morning" -> "10am". 0.7.8 sweep block 3: "remind me tmrw 10am…" was scheduled for
@@ -394,6 +411,7 @@ def normalize_time_words(text: str) -> str:
     clean = str(text or "")
     for pattern, replacement in _TIME_SHORTHAND:
         clean = pattern.sub(replacement, clean)
+    clean = _FROM_NOW_RE.sub(_from_now_as_delay, clean)
     return _SPELLED_DELAY_RE.sub(lambda m: f"in {_NUMBER_WORDS[' '.join(m.group(1).lower().split())]} {m.group(2)}", clean)
 
 
