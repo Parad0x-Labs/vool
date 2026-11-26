@@ -2969,6 +2969,13 @@
       "registry_command_id": "skills.set_enabled",
       "surface": "http"
     },
+    "http:POST:/api/spend/keep-defaults": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/spend/keep-defaults",
+      "note": "AI spending limits card: keep the built-in limits (credential door; core/ai_spend.py)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/spend/limits": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/spend/limits",
@@ -3679,7 +3686,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 342,
+    "EXTERNAL_TRANSPORT_ONLY": 343,
     "GENERATED_ADAPTER": 174,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

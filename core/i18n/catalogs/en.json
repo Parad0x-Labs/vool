@@ -5631,7 +5631,11 @@
     "mail.saved.off": "Off. VOOL no longer checks your mail in the background.",
     "mail.toggle.details": "Show sender and subject in alerts",
     "mail.saved.details_on": "Alerts name the sender and the subject.",
-    "mail.saved.details_off": "Alerts say only how many emails arrived."
+    "mail.saved.details_off": "Alerts say only how many emails arrived.",
+    "spend_card.title": "Spending limits for paid models",
+    "spend_card.body": "You can use paid online models now. VOOL keeps them to {daily} a day and {monthly} a month, and never sends a paid answer past a limit. You can set your own limits.",
+    "spend_card.set": "Set my limits",
+    "spend_card.keep": "Keep these"
   },
   "html_keys": [
     "bypass.modal_limits",

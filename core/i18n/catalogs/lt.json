@@ -5631,9 +5631,13 @@
     "mail.saved.off": "Išjungta. VOOL nebetikrina jūsų pašto fone.",
     "mail.toggle.details": "Rodyti siuntėją ir temą pranešimuose",
     "mail.saved.details_on": "Pranešimuose nurodomas siuntėjas ir tema.",
-    "mail.saved.details_off": "Pranešimuose nurodoma tik, kiek laiškų atėjo."
+    "mail.saved.details_off": "Pranešimuose nurodoma tik, kiek laiškų atėjo.",
+    "spend_card.title": "Išlaidų ribos mokamiems modeliams",
+    "spend_card.body": "Dabar galite naudoti mokamus internetinius modelius. VOOL laiko juos iki {daily} per dieną ir {monthly} per mėnesį ir niekada nesiunčia mokamo atsakymo, viršijančio ribą. Galite nustatyti savo ribas.",
+    "spend_card.set": "Nustatyti mano ribas",
+    "spend_card.keep": "Palikti šias"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

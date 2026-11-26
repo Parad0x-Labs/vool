@@ -5631,9 +5631,13 @@
     "mail.saved.off": "Aus. VOOL prüft deine E-Mails nicht mehr im Hintergrund.",
     "mail.toggle.details": "Absender und Betreff in Hinweisen zeigen",
     "mail.saved.details_on": "Hinweise nennen Absender und Betreff.",
-    "mail.saved.details_off": "Hinweise sagen nur, wie viele E-Mails angekommen sind."
+    "mail.saved.details_off": "Hinweise sagen nur, wie viele E-Mails angekommen sind.",
+    "spend_card.title": "Ausgabenlimits für kostenpflichtige Modelle",
+    "spend_card.body": "Du kannst jetzt kostenpflichtige Online-Modelle nutzen. VOOL hält sie bei {daily} pro Tag und {monthly} pro Monat und sendet nie eine kostenpflichtige Antwort über ein Limit hinaus. Du kannst deine eigenen Limits festlegen.",
+    "spend_card.set": "Meine Limits festlegen",
+    "spend_card.keep": "Diese behalten"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

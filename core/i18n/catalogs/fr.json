@@ -5631,9 +5631,13 @@
     "mail.saved.off": "Désactivé. VOOL ne vérifie plus vos e-mails en arrière-plan.",
     "mail.toggle.details": "Afficher l’expéditeur et l’objet dans les alertes",
     "mail.saved.details_on": "Les alertes indiquent l’expéditeur et l’objet.",
-    "mail.saved.details_off": "Les alertes indiquent seulement combien d’e-mails sont arrivés."
+    "mail.saved.details_off": "Les alertes indiquent seulement combien d’e-mails sont arrivés.",
+    "spend_card.title": "Limites de dépenses pour les modèles payants",
+    "spend_card.body": "Vous pouvez maintenant utiliser des modèles en ligne payants. VOOL les limite à {daily} par jour et {monthly} par mois, et n'envoie jamais de réponse payante au-delà d'une limite. Vous pouvez définir vos propres limites.",
+    "spend_card.set": "Définir mes limites",
+    "spend_card.keep": "Garder celles-ci"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

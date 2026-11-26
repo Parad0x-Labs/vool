@@ -123,7 +123,32 @@ def settings_groups() -> list[dict]:
     # The same filtered model drives navigation, search and all locale renders.
     if not _research_networking():
         groups = [group for group in groups if group["id"] != "network"]
+    if not _paid_use_possible():
+        groups = [_local_only_budgets(group) if group["id"] == "budgets" else group for group in groups]
     return _edition_filtered(groups)
+
+
+def _paid_use_possible() -> bool:
+    try:
+        from core.ai_spend import paid_use_possible
+
+        return paid_use_possible()
+    except Exception:
+        return True
+
+
+#: Rows about paying for online models: shown once money can be spent here (core.ai_spend.paid_use_possible).
+_PAID_ROWS = frozenset({"spend", "daily_token_budget"})
+
+
+def _local_only_budgets(group: dict) -> dict:
+    """Usage & Budgets on a computer that runs only local models: the paid model rows and their card are left out, with
+    no switch and no note in their place, since nothing here can cost money (sls, Nov 26). The limits are still enforced
+    at their built-in values (core.paid_call_reservation.spend_limits); they show up once a cloud key or the wallet is
+    turned on."""
+    rows = [row for row in group.get("rows", []) if row.get("id") not in _PAID_ROWS]
+    cards = [card for card in group.get("cards", []) if any(row.get("card") == card.get("id") for row in rows)]
+    return {**group, "rows": rows, "cards": cards}
 
 
 def _settings_groups() -> list[dict]:

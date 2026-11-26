@@ -5631,9 +5631,13 @@
     "mail.saved.off": "已关闭。VOOL 不再在后台检查你的邮件。",
     "mail.toggle.details": "在提醒中显示发件人和主题",
     "mail.saved.details_on": "提醒会显示发件人和主题。",
-    "mail.saved.details_off": "提醒只显示收到了几封邮件。"
+    "mail.saved.details_off": "提醒只显示收到了几封邮件。",
+    "spend_card.title": "付费模型的消费上限",
+    "spend_card.body": "你现在可以使用付费在线模型了。VOOL 将其控制在每天 {daily}、每月 {monthly} 以内，绝不会发送超出上限的付费回答。你可以设置自己的上限。",
+    "spend_card.set": "设置我的上限",
+    "spend_card.keep": "保持现状"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

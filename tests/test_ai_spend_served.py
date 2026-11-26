@@ -153,3 +153,26 @@ def test_spending_is_enforced_counted_told_apart_and_warned_about(rig):
         finally:
             browser.close()
     service.reply = _or_scripted
+
+
+def test_keeping_the_built_in_limits_is_this_computers_page_only(rig) -> None:
+    daemon = rig.daemon
+
+    def keep(origin: str = "") -> tuple[int, dict]:
+        headers = {"Content-Type": "application/json"}
+        if origin:
+            headers["Origin"] = origin
+        request = Request(f"{daemon.base_url}/api/spend/keep-defaults", data=b"{}", headers=headers, method="POST")
+        try:
+            with urlopen(request, timeout=60) as response:
+                return response.status, json.loads(response.read().decode())
+        except Exception as exc:  # urllib raises on 4xx
+            body = exc.read().decode() if hasattr(exc, "read") else "{}"
+            return int(getattr(exc, "code", 0)), json.loads(body or "{}")
+
+    status, _got = keep(origin="https://elsewhere.example")
+    assert status == 403
+    status, got = keep()
+    assert status == 200 and got["ok"] is True
+    assert got["limits_prompt_due"] is False
+    assert _spend(daemon)["limits_prompt_due"] is False

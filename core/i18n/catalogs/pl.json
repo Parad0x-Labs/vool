@@ -5631,9 +5631,13 @@
     "mail.saved.off": "Wyłączone. VOOL nie sprawdza już poczty w tle.",
     "mail.toggle.details": "Pokazuj nadawcę i temat w powiadomieniach",
     "mail.saved.details_on": "Powiadomienia podają nadawcę i temat.",
-    "mail.saved.details_off": "Powiadomienia mówią tylko, ile e-maili przyszło."
+    "mail.saved.details_off": "Powiadomienia mówią tylko, ile e-maili przyszło.",
+    "spend_card.title": "Limity wydatków na płatne modele",
+    "spend_card.body": "Możesz teraz korzystać z płatnych modeli online. VOOL ogranicza je do {daily} dziennie i {monthly} miesięcznie i nigdy nie wysyła płatnej odpowiedzi ponad limit. Możesz ustawić własne limity.",
+    "spend_card.set": "Ustaw moje limity",
+    "spend_card.keep": "Zostaw te"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

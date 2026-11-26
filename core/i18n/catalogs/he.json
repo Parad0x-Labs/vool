@@ -5631,9 +5631,13 @@
     "mail.saved.off": "כבוי. VOOL כבר לא בודק את הדואר שלך ברקע.",
     "mail.toggle.details": "להציג שולח ונושא בהתראות",
     "mail.saved.details_on": "ההתראות מציינות את השולח והנושא.",
-    "mail.saved.details_off": "ההתראות אומרות רק כמה מיילים הגיעו."
+    "mail.saved.details_off": "ההתראות אומרות רק כמה מיילים הגיעו.",
+    "spend_card.title": "מגבלות הוצאה למודלים בתשלום",
+    "spend_card.body": "אפשר עכשיו להשתמש במודלים מקוונים בתשלום. VOOL שומר אותם על {daily} ליום ו-{monthly} לחודש, ולעולם לא שולח תשובה בתשלום מעבר למגבלה. אפשר לקבוע מגבלות משלך.",
+    "spend_card.set": "לקבוע את המגבלות שלי",
+    "spend_card.keep": "להשאיר את אלה"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

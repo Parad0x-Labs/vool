@@ -5631,9 +5631,13 @@
     "mail.saved.off": "꺼짐. VOOL이 더 이상 백그라운드에서 메일을 확인하지 않습니다.",
     "mail.toggle.details": "알림에 보낸 사람과 제목 표시",
     "mail.saved.details_on": "알림에 보낸 사람과 제목이 표시됩니다.",
-    "mail.saved.details_off": "알림에는 도착한 이메일 수만 표시됩니다."
+    "mail.saved.details_off": "알림에는 도착한 이메일 수만 표시됩니다.",
+    "spend_card.title": "유료 모델 지출 한도",
+    "spend_card.body": "이제 유료 온라인 모델을 사용할 수 있습니다. VOOL은 하루 {daily}, 한 달 {monthly}까지로 제한하며, 한도를 넘는 유료 답변은 절대 보내지 않습니다. 직접 한도를 정할 수 있습니다.",
+    "spend_card.set": "내 한도 정하기",
+    "spend_card.keep": "그대로 두기"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

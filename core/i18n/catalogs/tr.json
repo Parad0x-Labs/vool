@@ -5631,9 +5631,13 @@
     "mail.saved.off": "Kapalı. VOOL artık postanızı arka planda kontrol etmiyor.",
     "mail.toggle.details": "Uyarılarda gönderen ve konuyu göster",
     "mail.saved.details_on": "Uyarılar gönderen ve konuyu belirtir.",
-    "mail.saved.details_off": "Uyarılar yalnızca kaç e-posta geldiğini söyler."
+    "mail.saved.details_off": "Uyarılar yalnızca kaç e-posta geldiğini söyler.",
+    "spend_card.title": "Ücretli modeller için harcama sınırları",
+    "spend_card.body": "Artık ücretli çevrimiçi modelleri kullanabilirsiniz. VOOL bunları günde {daily} ve ayda {monthly} ile sınırlar ve bir sınırı aşan ücretli bir yanıtı asla göndermez. Kendi sınırlarınızı belirleyebilirsiniz.",
+    "spend_card.set": "Sınırlarımı belirle",
+    "spend_card.keep": "Bunları koru"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

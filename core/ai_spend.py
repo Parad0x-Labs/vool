@@ -122,6 +122,8 @@ def overview(*, session_id: str = "", now: float | None = None) -> dict[str, Any
         "day_resets_at": totals["day_resets_at"],
         "warn_at": WARN_AT,
         "range": {"min": MIN_USD, "max": MAX_USD},
+        "paid_use_possible": paid_use_possible(),
+        "limits_prompt_due": limits_prompt_due(),
     }
     if "session" in totals:
         out["session"] = totals["session"]
@@ -160,4 +162,94 @@ def answer_spend(turn_events: list[dict[str, Any]]) -> dict[str, Any] | None:
             "held_usd": round(held, 6)}
 
 
-__all__ = ["LIMIT_KEYS", "WARN_AT", "answer_spend", "overview", "person_limits", "set_limits"]
+# ---- shown only where money can be spent ------------------------------------------------------------------------------
+#
+# A computer that only runs local models spends nothing, and the spending limits read as clutter there (sls, Nov 26, from
+# a local-only user's report). The limits themselves are never switched off: ``core.paid_call_reservation.spend_limits``
+# enforces the built-in defaults whether or not they are shown, so nothing paid can run past a limit. What changes is
+# only where they are shown and when the person is asked to set their own.
+_PROMPT_FILE = "ai_spend_prompt.json"
+
+
+def _a_cloud_key_is_kept() -> bool:
+    from core import credential_store
+    from core.cloud_providers import all_slots
+
+    # The disk index only: no Keychain read, so a settings page or a new chat never waits on a Keychain prompt.
+    return any(credential_store.credential_is_indexed(slot) for slot in all_slots())
+
+
+def _the_wallet_is_on() -> bool:
+    from core.wallet import config as wallet_config
+
+    return bool(wallet_config.wallet_enabled())
+
+
+def _anything_was_spent() -> bool:
+    from core.model_spend_ledger import spend_totals
+
+    month = spend_totals().get("month") or {}
+    return float(month.get("counted_usd") or 0.0) > 0.0
+
+
+def paid_use_possible() -> bool:
+    """Whether anything on this computer can spend money on a model: a cloud key is kept, the wallet is on, the person
+    set limits of their own, or a paid call was counted this month. A read that fails counts as yes: a money surface is
+    never hidden because something could not be read."""
+    if person_limits():
+        return True
+    for check in (_a_cloud_key_is_kept, _the_wallet_is_on, _anything_was_spent):
+        try:
+            if check():
+                return True
+        except Exception:
+            return True
+    return False
+
+
+def _prompt_path():
+    from core.runtime_paths import data_path
+
+    return data_path(_PROMPT_FILE)
+
+
+def limits_prompt_dismissed() -> bool:
+    try:
+        raw = json.loads(_prompt_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(raw, dict) and raw.get("kept_defaults") is True
+
+
+def keep_default_limits() -> None:
+    """The person chose the built-in limits: the card asking for their own is not shown again."""
+    path = _prompt_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".ai_spend_prompt.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump({"kept_defaults": True}, handle)
+        os.replace(tmp, path)
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+
+
+def limits_prompt_due() -> bool:
+    """Whether the new chat screen offers to set spending limits: money can be spent here, the person has set no limits
+    of their own, and they have not chosen to keep the built-in ones."""
+    return paid_use_possible() and not person_limits() and not limits_prompt_dismissed()
+
+
+__all__ = [
+    "LIMIT_KEYS",
+    "WARN_AT",
+    "answer_spend",
+    "keep_default_limits",
+    "limits_prompt_dismissed",
+    "limits_prompt_due",
+    "overview",
+    "paid_use_possible",
+    "person_limits",
+    "set_limits",
+]

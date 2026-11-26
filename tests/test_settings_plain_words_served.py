@@ -12,6 +12,9 @@ language, and English users saw a "1849 strings" count they could do nothing wit
 """
 from __future__ import annotations
 
+import json
+from urllib.request import Request, urlopen
+
 from core.i18n.catalog import catalog_for
 from core.vool_settings_page import render_vool_settings_html
 from tests import _reader_served_rig as rig
@@ -35,6 +38,13 @@ def _open(browser, base_url, html=None):
     return page, errors
 
 
+def _set_daily_limit(base_url: str, usd: float) -> None:
+    body = json.dumps({"limits": {"daily": usd}}).encode()
+    request = Request(base_url + "/api/spend/limits", data=body, headers={"Content-Type": "application/json"}, method="POST")
+    with urlopen(request, timeout=60) as response:
+        assert response.status == 200
+
+
 def test_settings_state_the_shared_effect_once_per_page(tmp_path):
     with rig.CapturingProvider() as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider)
@@ -53,7 +63,18 @@ def test_settings_state_the_shared_effect_once_per_page(tmp_path):
                 assert page.locator("#paneBody .row-meta").count() == 0
                 assert "Injected" not in page.locator("#paneBody").inner_text()
 
-                # Usage & Budgets: its two rows differ ("immediately" / "next message"), so nothing is
+                # Usage & Budgets on a computer that only runs local models: no paid model rows at all.
+                page.locator(".nav-item[data-group='budgets']").click()
+                page.wait_for_selector("#paneBody [data-row='ram_reserve_pct']", timeout=10000)
+                assert page.locator("#paneBody [data-row='spend']").count() == 0
+                assert page.locator("#paneBody [data-row='daily_token_budget']").count() == 0
+                page.close()
+
+                # Limits of the person's own mean money can be spent here, so the paid rows are back.
+                _set_daily_limit(daemon.base_url, 5)
+                page, errors = _open(browser, daemon.base_url)
+
+                # Usage & Budgets: its rows differ ("immediately" / "next message"), so nothing is
                 # summarised at the top and each row keeps its own line.
                 page.locator(".nav-item[data-group='budgets']").click()
                 page.wait_for_selector("#paneBody [data-row='ram_reserve_pct']", timeout=10000)

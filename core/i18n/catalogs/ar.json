@@ -5631,9 +5631,13 @@
     "mail.saved.off": "مُطفأ. لم يعد VOOL يفحص بريدك في الخلفية.",
     "mail.toggle.details": "إظهار المرسل والموضوع في التنبيهات",
     "mail.saved.details_on": "تذكر التنبيهات المرسل والموضوع.",
-    "mail.saved.details_off": "تذكر التنبيهات عدد الرسائل التي وصلت فقط."
+    "mail.saved.details_off": "تذكر التنبيهات عدد الرسائل التي وصلت فقط.",
+    "spend_card.title": "حدود الإنفاق على النماذج المدفوعة",
+    "spend_card.body": "يمكنك الآن استخدام نماذج مدفوعة عبر الإنترنت. يُبقيها VOOL عند {daily} في اليوم و{monthly} في الشهر، ولا يرسل أبدًا إجابة مدفوعة تتجاوز حدًا. يمكنك تعيين حدودك الخاصة.",
+    "spend_card.set": "تعيين حدودي",
+    "spend_card.keep": "الإبقاء على هذه"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

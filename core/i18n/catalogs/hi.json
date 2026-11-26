@@ -5631,9 +5631,13 @@
     "mail.saved.off": "बंद। VOOL अब बैकग्राउंड में आपका मेल नहीं जाँचता।",
     "mail.toggle.details": "सूचनाओं में भेजने वाला और विषय दिखाएँ",
     "mail.saved.details_on": "सूचनाएँ भेजने वाले और विषय का नाम बताती हैं।",
-    "mail.saved.details_off": "सूचनाएँ केवल यह बताती हैं कि कितने ईमेल आए।"
+    "mail.saved.details_off": "सूचनाएँ केवल यह बताती हैं कि कितने ईमेल आए।",
+    "spend_card.title": "सशुल्क मॉडलों के लिए खर्च की सीमाएँ",
+    "spend_card.body": "अब आप सशुल्क ऑनलाइन मॉडल इस्तेमाल कर सकते हैं। VOOL उन्हें {daily} प्रति दिन और {monthly} प्रति माह तक रखता है, और सीमा से आगे कोई सशुल्क जवाब कभी नहीं भेजता। आप अपनी सीमाएँ खुद तय कर सकते हैं।",
+    "spend_card.set": "मेरी सीमाएँ तय करें",
+    "spend_card.keep": "यही रखें"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

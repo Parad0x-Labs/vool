@@ -3636,6 +3636,15 @@ def dispatch_post(
             return apply_runtime_headers(json_response(400, {"ok": False, **payload}), runtime)
         return apply_runtime_headers(json_response(200, ai_spend.overview()), runtime)
 
+    if normalized_path == "/api/spend/keep-defaults":
+        # The new chat screen's "keep these" on the spending limits card: only this computer's own page.
+        if _credential_page_refusal(headers, client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core import ai_spend
+
+        ai_spend.keep_default_limits()
+        return apply_runtime_headers(json_response(200, ai_spend.overview()), runtime)
+
     if normalized_path == "/api/lend":
         from core.lend.api import handle
 

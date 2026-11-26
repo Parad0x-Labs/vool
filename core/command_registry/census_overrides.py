@@ -291,6 +291,7 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/today": "Today in VOOL feed: reminders, calendar, to-dos and goals read fresh from their stores (core/today_view.py)",
     "http:GET:/api/spend": "AI spending feed: paid model spend from the enforced ledger against its limits (core/ai_spend.py)",
     "http:POST:/api/spend/limits": "AI spending limits write (credential door; core/ai_spend.py feeds paid_call_reservation.spend_limits)",
+    "http:POST:/api/spend/keep-defaults": "AI spending limits card: keep the built-in limits (credential door; core/ai_spend.py)",
     "http:GET:/api/screen-privacy": "Hide my name on screen feed (display-only mask rules; core/screen_privacy.py)",
     "http:GET:/api/onboarding/pact": "first-run pact state feed (server authority kept; its chat UI was retired 2026-09-07)",
     "http:GET:/api/onboarding/state": "first-run provider-choice feed (the setup page reads /api/setup/state; kept for the pact authority)",

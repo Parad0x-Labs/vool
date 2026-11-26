@@ -557,6 +557,9 @@ header a:hover { text-decoration:underline; }
 kbd { direction:ltr; unicode-bidi:isolate; }
 .today-box { text-align:left; margin:22px auto 0; max-width:440px; border:1px solid var(--line, var(--muted)); border-radius:12px; padding:10px 14px; display:flex; flex-direction:column; gap:8px; font-size:13px; }
 .today-head { font-weight:700; }
+.spend-card { text-align:left; margin:12px auto 0; max-width:440px; border:1px solid var(--line, var(--muted)); border-radius:12px; padding:10px 14px; display:flex; flex-direction:column; gap:8px; font-size:13px; }
+.spend-card b { font-weight:700; }
+.spend-card-acts { display:flex; gap:8px; flex-wrap:wrap; }
 .today-sec { display:flex; flex-direction:column; gap:3px; }
 .today-sec > b { font-size:12px; color:var(--muted); font-weight:600; }
 .today-row { color:var(--ink); }
@@ -1638,7 +1641,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <section class="set-sec">
         <h3>Limits <span class="set-sub">power-user caps</span></h3>
         <div class="set-field"><label for="setReserve">Keep free for me <span id="setReserveVal" class="set-num">20%</span> <span class="set-sub2">RAM heavy tasks won&rsquo;t touch</span></label><input type="range" id="setReserve" min="10" max="80" step="5" class="set-range"></div>
-        <div class="set-field row"><label for="setTokenBudget">Daily cloud use guide <span class="set-sub2">0 = unlimited</span></label><input type="number" id="setTokenBudget" class="set-input" min="0" step="1000" style="max-width:160px" placeholder="0"></div>
+        <div class="set-field row" id="setTokenBudgetRow"><label for="setTokenBudget">Daily cloud use guide <span class="set-sub2">0 = unlimited</span></label><input type="number" id="setTokenBudget" class="set-input" min="0" step="1000" style="max-width:160px" placeholder="0"></div>
         <p class="set-help">The RAM reserve is enforced live by the resource governor (a bigger reserve means VOOL leaves more for you). The token budget is a guide today &mdash; nothing enforces it yet and the Usage panel below does not chart against it. A hard daily cut-off is coming next.</p>
       </section>
       <div class="set-row" style="margin-bottom:14px">
@@ -2841,8 +2844,37 @@ function showEmpty() {
     + '<div class="empty-starts">' + starts.map((st) => { const t = emptyT(st[0], st[1]); return '<button type="button" class="empty-start" data-start="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>'
     + '<div class="empty-hint">“' + esc(emptyT(fact[0], fact[1])) + '”</div>'
     + '<div class="today-box" data-testid="today"' + (lastTodayHtml ? '>' + lastTodayHtml : ' hidden>') + '</div>'
+    + '<div class="spend-card" data-testid="spend-card" hidden></div>'
     + '</div>';
   loadToday();
+  loadSpendCard();
+}
+
+// ---- Spending limits card: shown on a new chat once money can be spent here (a cloud key or the wallet), until the
+// person sets limits of their own or keeps the built-in ones (core/ai_spend.py behind /api/spend). A computer that only
+// runs local models never sees it. The limits are enforced at their built-in values either way. ----
+async function loadSpendCard() {
+  const box = logEl && logEl.querySelector('.spend-card');
+  if (!box) return;
+  let got = null;
+  try { const r = await fetch('/api/spend', { cache: 'no-store' }); if (r.ok) got = await r.json(); }
+  catch (e) { /* not read: no card */ }
+  const live = logEl && logEl.querySelector('.spend-card');
+  if (!live) return;
+  if (!got || !got.ok || !got.limits_prompt_due) { live.hidden = true; live.innerHTML = ''; return; }
+  const money = (usd) => { const n = Number(usd) || 0; try { return new Intl.NumberFormat(appLocale(), { style: 'currency', currency: 'USD' }).format(n); } catch (e) { return '$' + n.toFixed(2); } };
+  live.innerHTML = '<b>' + esc(pageT('spend_card.title', 'Spending limits for paid models')) + '</b>'
+    + '<div>' + esc(pageTF('spend_card.body', 'You can use paid online models now. VOOL keeps them to {daily} a day and {monthly} a month, and never sends a paid answer past a limit. You can set your own limits.', { daily: money(got.limits.daily), monthly: money(got.limits.monthly) })) + '</div>'
+    + '<div class="spend-card-acts"><button type="button" class="empty-start" data-spend-set>' + esc(pageT('spend_card.set', 'Set my limits')) + '</button>'
+    + '<button type="button" class="empty-start" data-spend-keep>' + esc(pageT('spend_card.keep', 'Keep these')) + '</button></div>';
+  live.hidden = false;
+  live.querySelector('[data-spend-set]').addEventListener('click', () => openSettings('budgets/spend'));
+  live.querySelector('[data-spend-keep]').addEventListener('click', async () => {
+    try {
+      const r = await fetch('/api/spend/keep-defaults', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (r.ok) { live.hidden = true; live.innerHTML = ''; }
+    } catch (e) { console.warn('spend card: keep failed', e); }
+  });
 }
 
 // ---- Today in VOOL: reminders, today's calendar, open to-dos and unfinished goals (core/today_view.py
@@ -13743,6 +13775,12 @@ async function loadPrefs() {
   const dr = document.getElementById('setDeepReason'); if (dr) dr.checked = !!p.deep_reasoning;
   set('setReserve', p.ram_reserve_pct != null ? p.ram_reserve_pct : 20);
   set('setTokenBudget', p.daily_token_budget != null ? p.daily_token_budget : 0);
+  // The cloud use guide is about paying for online models: hidden where only local models run (core/ai_spend.py).
+  try {
+    const sr = await fetch('/api/spend', { cache: 'no-store' }); const sp = sr.ok ? await sr.json() : null;
+    const local = !!(sp && sp.ok && sp.paid_use_possible === false);
+    const row = document.getElementById('setTokenBudgetRow'); if (row) row.hidden = local;
+  } catch (e) { /* not read: the row stays */ }
   const hv = document.getElementById('setHumorVal'); if (hv) hv.textContent = (p.humor_percent != null ? p.humor_percent : 20) + '%';
   const rv = document.getElementById('setReserveVal'); if (rv) rv.textContent = (p.ram_reserve_pct != null ? p.ram_reserve_pct : 20) + '%';
 }

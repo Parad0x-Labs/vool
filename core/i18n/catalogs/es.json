@@ -5631,9 +5631,13 @@
     "mail.saved.off": "Desactivado. VOOL ya no revisa tu correo en segundo plano.",
     "mail.toggle.details": "Mostrar remitente y asunto en los avisos",
     "mail.saved.details_on": "Los avisos indican el remitente y el asunto.",
-    "mail.saved.details_off": "Los avisos solo dicen cuántos correos llegaron."
+    "mail.saved.details_off": "Los avisos solo dicen cuántos correos llegaron.",
+    "spend_card.title": "Límites de gasto para modelos de pago",
+    "spend_card.body": "Ya puedes usar modelos en línea de pago. VOOL los mantiene en {daily} al día y {monthly} al mes, y nunca envía una respuesta de pago que supere un límite. Puedes fijar tus propios límites.",
+    "spend_card.set": "Fijar mis límites",
+    "spend_card.keep": "Mantener estos"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

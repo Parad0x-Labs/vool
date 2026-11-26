@@ -10,6 +10,7 @@ These pin the properties that make the redesign trustworthy rather than merely p
 from __future__ import annotations
 
 import json
+from unittest import mock
 
 import pytest
 
@@ -45,8 +46,13 @@ LAZY_ONLY_READ_URLS = {
 }
 
 
-def _rows():
-    for group in settings_groups():
+def _rows(*, paid_use_possible: bool = True):
+    # The paid model rows are shown once money can be spent here (core.ai_spend.paid_use_possible); these checks
+    # read the rows as they stand on such a computer. tests/test_spending_limits_show_only_where_money_can_be_spent.py
+    # covers the computer that runs only local models.
+    with mock.patch("core.vool_settings_page._paid_use_possible", return_value=paid_use_possible):
+        groups = settings_groups()
+    for group in groups:
         for row in group["rows"]:
             yield group, row
 

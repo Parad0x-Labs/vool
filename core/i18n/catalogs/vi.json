@@ -5631,9 +5631,13 @@
     "mail.saved.off": "Tắt. VOOL không còn kiểm tra thư của bạn ở chế độ nền.",
     "mail.toggle.details": "Hiện người gửi và tiêu đề trong thông báo",
     "mail.saved.details_on": "Thông báo nêu người gửi và tiêu đề.",
-    "mail.saved.details_off": "Thông báo chỉ cho biết có bao nhiêu email đến."
+    "mail.saved.details_off": "Thông báo chỉ cho biết có bao nhiêu email đến.",
+    "spend_card.title": "Giới hạn chi tiêu cho mô hình trả phí",
+    "spend_card.body": "Giờ bạn có thể dùng các mô hình trực tuyến trả phí. VOOL giữ chúng ở mức {daily} mỗi ngày và {monthly} mỗi tháng, và không bao giờ gửi câu trả lời trả phí vượt quá giới hạn. Bạn có thể tự đặt giới hạn.",
+    "spend_card.set": "Đặt giới hạn của tôi",
+    "spend_card.keep": "Giữ như thế này"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5631,9 +5631,13 @@
     "mail.saved.off": "オフ。VOOL はバックグラウンドでメールを確認しなくなりました。",
     "mail.toggle.details": "通知に差出人と件名を表示",
     "mail.saved.details_on": "通知に差出人と件名が表示されます。",
-    "mail.saved.details_off": "通知には届いたメールの件数だけが表示されます。"
+    "mail.saved.details_off": "通知には届いたメールの件数だけが表示されます。",
+    "spend_card.title": "有料モデルの利用上限",
+    "spend_card.body": "有料のオンラインモデルを使えるようになりました。VOOL は 1 日 {daily}、1 か月 {monthly} までに抑え、上限を超える有料の回答は送りません。上限はご自身で設定できます。",
+    "spend_card.set": "上限を設定する",
+    "spend_card.keep": "このままにする"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5631,9 +5631,13 @@
     "mail.saved.off": "Выключено. VOOL больше не проверяет почту в фоне.",
     "mail.toggle.details": "Показывать отправителя и тему в уведомлениях",
     "mail.saved.details_on": "Уведомления называют отправителя и тему.",
-    "mail.saved.details_off": "Уведомления сообщают только, сколько писем пришло."
+    "mail.saved.details_off": "Уведомления сообщают только, сколько писем пришло.",
+    "spend_card.title": "Лимиты расходов на платные модели",
+    "spend_card.body": "Теперь вы можете пользоваться платными онлайн-моделями. VOOL держит их в пределах {daily} в день и {monthly} в месяц и никогда не отправляет платный ответ сверх лимита. Вы можете задать свои лимиты.",
+    "spend_card.set": "Задать мои лимиты",
+    "spend_card.keep": "Оставить эти"
   },
-  "source_catalog_sha256": "60e545571e4fac2b5a4b07422ac5e5fb51d3ab168a4f91eb5885f6c4892df60a",
+  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
