@@ -596,6 +596,16 @@ _WEB_VERDICTS_LOCK = _threading.Lock()
 _WEB_VERDICT_LIFETIME_S = 120.0
 
 
+def _previous_message(text: str, source_context: object) -> str:
+    """The person's message before this one in the chat, for the web question to read a follow-up by; "" when none."""
+    try:
+        from core.plugin_ask import _previous_request
+
+        return _previous_request(text, source_context) if isinstance(source_context, dict) else ""
+    except Exception:
+        return ""
+
+
 #: The turn judge's choices that read something the person holds in VOOL: their memory and their own stores.
 _PERSONS_OWN_CHOICES = frozenset({"memory_recall", "memory_keep", "memory_forget", "reminders", "calendar",
                                   "contacts", "mail", "notes", "things"})
@@ -712,7 +722,8 @@ def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id
         try:
             from core import intent_arbiter
 
-            verdict = intent_arbiter.arbitrate_web_ask(flat, chat_id=str(session_id or ""), source_context=source_context)
+            verdict = intent_arbiter.arbitrate_web_ask(flat, previous=_previous_message(flat, source_context),
+                                                    chat_id=str(session_id or ""), source_context=source_context)
         except Exception:
             verdict = None
         verdict = _zone_of_a_no(flat, verdict)
@@ -728,7 +739,8 @@ def web_ask_verdict(text: str, *, source_context: dict | None = None, session_id
     try:
         from core import intent_arbiter
 
-        verdict = intent_arbiter.arbitrate_web_ask(flat, chat_id=str(session_id or ""), source_context=source_context)
+        verdict = intent_arbiter.arbitrate_web_ask(flat, previous=_previous_message(flat, source_context),
+                                                    chat_id=str(session_id or ""), source_context=source_context)
     except Exception:
         verdict = None
     verdict = _zone_of_a_no(flat, verdict)

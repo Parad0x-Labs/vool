@@ -387,7 +387,9 @@ def _memory_kind_confirmed(
         # model wrote a reminder out of the fact with an approval card; on cf0d43952 "..., don't save that part" was
         # picked Reminders with no memory reading at all, and was answered as a failed reminder cancel. No answer
         # leaves the pick as it was.
-        if asked("reminder", intent_arbiter.arbitrate_reminder_ask) == "no":
+        reminder_verdict = asked("reminder", intent_arbiter.arbitrate_reminder_ask)
+        _log.info("tool ask: reminders pick, its own question read %s", reminder_verdict or "nothing")
+        if reminder_verdict == "no":
             _log.info("tool ask: reminders pick not confirmed")
             tools = tuple(key for key in tools if key != "reminders")
             keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)

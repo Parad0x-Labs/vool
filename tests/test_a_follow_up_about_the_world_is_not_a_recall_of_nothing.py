@@ -59,9 +59,20 @@ def test_an_unread_world_question_keeps_not_saved(monkeypatch):
         source_context={}) == persistent_memory.JUDGED_RECALL_NOTHING
 
 
-def test_a_new_chat_is_not_asked_the_world_question(monkeypatch):
+def test_in_a_new_chat_a_question_about_the_world_goes_to_the_model(monkeypatch):
+    """iMac gate33 on f54729d9b: a plain question about a painting in a new chat was judged a recall and answered
+    "I don't have that saved"."""
     monkeypatch.setattr(persistent_memory, "_chat_earlier_user_turns", lambda session_id: [])
-    intent_arbiter.bind_turn_judge({}, lambda prompt: pytest.fail("asked a judge in a new chat"))
+    asked: list[str] = []
+    intent_arbiter.bind_turn_judge({}, _judge("yes", asked))
+    assert persistent_memory._judged_recall_with_nothing_behind_it(
+        "kas pastatė Eifelio bokštą?", session_id="chat-new", source_context={}) is None
+    assert len(asked) == 1 and "Is the question about the world" in asked[0] and '- (none)' in asked[0]
+
+
+def test_in_a_new_chat_a_question_about_the_persons_own_life_is_still_not_saved(monkeypatch):
+    monkeypatch.setattr(persistent_memory, "_chat_earlier_user_turns", lambda session_id: [])
+    intent_arbiter.bind_turn_judge({}, _judge("no", []))
     assert persistent_memory._judged_recall_with_nothing_behind_it(
         "what colour is my kayak?", session_id="chat-new",
         source_context={}) == persistent_memory.JUDGED_RECALL_NOTHING

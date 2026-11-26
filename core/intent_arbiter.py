@@ -540,10 +540,14 @@ def arbitrate_followup(
         # past the 900 s step.
         from core.local_compute_budget import local_compute_seconds
 
-        response = requests.post(_ollama_chat_url(), json=permit.consume(),
-                                 timeout=(1.5, local_compute_seconds(timeout_s or _TIMEOUT_S)))
+        sent = permit.consume()
+        wait = _judge_wait_seconds(model, str(payload["messages"][0]["content"]),
+                                   local_compute_seconds(timeout_s or _TIMEOUT_S))
+        response = requests.post(_ollama_chat_url(), json=sent, timeout=(1.5, wait))
         response.raise_for_status()
-        content = str(((response.json().get("message") or {}).get("content")) or "")
+        body = response.json()
+        _note_judge_speed(model, body)
+        content = str(((body.get("message") or {}).get("content")) or "")
     except Exception as exc:
         if call_id:
             from core.normalized_provider_result import classify_error_class
@@ -651,6 +655,46 @@ def _judged_for_the_turn(
     if decision is None:
         _LAST_FAILURE["reason"] = "turn_judge:unreadable"
     return decision
+
+
+#: How fast each local model read and wrote on this machine in its last answered judgement: seconds per prompt token
+#: and per written token, from Ollama's own counts in the answer.
+_JUDGE_SPEED: dict[str, tuple[float, float]] = {}
+#: The longest a judgement waits however slow the machine measured: past this the turn goes on without it.
+_JUDGE_LONGEST_WAIT_S = float(os.environ.get("VOOL_JUDGE_LONGEST_WAIT_S", "300") or 300)
+
+
+def _note_judge_speed(model: str, body: object) -> None:
+    """Keep the speed an answered judgement measured (Ollama's prompt_eval_* and eval_* counts, durations in ns)."""
+    if not isinstance(body, dict):
+        return
+    try:
+        read_n, read_ns = int(body.get("prompt_eval_count") or 0), int(body.get("prompt_eval_duration") or 0)
+        wrote_n, wrote_ns = int(body.get("eval_count") or 0), int(body.get("eval_duration") or 0)
+    except (TypeError, ValueError):
+        return
+    if read_n < 8 or read_ns <= 0:
+        # A prompt nearly all served from the cache says nothing about how fast a fresh one is read.
+        return
+    write = wrote_ns / 1e9 / wrote_n if wrote_n > 0 and wrote_ns > 0 else 0.0
+    _JUDGE_SPEED[str(model or "")] = (read_ns / 1e9 / read_n, write)
+
+
+def _judge_wait_seconds(model: str, prompt: str, budget: float) -> float:
+    """How long a judgement waits: its budget, or longer when this machine was measured too slow to read the whole
+    prompt in it.
+
+    CI Intel smoke on f7800a1ad: the runner read 5.4 prompt tokens a second (184 ms each); the Reminders pick's own
+    question, 478 tokens with nothing cached, needed about 90 s against its 60 s (15 s scaled for a CPU), timed out,
+    and with no answer the wrong pick of a recall question stood and its tool loop ran past the 900 s step. A wait the
+    machine cannot meet only spends the time and loses the answer. Prompt tokens are counted as one per three
+    characters, more than a judgement's prompt holds, and none of it as cached."""
+    speed = _JUDGE_SPEED.get(str(model or ""))
+    if not speed:
+        return budget
+    per_read, per_write = speed
+    needed = (len(str(prompt or "")) / 3.0 * per_read + 24 * per_write) * 1.5
+    return max(budget, min(needed, _JUDGE_LONGEST_WAIT_S))
 
 
 #: A judgement put to the turn's own model before it is loaded waits for the load (the turn needs the model loaded
@@ -1809,13 +1853,14 @@ def arbitrate_standing_state(
     )
 
 
-def _web_ask_prompt(message: str) -> str:
+def _web_ask_prompt(message: str, previous: str = "") -> str:
     """A balanced yes/no: does the message need the internet, or can it be answered from what anyone knows?
 
     Its own question because the tool judgement over a list reads almost any question as one for the web: on the app
     from source (qwen3:8b, 2026-11-22) "Kas yra fotosintezė?", "Was ist ein schwarzes Loch?" and "¿Quién escribió Don
     Quijote?" were each picked for the web there, and with Web lookups off such a pick refuses an ordinary question."""
     flat = " ".join(str(message or "").split())[:400]
+    before = " ".join(str(previous or "").split())[:300].replace('"', "'")
     return "\n".join([
         "A person wrote one message to their assistant.",
         "Question: does answering it need the INTERNET: does it ask to search or look something up online or on a web "
@@ -1850,6 +1895,12 @@ def _web_ask_prompt(message: str) -> str:
         "",
         'When it asks the time or date now in a place it names, add that place\'s IANA time zone as "zone". A message '
         "that names no place gets no zone.",
+        *([
+            "A message that points back with 'it', 'he', 'she' or 'there' asks about what the earlier message asked; "
+            "answer for that.",
+            'Earlier: "what is the largest desert in Asia?" Message: "how big is it?" -> {"answer": "no"}',
+            f'Earlier: "{before}"',
+        ] if before else []),
         f'Message: "{flat}" ->',
         'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
     ])
@@ -1858,6 +1909,7 @@ def _web_ask_prompt(message: str) -> str:
 def arbitrate_web_ask(
     message: str,
     *,
+    previous: str = "",
     request_id: str = "",
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
@@ -1869,10 +1921,10 @@ def arbitrate_web_ask(
         return None
     model = _judge_model_for(source_context)
     if not model:
-        return _judged_for_the_turn(_web_ask_prompt(message), source_context, _web_ask_reader)
+        return _judged_for_the_turn(_web_ask_prompt(message, previous), source_context, _web_ask_reader)
     return arbitrate_followup(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
-        prompt=_web_ask_prompt(message), operation="web_ask_arbitration", model=model,
+        prompt=_web_ask_prompt(message, previous), operation="web_ask_arbitration", model=model,
         runner_role="general", call_role=_judgement_role(), parse=_web_ask_reader,
     )
 
@@ -2157,11 +2209,12 @@ def arbitrate_world_follow_up(
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
 ) -> str | None:
-    """``"yes"`` when a recall nothing saved answers asks about the world the chat talks about, ``"no"`` when it is
-    about the person's own life, None when nothing judged it (core.persistent_memory)."""
-    if not str(question or "").strip() or not earlier:
+    """``"yes"`` when a recall nothing saved answers asks about the world (what the chat talks about, or in a new chat
+    the world at large), ``"no"`` when it is about the person's own life, None when nothing judged it
+    (core.persistent_memory)."""
+    if not str(question or "").strip():
         return None
-    prompt = _world_follow_up_prompt(question, earlier)
+    prompt = _world_follow_up_prompt(question, list(earlier or []))
     model = _judge_model_for(source_context)
     if not model:
         return _judged_for_the_turn(prompt, source_context)
