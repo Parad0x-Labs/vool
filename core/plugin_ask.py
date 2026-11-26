@@ -355,6 +355,7 @@ def _continues_a_contact_save(text: str, source_context: dict[str, Any]) -> bool
 
 def _memory_kind_confirmed(
     text: str, keys: tuple[str, ...], source_context: dict[str, Any], session_id: str,
+    *, first_read_as_the_web: bool = False,
 ) -> tuple[str, ...]:
     """The tool judgement's picks with VOOL's memory decided by two readings: the tool judgement's own memory pick and
     the memory's own question (`core.intent_arbiter.arbitrate_memory_kind`), asked beside every tool judgement.
@@ -425,7 +426,15 @@ def _memory_kind_confirmed(
         if agreed or (asked("forget", intent_arbiter.arbitrate_forget_order) == "yes"
                       and (about_told or asked("told as fact", intent_arbiter.arbitrate_told_as_fact) != "yes")):
             decided = "forget"
-    if not decided and not tools and named & {"forget", "recall"} and _has_pending_reminders():
+    if (not decided and not tools and named & {"forget", "recall"} and _has_pending_reminders()
+            and not (first_read_as_the_web and "forget" not in named)):
+        # A recall reading of a message the judgement over the whole list (Reminders among its choices) read as the
+        # web is not put to the reminder question: the message was first read as about the world, and the reminder
+        # question reads a follow-up that points back at a world question as a reminder ask ("and in which city is
+        # it?" after "who painted The Last Supper?": 4 of 8 such follow-ups read "remind", in four languages, with
+        # and without the earlier message beside it; iMac probes g39 and g39b on f31c60b65, qwen3:8b). On iMac
+        # gate39 that turn became a calendar approval card in an Offline chat. The recall goes to the memory lane,
+        # which hands the turn on when nothing held answers it.
         # A word for reminder is also a word for memory in some languages ("Erinnerung"): "lösche meine Erinnerung"
         # ("delete my reminder"), with a reminder pending, was judged a memory forget and answered "I have nothing
         # saved about that", and the reminder stayed (iMac gate on 95fae99a0). With a reminder there to act on, a
@@ -878,10 +887,12 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
         picked_keys = tuple(builtins[n - len(shown_plugins) - 1][0] for n in numbers if n > len(shown_plugins))
         _record_first_picks(text, picked_keys)
         keys = _web_confirmed(text, picked_keys, source_context, session_id)
-        if picked_keys and not keys and not plugins:
+        read_again = bool(picked_keys and not keys and not plugins)
+        if read_again:
             keys = _judged_again_without_the_web(text, builtins, source_context, session_id)
         keys = _actions_confirmed(text, keys, source_context, session_id)
-        _record_builtins(text, _memory_kind_confirmed(text, keys, source_context, session_id))
+        _record_builtins(text, _memory_kind_confirmed(text, keys, source_context, session_id,
+                                                      first_read_as_the_web=read_again))
     if not rows:
         return None
     _record(text, plugins, signature)
