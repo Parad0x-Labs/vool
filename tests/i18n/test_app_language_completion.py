@@ -200,8 +200,6 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "header.lane_auto",
         # the first-run model picker's row: a model name and a size in GB, placeholders and unit only
         "setup.picker.row",
-        # the model pill: the locale's own "Auto" lane word (header.lane_auto) and a model tag
-        "header.model_auto_using",
         "header.lane_cloud",
         "header.lane_local",
         "header.update_chip",

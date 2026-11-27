@@ -5680,14 +5680,13 @@
     "mac_settings.opened.other": "Die Systemeinstellungen sind geöffnet. Schalte VOOL dort ein und versuche es dann erneut.",
     "mac_settings.failed": "Das hat nicht funktioniert.",
     "mac_settings.no_answer": "VOOL hat nicht geantwortet; nichts wurde geändert.",
-    "header.model_auto_using": "Auto · {model}",
     "header.model_auto_using_title": "Auto antwortet mit {model}",
     "setup.picker.ready_any": "Dein privates Modell ist bereit. VOOL antwortet damit auf diesem Computer.",
     "settings.local_models.find": "Lokale Modelle finden",
     "header.find_local_models": "Lokale Modelle finden",
     "header.find_local_models_hint": "kostenlose Modelle, die zu diesem Computer passen"
   },
-  "source_catalog_sha256": "6bd3b22fd85827b9a84baa4a815e9fcadcf4b623de69d0256489ec104649f433",
+  "source_catalog_sha256": "7d2c7189db11e90545163fe607665a79051ca98726a73b1b9306a3843771288c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5697,7 +5696,7 @@
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
     "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)",
-    "model_pill_names_auto_model_addendum": "2 keys translated by the lane author (single writer)",
+    "model_pill_names_auto_model_addendum": "1 key translated by the lane author (single writer)",
     "find_local_models_addendum": "4 keys translated by the lane author (single writer)"
   }
 }

@@ -11982,7 +11982,8 @@ function paintAutoPill() {
   const name = compactModelName(String(raw || '').indexOf('ollama-local:') === 0 ? String(raw).slice('ollama-local:'.length) : raw);
   // Auto sticking to this chat's cloud model keeps its own pinned label (reflectModel): no local name.
   if (modelValue === 'vool' && view.stickyModel) return;
-  const text = name ? pageTF('header.model_auto_using', 'Auto · {model}', { model: name }) : pageT('header.model_auto_option', 'VOOL Auto');
+  // The AUTO badge beside the label already says Auto: the label is the model's own name.
+  const text = name || pageT('header.model_auto_option', 'VOOL Auto');
   lbl.textContent = compactLabel(text);
   // The static "VOOL Auto" key would repaint over a named model on the next language pass: it rides
   // only while the pill says "VOOL Auto" itself.
