@@ -190,6 +190,10 @@ def test_a_failed_step_prints_what_the_app_logged_while_it_ran(tmp_path):
     assert smoke.turn_log(None, start, end) == []
 
 
+#: Where the DMG is mounted, as the smoke names it (no real path is touched).
+MOUNT = Path("dmg-mount") / "VOOL"
+
+
 def _detach_runs(monkeypatch, codes):
     """hdiutil detach answering each call with the next exit code; the calls are returned."""
     import subprocess
@@ -211,14 +215,14 @@ def _detach_runs(monkeypatch, codes):
 def test_a_busy_dmg_is_waited_out_before_it_is_unmounted(monkeypatch):
     # The Intel runner for 6a50cd6e5: "couldn't eject disk2 - Resource busy" (exit 16) right after the copy.
     calls = _detach_runs(monkeypatch, [16, 16, 0])
-    smoke.detach(Path("/Volumes/VOOL"))
-    assert calls == [["hdiutil", "detach", "/Volumes/VOOL"]] * 3
+    smoke.detach(MOUNT)
+    assert calls == [["hdiutil", "detach", str(MOUNT)]] * 3
 
 
 def test_a_dmg_busy_to_the_end_is_forced_off(monkeypatch):
     calls = _detach_runs(monkeypatch, [16] * 6 + [0])
-    smoke.detach(Path("/Volumes/VOOL"))
-    assert calls[-1] == ["hdiutil", "detach", "-force", "/Volumes/VOOL"] and len(calls) == 7
+    smoke.detach(MOUNT)
+    assert calls[-1] == ["hdiutil", "detach", "-force", str(MOUNT)] and len(calls) == 7
 
 
 def test_any_other_unmount_failure_stands(monkeypatch):
@@ -226,5 +230,5 @@ def test_any_other_unmount_failure_stands(monkeypatch):
 
     calls = _detach_runs(monkeypatch, [1])
     with pytest.raises(subprocess.CalledProcessError):
-        smoke.detach(Path("/Volumes/VOOL"))
+        smoke.detach(MOUNT)
     assert len(calls) == 1
