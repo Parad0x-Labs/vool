@@ -156,7 +156,7 @@ def test_dmg_with_two_apps_is_refused_and_detached(monkeypatch, tmp_path):
 
     def run(command, **kwargs):
         calls.append(command)
-        return SimpleNamespace(stdout=plistlib.dumps({'system-entities': [{'mount-point': str(mount)}]}))
+        return SimpleNamespace(returncode=0, stdout=plistlib.dumps({'system-entities': [{'mount-point': str(mount)}]}))
 
     monkeypatch.setattr(smoke.subprocess, 'run', run)
     with pytest.raises(smoke.SmokeFailure, match=r'expected one \.app'):
@@ -188,3 +188,43 @@ def test_a_failed_step_prints_what_the_app_logged_while_it_ran(tmp_path):
     assert len(lines) == 1, lines
     assert "chat turn still running after 20.0 s" in lines[0] and "core/plugin_ask.py" in lines[0]
     assert smoke.turn_log(None, start, end) == []
+
+
+def _detach_runs(monkeypatch, codes):
+    """hdiutil detach answering each call with the next exit code; the calls are returned."""
+    import subprocess
+
+    calls: list[list[str]] = []
+
+    def run(args, **kwargs):
+        calls.append(list(args))
+        code = codes.pop(0) if codes else 0
+        if code and kwargs.get("check"):
+            raise subprocess.CalledProcessError(code, args)
+        return subprocess.CompletedProcess(args, code, "", "hdiutil: couldn't eject" if code else "")
+
+    monkeypatch.setattr(smoke.subprocess, "run", run)
+    monkeypatch.setattr(smoke.time, "sleep", lambda seconds: None)
+    return calls
+
+
+def test_a_busy_dmg_is_waited_out_before_it_is_unmounted(monkeypatch):
+    # The Intel runner for 6a50cd6e5: "couldn't eject disk2 - Resource busy" (exit 16) right after the copy.
+    calls = _detach_runs(monkeypatch, [16, 16, 0])
+    smoke.detach(Path("/Volumes/VOOL"))
+    assert calls == [["hdiutil", "detach", "/Volumes/VOOL"]] * 3
+
+
+def test_a_dmg_busy_to_the_end_is_forced_off(monkeypatch):
+    calls = _detach_runs(monkeypatch, [16] * 6 + [0])
+    smoke.detach(Path("/Volumes/VOOL"))
+    assert calls[-1] == ["hdiutil", "detach", "-force", "/Volumes/VOOL"] and len(calls) == 7
+
+
+def test_any_other_unmount_failure_stands(monkeypatch):
+    import subprocess
+
+    calls = _detach_runs(monkeypatch, [1])
+    with pytest.raises(subprocess.CalledProcessError):
+        smoke.detach(Path("/Volumes/VOOL"))
+    assert len(calls) == 1

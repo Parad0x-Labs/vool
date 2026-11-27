@@ -420,7 +420,7 @@ def stage_app(dmg: Path, scratch: Path) -> Path:
               if entry.get("mount-point")]
     if len(mounts) != 1:
         for mounted in mounts:
-            subprocess.run(["hdiutil", "detach", str(mounted)], check=True)
+            detach(mounted)
         raise SmokeFailure(f"expected one mounted filesystem, found {len(mounts)}")
     mount = mounts[0]
     try:
@@ -432,8 +432,25 @@ def stage_app(dmg: Path, scratch: Path) -> Path:
         # ditto keeps the signature, extended attributes and symlinks exactly as shipped.
         subprocess.run(["ditto", str(apps[0]), str(target)], check=True)
     finally:
-        subprocess.run(["hdiutil", "detach", str(mount)], check=True)
+        detach(mount)
     return target
+
+
+def detach(mount: Path, *, tries: int = 6, pause: float = 5.0) -> None:
+    """Unmount the DMG. Right after a copy the volume can still be busy for a few seconds (Spotlight, the copy's own
+    file handles): on the Intel runner for 6a50cd6e5 "hdiutil: couldn't eject disk2 - Resource busy" (exit 16) failed
+    the whole smoke before one chat turn. Busy is waited out, then forced; any other failure stands."""
+    for attempt in range(tries):
+        done = subprocess.run(["hdiutil", "detach", str(mount)], capture_output=True, text=True)
+        if done.returncode == 0:
+            return
+        if done.returncode != 16 or attempt == tries - 1:
+            break
+        time.sleep(pause)
+    if done.returncode == 16:
+        subprocess.run(["hdiutil", "detach", "-force", str(mount)], check=True)
+        return
+    raise subprocess.CalledProcessError(done.returncode, done.args, done.stdout, done.stderr)
 
 
 def free_port() -> int:
