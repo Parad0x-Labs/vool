@@ -68,9 +68,9 @@ for how in keychain-runner-home keychain-builder-home search-list-builder-home; 
   fi
 done
 rm -f "${probe}" "${probe}.err"
-[[ -n "${signed_with}" ]] || { echo "the publisher identity cannot sign on this runner (see the probes above)" >&2; exit 1; }
+# The build signs the way the first probe does: the keychain named, under this step's HOME.
+[[ "${signed_with}" == "keychain-runner-home" ]] || { echo "the publisher identity cannot sign on this runner (see the probes above)" >&2; exit 1; }
 echo "VOOL_CODESIGN_IDENTITY=${identity}" >> "${GITHUB_ENV}"
-case "${signed_with}" in
-  keychain-*) echo "VOOL_CODESIGN_KEYCHAIN=${keychain}" >> "${GITHUB_ENV}" ;;
-esac
+echo "VOOL_CODESIGN_KEYCHAIN=${keychain}" >> "${GITHUB_ENV}"
+echo "VOOL_CODESIGN_HOME=${HOME}" >> "${GITHUB_ENV}"
 echo "Publisher signing identity ready: ${identity:0:8}..."

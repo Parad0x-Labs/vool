@@ -290,6 +290,10 @@ fi
 # across updates. Without it the bundle is signed ad hoc and every build is a new app to macOS.
 CODESIGN_ID="-"
 CODESIGN_KEYCHAIN=""
+# The build runs under its own HOME, and a keychain cannot sign from there ("The specified item
+# could not be found in the keychain", measured on the runner); signing runs with the HOME the
+# keychain was imported under.
+CODESIGN_HOME="${VOOL_CODESIGN_HOME:-${HOME}}"
 if [[ -z "${RELEASE_SIGN_DIR}" && -n "${VOOL_CODESIGN_IDENTITY:-}" ]]; then
   # The keychain is named outright: the build runs under its own HOME, whose search list is not the runner's.
   CODESIGN_KEYCHAIN="${VOOL_CODESIGN_KEYCHAIN:-}"
@@ -1375,7 +1379,7 @@ if [[ -n "${RELEASE_SIGN_DIR}" ]]; then
   say "  ad-hoc signature skipped: Developer ID signing follows the manifest checks"
 elif [[ -x /usr/bin/codesign ]]; then
   sign_err="$(mktemp -t vool-codesign)"
-  if codesign --force --deep --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${APP}" >/dev/null 2>"${sign_err}"; then
+  if HOME="${CODESIGN_HOME}" codesign --force --deep --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${APP}" >/dev/null 2>"${sign_err}"; then
     rm -f "${sign_err}"
     say "  code signature applied to the bundle ($([[ "${CODESIGN_ID}" == "-" ]] && echo ad-hoc || echo publisher certificate))"
     codesign --verify --deep --strict "${APP}" >/dev/null 2>&1 \
@@ -1410,13 +1414,13 @@ MACHO
       while IFS= read -r -d '' macho; do
         seen_macho=$((seen_macho + 1))
         codesign --verify --strict "${macho}" >/dev/null 2>&1 && continue
-        codesign --force --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${macho}" >/dev/null 2>&1 \
+        HOME="${CODESIGN_HOME}" codesign --force --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${macho}" >/dev/null 2>&1 \
           && codesign --verify --strict "${macho}" >/dev/null 2>&1 \
           || { say "  invalid signature: ${macho#"${APP}/"}" >&2; bad_macho=$((bad_macho + 1)); }
       done < <("${SYS_PY:-python3}" -c "${macho_lister}" "${APP}/Contents/Resources")
       [[ "${seen_macho}" -gt 0 ]] || die "found no Mach-O files under Contents/Resources; the signature check enumerated nothing"
       [[ "${bad_macho}" -eq 0 ]] || die "${bad_macho} Mach-O file(s) in the bundle carry no valid signature; Apple Silicon would refuse to load them"
-      codesign --force --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${APP}" >/dev/null 2>&1 \
+      HOME="${CODESIGN_HOME}" codesign --force --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${APP}" >/dev/null 2>&1 \
         && codesign --verify --deep --strict "${APP}" >/dev/null 2>&1 \
         || die "the bundle seal did not verify after per-file signature repair"
       say "  all ${seen_macho} Mach-O files in Contents/Resources carry a valid signature"

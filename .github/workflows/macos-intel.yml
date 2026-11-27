@@ -725,8 +725,6 @@ jobs:
           export HOME="$RUNNER_TEMP/vool-builder-home"
           export UV_PYTHON_INSTALL_DIR="$HOME/uv-python" UV_CACHE_DIR="$HOME/uv-cache"
           mkdir -p "$HOME"
-          # The keychain search list lives under HOME: name the publisher keychain for the builder home too.
-          if [[ -n "${VOOL_CODESIGN_KEYCHAIN:-}" ]]; then security list-keychains -d user -s "$VOOL_CODESIGN_KEYCHAIN"; fi
           bash installer/bundle/build_macos_app.sh --self-contained --arch x86_64 \
             --out "$HOME/macos-x86_64" --release-dir "$RUNNER_TEMP/assets"
           hits="$(grep -r -a -l -F "$GITHUB_WORKSPACE" "$HOME/macos-x86_64/VOOL.app" || true)"
