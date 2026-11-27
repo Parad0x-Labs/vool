@@ -355,7 +355,7 @@ def _continues_a_contact_save(text: str, source_context: dict[str, Any]) -> bool
 
 def _memory_kind_confirmed(
     text: str, keys: tuple[str, ...], source_context: dict[str, Any], session_id: str,
-    *, first_read_as_the_web: bool = False,
+    *, first_read_as_the_web: bool = False, dropped_a_pick: bool = False,
 ) -> tuple[str, ...]:
     """The tool judgement's picks with VOOL's memory decided by two readings: the tool judgement's own memory pick and
     the memory's own question (`core.intent_arbiter.arbitrate_memory_kind`), asked beside every tool judgement.
@@ -387,6 +387,20 @@ def _memory_kind_confirmed(
                  **({"patient": True} if any(key not in _MEMORY_KINDS for key in keys) else {}))
     picked = {_MEMORY_KINDS[key] for key in keys if key in _MEMORY_KINDS}
     tools = tuple(key for key in keys if key not in _MEMORY_KINDS)
+    told: list[str | None] = []
+
+    def unconfirmed(verdict: str | None) -> bool:
+        """A Reminders or Calendar pick its own question did not confirm. "no" always; no answer only on a message
+        that tells a fact, where the pick would stop the fact's keep and hand the model a write tool (memory wiring
+        audit of efb8e474c, B2: "she lands at 14:40 on the 9th" got a Manual-mode reminder card and nothing kept)."""
+        if verdict == "no":
+            return True
+        if verdict is not None:
+            return False
+        if not told:
+            told.append(asked("told as fact", intent_arbiter.arbitrate_told_as_fact))
+        return told[0] == "yes"
+
     if "reminders" in tools:
         # A Reminders pick is confirmed by a yes/no of its own. On the gate iMac (3c92e8df3, qwen3:8b) "zapamiętaj: mój
         # szwagier ma psa o imieniu Burek" and a plainly told fact were picked Reminders beside a keep reading, and the
@@ -395,13 +409,14 @@ def _memory_kind_confirmed(
         # leaves the pick as it was.
         reminder_verdict = asked("reminder", intent_arbiter.arbitrate_reminder_ask)
         _log.info("tool ask: reminders pick, its own question read %s", reminder_verdict or "nothing")
-        if reminder_verdict == "no":
+        if unconfirmed(reminder_verdict):
             _log.info("tool ask: reminders pick not confirmed")
             tools = tuple(key for key in tools if key != "reminders")
             keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)
-            if kind == "keep":
-                # The Reminders pick was the tool judgement's reading of "remember" placed on the wrong choice: with it
-                # dropped, both readings name the keep.
+            if kind == "keep" or (not tools and kind not in {"recall", "forget"}):
+                # The Reminders pick was the tool judgement's reading of "remember", or of a fact that names a time,
+                # placed on the wrong choice: with it dropped, it is a keep reading (beside the memory question's own,
+                # both readings name it; alone, the told-as-fact and forget questions below settle it).
                 picked.add("keep")
     if "calendar" in tools:
         # A Calendar pick is confirmed by a three-way question of its own, like Reminders. iMac gate53 on efb8e474c
@@ -410,7 +425,7 @@ def _memory_kind_confirmed(
         # Manual-mode approval card. No answer leaves the pick as it was.
         calendar_verdict = asked("calendar", intent_arbiter.arbitrate_calendar_ask)
         _log.info("tool ask: calendar pick, its own question read %s", calendar_verdict or "nothing")
-        if calendar_verdict == "no":
+        if unconfirmed(calendar_verdict):
             _log.info("tool ask: calendar pick not confirmed")
             tools = tuple(key for key in tools if key != "calendar")
             keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)
@@ -418,6 +433,10 @@ def _memory_kind_confirmed(
                 # The pick was the tool judgement's reading of news about an appointment: it stands as one keep
                 # reading, which the told-as-fact and forget questions below settle.
                 picked.add("keep")
+    if dropped_a_pick and not tools and kind not in {"recall", "forget"}:
+        # A tool pick its own question turned down was the tool judgement's misreading: of a message that tells a fact
+        # it is one keep reading, which the told-as-fact and forget questions below settle (memory wiring audit B2).
+        picked.add("keep")
     named = picked | ({kind} if kind in {"keep", "recall", "forget"} else set())
     decided = ""
     # Two readings that each name a different kind of memory ask are unsure of it: a forget typed without accents
@@ -746,6 +765,11 @@ def _web_confirmed(text: str, keys: tuple[str, ...], source_context: dict[str, A
 #: Picks that act on this computer or on the person's saved records: each stands only on a yes/no of its own
 #: (`_actions_confirmed`).
 _ACTION_CHOICES_CONFIRMED = frozenset({"run", "files", "contacts"})
+#: Picks that no question of their own confirms (Reminders, Calendar, Find and the web have theirs). On a message the
+#: told-as-fact question reads as telling a fact, each is put to the shared yes/no too: a pick stops the keep of the
+#: fact, so an unchecked misreading kept nothing and handed the model a tool (memory wiring audit of efb8e474c, B2).
+#: Only then, because the shared yes/no reads asks about the person's own things in Lithuanian as no (see Find below).
+_CHOICES_CONFIRMED_BESIDE_A_TOLD_FACT = frozenset({"notes", "mail", "phone", "drop", "things", "changes", "read"})
 
 
 def _actions_confirmed(
@@ -760,6 +784,18 @@ def _actions_confirmed(
     fact was written into a contact's notes behind two approval cards and the message was kept in memory; a recall
     about the person's own life ran a contact search."""
     from core import intent_arbiter
+
+    told: list[str | None] = []
+
+    def tells_a_fact() -> bool:
+        if not told:
+            try:
+                told.append(intent_arbiter.arbitrate_told_as_fact(
+                    text, chat_id=str(session_id or ""), source_context=source_context))
+            except Exception as exc:
+                _log.info("tool ask: told-as-fact not read (%s)", type(exc).__name__)
+                told.append(None)
+        return told[0] == "yes"
 
     kept = []
     for key in keys:
@@ -784,7 +820,8 @@ def _actions_confirmed(
                 continue
             kept.append(key)
             continue
-        if key in _ACTION_CHOICES_CONFIRMED:
+        beside_a_fact = key in _CHOICES_CONFIRMED_BESIDE_A_TOLD_FACT and tells_a_fact()
+        if key in _ACTION_CHOICES_CONFIRMED or beside_a_fact:
             description = next((row[1] for row in BUILTIN_CHOICES if row[0] == key), "")
             try:
                 verdict = intent_arbiter.arbitrate_choice_ask(
@@ -792,8 +829,9 @@ def _actions_confirmed(
             except Exception as exc:
                 _log.info("tool ask: %s pick not confirmed (%s)", key, type(exc).__name__)
                 verdict = None
-            if verdict == "no":
-                _log.info("tool ask: %s pick dropped by its own yes/no", key)
+            if verdict == "no" or (beside_a_fact and verdict != "yes"):
+                # Beside a told fact only a yes keeps the pick: unconfirmed, it would stop the fact's keep.
+                _log.info("tool ask: %s pick dropped by its own yes/no (%s)", key, verdict or "no answer")
                 continue
         kept.append(key)
     return tuple(kept)
@@ -922,9 +960,11 @@ def _judge_turn(text: str, source_context: dict[str, Any], session_id: str) -> t
         read_again = bool(picked_keys and not keys and not plugins)
         if read_again:
             keys = _judged_again_without_the_web(text, builtins, source_context, session_id)
+        before = keys
         keys = _actions_confirmed(text, keys, source_context, session_id)
         _record_builtins(text, _memory_kind_confirmed(text, keys, source_context, session_id,
-                                                      first_read_as_the_web=read_again))
+                                                      first_read_as_the_web=read_again,
+                                                      dropped_a_pick=bool(set(before) - set(keys))))
     if not rows:
         return None
     _record(text, plugins, signature)

@@ -38,7 +38,9 @@ def test_a_dropped_calendar_pick_that_tells_no_fact_keeps_nothing(monkeypatch):
 
 @pytest.mark.parametrize("verdict", ["yes", None])
 def test_a_calendar_ask_keeps_its_pick(verdict, monkeypatch):
-    _readings(monkeypatch, calendar=verdict)
+    # A question tells no fact; with no answer on a message that does tell one, the pick no longer stops its keep
+    # (tests/test_a_tool_pick_beside_a_told_fact_must_be_confirmed_or_the_fact_is_kept.py).
+    _readings(monkeypatch, calendar=verdict, told="no")
     assert plugin_ask._memory_kind_confirmed("what's on my calendar thursday?", ("calendar",), {}, "chat-1") == (
         "calendar",)
 
