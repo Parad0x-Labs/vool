@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import pytest
 
+from tests._toolchain_fixtures import reset_toolchain_state
+
 DEVELOPER_IDS = {
     "ci-repair", "code-review", "cumulative-testing", "database", "vool-database", "feature-build",
     "migration", "performance", "project-archaeology", "release-gate", "repo-onboarding",
@@ -45,6 +47,10 @@ def _world(tmp_path, monkeypatch):
     tool_offer_assembly.reset_skill_cache()
     yield
     tool_offer_assembly.reset_skill_cache()
+    # The database pack test registers the pack's tools in the process-wide registry; without this
+    # every later test in the process saw "vool-database.migrate.*" as installed, and a sentence that
+    # merely mentioned a database migration went to the plugin lane (CI shard 7, Nov 26).
+    reset_toolchain_state()
 
 
 @pytest.fixture()
