@@ -298,10 +298,12 @@ STATE_JS = """() => { const r = (typeof view !== 'undefined') ? view.run : null;
            chat: (typeof displayedChat !== 'undefined') ? String(displayedChat || '') : '',
            model: ((document.getElementById('modelLbl') || {}).textContent || '').trim(),
            mode: (typeof view !== 'undefined') ? String(view.mode || '') : '' }; }"""
-# Every bubble in order, with only its answer body (.msg-text): never the model/token footer or buttons.
+# Every bubble in order, with only its answer body (.msg-text): never the model/token footer or buttons. Read as the
+# person sees it (innerText): textContent drops the line break between two answer lines, so "...cello.<br>You asked..."
+# read back as "...cello.You asked..." although the bubble shows two lines (gate 51 case 10, CUT 57).
 BUBBLES_JS = """() => Array.from(document.querySelectorAll('#log .msg')).map((el) => ({
   user: el.classList.contains('user'),
-  text: (((el.querySelector('.msg-text') || el).textContent) || '').trim() }))"""
+  text: (((el.querySelector('.msg-text') || el).innerText) || '').trim() }))"""
 
 PLAN = [
     "A1-greet", "A2-inbox", "A3-from", "A4-urgent", "A5-add", "model-cloud", "A6-last-question", "A6b-recap",
