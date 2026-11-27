@@ -205,6 +205,7 @@
     "append_jsonl": "writer",
     "append_sequenced_jsonl": "writer",
     "load_jsonl": "reader",
+    "newest_served_jsonl_row": "reader",
     "write_text_atomic": "writer",
     "rewrite_jsonl": "writer",
     "trim_jsonl_file": "writer",

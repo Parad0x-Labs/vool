@@ -13885,7 +13885,7 @@ document.getElementById('browserBtn').addEventListener('click', async () => {
     ['wireguard', 'settings.private_web.wireguard', 'My VPN file'],
     ['system_vpn', 'settings.private_web.system_vpn', 'My VPN app on this computer'],
   ];
-  let cur = null, busy = false, failed = '', timer = 0;
+  let cur = null, saving = false, failed = '', timer = 0;
   const hasVpn = (r) => !!(r && (r.vpn_file || r.route === 'wireguard' || r.route === 'system_vpn'));
   function paint() {
     const r = cur;
@@ -13900,35 +13900,39 @@ document.getElementById('browserBtn').addEventListener('click', async () => {
     if (failed) words = failed;
     btn.title = name() + ': ' + words;
     btn.setAttribute('aria-label', name() + ': ' + words);
-    btn.disabled = busy || !!r.local_only;
+    btn.disabled = saving || !!r.local_only;
     btn.setAttribute('aria-haspopup', hasVpn(r) ? 'menu' : 'false');
   }
+  // Quick while a route is connecting or the list is open, slow otherwise; a hidden page asks nothing.
+  const quick = () => !!(cur && (cur.state === 'starting' || pop.classList.contains('open')));
+  // The shared poll scheduler (core/page_poll_scheduler.py) owns the cadence when the page has it:
+  // every 2 s while quick, on the idle heartbeat otherwise, paused while hidden, read again when shown.
+  const shared = globalThis.VoolPoll || null;
   function schedule() {
+    if (shared) { shared.wake(); return; }
     clearTimeout(timer);
-    // Quick while a route is connecting or the list is open, slow otherwise; a hidden page asks nothing.
-    const quick = cur && (cur.state === 'starting' || pop.classList.contains('open'));
-    timer = setTimeout(read, quick ? 2000 : 15000);
+    timer = setTimeout(read, quick() ? 2000 : 15000);
   }
   async function read() {
-    if (document.hidden || busy) { schedule(); return; }
+    if (document.hidden || saving) { if (!shared) schedule(); return; }
     try {
       const res = await fetch('/api/private-web', { cache: 'no-store' });
       const j = await res.json();
       if (res.ok && j && j.ok && typeof j.route === 'string') { cur = j; failed = ''; }
     } catch (e) { /* keep the last state the runtime reported; the next read tries again */ }
-    paint(); if (pop.classList.contains('open')) fill(); schedule();
+    paint(); if (pop.classList.contains('open')) fill(); if (!shared) schedule();
   }
   async function choose(route) {
     closePop();
-    if (!cur || busy || route === cur.route) return;
-    busy = true; failed = ''; paint();
+    if (!cur || saving || route === cur.route) return;
+    saving = true; failed = ''; paint();
     try {
       const res = await fetch('/api/private-web/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ route }) });
       const j = await res.json().catch(() => ({}));
       if (res.ok && j && j.ok) cur = j;
       else failed = (j && typeof j.error === 'string' && j.error.length > 12) ? j.error : pageT('settings.switch.no_answer', 'Not saved — VOOL did not answer.');
     } catch (e) { failed = pageT('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
-    busy = false; paint(); schedule();
+    saving = false; paint(); schedule();
   }
   function fill() {
     pop.textContent = '';
@@ -13948,7 +13952,7 @@ document.getElementById('browserBtn').addEventListener('click', async () => {
   function closePop() { pop.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!cur || busy || cur.local_only) return;
+    if (!cur || saving || cur.local_only) return;
     if (hasVpn(cur)) {
       const open = !pop.classList.contains('open');
       if (!open) { closePop(); return; }
@@ -13971,6 +13975,7 @@ document.getElementById('browserBtn').addEventListener('click', async () => {
   });
   document.addEventListener('click', (e) => { if (!ctrl.contains(e.target)) closePop(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pop.classList.contains('open')) { closePop(); btn.focus(); } });
+  if (shared) { globalThis.VoolPoll.every('private-web-pill', read, { fast: 2000, hot: quick, duringTurn: false }); return; }
   window.addEventListener('focus', read);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) read(); });
   read();

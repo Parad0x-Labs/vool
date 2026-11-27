@@ -210,6 +210,7 @@ def test_the_chat_page_runs_one_scheduler_that_every_poll_registers_with():
     assert {
         "disclosure-pending", "wallet-status", "notifications", "mail-alerts", "update-status",
         "council-lock", "sidebar-activity", "screen-privacy", "runtime-version", "model-radar", "no-model-setup",
+        "private-web-pill",
     } <= names, names
     # The turn signal and the turn-start re-plan are wired to the page's own run state.
     assert "VoolPoll.busyWhen(() => busyChatIds().length > 0)" in html
