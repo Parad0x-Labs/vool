@@ -60,6 +60,11 @@ _ICONS: dict[str, str] = {
     "about": "<circle cx='8' cy='8' r='5.5'/><path d='M8 7.3v3.7M8 5v.1'/>",
     "lock": "<rect x='3.5' y='7' width='9' height='6.5' rx='1'/><path d='M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7'/>",
     "globe": "<circle cx='8' cy='8' r='5.5'/><path d='M2.5 8h11M8 2.5c1.6 1.6 2.3 3.5 2.3 5.5S9.6 11.9 8 13.5C6.4 11.9 5.7 10 5.7 8S6.4 4.1 8 2.5z'/>",
+    # Tor's onion: the Private web control in the chat header.
+    "onion": (
+        "<path d='M8 2.5c-.3 1.3-1.5 2.1-2.8 3.2C3.8 6.9 3 8.2 3 9.7 3 12 5.2 13.5 8 13.5s5-1.5 5-3.8c0-1.5-.8-2.8-2.2-4C9.5 4.6 8.3 3.8 8 2.5z'/>"
+        "<path d='M8 5.6c-1.2 1.1-2.1 2.5-2.1 4S6.8 12.3 8 13.5M8 5.6c1.2 1.1 2.1 2.5 2.1 4S9.2 12.3 8 13.5'/>"
+    ),
     "wallet": "<path d='M2.5 5a1.5 1.5 0 0 1 1.5-1.5h7.5v2'/><rect x='2.5' y='5.5' width='11' height='7.5' rx='1.2'/><circle cx='10.8' cy='9.2' r='.7'/>",
     "phone": "<rect x='4.5' y='1.5' width='7' height='13' rx='1.5'/><path d='M7.2 12.2h1.6'/>",
     "smile": "<circle cx='8' cy='8' r='5.5'/><path d='M5.6 9.6a3 3 0 0 0 4.8 0'/><path d='M6 6.4v.1M10 6.4v.1'/>",

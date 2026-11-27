@@ -737,6 +737,19 @@ body.answer-pending footer { position: relative; z-index: 35; }
 .ctrl-btn:hover { border-color:var(--accent); }
 .ctrl-btn:disabled { opacity:.55; cursor:default; }
 .ctrl-btn .caret { flex:0 0 auto; color:var(--muted); font-size:10px; }
+/* Private web (Tor or a VPN) in the header: the onion alone while it is off, the route's name in colour while it is
+   on, amber while it connects, red when it is down. The same setting as Settings > Privacy > Going online. */
+#privWebBtn { border-radius:999px; padding:5px 9px; gap:5px; color:var(--muted); background:var(--field); }
+#privWebLbl:empty { display:none; }
+#privWebBtn .vi::before { width:1.15em; height:1.15em; }
+#privWebBtn[data-state="on"] { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
+#privWebBtn[data-state="starting"] { color:var(--warn); border-color:var(--warn); }
+#privWebBtn[data-state="down"] { color:var(--bad); border-color:var(--bad); }
+#privWebLbl { font-size:12px; font-weight:700; white-space:nowrap; }
+#privWebPop { min-width:220px; }
+#privWebPop .pop-note { color:var(--muted); font-size:12px; padding:6px 8px 4px; max-width:260px; }
+@media (prefers-reduced-motion: no-preference) { #privWebBtn[data-state="starting"] .vi::before { animation:privWebPulse 1.1s ease-in-out infinite; } }
+@keyframes privWebPulse { 50% { opacity:.35; } }
 /* The character cap is applied in script (so the tooltip keeps the exact name); this is the layout
    backstop for a label that is still too wide for the room the row actually has. */
 .ctrl-btn { max-width:100%; min-width:0; }
@@ -1338,6 +1351,10 @@ body:not(.panel-open) #xpanel { display:none; }
         <div id="modelConnectionDetail"></div>
       </div>
     </div>
+  </div>
+  <div class="ctrl" id="privWebCtrl" hidden>
+    <button type="button" class="ctrl-btn" id="privWebBtn" data-state="off" aria-haspopup="menu" aria-expanded="false" aria-controls="privWebPop"><span class="vi" data-ico="onion" aria-hidden="true"></span><span id="privWebLbl"></span></button>
+    <div class="popover below" id="privWebPop" role="menu"></div>
   </div>
   <span class="spacer"></span>
   <button id="browserBtn" type="button" data-i18n="live.browser">Browser</button>
@@ -13824,6 +13841,117 @@ function openSettingsInFrame(section) { openSurfaceInFrame('/settings' + (sectio
 document.getElementById('browserBtn').addEventListener('click', () => {
   openSurfaceInFrame('/browser?chat=' + encodeURIComponent(displayedChat), pageT('live.browser', 'Browser'));
 });
+// Private web in the header. It reads and writes the one setting Settings > Privacy & Permissions > Going online >
+// Private web uses (/api/private-web), so the two always agree. One click turns Tor on or off; when a VPN is in use
+// or added, the click opens a short list of the routes instead. What it shows is what the runtime reports, never
+// what was last asked for: a route still connecting or not working says so.
+(function initPrivateWeb() {
+  const ctrl = document.getElementById('privWebCtrl'), btn = document.getElementById('privWebBtn');
+  const lbl = document.getElementById('privWebLbl'), pop = document.getElementById('privWebPop');
+  if (!ctrl || !btn || !lbl || !pop) return;
+  const name = () => pageT('settings.row.private_web.label', 'Private web');
+  const STATE_WORDS = {
+    off: ['settings.private_web.state.off', 'Off. Web traffic leaves from your own connection.'],
+    on: ['settings.private_web.state.on', 'On. Web traffic goes only through this route.'],
+    starting: ['settings.private_web.state.starting', 'Connecting. Until it is ready, nothing goes online.'],
+    down: ['settings.private_web.state.down', 'Not working right now, so nothing goes online.'],
+  };
+  const ROUTES = [
+    ['off', 'settings.private_web.off', 'Off'],
+    ['tor', 'settings.private_web.tor', 'Tor (slower)'],
+    ['wireguard', 'settings.private_web.wireguard', 'My VPN file'],
+    ['system_vpn', 'settings.private_web.system_vpn', 'My VPN app on this computer'],
+  ];
+  let cur = null, busy = false, failed = '', timer = 0;
+  const hasVpn = (r) => !!(r && (r.vpn_file || r.route === 'wireguard' || r.route === 'system_vpn'));
+  function paint() {
+    const r = cur;
+    ctrl.hidden = !r;
+    if (!r) return;
+    const state = r.local_only ? 'off' : (r.route === 'off' ? 'off' : (r.route === 'unknown' ? 'down' : r.state));
+    btn.dataset.state = failed ? 'down' : state;
+    lbl.textContent = r.route === 'tor' ? 'Tor' : (r.route === 'wireguard' || r.route === 'system_vpn') ? 'VPN' : '';
+    const w = STATE_WORDS[state] || STATE_WORDS.down;
+    let words = r.local_only ? pageT('settings.private_web.local_only', 'This computer is set to keep everything on it, so nothing goes online anyway.') : pageT(w[0], w[1]);
+    if (r.detail && state !== 'on' && !r.local_only) words += ' ' + r.detail;
+    if (failed) words = failed;
+    btn.title = name() + ': ' + words;
+    btn.setAttribute('aria-label', name() + ': ' + words);
+    btn.disabled = busy || !!r.local_only;
+    btn.setAttribute('aria-haspopup', hasVpn(r) ? 'menu' : 'false');
+  }
+  function schedule() {
+    clearTimeout(timer);
+    // Quick while a route is connecting or the list is open, slow otherwise; a hidden page asks nothing.
+    const quick = cur && (cur.state === 'starting' || pop.classList.contains('open'));
+    timer = setTimeout(read, quick ? 2000 : 15000);
+  }
+  async function read() {
+    if (document.hidden || busy) { schedule(); return; }
+    try {
+      const res = await fetch('/api/private-web', { cache: 'no-store' });
+      const j = await res.json();
+      if (res.ok && j && j.ok && typeof j.route === 'string') { cur = j; failed = ''; }
+    } catch (e) { /* keep the last state the runtime reported; the next read tries again */ }
+    paint(); if (pop.classList.contains('open')) fill(); schedule();
+  }
+  async function choose(route) {
+    closePop();
+    if (!cur || busy || route === cur.route) return;
+    busy = true; failed = ''; paint();
+    try {
+      const res = await fetch('/api/private-web/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ route }) });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j && j.ok) cur = j;
+      else failed = (j && typeof j.error === 'string' && j.error.length > 12) ? j.error : pageT('settings.switch.no_answer', 'Not saved — VOOL did not answer.');
+    } catch (e) { failed = pageT('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
+    busy = false; paint(); schedule();
+  }
+  function fill() {
+    pop.textContent = '';
+    ROUTES.forEach(([route, key, fallback]) => {
+      if (route === 'wireguard' && !(cur.vpn_file || cur.route === 'wireguard')) return;
+      const item = document.createElement('button');
+      item.type = 'button'; item.className = 'pop-item'; item.setAttribute('role', 'menuitemradio');
+      item.setAttribute('aria-checked', String(cur.route === route));
+      const check = document.createElement('span'); check.className = 'pi-check'; check.textContent = cur.route === route ? '\u2713' : '';
+      const text = document.createElement('span'); text.textContent = pageT(key, fallback);
+      item.append(check, text);
+      item.addEventListener('click', (e) => { e.stopPropagation(); choose(route); });
+      pop.appendChild(item);
+    });
+    const note = document.createElement('div'); note.className = 'pop-note'; note.textContent = btn.title; pop.appendChild(note);
+  }
+  function closePop() { pop.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!cur || busy || cur.local_only) return;
+    if (hasVpn(cur)) {
+      const open = !pop.classList.contains('open');
+      if (!open) { closePop(); return; }
+      fill(); pop.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); positionPopover(pop, btn);
+      const sel = pop.querySelector('[aria-checked="true"]') || pop.querySelector('.pop-item'); if (sel) sel.focus();
+      return;
+    }
+    if (cur.route === 'off' && !cur.tor_available) {
+      // Tor is not on this computer: switching to it would only stop the web. Say so, and where to set a route up.
+      pop.textContent = '';
+      const note = document.createElement('div'); note.className = 'pop-note';
+      note.textContent = pageT('live.route_missing', 'Private web has no route it can use on this computer yet. Set one up in Settings.');
+      const go = document.createElement('button'); go.type = 'button'; go.className = 'pop-item'; go.setAttribute('role', 'menuitem');
+      go.textContent = pageT('sidebar.settings', 'Settings');
+      go.addEventListener('click', (ev) => { ev.stopPropagation(); closePop(); openSettingsInFrame('permissions'); });
+      pop.append(note, go); pop.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); positionPopover(pop, btn);
+      return;
+    }
+    choose(cur.route === 'off' ? 'tor' : 'off');
+  });
+  document.addEventListener('click', (e) => { if (!ctrl.contains(e.target)) closePop(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pop.classList.contains('open')) { closePop(); btn.focus(); } });
+  window.addEventListener('focus', read);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) read(); });
+  read();
+})();
 // The SAME frame overlay carries any second surface of this runtime (Settings, guided setup): one
 // overlay, one close path (Back / Escape / click outside), the chat and its draft untouched.
 function openSurfaceInFrame(url, label) {
