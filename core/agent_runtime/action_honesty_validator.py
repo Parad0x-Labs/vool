@@ -2812,7 +2812,27 @@ def sealed_turn_context(
     key = str((result or {}).get(SEALED_TURN_KEY) or "").strip()
     if key:
         context["turn_key"] = key
+    claims = (result or {}).get(SEALED_DONE_CLAIMS_KEY)
+    if isinstance(claims, dict) and claims and not isinstance(context.get(_JUDGED_CLAIMS_KEY), dict):
+        # A fresh copy: the boundary's re-check may add a judgement of bytes the seal never saw, and that stays its own.
+        context[_JUDGED_CLAIMS_KEY] = {str(digest): str(kind or "") for digest, kind in claims.items()}
     return context
+
+
+#: The done-claim judgements the in-turn seal made (`_judged_claim_kind`), by the reply's hash. They ride the admitted
+#: payload under the same payload-stash law as `SEALED_TURN_KEY`, so a boundary that re-checks the seal reads the one
+#: judgement of the same bytes instead of asking the model again. Measured on a served local turn (b304cabd, a recording
+#: Ollama): every ordinary turn asked the turn's judge the same done-claim question twice, once in the seal and once at
+#: the buffered door, ten seconds each on the owner's iMac. Bytes the seal did not judge are still asked.
+SEALED_DONE_CLAIMS_KEY = "_sealed_done_claims"
+
+
+def sealed_done_claims(source_context: dict[str, object] | None) -> dict[str, str]:
+    """The done-claim judgements this turn's seal holds, for the admitted payload; {} when it made none."""
+    held = (source_context or {}).get(_JUDGED_CLAIMS_KEY) if isinstance(source_context, dict) else None
+    if not isinstance(held, dict):
+        return {}
+    return {str(digest): str(kind or "") for digest, kind in held.items()}
 
 
 def _collect_executed_tools(
@@ -3027,10 +3047,12 @@ def emit_turn_honesty_receipt(
 
 
 __all__ = [
+    "SEALED_DONE_CLAIMS_KEY",
     "SEALED_TURN_KEY",
     "UNBACKED_CLAIM_EVENT",
     "completion_claim_kind",
     "emit_turn_honesty_receipt",
     "enforce_final_action_honesty",
+    "sealed_done_claims",
     "sealed_turn_context",
 ]

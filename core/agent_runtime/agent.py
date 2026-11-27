@@ -41,9 +41,11 @@ from core.agent_runtime import turn_dispatch as agent_turn_dispatch
 from core.agent_runtime import turn_frontdoor as agent_turn_frontdoor
 from core.agent_runtime import turn_reasoning as agent_turn_reasoning
 from core.agent_runtime.action_honesty_validator import (
+    SEALED_DONE_CLAIMS_KEY,
     SEALED_TURN_KEY,
     emit_turn_honesty_receipt,
     enforce_final_action_honesty,
+    sealed_done_claims,
 )
 from core.agent_runtime.builder_facade import BuilderFacadeMixin
 from core.agent_runtime.chat_surface_facade import ChatSurfaceFacadeMixin
@@ -1084,6 +1086,11 @@ def _seal_semantic_result(
             admitted[SEALED_TURN_KEY] = _sealed_key
     except Exception:
         pass
+    # The seal's done-claim judgements ride the payload the same way, so the served boundary's re-check of these same
+    # bytes reads this judgement and does not ask the turn's judge the question a second time.
+    _sealed_claims = sealed_done_claims(source_context if isinstance(source_context, dict) else None)
+    if _sealed_claims:
+        admitted[SEALED_DONE_CLAIMS_KEY] = _sealed_claims
     # R-6 (K-05): discharge the turn's prose obligation from SERVED BYTES and
     # compute the closure verdict NOW — it must ride the payload so the
     # transport-shim finalize can consume it after ContextVar scope exit.
