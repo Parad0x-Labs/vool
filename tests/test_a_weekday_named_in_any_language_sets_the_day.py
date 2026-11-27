@@ -66,3 +66,47 @@ def test_the_handler_reads_the_requests_weekday_when_the_call_left_it_out(monkey
     # The request's Friday moves the miscounted Thursday; a day the call typed itself is read first.
     assert seen[0].startswith("2026-11-27") and seen[1].startswith("2026-11-26"), seen
     assert typed_day is not None
+
+
+_SPOKEN = {
+    0: ("pirmadienį {h}:30 turiu pasiimti siuntinį, neleisk pamiršti", "am Montag um {h}:30 Zahnarzt anrufen"),
+    1: ("antradienį {h}:15 sumokėti už internetą", "Dienstag {h}:15 Reifen wechseln lassen"),
+    3: ("ketvirtadienį {h}:45 nunešti batus taisyti", "am Donnerstag um {h}:45 die Oma besuchen"),
+    6: ("sekmadienį {h}:00 palaistyti gėles", "Sonntag {h}:00 Brötchen holen"),
+}
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_a_weekday_the_reader_does_not_know_moves_the_spoken_reading(seed, monkeypatch) -> None:
+    """The person's own words outrank the model's typed time, but the when-reader reads English day words only:
+    iMac ace1c42cc, on a Friday, "pirmadienį 18:30 turiu pasiimti siuntinį iš paštomato, neleisk pamiršti" was set for
+    Saturday 18:30, the next 18:30. A day the reader did read ("tomorrow") stands, and so does a clock with no day."""
+    from datetime import datetime, timezone
+
+    import core.operator.handlers as handlers
+    from core.operator.when import parse_when_expression
+
+    rng = random.Random(f"spoken-weekday-{seed}")
+    today = date(2026, 11, 23) + timedelta(days=rng.randint(0, 6))
+    now = datetime(today.year, today.month, today.day, 21, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(handlers, "_owner_today", lambda: today)
+
+    def read(words: str):
+        return parse_when_expression(words, now_fn=lambda: now)
+
+    weekday = rng.choice(sorted(_SPOKEN))
+    hour = rng.randint(7, 19)
+    text = rng.choice(_SPOKEN[weekday]).format(h=hour)
+    when, problem = handlers._reminder_when(text, read)
+    assert not problem and when.ok, (text, when)
+    landed = date.fromisoformat(str(when.due_wall)[:10])
+    assert landed.weekday() == weekday and today < landed <= today + timedelta(days=7), (text, today, when.due_wall)
+    assert str(when.due_wall)[11:13] == f"{hour:02d}", (text, when.due_wall)
+
+    tomorrow, _ = handlers._reminder_when(f"tomorrow at {hour} call about the {DAY_NAMES[weekday]} meeting", read)
+    assert str(tomorrow.due_wall)[:10] == (today + timedelta(days=1)).isoformat(), tomorrow.due_wall
+    alone, _ = handlers._reminder_when(f"at {hour}:30 call mum", read)
+    assert str(alone.due_wall)[:10] == (today + timedelta(days=1)).isoformat(), alone.due_wall
+
+
+DAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")

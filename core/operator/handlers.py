@@ -1169,11 +1169,58 @@ def _reminder_when(text: str, parse_when_fn: Any) -> tuple[Any, str]:
         if not day_problem:
             when = parse_when_fn(when_text)
             if when.ok:
-                return when, ""
+                return _on_the_named_weekday(when, raw, parse_when_fn), ""
     when_text, day_problem = _reminder_when_text(raw, _reminder_note_from_text(raw))
     if day_problem:
         return None, day_problem
-    return parse_when_fn(when_text), ""
+    return _on_the_named_weekday(parse_when_fn(when_text), raw, parse_when_fn), ""
+
+
+def _on_the_named_weekday(when: Any, text: str, parse_when_fn: Any, *, named: int | None = None) -> Any:
+    """A due time read from the words, moved to the weekday the words name when the reader left that day out.
+
+    The when-reader reads English day words only: "pirmadienį 18:30 ..." and "am Montag um 18:30" were read as the
+    clock alone, the next 18:30 (iMac ace1c42cc, 2026-11-27, a Friday: a Monday parcel pickup was set for Saturday).
+    The weekday is read in any of VOOL's languages (`weekday_named_in`) and the date worked out here, the same rule a
+    typed call already gets (`align_to_weekday`). Only a reading that took no day of its own moves: one whose date is
+    the date the clock alone reads to; a day the reader did read ("tomorrow", a date) stands."""
+    try:
+        from datetime import date
+
+        from core.operator.when import align_to_weekday, weekday_named_in, when_text_from_iso
+
+        if when is None or not getattr(when, "ok", False):
+            return when
+        weekday = named if named is not None else weekday_named_in(str(text or ""))
+        wall = str(getattr(when, "due_wall", "") or "")
+        match = re.match(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})", wall)
+        if weekday is None or not match:
+            return when
+        day, clock = match.group(1), match.group(2)
+        if date.fromisoformat(day).weekday() == weekday:
+            return when
+        # Did the reader take a day of its own? Read the words and the clock alone at one moment where the two can
+        # only agree if no day word was read: the start of the day before (the clock alone falls on that day then,
+        # "tomorrow" or a weekday the reader knows never does).
+        from datetime import datetime, timedelta, timezone
+
+        from core.operator.when import parse_when_expression
+
+        probe = datetime.fromisoformat(day).replace(tzinfo=timezone.utc) - timedelta(days=1) + timedelta(minutes=1)
+        words_read = parse_when_expression(str(text or ""), now_fn=lambda: probe)
+        clock_read = parse_when_expression(f"at {clock}", now_fn=lambda: probe)
+        if not (getattr(words_read, "ok", False) and getattr(clock_read, "ok", False)):
+            return when
+        if str(words_read.due_wall)[:10] != str(clock_read.due_wall)[:10]:
+            return when
+        moved = align_to_weekday(f"{day}T{clock}", weekday, _owner_today())
+        words = when_text_from_iso(moved)
+        if not words:
+            return when
+        aligned = parse_when_fn(words)
+        return aligned if getattr(aligned, "ok", False) else when
+    except Exception:
+        return when
 
 
 def _owner_today() -> Any:
@@ -1233,6 +1280,11 @@ def handle_schedule_reminder(
         # the reader cannot take (other languages, a time it does not know).
         spoken, spoken_problem = _reminder_when(intent.raw_text, parse_when_fn)
         if spoken is not None and not spoken_problem and getattr(spoken, "ok", False):
+            from core.operator.when import typed_weekday
+
+            day_typed = typed_weekday(str(getattr(intent, "due_weekday", "") or ""))
+            if day_typed is not None:
+                spoken = _on_the_named_weekday(spoken, intent.raw_text, parse_when_fn, named=day_typed)
             typed = (spoken, "")
     note = " ".join(str(getattr(intent, "reminder_note", "") or "").split()) or _reminder_note_from_text(intent.raw_text)
     when, day_problem = typed if typed is not None else _reminder_when(intent.raw_text, parse_when_fn)
