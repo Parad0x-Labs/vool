@@ -5686,9 +5686,14 @@
     "header.find_local_models": "Znajdź modele lokalne",
     "header.find_local_models_hint": "darmowe modele pasujące do tego komputera",
     "approval.target.event": "— {name}",
-    "vcs.detail.calendar_read": "Odczytano {when}"
+    "vcs.detail.calendar_read": "Odczytano {when}",
+    "phone.pair_other.title": "Inny komputer",
+    "phone.pair_other.body": "Ten kod pochodzi z innego komputera albo VOOL został tam skonfigurowany od nowa. Sparować z nim ten telefon? Obecne sparowanie tego telefonu zostanie usunięte.",
+    "phone.pair_other.button": "Sparuj z tym komputerem",
+    "proof.route.local_away": "Na twoim komputerze stacjonarnym",
+    "proof.route.mixed_away": "Twój komputer stacjonarny + online"
   },
-  "source_catalog_sha256": "ee7808a7b3aa8307a1950b15bd41b28e47cf746d604772ac059eb20301801700",
+  "source_catalog_sha256": "f06d8100ddb47dcaf9776638df49cb47e7e1798b24a1576dea19dccaa3b802b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

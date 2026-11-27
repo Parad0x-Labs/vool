@@ -5686,7 +5686,12 @@
     "header.find_local_models": "Find local models",
     "header.find_local_models_hint": "free models that fit this computer",
     "approval.target.event": "for {name}",
-    "vcs.detail.calendar_read": "Read {when}"
+    "vcs.detail.calendar_read": "Read {when}",
+    "phone.pair_other.title": "A different computer",
+    "phone.pair_other.body": "This code is from another computer, or VOOL there was set up again. Pair this phone with it instead? This phone’s current pairing is removed.",
+    "phone.pair_other.button": "Pair with this computer",
+    "proof.route.local_away": "On your desktop",
+    "proof.route.mixed_away": "Your desktop + online"
   },
   "html_keys": [
     "bypass.modal_limits",

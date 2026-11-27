@@ -21,6 +21,10 @@ export function useSessionLock(deviceId: string | null, hold: () => boolean = ()
   const prompting = useRef(false);
   const askOnOpen = useRef(true);
   const unlockRef = useRef<() => Promise<void>>(async () => {});
+  // A new pairing is a new opening: its first lock asks by itself too. Before (sls, 2026-11-27) the ask was
+  // spent on the old pairing's opening, so the first lock after pairing again waited for a tap on Unlock.
+  const pairedAs = useRef(deviceId);
+  if (pairedAs.current !== deviceId) {pairedAs.current = deviceId; askOnOpen.current = true;}
   const holdRef = useRef(hold);
   holdRef.current = hold;
   const maybeAsk = () => {

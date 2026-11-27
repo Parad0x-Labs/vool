@@ -179,6 +179,18 @@ function Root() {
     }
   }, [client, store, creds]);
 
+  // A pairing code from another computer key, scanned in Settings and confirmed there: the old pairing is told
+  // goodbye when its computer still answers (best effort, a few seconds), dropped here either way, and the code
+  // fills the pair screen, where the person presses Pair as on a first pairing.
+  const onPairOther = useCallback(async (pairingUri: string) => {
+    if (client) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {await Promise.race([client.unpair(), new Promise((_, reject) => {timer = setTimeout(() => reject(new Error("unreachable")), 4000);})]);}
+      catch {} finally {if (timer) clearTimeout(timer);}
+    }
+    try {await onRevoked();} finally {setIncomingLink(pairingUri);}
+  }, [client, onRevoked]);
+
   if (!booted) {
     return (
       <Frame style={[styles.centered, {direction: rightToLeft() ? "rtl" : "ltr"}]}>
@@ -219,7 +231,7 @@ function Root() {
       <Icon name="camera-iris" size={20} color={C.acc} /><Text style={styles.cameraButtonText}>{tr("Open private camera")}</Text></Pressable> : null}
   </Frame>;
 
-  return <Shell client={client} onRevoked={onRevoked} idleMinutes={lock.idleMinutes} onIdleMinutes={lock.setIdleMinutes}
+  return <Shell client={client} onRevoked={onRevoked} onPairOther={onPairOther} idleMinutes={lock.idleMinutes} onIdleMinutes={lock.setIdleMinutes}
     onTouch={lock.touch} startTab={startTab} queue={captureQueue} cameraAsked={cameraAsked} onCameraShown={() => {capture?.clearCameraLaunch(); setCameraAsked(false);}}
     vaultAsked={vaultAsked} onVaultShown={() => setVaultAsked(false)} homeAsked={homeAsked} onConnection={async address => {
       if (creds) {const next = {...creds, baseUrl: address}; await store.saveDeviceCredentials(next); client.setConnectionAddress(address); setCreds(next);}
@@ -241,6 +253,7 @@ function SmallerFiles() {
 interface ShellProps {
   client: SealedMobileCompanionClient;
   onRevoked: () => Promise<void>;
+  onPairOther?: (pairingUri: string) => Promise<void>;
   idleMinutes: number;
   onIdleMinutes: (value: number) => Promise<void>;
   onTouch: () => void;
@@ -259,7 +272,7 @@ interface ShellProps {
 }
 
 /** Everything a paired, unlocked phone shows: the five screens and the row of tabs under them. */
-export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats", queue, cameraAsked = false, onCameraShown, vaultAsked = false, onVaultShown, homeAsked = 0}: ShellProps) {
+export function Shell({client, onRevoked, onPairOther, idleMinutes, onIdleMinutes, onTouch, onConnection, onAwayConnection, startTab = "chats", queue, cameraAsked = false, onCameraShown, vaultAsked = false, onVaultShown, homeAsked = 0}: ShellProps) {
   const [tab, setTab] = useState<Tab>(startTab);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [vaultOpen, setVaultOpen] = useState(false);
@@ -364,7 +377,7 @@ export function Shell({client, onRevoked, idleMinutes, onIdleMinutes, onTouch, o
           </View>
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
             {tab === "approvals" && <ApprovalsScreen client={client} onRevoked={onRevoked} />}
-            {tab === "status" && <StatusScreen client={client} idleMinutes={idleMinutes} onIdleMinutes={onIdleMinutes} onRevoked={onRevoked} onConnection={onConnection} onAwayConnection={onAwayConnection}
+            {tab === "status" && <StatusScreen client={client} idleMinutes={idleMinutes} onIdleMinutes={onIdleMinutes} onRevoked={onRevoked} onPairOther={onPairOther} onConnection={onConnection} onAwayConnection={onAwayConnection}
               captureSettings={<>
                 {openCamera ? <PrivateCaptureSettings waiting={queue.waiting} saving={queue.saving} onOpen={openCamera}>{capture?.getCompressionSettings() ? <CompressionSettings /> : null}</PrivateCaptureSettings> : null}
                 {openVault ? <VaultSettings onOpen={openVault} /> : null}

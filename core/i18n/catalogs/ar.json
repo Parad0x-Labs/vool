@@ -5686,9 +5686,14 @@
     "header.find_local_models": "البحث عن نماذج محلية",
     "header.find_local_models_hint": "نماذج مجانية تناسب هذا الحاسوب",
     "approval.target.event": "— {name}",
-    "vcs.detail.calendar_read": "قُرئ {when}"
+    "vcs.detail.calendar_read": "قُرئ {when}",
+    "phone.pair_other.title": "حاسوب مختلف",
+    "phone.pair_other.body": "هذا الرمز من حاسوب آخر، أو أُعيد إعداد VOOL عليه. هل تريد إقران هذا الهاتف به بدلًا من ذلك؟ ستتم إزالة الإقران الحالي لهذا الهاتف.",
+    "phone.pair_other.button": "الإقران بهذا الحاسوب",
+    "proof.route.local_away": "على حاسوبك المكتبي",
+    "proof.route.mixed_away": "حاسوبك المكتبي + عبر الإنترنت"
   },
-  "source_catalog_sha256": "ee7808a7b3aa8307a1950b15bd41b28e47cf746d604772ac059eb20301801700",
+  "source_catalog_sha256": "f06d8100ddb47dcaf9776638df49cb47e7e1798b24a1576dea19dccaa3b802b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

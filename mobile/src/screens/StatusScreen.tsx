@@ -17,6 +17,8 @@ import { isVoolPairingCode, parsePairingUri } from "../protocol/pairing.ts";
 interface Props {
   client: MobileCompanionClient;
   onRevoked: () => void | Promise<void>;
+  /** Drop this pairing and open the pair screen filled from a code of another computer. */
+  onPairOther?: (pairingUri: string) => Promise<void>;
   idleMinutes:number;
   onIdleMinutes:(value:number)=>Promise<void>;
   onConnection?: (address: string) => Promise<void>;
@@ -26,7 +28,7 @@ interface Props {
 }
 
 /** Current model, local/cloud status, Proof Chip, and the device's own standing. */
-export default function StatusScreen({ client, onRevoked, onConnection, onAwayConnection, idleMinutes, onIdleMinutes, captureSettings }: Props) {
+export default function StatusScreen({ client, onRevoked, onPairOther, onConnection, onAwayConnection, idleMinutes, onIdleMinutes, captureSettings }: Props) {
   const [snapshot, setSnapshot] = useState<StatusSnapshot | null>(null);
   const [device,setDevice]=useState<DeviceInfo|null>(null);
   const [proof, setProof] = useState<TurnProof | null>(null);
@@ -129,7 +131,15 @@ export default function StatusScreen({ client, onRevoked, onConnection, onAwayCo
         setScanning(false);
         if (parsed.fit !== "ok") {setError(fitText(parsed.fit)); return;}
         if (parsed.desktopFingerprint !== client.desktopFingerprint.toLowerCase()) {
-          setError(tr("The computer’s identity could not be verified. Check it before pairing again."));
+          // A code from another computer key (VOOL set up again there, or another computer) cannot move this
+          // pairing: the pinned key is the trust. Before (sls, 2026-11-27) this was a dead end that only
+          // "Unpair this phone" got out of. Now the person may choose to pair afresh with the scanned code,
+          // the same trust as a first pairing; the old pairing is dropped and the code fills the pair screen.
+          if (!onPairOther) {setError(tr("The computer’s identity could not be verified. Check it before pairing again.")); return;}
+          Alert.alert(tr("A different computer"), tr("This code is from another computer, or VOOL there was set up again. Pair this phone with it instead? This phone’s current pairing is removed."), [
+            {text: tr("Cancel"), style: "cancel", onPress: () => setError(tr("The computer’s identity could not be verified. Check it before pairing again."))},
+            {text: tr("Pair with this computer"), onPress: () => {void onPairOther(data).catch(() => setError(tr("Could not complete this. Check your computer.")));}},
+          ]);
           return;
         }
         const address = `http://${parsed.host}${parsed.port ? ":" + parsed.port : ""}`;

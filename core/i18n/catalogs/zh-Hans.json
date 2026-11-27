@@ -5686,9 +5686,14 @@
     "header.find_local_models": "查找本地模型",
     "header.find_local_models_hint": "适合这台电脑的免费模型",
     "approval.target.event": "：{name}",
-    "vcs.detail.calendar_read": "读取于 {when}"
+    "vcs.detail.calendar_read": "读取于 {when}",
+    "phone.pair_other.title": "另一台电脑",
+    "phone.pair_other.body": "此代码来自另一台电脑，或那里的 VOOL 已重新设置。改为将此手机与它配对？此手机当前的配对将被移除。",
+    "phone.pair_other.button": "与这台电脑配对",
+    "proof.route.local_away": "在你的台式电脑上",
+    "proof.route.mixed_away": "你的台式电脑 + 在线"
   },
-  "source_catalog_sha256": "ee7808a7b3aa8307a1950b15bd41b28e47cf746d604772ac059eb20301801700",
+  "source_catalog_sha256": "f06d8100ddb47dcaf9776638df49cb47e7e1798b24a1576dea19dccaa3b802b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

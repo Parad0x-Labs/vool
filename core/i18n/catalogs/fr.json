@@ -5686,9 +5686,14 @@
     "header.find_local_models": "Trouver des modèles locaux",
     "header.find_local_models_hint": "modèles gratuits adaptés à cet ordinateur",
     "approval.target.event": "— {name}",
-    "vcs.detail.calendar_read": "Lu {when}"
+    "vcs.detail.calendar_read": "Lu {when}",
+    "phone.pair_other.title": "Un autre ordinateur",
+    "phone.pair_other.body": "Ce code vient d’un autre ordinateur, ou VOOL y a été réinstallé. Associer ce téléphone à celui-ci ? L’association actuelle de ce téléphone sera supprimée.",
+    "phone.pair_other.button": "Associer à cet ordinateur",
+    "proof.route.local_away": "Sur votre ordinateur de bureau",
+    "proof.route.mixed_away": "Votre ordinateur de bureau + en ligne"
   },
-  "source_catalog_sha256": "ee7808a7b3aa8307a1950b15bd41b28e47cf746d604772ac059eb20301801700",
+  "source_catalog_sha256": "f06d8100ddb47dcaf9776638df49cb47e7e1798b24a1576dea19dccaa3b802b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
