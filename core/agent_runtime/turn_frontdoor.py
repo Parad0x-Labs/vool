@@ -195,6 +195,15 @@ def closed_semantic_contract_covers_turn(
     ) is not None
 
 
+def _judged_a_recall(text: str) -> bool:
+    try:
+        from core import plugin_ask
+
+        return plugin_ask.judged_memory_ask(str(text or "")) == "recall"
+    except Exception:
+        return False
+
+
 def _memory_recall_has_priority(
     query_text: str,
     *,
@@ -209,6 +218,12 @@ def _memory_recall_has_priority(
     that was actually selected.
     """
     lowered = " ".join(str(query_text or "").casefold().split())
+    if _judged_a_recall(query_text):
+        # The turn's judge settled the message as a recall of something the person told, whatever clock words it
+        # holds (a recall beside the clock's own reading of the time now is dropped before this: core.plugin_ask).
+        # iMac gate56 on 3382964ea: "and what time again?" after "when is <niece>'s play?" was judged a recall, and
+        # the clock answered "Current time is 00:16 EET."
+        return True
     if not any(
         marker in lowered
         for marker in (
