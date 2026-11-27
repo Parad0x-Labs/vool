@@ -5635,9 +5635,12 @@
     "spend_card.title": "Limites de gastos para modelos pagos",
     "spend_card.body": "Você já pode usar modelos online pagos. O VOOL os mantém em {daily} por dia e {monthly} por mês e nunca envia uma resposta paga além de um limite. Você pode definir seus próprios limites.",
     "spend_card.set": "Definir meus limites",
-    "spend_card.keep": "Manter estes"
+    "spend_card.keep": "Manter estes",
+    "header.run_last_answer": "última resposta de {model}",
+    "header.run_local_loaded": "em execução agora",
+    "header.run_local_last_reply": "escreveu a última resposta"
   },
-  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
+  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

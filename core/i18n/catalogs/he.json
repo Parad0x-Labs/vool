@@ -5635,9 +5635,12 @@
     "spend_card.title": "מגבלות הוצאה למודלים בתשלום",
     "spend_card.body": "אפשר עכשיו להשתמש במודלים מקוונים בתשלום. VOOL שומר אותם על {daily} ליום ו-{monthly} לחודש, ולעולם לא שולח תשובה בתשלום מעבר למגבלה. אפשר לקבוע מגבלות משלך.",
     "spend_card.set": "לקבוע את המגבלות שלי",
-    "spend_card.keep": "להשאיר את אלה"
+    "spend_card.keep": "להשאיר את אלה",
+    "header.run_last_answer": "התשובה האחרונה מ-{model}",
+    "header.run_local_loaded": "פועל עכשיו",
+    "header.run_local_last_reply": "כתב את התשובה האחרונה"
   },
-  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
+  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

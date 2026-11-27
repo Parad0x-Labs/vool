@@ -2395,12 +2395,22 @@ def _dispatch_get(
                 inventory = installed_ollama_model_inventory(timeout_seconds=5.0)
             except Exception:
                 inventory = []
+            # Which of them the local server holds in memory right now (`ollama ps`): the model
+            # that is running, and the one using this computer's memory. A read only; nothing is
+            # loaded or unloaded by asking. An unreadable answer marks none as loaded.
+            try:
+                from core.local_ollama_inventory import loaded_ollama_model_names
+
+                loaded_now = set(loaded_ollama_model_names(timeout_seconds=2.0))
+            except Exception:
+                loaded_now = set()
             for item in inventory:
                 if not is_text_generation_ollama_model(item.name):
                     continue
                 manifest = registry.get_manifest("ollama-local", item.name)
                 entry: dict[str, Any] = {
                     "model_name": item.name,
+                    "loaded": item.name in loaded_now,
                     # Decimal GB, as Ollama and the Download button count it, so the model the
                     # button fetched shows the size it said (3.3 GB, not 3.1 "GB" of GiB).
                     "size_gb": round(float(item.size_bytes or 0) / 1e9, 1),

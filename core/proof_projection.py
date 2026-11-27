@@ -456,6 +456,7 @@ def _timeline_of(turn_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _projection_of_events(turn_events: list[dict[str, Any]]) -> dict[str, Any]:
     """Model/provider, cost, source and lookup readings from the turn's OWN event rows."""
     model = ""
+    answer_model = ""
     provider = ""
     tokens: int | None = None
     usage_details: list[dict[str, Any]] = []
@@ -518,6 +519,13 @@ def _projection_of_events(turn_events: list[dict[str, Any]]) -> dict[str, Any]:
             candidate = _clean(event.get("model_id")) or _clean(event.get("model_name"))
             if event_type.startswith("model_") and candidate:
                 model = candidate
+        if event_type == "model_lane_completed":
+            # The lane whose output the turn went on with. The first model row above may be a
+            # lane that was only selected, or one that failed over; the reply was written by the
+            # lane that completed last.
+            candidate = _clean(event.get("model_id")) or _clean(event.get("selected_model"))
+            if candidate:
+                answer_model = candidate
         if not provider:
             candidate = _clean(event.get("provider_id"))
             if event_type.startswith("model_") and candidate:
@@ -676,6 +684,7 @@ def _projection_of_events(turn_events: list[dict[str, Any]]) -> dict[str, Any]:
     elapsed_ms = _iso_ms(min(stamps), max(stamps)) if len(set(stamps)) >= 2 else None
     return {
         "model": model,
+        "answer_model": answer_model,
         "provider": provider,
         "tokens": (sum(int(d["input_tokens"]) + int(d["output_tokens"]) for d in usage_details)
                    if usage_details and all(d.get("input_tokens") is not None and d.get("output_tokens") is not None for d in usage_details)
@@ -689,6 +698,28 @@ def _projection_of_events(turn_events: list[dict[str, Any]]) -> dict[str, Any]:
         "elapsed_ms": elapsed_ms,
         "timeline": _timeline_of(turn_events),
     }
+
+
+def _answered_by(answer_model: str, route: dict[str, Any]) -> str:
+    """The one model that wrote this reply: the lane that completed last, else the one model the
+    turn sent anything to (a reply the runtime composed from one model's reading of the ask).
+    Two or more models and no completed lane name no one, rather than picking one of them."""
+    named = _bare_model(answer_model)
+    if named:
+        return named
+    models = {_bare_model(str(call.get("model") or "")) for call in route.get("calls") or [] if isinstance(call, dict)}
+    models.discard("")
+    return next(iter(models)) if len(models) == 1 else ""
+
+
+def _bare_model(model_id: str) -> str:
+    """A model id as the person installed it: the local server's registration prefix is not part
+    of its name (`ollama-local:qwen3:8b` and `qwen3:8b` are the same weights)."""
+    text = _clean(model_id)
+    for prefix in ("ollama-local:", "ollama:"):
+        if text.startswith(prefix):
+            return text[len(prefix):]
+    return text
 
 
 def build_turn_proof(
@@ -830,6 +861,7 @@ def build_turn_proof(
 
     # Where this answer was processed, from the turn's own dispatch receipts (core.answer_route).
     route = route_of_events(turn_events)
+    answered_by = _answered_by(projections["answer_model"], route)
     from core.action_receipts import receipts_of_events
 
     # What each consequential action did, read from its own result and checked (core.action_receipts).
@@ -889,6 +921,9 @@ def build_turn_proof(
             "coverage": projections["coverage"],
             "action_receipts": _redact_tree(action_receipts),
             "spend": spend,
+            # The model that wrote this reply, said beside the answer itself so a person never has
+            # to open the record to learn it. "" when the record cannot name one model.
+            "model": _redact_text(answered_by),
             "route": {
                 "summary": route["summary"],
                 "own_network": any(row["where"] == "own_network" for row in route["calls"]),

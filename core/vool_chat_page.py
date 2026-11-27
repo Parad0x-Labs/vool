@@ -156,6 +156,8 @@ img.chat-img:hover { border-color:var(--accent); }
 .proof-chip-head:hover { color:var(--ink); border-color:var(--accent); }
 .proof-chip .pc-state { font-weight:700; letter-spacing:.4px; }
 .proof-chip .pc-route { font-weight:600; color:var(--ink); }
+.proof-chip .pc-model { font-weight:600; color:var(--ink); }
+.pop-item.is-loaded .pi-hint::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--ok); margin-inline-end:5px; vertical-align:middle; }
 .act-receipts { display:flex; flex-direction:column; gap:4px; margin:6px 0; }
 .spend-alert { margin:6px 0; }
 .spend-alert-line { font-size:12.5px; color:var(--ink); border-left:3px solid var(--warn); padding:3px 9px; }
@@ -2367,6 +2369,8 @@ function chatState(chatId) {
 // painted and which chat a NEW turn starts in -- never which chat an already-running turn belongs
 // to. Both are reassigned ONLY by setDisplayedChat().
 let displayedChat = '';
+// Per chat: the model that wrote its newest reply finished on this page (the proof chip names it).
+const lastAnswerModel = {};
 let view = chatState('');
 function setDisplayedChat(chatId) {
   const previousChat = displayedChat;
@@ -5882,6 +5886,16 @@ async function mountProofChip(host, chatId, requestId, presentationSelection, fi
   // Where this answer was processed, read from the turn's own send receipts (core/answer_route.py).
   // A summary the page does not know renders nothing: the chip never guesses a route.
   const routeWord = proofRouteWord((typeof compact.route === 'object' && compact.route) || null);
+  // Which model wrote this reply, by the name it is installed under. The server names one model
+  // or none; the page never picks one from a list.
+  const answeredBy = typeof compact.model === 'string' ? compact.model.trim() : '';
+  if (answeredBy) {
+    head.appendChild(seg('pc-model', answeredBy));
+    head.appendChild(seg('pc-sep', '·'));
+    // The model that wrote the newest finished reply of a chat is what Auto used last there; the
+    // model menu says so (`paintAutoLastAnswer`).
+    if (finished === true && chatId) { lastAnswerModel[chatId] = answeredBy; if (chatId === displayedChat) paintAutoLastAnswer(); }
+  }
   if (routeWord) {
     head.appendChild(seg('pc-route pc-route-' + String(compact.route.summary), routeWord));
     head.appendChild(seg('pc-sep', '·'));
@@ -11891,14 +11905,36 @@ function reflectModel() {
     const auto = modelValue === 'vool' || isLocalOnlyMode();
     autoRow.setAttribute('aria-checked', auto ? 'true' : 'false');
     const check = autoRow.querySelector('.pi-check'); if (check) check.textContent = auto ? '✓' : '';
-    const hint = autoRow.querySelector('.pi-hint');
-    if (hint) hint.textContent = isOfflineMode() ? pageT('header.run_offline_hint', 'nothing goes online') : isLocalOnlyMode() ? pageT('header.run_computer_only_hint', 'no cloud AI') : pageT('header.model_auto_hint', 'local-first · free');
   }
+  paintAutoLastAnswer();
   paintRunModeNote();
   if (isLocalOnlyMode()) renderSelectionProvenance(null);
   renderConnections(lastConnectionRows || []);
   syncModelConnectionTitle();
 
+}
+// The Auto row's hint: the run mode in a few words, then the model that wrote this chat's newest
+// reply, and on each local row whether it is that model. Auto picks per message, so this names what
+// it used, never what it will use next.
+function paintAutoLastAnswer() {
+  const autoRow = document.querySelector('#modelPop .pop-item[data-model="vool"]');
+  const hint = autoRow && autoRow.querySelector('.pi-hint');
+  const last = lastAnswerModel[displayedChat] || '';
+  if (hint) {
+    const mode = isOfflineMode() ? pageT('header.run_offline_hint', 'nothing goes online') : isLocalOnlyMode() ? pageT('header.run_computer_only_hint', 'no cloud AI') : pageT('header.model_auto_hint', 'local-first · free');
+    hint.textContent = last ? mode + ' · ' + pageTF('header.run_last_answer', 'last reply by {model}', { model: last }) : mode;
+  }
+  document.querySelectorAll('#modelPop .pop-item.local-dyn[data-model]').forEach((row) => {
+    const h = row.querySelector('.pi-hint');
+    if (h) h.textContent = localRowHint(row.getAttribute('data-model'), row.classList.contains('is-loaded'));
+  });
+}
+function localRowHint(id, loaded) {
+  const words = [];
+  if (loaded) words.push(pageT('header.run_local_loaded', 'running now'));
+  if (id && lastAnswerModel[displayedChat] === id) words.push(pageT('header.run_local_last_reply', 'wrote the last reply'));
+  words.push(pageT('header.run_local_pin', 'on this computer · free · exact pin'));
+  return words.join(' · ');
 }
 // Keep an open popover inside the visible window. Measured before the fix at a 900x620 window: the
 // model popover rendered 754px tall with its top 256px ABOVE the viewport, so VOOL Auto and the
@@ -12431,13 +12467,14 @@ function pinLocalModel(id, rowEl) {
 function makeLocalRow(m) {
   const it = document.createElement('button');
   it.type = 'button';
-  it.className = 'pop-item local-dyn';
+  it.className = 'pop-item local-dyn' + (m.loaded ? ' is-loaded' : '');
   it.setAttribute('role', 'menuitemradio');
   it.setAttribute('aria-checked', modelValue === m.id ? 'true' : 'false');
   it.setAttribute('data-model', m.id);
   const chk = document.createElement('span'); chk.className = 'pi-check'; chk.textContent = modelValue === m.id ? '✓' : '';
   const body = document.createElement('span'); body.className = 'pi-body'; body.textContent = m.name;
-  const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = pageT('header.run_local_pin', 'on this computer · free · exact pin');
+  // A model the local server holds in memory now is the one running: its row says so (`ollama ps`).
+  const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = localRowHint(m.id, !!m.loaded);
   body.appendChild(hint);
   it.appendChild(chk); it.appendChild(body);
   it.addEventListener('click', (e) => { e.stopPropagation(); pinLocalModel(m.id, it); });
@@ -12461,14 +12498,17 @@ async function renderLocalModels() {
   // counts: one /api/models/local reports as installed, or a tags row that is not the synthetic
   // runtime entry. An unreachable inventory proves nothing, so it adds nothing.
   let installed = new Set();
+  let loadedNow = new Set();
   try {
     const r2 = await fetch('/api/models/local');
     const inv = r2.ok ? await r2.json() : null;
     (inv && Array.isArray(inv.models) ? inv.models : []).forEach((m) => {
       const n = m && String(m.model_name || m.name || '').trim();
-      if (n) installed.add(n.indexOf('ollama-local:') === 0 ? n.slice('ollama-local:'.length) : n);
+      const bare = n && (n.indexOf('ollama-local:') === 0 ? n.slice('ollama-local:'.length) : n);
+      if (bare) installed.add(bare);
+      if (bare && m.loaded === true) loadedNow.add(bare);
     });
-  } catch (e) { installed = new Set(); }
+  } catch (e) { installed = new Set(); loadedNow = new Set(); }
   const synthetic = (m) => m && m.digest === 'vool-runtime' && !Number(m.size || 0);
   const names = (data && Array.isArray(data.models)) ? data.models.map((m) => {
     const n = m && (m.name || m.model);
@@ -12478,6 +12518,7 @@ async function renderLocalModels() {
   }) : [];
   installed.forEach((n) => names.push(n));
   const rows = localModelRows(names);
+  rows.forEach((m) => { m.loaded = loadedNow.has(m.id); });
   localModelIds = new Set(rows.map((m) => m.id));
   try { localStorage.setItem('vool_local_models', JSON.stringify([...localModelIds])); } catch (e) {}
   document.querySelectorAll('#modelPop .local-dyn').forEach((n) => n.remove());

@@ -5635,9 +5635,12 @@
     "spend_card.title": "Ücretli modeller için harcama sınırları",
     "spend_card.body": "Artık ücretli çevrimiçi modelleri kullanabilirsiniz. VOOL bunları günde {daily} ve ayda {monthly} ile sınırlar ve bir sınırı aşan ücretli bir yanıtı asla göndermez. Kendi sınırlarınızı belirleyebilirsiniz.",
     "spend_card.set": "Sınırlarımı belirle",
-    "spend_card.keep": "Bunları koru"
+    "spend_card.keep": "Bunları koru",
+    "header.run_last_answer": "son yanıt: {model}",
+    "header.run_local_loaded": "şu an çalışıyor",
+    "header.run_local_last_reply": "son yanıtı yazdı"
   },
-  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
+  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

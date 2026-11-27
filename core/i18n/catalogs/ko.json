@@ -5635,9 +5635,12 @@
     "spend_card.title": "유료 모델 지출 한도",
     "spend_card.body": "이제 유료 온라인 모델을 사용할 수 있습니다. VOOL은 하루 {daily}, 한 달 {monthly}까지로 제한하며, 한도를 넘는 유료 답변은 절대 보내지 않습니다. 직접 한도를 정할 수 있습니다.",
     "spend_card.set": "내 한도 정하기",
-    "spend_card.keep": "그대로 두기"
+    "spend_card.keep": "그대로 두기",
+    "header.run_last_answer": "마지막 답변: {model}",
+    "header.run_local_loaded": "지금 실행 중",
+    "header.run_local_last_reply": "마지막 답변을 작성함"
   },
-  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
+  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

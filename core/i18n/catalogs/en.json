@@ -5635,7 +5635,10 @@
     "spend_card.title": "Spending limits for paid models",
     "spend_card.body": "You can use paid online models now. VOOL keeps them to {daily} a day and {monthly} a month, and never sends a paid answer past a limit. You can set your own limits.",
     "spend_card.set": "Set my limits",
-    "spend_card.keep": "Keep these"
+    "spend_card.keep": "Keep these",
+    "header.run_last_answer": "last reply by {model}",
+    "header.run_local_loaded": "running now",
+    "header.run_local_last_reply": "wrote the last reply"
   },
   "html_keys": [
     "bypass.modal_limits",

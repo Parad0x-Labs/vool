@@ -5635,9 +5635,12 @@
     "spend_card.title": "有料モデルの利用上限",
     "spend_card.body": "有料のオンラインモデルを使えるようになりました。VOOL は 1 日 {daily}、1 か月 {monthly} までに抑え、上限を超える有料の回答は送りません。上限はご自身で設定できます。",
     "spend_card.set": "上限を設定する",
-    "spend_card.keep": "このままにする"
+    "spend_card.keep": "このままにする",
+    "header.run_last_answer": "前回の返信: {model}",
+    "header.run_local_loaded": "実行中",
+    "header.run_local_last_reply": "前回の返信を書いたモデル"
   },
-  "source_catalog_sha256": "893fe6ae3675f3e2335266db35b260b362db1fcc34a459dcf65e398c52e6ab92",
+  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
