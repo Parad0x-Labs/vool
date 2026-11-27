@@ -632,6 +632,16 @@ def judged_builtin_seats(text: str) -> tuple[str, ...]:
     return tuple(seats)
 
 
+def judged_not_asked(text: str) -> frozenset[str]:
+    """The tools of the built-in choices the turn's judge read this text against and did not pick (nor seated beside a
+    pick); empty when nothing judged it. A tool no choice names is not in it: the judge was never asked about that
+    one. Read only."""
+    if not judged_at_all(text):
+        return frozenset()
+    shown = {intent for _key_, _description, seats in BUILTIN_CHOICES for intent in seats}
+    return frozenset(shown - set(judged_builtin_seats(text)))
+
+
 def _previous_request(text: str, source_context: dict[str, Any]) -> str:
     current = _key(text)
     earlier = [

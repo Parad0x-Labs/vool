@@ -505,6 +505,18 @@ def routed_intents(
             return ()
     except Exception:
         own = None
+    # The turn's judge read the whole message against the descriptions of VOOL's own tools (reminders, calendar, notes,
+    # the web ...), in any language. A tool it was shown and did not pick is not asked for, and a card's nearness by
+    # words or meaning does not overrule that reading for the same tool. iMac on a6a5f29b7 (qwen3:8b, Manual mode):
+    # "morning! hope your weekend was a good one" met the agenda card by meaning, released the tool lane, and the
+    # round raised an approval card for a calendar read. A tool no choice names keeps its card: the judge never
+    # said anything about it.
+    try:
+        from core import plugin_ask
+
+        not_asked = plugin_ask.judged_not_asked(text)
+    except Exception:
+        not_asked = frozenset()
     if own is not None:
         text = own
     if not str(text or "").strip():
@@ -515,6 +527,8 @@ def routed_intents(
         return ()
     out: list[CardMatch] = []
     for match in matches:
+        if match.intent in not_asked:
+            continue
         if not match.by_meaning and match.score < WORDS_ONLY_RELEASE_SCORE:
             # Word overlap alone is not evidence of an ask: "what are the notes of a C major chord?"
             # shares "notes" with save_note at 0.45 and "any events in Berlin this weekend?" shares
