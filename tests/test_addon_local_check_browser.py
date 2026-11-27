@@ -104,8 +104,8 @@ def test_local_check_beside_eyebrow_in_served_browser(rig, hostile_bundled, monk
         page.locator('#homeToggle').click()
         page.get_by_role('button', name='Skills & Plugins', exact=True).click()
         page.locator('#addonNav').get_by_role('button', name='Browse', exact=True).click()
-        page.get_by_role('button', name='View add-on').wait_for()
-        page.get_by_role('button', name='View add-on').click()
+        page.locator('.addon-card-open').wait_for()
+        page.locator('.addon-card-open').click()
         # The local check is offered beside the Eyebrow scan, attributed as VOOL's own.
         local = page.locator('.addon-localcheck')
         local.get_by_role('button', name='Run local check', exact=True).wait_for()
@@ -155,7 +155,7 @@ def test_local_check_beside_eyebrow_in_served_browser(rig, hostile_bundled, monk
         page.screenshot(path=str(tmp_path / 'both-scanners-attributed.png'))
         # Back to list and reopen: the saved local report survives without re-scanning.
         page.get_by_role('button', name='← Back to list', exact=True).click()
-        page.get_by_role('button', name='View add-on', exact=True).click()
+        page.locator('.addon-card-open').click()
         page.locator('.addon-localcheck').get_by_role('button', name='Run local check again', exact=True).wait_for()
         assert calls.count('local_check') == 1, 'reopen shows the saved report, not a new scan'
         # A scanner build change retires the saved advisory report as a recheck ask,
@@ -167,7 +167,7 @@ def test_local_check_beside_eyebrow_in_served_browser(rig, hostile_bundled, monk
         page.reload(wait_until='domcontentloaded')
         page.evaluate('window.VoolPageActions.openSkills()')
         page.get_by_text('Saved scans to review (1)', exact=True).wait_for()
-        page.get_by_role('button', name='View add-on', exact=True).click()
+        page.locator('.addon-card-open').click()
         page.get_by_text('Check again — scanner updated.', exact=False).wait_for()
         assert page.locator('.addon-localcheck').get_by_role('button', name='Run local check', exact=True).count() == 1
         page.screenshot(path=str(tmp_path / 'local-check-scanner-updated.png'))
@@ -180,7 +180,7 @@ def test_local_check_beside_eyebrow_in_served_browser(rig, hostile_bundled, monk
         monkeypatch.setattr(addon_store, 'CATALOG', [changed])
         page.reload(wait_until='domcontentloaded')
         page.evaluate('window.VoolPageActions.openSkills()')
-        page.get_by_role('button', name='View add-on', exact=True).click()
+        page.locator('.addon-card-open').click()
         page.get_by_text('The add-on source changed since this local check.', exact=False).wait_for()
         assert page.locator('.addon-localcheck').get_by_role('button', name='Run local check', exact=True).count() == 1
         page.screenshot(path=str(tmp_path / 'local-check-stale.png'))

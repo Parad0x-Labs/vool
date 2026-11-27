@@ -146,17 +146,17 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
         page.get_by_role('button', name='Skills & Plugins', exact=True).click()
         if delayed_catalog:
             page.wait_for_function('window.catalogConsumed === true')
-            assert page.get_by_role('button', name='View add-on', exact=True).count() == 0
+            assert page.locator('.addon-card-open').count() == 0
             assert page.locator('#pluginsBody').inner_text() == 'Loading…'
             assert not calls, 'partial hydration must not expose a review or installation decision'
             release_catalog.set()
         assert page.locator('#pluginsTitle').inner_text() == 'Skills & Plugins'
         page.locator('#addonNav').get_by_role('button', name='Browse', exact=True).click()
-        page.get_by_role('button', name='View add-on').wait_for()
+        page.locator('.addon-card-open').wait_for()
         if bundled:
             assert page.locator('#pluginsBody .addon-card').count() == 1
             page.get_by_role('button',name='Show all',exact=True).click()
-            page.locator('.addon-card').filter(has_text='Unsupported example').get_by_role('button',name='View add-on').click()
+            page.locator('.addon-card').filter(has_text='Unsupported example').click()
             assert page.get_by_text('Not supported yet',exact=True).is_visible()
             assert page.get_by_role('button',name='Check compatibility',exact=True).count() == 0
             assert not calls and not rig[2]
@@ -165,7 +165,7 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
         page.locator('#pluginsSearch').fill('FRONTEND_design')
         assert page.locator('#pluginsBody .addon-card').count() == 1
         page.get_by_role('button', name='Coding', exact=True).click()
-        page.get_by_role('button', name='View add-on').click()
+        page.locator('.addon-card-open').click()
         page.get_by_role('button', name='Run installation checks' if bundled else 'Download and scan').click()
         assert not rig[2], 'choosing an entry must not silently consume a scan'
         page.get_by_role('button', name='Run one scan').click()
@@ -251,7 +251,7 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
         page.locator('#pluginsSearch').fill('python skills')
         page.get_by_role('button', name='Search GitHub', exact=True).click()
         page.get_by_role('button', name='Explore skills', exact=True).click()
-        page.get_by_role('button', name='View add-on', exact=True).click()
+        page.locator('.addon-card-open').click()
         page.get_by_role('button', name='Check compatibility', exact=True).click()
         page.get_by_role('button', name='Download and scan', exact=True).wait_for()
         assert calls.count('github_search') == 1
