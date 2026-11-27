@@ -457,6 +457,10 @@ def test_the_memory_question_is_asked_beside_any_tool_pick(monkeypatch, case):
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: second)
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "no" if second == "forget" else "yes")
+    # The tool's own question confirms the pick here: what a pick its own question turns down leaves behind is
+    # tests/test_a_tool_pick_beside_a_told_fact_must_be_confirmed_or_the_fact_is_kept.py.
+    for confirm in ("arbitrate_contact_ask", "arbitrate_reminder_ask", "arbitrate_choice_ask"):
+        monkeypatch.setattr(intent_arbiter, confirm, lambda *_a, **_k: "yes")
     text = f"zinute {case}: kur laikau savo palapine?"
     plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
     assert plugin_ask.judged_builtins(text) == keys
