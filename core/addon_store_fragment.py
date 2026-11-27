@@ -22,7 +22,7 @@ def render_addon_store_fragment() -> str:
 .addon-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 20px}
 .addon-controls button,.addon-controls select,.addon-actions button,.addon-linkbtn,.addon-card button,.addon-review button,#pluginsBody>button.addon-primary{background:var(--panel,#171b22);color:inherit;border:1px solid var(--border,#38414b);padding:9px 13px;border-radius:4px;cursor:pointer;font:inherit;font-size:12px}
 .addon-controls button[aria-pressed=true]{background:var(--fg,#eee);color:var(--bg,#111);border-color:transparent}
-.addon-controls select{margin-left:auto}.media-studio-card{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:12px;padding:14px 16px;background:var(--panel);color:var(--ink)}.media-studio-card a{font-weight:600;color:var(--accent)}.media-studio-card .p-desc{margin:0;flex:1 1 240px}
+.addon-controls select{margin-left:auto}.media-studio-card{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:12px;padding:14px 16px;background:var(--panel);color:var(--ink)}.media-studio-card a,a.media-studio-open{font-weight:600;color:var(--accent);font-size:13px}.media-studio-card .p-desc{margin:0;flex:1 1 240px}
 .addon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .addon-card{border:1px solid var(--border,#38414b);border-radius:6px;padding:20px;background:var(--panel,#171b22);min-width:0;display:flex;flex-direction:column;gap:12px}
 .addon-card:hover{border-color:var(--muted)}.addon-card-open{cursor:pointer}.addon-card-open:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.addon-card h3{margin:0;font-size:16px;letter-spacing:-.2px}.addon-card p{margin:0;line-height:1.55;font-size:13px;color:var(--muted)}
@@ -63,6 +63,8 @@ def render_addon_store_fragment() -> str:
 .vl-card-main{min-width:0;display:flex;flex-direction:column;gap:6px}.vl-card-main h3{font-size:var(--vl-t-lg);margin:0;overflow-wrap:anywhere}.vl-card-main .team-badge-row{margin-left:0}
 .addon-card small.vl-byline,.vl-byline{display:block;font-size:var(--vl-t-sm);color:var(--vl-ink-2);margin:0;overflow-wrap:anywhere}
 .addon-card p.vl-tagline{font-size:var(--vl-t-md);line-height:var(--vl-lh);color:var(--vl-ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+/* Media Studio is not a listing, but it looks like one. */
+.studio-card{border:1px solid var(--border,#38414b);border-radius:6px;padding:20px;background:var(--panel,#171b22);min-width:0;display:flex;flex-direction:column;gap:12px}.studio-card:hover{border-color:var(--muted)}.studio-card h3{margin:0;font-size:16px;letter-spacing:-.2px}.studio-card small.vl-byline{display:block;font-size:var(--vl-t-sm);color:var(--vl-ink-2);margin:0}.studio-card p.vl-tagline{margin:0;font-size:var(--vl-t-md);line-height:var(--vl-lh);color:var(--vl-ink-2)}
 .vl-card-meta{display:flex;flex-wrap:wrap;gap:6px var(--vl-s3);font-size:var(--vl-t-sm);color:var(--vl-ink-2)}.vl-card-meta p{margin:0}
 .vl-notice{margin:0;padding:9px 12px;border:1px solid var(--vl-line);border-radius:var(--vl-r-sm);font-size:var(--vl-t-sm);line-height:var(--vl-lh);color:var(--vl-ink)}
 .vl-detail{max-width:720px;color:var(--vl-ink)}.vl-detail-head{display:grid;grid-template-columns:var(--vl-tile-detail) minmax(0,1fr);gap:var(--vl-s4);align-items:start}.vl-detail-head .addon-icon{width:var(--vl-tile-detail);height:var(--vl-tile-detail);border-radius:var(--vl-r-tile)}
@@ -137,7 +139,7 @@ const kindLabel=kind=>kind==='plugin'?tr('codex_plugin_kind_plugin','Plugin'):tr
 const byMaker=name=>fill(tr('listing_by','by {publisher}'),{publisher:String(name||'')});
 function cardTop(picture,name,byline,e,nameId){
  const top=node('div',undefined,'addon-card-head vl-card-top'),main=node('div',undefined,'vl-card-main'),h=node('h3',name);if(nameId)h.id=nameId;
- const line=byline instanceof Node?byline:node('small',byline,'vl-byline');line.classList.add('vl-byline');main.append(h,line);
+ const line=byline&&typeof byline==='object'&&byline.nodeType?byline:node('small',byline,'vl-byline');line.classList.add('vl-byline');main.append(h,line);
  const chips=teamBadges(e);if(chips.length){const row=node('span',undefined,'team-badge-row');row.append(...chips);main.append(row);}
  top.append(picture,main);return top;
 }
@@ -275,9 +277,9 @@ function render(query){
  // skills panel: first-party, present whether or not anything is installed, hidden only when a
  // search does not name it (same words the old card matched on).
  if(!query||key('media studio editor video audio image tool').includes(key(query))){
-  const card=node('article',undefined,'media-studio-card');
-  const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3','Media Studio'),brand('VOOL','small','built-in'));head.append(name);card.append(head,node('p','Cut, trim and export media in a dedicated editor window.'));
-  const a=document.createElement('a');a.className='media-studio-open';a.href='/media-editor';a.target='_blank';a.rel='noopener';a.title='Open the Media Studio editor in a dedicated window';a.textContent='Open Media Studio';card.append(a);grid.append(card);
+  const card=node('article',undefined,'studio-card');
+  const maker=node('small',kindLabel('plugin')+' · ');maker.append(brand('VOOL','span','built-in'));card.append(cardTop(node('span','▶','addon-icon'),'Media Studio',maker,{}),node('p','Cut, trim and export media in a dedicated editor window.','vl-tagline'));
+  const a=document.createElement('a');a.className='media-studio-open';a.href='/media-editor';a.target='_blank';a.rel='noopener';a.title='Open the Media Studio editor in a dedicated window';a.textContent='Open Media Studio';const foot=node('div',undefined,'addon-card-footer');foot.append(a);card.append(foot);grid.append(card);
  }if(!rows.length)grid.append(node('p',availability==='ready'?tr('no_ready','No compatible skills match. Choose All listed skills to see what needs support.'):tr('no_results','No matching add-ons.')));
  rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const maker=node('small',kindLabel('skill')+' · ');maker.append(brand(e.publisher,'span',e.ecosystem));card.append(cardTop(icon(e),listingTitle(e),maker,e),node('p',e.description,'vl-tagline'));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Compatible with VOOL'))));card.append(foot);openableCard(card,listingTitle(e),()=>{selected=e;refresh();});installedState(card,e);grid.append(card);});
  if(rows.length>limit)host.append(button(tr('show_more','Show more')+' ('+(rows.length-limit)+')',()=>{limit+=24;refresh();},'addon-linkbtn'));
