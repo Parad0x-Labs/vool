@@ -442,15 +442,22 @@ def _memory_kind_confirmed(
         if asked("reminder", intent_arbiter.arbitrate_reminder_ask) == "yes":
             _log.info("memory kind judged: %s read as a reminder order", ",".join(sorted(named)))
             return ("reminders",)
-    if not decided and not tools and kind == "keep" and not picked:
-        # The memory question alone read a keep and the tool judgement picked nothing: "zapamiętaj proszę: moja
+    one_keep_reading = (kind == "keep" and not picked) or (picked == {"keep"} and kind not in {"keep", "recall", "forget"})
+    if not decided and not tools and one_keep_reading:
+        # One reading alone named a keep and the other named no memory ask. Either way round the same second reading
+        # decides. Memory question keep, tool judgement nothing: "zapamiętaj proszę: moja
         # sąsiadka Ewa ma kota o imieniu Mruczek" was not kept and the model's "I'll remember that" was corrected to
         # "I did not write anything to memory" (iMac gate on 95fae99a0). One reading alone kept three accentless
         # Lithuanian forgets as facts (probe of 32f3c9e38), so a second reading decides: the message tells a fact and
-        # is no forget order.
+        # is no forget order. Tool judgement keep, memory question none: "fyi my neighbour Rasa is training for a half
+        # marathon in March" (iMac gate52 on a6a5f29b7, qwen3.5:9b) was answered as chat, nothing kept, and a new chat
+        # said "I don't have that saved".
         if (asked("told as fact", intent_arbiter.arbitrate_told_as_fact) == "yes"
                 and asked("forget", intent_arbiter.arbitrate_forget_order) != "yes"):
             picked.add("keep")
+            kind = "keep"
+        else:
+            picked.discard("keep")
     if not decided and not tools and kind == "keep" and "keep" in picked:
         if _continues_a_contact_save(text, source_context):
             _log.info("memory kind judged: keep read as the contact save before it continued")
