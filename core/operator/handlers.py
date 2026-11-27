@@ -1278,22 +1278,16 @@ def handle_schedule_reminder(
     )
     wall = format_due_time(when.due_at_utc, when.tz_name, when.due_wall)
     repeat_line = {
-        "daily": " It repeats every day at the same local time; each occurrence is its own reminder you can cancel.",
-        "weekdays": (
-            " It repeats every weekday, Monday to Friday, at the same local time; each occurrence is its own "
-            "reminder you can cancel."
-        ),
-        "weekly": " It repeats every week at the same local time; each occurrence is its own reminder you can cancel.",
+        "daily": " It repeats every day.",
+        "weekdays": " It repeats every weekday, Monday to Friday.",
+        "weekly": " It repeats every week.",
     }.get(repeat_every, "")
+    # One plain line (sls, Telegram 2026-11-27): what, when, and how often. The id stays in the details and in
+    # "list my reminders", which is where a cancel or move reads it; a confirmation is not where a person needs it.
     return OperatorActionResult(
         ok=True,
         status="executed",
-        response_text=(
-            f"Reminder scheduled: {note}. Due {wall}. "
-            "It will appear in this chat while VOOL is running; overdue reminders appear next time it runs. "
-            f"Cancel it any time before then (reminder id {record['reminder_id'][:8]})."
-            + repeat_line
-        ),
+        response_text=f"Reminder set: {note}, {wall}." + repeat_line,
         details={
             "reminder_id": record["reminder_id"],
             "due_at_utc": when.due_at_utc,

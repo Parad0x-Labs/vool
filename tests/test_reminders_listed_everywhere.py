@@ -89,6 +89,18 @@ def _listed_lines(response_text: str) -> list[str]:
 
 # ------------------------------------------------------------------ handler: owner-wide listing
 
+@pytest.fixture(autouse=True)
+def computer_clock_utc(monkeypatch):
+    """The computer's own clock is UTC, so a UTC due time is said without its zone (core.operator.when)."""
+    import time
+
+    monkeypatch.setenv("TZ", "UTC")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
 def test_listing_from_another_chat_shows_every_pending_row_soonest_due_first():
     from core.operator.handlers import handle_list_reminders
 
@@ -107,9 +119,9 @@ def test_listing_from_another_chat_shows_every_pending_row_soonest_due_first():
     # The handler asked the store owner-wide: pending rows only, no session argument.
     assert store.calls == [{"include_delivered": False}]
     assert _listed_lines(result.response_text) == [
-        "- renew the domain — due 12 Nov 2026 at 09:30:00 UTC (OVERDUE) — set in \"Kitchen chat\" (id 0a1b2c3d)",
-        "- water the ferns — due 12 Nov 2026 at 15:00:00 UTC (id 5a5a5a5a)",
-        "- call the chimney sweep — due 13 Nov 2026 at 08:00:00 UTC — set in \"Kitchen chat\" (id 9f8e7d6c)",
+        "- renew the domain — due Thu 12 Nov 2026 at 09:30 (OVERDUE) — set in \"Kitchen chat\" (id 0a1b2c3d)",
+        "- water the ferns — due Thu 12 Nov 2026 at 15:00 (id 5a5a5a5a)",
+        "- call the chimney sweep — due Fri 13 Nov 2026 at 08:00 — set in \"Kitchen chat\" (id 9f8e7d6c)",
     ]
     assert result.details["scope"] == "owner"
     assert result.details["count"] == 3
@@ -132,9 +144,9 @@ def test_listing_from_a_brand_new_chat_still_lists_every_row_as_foreign():
     assert result.ok is True
     # A chat with no rows of its own still sees all three, each tagged with its origin.
     assert _listed_lines(result.response_text) == [
-        "- renew the domain — due 12 Nov 2026 at 09:30:00 UTC — set in \"Kitchen chat\" (id 0a1b2c3d)",
-        "- water the ferns — due 12 Nov 2026 at 15:00:00 UTC — set in \"Studio chat\" (id 5a5a5a5a)",
-        "- call the chimney sweep — due 13 Nov 2026 at 08:00:00 UTC — set in \"Kitchen chat\" (id 9f8e7d6c)",
+        "- renew the domain — due Thu 12 Nov 2026 at 09:30 — set in \"Kitchen chat\" (id 0a1b2c3d)",
+        "- water the ferns — due Thu 12 Nov 2026 at 15:00 — set in \"Studio chat\" (id 5a5a5a5a)",
+        "- call the chimney sweep — due Fri 13 Nov 2026 at 08:00 — set in \"Kitchen chat\" (id 9f8e7d6c)",
     ]
     assert result.details["scope"] == "owner"
     assert result.details["count"] == 3
@@ -155,7 +167,7 @@ def test_a_chat_with_no_title_is_named_in_plain_words_not_empty_quotes():
     )
     assert result.ok is True
     assert _listed_lines(result.response_text) == [
-        "- pick up the parcel — due 12 Nov 2026 at 18:00:00 UTC — set in another chat (id 7c7c7c7c)",
+        "- pick up the parcel — due Thu 12 Nov 2026 at 18:00 — set in another chat (id 7c7c7c7c)",
     ]
     assert "set in \"\"" not in result.response_text
 
@@ -200,8 +212,8 @@ def test_rows_born_in_a_private_chat_are_hidden_from_other_chats():
     assert "book the dentist" not in result.response_text
     # A non-private foreign row and the asking chat's own row still show.
     assert _listed_lines(result.response_text) == [
-        "- renew the domain — due 12 Nov 2026 at 09:30:00 UTC — set in \"Kitchen chat\" (id 0a1b2c3d)",
-        "- water the ferns — due 12 Nov 2026 at 15:00:00 UTC (id 5a5a5a5a)",
+        "- renew the domain — due Thu 12 Nov 2026 at 09:30 — set in \"Kitchen chat\" (id 0a1b2c3d)",
+        "- water the ferns — due Thu 12 Nov 2026 at 15:00 (id 5a5a5a5a)",
     ]
     assert result.details["count"] == 2
 
@@ -224,9 +236,9 @@ def test_a_private_chat_still_sees_its_own_rows_and_public_foreign_rows():
     )
     assert result.ok is True
     assert _listed_lines(result.response_text) == [
-        "- book the dentist — due 12 Nov 2026 at 09:30:00 UTC (id f1e2d3c4)",
-        "- renew the domain — due 12 Nov 2026 at 09:30:00 UTC — set in \"Kitchen chat\" (id 0a1b2c3d)",
-        "- water the ferns — due 12 Nov 2026 at 15:00:00 UTC — set in \"Studio chat\" (id 5a5a5a5a)",
+        "- book the dentist — due Thu 12 Nov 2026 at 09:30 (id f1e2d3c4)",
+        "- renew the domain — due Thu 12 Nov 2026 at 09:30 — set in \"Kitchen chat\" (id 0a1b2c3d)",
+        "- water the ferns — due Thu 12 Nov 2026 at 15:00 — set in \"Studio chat\" (id 5a5a5a5a)",
     ]
 
 
