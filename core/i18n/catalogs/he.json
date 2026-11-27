@@ -5691,9 +5691,11 @@
     "phone.pair_other.body": "הקוד הזה הוא ממחשב אחר, או ש-VOOL הוגדר שם מחדש. לצמד את הטלפון הזה אליו במקום? הצימוד הנוכחי של הטלפון הזה יוסר.",
     "phone.pair_other.button": "צימוד למחשב הזה",
     "proof.route.local_away": "במחשב השולחני שלך",
-    "proof.route.mixed_away": "המחשב השולחני שלך + מקוון"
+    "proof.route.mixed_away": "המחשב השולחני שלך + מקוון",
+    "phone.bot_mail": "קריאת הדואר שלי",
+    "phone.bot_mail_help": "VOOL יכול לקרוא ולחפש בדואר המחובר שלך מתוך {app}. מה שהוא מציג לך שם, כמו שולחים, נושאים ותוכן ההודעות, עובר דרך {app} ונשמר בו. שליחה או מענה תמיד מבקשים אישור במחשב שלך. פעיל ל-30 יום בכל פעם."
   },
-  "source_catalog_sha256": "f06d8100ddb47dcaf9776638df49cb47e7e1798b24a1576dea19dccaa3b802b8",
+  "source_catalog_sha256": "3ba1ce56aab48d8ff1d16c5282c81bc42038fa1a0061cb563288b24feec79749",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

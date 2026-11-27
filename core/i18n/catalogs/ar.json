@@ -5691,9 +5691,11 @@
     "phone.pair_other.body": "هذا الرمز من حاسوب آخر، أو أُعيد إعداد VOOL عليه. هل تريد إقران هذا الهاتف به بدلًا من ذلك؟ ستتم إزالة الإقران الحالي لهذا الهاتف.",
     "phone.pair_other.button": "الإقران بهذا الحاسوب",
     "proof.route.local_away": "على حاسوبك المكتبي",
-    "proof.route.mixed_away": "حاسوبك المكتبي + عبر الإنترنت"
+    "proof.route.mixed_away": "حاسوبك المكتبي + عبر الإنترنت",
+    "phone.bot_mail": "قراءة بريدي",
+    "phone.bot_mail_help": "يمكن لـ VOOL قراءة بريدك المتصل والبحث فيه من {app}. ما يعرضه لك هناك، مثل المرسلين والعناوين ونص الرسائل، يمر عبر {app} ويحتفظ به. الإرسال أو الرد يطلب الموافقة دائمًا على حاسوبك. يعمل لمدة 30 يومًا في كل مرة."
   },
-  "source_catalog_sha256": "f06d8100ddb47dcaf9776638df49cb47e7e1798b24a1576dea19dccaa3b802b8",
+  "source_catalog_sha256": "3ba1ce56aab48d8ff1d16c5282c81bc42038fa1a0061cb563288b24feec79749",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

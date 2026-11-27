@@ -175,3 +175,26 @@ def test_the_working_note_turns_into_the_answer(bots, platform):
             rows = list(host.outgoing[before:])
         assert len(rows) == 1 and rows[0]['text'].startswith('Paired.'), rows
         assert sum(r['kind'] == 'bot.turn_finished' for r in receipts(base)) == turns
+
+
+MAIL = ("how many unread emails do I have?", "any new mail in my inbox?", "check my email for anything unread")
+
+
+@pytest.mark.parametrize('platform', ['telegram'])
+def test_mail_is_its_own_switch_and_never_a_folder_refusal(bots, platform):
+    """The owner's choice, 2026-11-27 (v0.8.1 item 46): a mail ask from a chat app is never told about folders or
+    "apps and accounts only on the computer". No mailbox is connected here, so either way the answer says that or
+    names the mail switch; the switch's own gating is tests/channels/test_chat_app_mail_switch.py."""
+    desktop, hosts = bots
+    base, host = desktop[0], hosts[platform]
+    pair(base, host, platform)
+    rng = random.Random()
+    before = ask(host, platform, rng.choice(MAIL))
+    assert 'folders you chose' not in before and "only work in VOOL on the computer itself" not in before, before
+    assert "can't use your mail yet" in before or 'No mailbox is connected' in before, before
+    status, result = http(base, '/api/mobile/settings', {'operation': 'device_rules', 'device_id': 'bot:' + platform,
+                                                         'rules': {'chat': True, 'mail': True}})
+    assert status == 200 and record(base, platform)['right_expiry'].get('mail'), result  # 30 days at a time
+    after = ask(host, platform, rng.choice(MAIL))
+    assert "can't use your mail yet" not in after and 'folders you chose' not in after and 'No mailbox is connected' in after, after
+    assert "only work in VOOL on the computer itself" not in after, after

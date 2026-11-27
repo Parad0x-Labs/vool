@@ -5691,9 +5691,11 @@
     "phone.pair_other.body": "이 코드는 다른 컴퓨터의 코드이거나 그 컴퓨터의 VOOL이 다시 설정되었습니다. 대신 이 휴대전화를 그 컴퓨터와 페어링할까요? 이 휴대전화의 현재 페어링은 삭제됩니다.",
     "phone.pair_other.button": "이 컴퓨터와 페어링",
     "proof.route.local_away": "내 데스크톱에서",
-    "proof.route.mixed_away": "내 데스크톱 + 온라인"
+    "proof.route.mixed_away": "내 데스크톱 + 온라인",
+    "phone.bot_mail": "내 메일 읽기",
+    "phone.bot_mail_help": "VOOL이 {app}에서 연결된 메일을 읽고 검색할 수 있습니다. 그곳에 보여 주는 보낸 사람, 제목, 메시지 내용 등은 {app}를 거쳐 {app}에 보관됩니다. 보내기나 답장은 항상 컴퓨터에서 확인을 요청합니다. 한 번에 30일 동안 켜집니다."
   },
-  "source_catalog_sha256": "f06d8100ddb47dcaf9776638df49cb47e7e1798b24a1576dea19dccaa3b802b8",
+  "source_catalog_sha256": "3ba1ce56aab48d8ff1d16c5282c81bc42038fa1a0061cb563288b24feec79749",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

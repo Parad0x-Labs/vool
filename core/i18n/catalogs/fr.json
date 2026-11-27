@@ -5691,9 +5691,11 @@
     "phone.pair_other.body": "Ce code vient d’un autre ordinateur, ou VOOL y a été réinstallé. Associer ce téléphone à celui-ci ? L’association actuelle de ce téléphone sera supprimée.",
     "phone.pair_other.button": "Associer à cet ordinateur",
     "proof.route.local_away": "Sur votre ordinateur de bureau",
-    "proof.route.mixed_away": "Votre ordinateur de bureau + en ligne"
+    "proof.route.mixed_away": "Votre ordinateur de bureau + en ligne",
+    "phone.bot_mail": "Lire mes e-mails",
+    "phone.bot_mail_help": "VOOL peut lire et rechercher dans votre messagerie connectée depuis {app}. Ce qu’il vous y montre, comme les expéditeurs, les objets et le texte des messages, passe par {app} et y est conservé. Envoyer ou répondre demande toujours votre accord sur votre ordinateur. Activé 30 jours à la fois."
   },
-  "source_catalog_sha256": "f06d8100ddb47dcaf9776638df49cb47e7e1798b24a1576dea19dccaa3b802b8",
+  "source_catalog_sha256": "3ba1ce56aab48d8ff1d16c5282c81bc42038fa1a0061cb563288b24feec79749",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

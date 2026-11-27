@@ -43,9 +43,11 @@ def test_only_file_tools_open_whatever_folders_it_holds(bot):
 
 
 def test_a_mail_or_app_ask_is_never_told_to_change_folders(bot):
-    for intent in ("email.read", "email.send", "operator.list_processes", "operator.read"):
+    for intent, expected in (("email.read", rt.CHAT_APP_MAIL_TEXT), ("email.send", rt.CHAT_APP_MAIL_TEXT),
+                             ("operator.list_processes", rt.CHAT_APP_COMPUTER_ONLY_TEXT),
+                             ("operator.read", rt.CHAT_APP_COMPUTER_ONLY_TEXT)):
         said = rt.remote_turn_refusal_text(intent, _REMOTE)
-        assert said == rt.CHAT_APP_COMPUTER_ONLY_TEXT and "folder" not in said.lower(), (intent, said)
+        assert said == expected and "folder" not in said.lower(), (intent, said)
 
 
 def test_all_folders_needs_the_owners_files_switch(bot):

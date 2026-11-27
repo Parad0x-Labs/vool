@@ -32,7 +32,7 @@ DISCORD_USER_AGENT = "DiscordBot (https://github.com/Parad0x-Labs/vool, 0.8)"
 PLATFORMS = frozenset({"telegram", "discord"})
 # ``computer_tools`` for a chat app always comes with folders the owner chose (core.mobile_companion.policy):
 # it may find, read and send files from them, and nothing else on the computer.
-BOT_RIGHTS = frozenset({"chat", "history", "attachments", "alerts", "wallet_view", "payment_propose", "computer_tools", "everyday_tools", "cloud_models"})
+BOT_RIGHTS = frozenset({"chat", "history", "attachments", "alerts", "wallet_view", "payment_propose", "computer_tools", "everyday_tools", "mail", "cloud_models"})
 #: The largest file each app takes from a bot (Telegram's Bot API: 50 MB; Discord without boosts: 10 MB).
 FILE_LIMITS = {"telegram": 50 * 1024 * 1024, "discord": 10 * 1024 * 1024}
 

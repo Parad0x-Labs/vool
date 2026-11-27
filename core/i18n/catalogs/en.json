@@ -5691,7 +5691,9 @@
     "phone.pair_other.body": "This code is from another computer, or VOOL there was set up again. Pair this phone with it instead? This phone’s current pairing is removed.",
     "phone.pair_other.button": "Pair with this computer",
     "proof.route.local_away": "On your desktop",
-    "proof.route.mixed_away": "Your desktop + online"
+    "proof.route.mixed_away": "Your desktop + online",
+    "phone.bot_mail": "Read my mail",
+    "phone.bot_mail_help": "VOOL can read and search your connected mail from {app}. What it shows you there, like senders, subjects and message text, passes through {app} and is kept by it. Sending or replying always asks on your computer. On for 30 days at a time."
   },
   "html_keys": [
     "bypass.modal_limits",

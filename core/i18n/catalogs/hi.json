@@ -5691,9 +5691,11 @@
     "phone.pair_other.body": "यह कोड किसी दूसरे कंप्यूटर का है, या वहाँ VOOL फिर से सेट किया गया है। क्या इस फ़ोन को इसके बजाय उससे जोड़ें? इस फ़ोन की मौजूदा जोड़ी हटा दी जाएगी।",
     "phone.pair_other.button": "इस कंप्यूटर से जोड़ें",
     "proof.route.local_away": "आपके डेस्कटॉप पर",
-    "proof.route.mixed_away": "आपका डेस्कटॉप + ऑनलाइन"
+    "proof.route.mixed_away": "आपका डेस्कटॉप + ऑनलाइन",
+    "phone.bot_mail": "मेरा मेल पढ़ें",
+    "phone.bot_mail_help": "VOOL {app} से आपके जुड़े हुए मेल को पढ़ और खोज सकता है। वहाँ वह जो दिखाता है, जैसे भेजने वाले, विषय और संदेश का पाठ, वह {app} से होकर जाता है और उसी के पास रहता है। भेजने या जवाब देने के लिए हमेशा आपके कंप्यूटर पर पूछा जाता है। हर बार 30 दिनों के लिए चालू।"
   },
-  "source_catalog_sha256": "f06d8100ddb47dcaf9776638df49cb47e7e1798b24a1576dea19dccaa3b802b8",
+  "source_catalog_sha256": "3ba1ce56aab48d8ff1d16c5282c81bc42038fa1a0061cb563288b24feec79749",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
