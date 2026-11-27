@@ -5079,7 +5079,11 @@ function widgetLiveBrowser(stack) {
   };
   stack.appendChild(button); stack.appendChild(note); stack.appendChild(status);
   stack.appendChild(link); stack.appendChild(inWindowBox);
-  const timer = setInterval(() => { if (!button.isConnected) { clearInterval(timer); return; } if (!busy) reread().catch(() => { button.disabled = true; }); }, 1500);
+  /* Re-read on the shared poll scheduler's idle heartbeat (core/page_poll_scheduler.py), paused while
+     Settings is hidden and read again when it is shown; a press reads back at once (above). */
+  const recheck = () => { if (!button.isConnected) { job.stop(); return; } if (!busy) return reread().catch(() => { button.disabled = true; }); };
+  const job = window.VoolPoll ? window.VoolPoll.every('live-browser-switch', recheck, {duringTurn: false, immediate: false})
+    : (() => { const timer = setInterval(() => { if (!button.isConnected) { clearInterval(timer); return; } recheck(); }, 1500); return {stop: () => clearInterval(timer)}; })();
 }
 function widgetPrivateWeb(stack) {
   const data = state.sources['/api/private-web'];
@@ -5142,7 +5146,12 @@ function widgetPrivateWeb(stack) {
   paint(data);
   fileRow.appendChild(fileNote); fileRow.appendChild(fileInput); fileRow.appendChild(forget);
   stack.appendChild(pick); stack.appendChild(line); stack.appendChild(fileRow); stack.appendChild(status);
-  const timer = setInterval(() => { if (!pick.isConnected) { clearInterval(timer); return; } if (!busy) reread().catch(() => {}); }, 2000);
+  /* Every 2 s while the route is connecting or down (so "Connecting" turns into its result without a
+     reload), on the shared idle heartbeat otherwise; paused while Settings is hidden. */
+  const recheck = () => { if (!pick.isConnected) { job.stop(); return; } if (!busy) return reread().catch(() => {}); };
+  const settling = () => !!(current && !current.local_only && (current.state === 'starting' || current.state === 'down'));
+  const job = window.VoolPoll ? window.VoolPoll.every('private-web-route', recheck, {fast: 2000, hot: settling, duringTurn: false, immediate: false})
+    : (() => { const timer = setInterval(() => { if (!pick.isConnected) { clearInterval(timer); return; } recheck(); }, 2000); return {stop: () => clearInterval(timer)}; })();
 }
 function widgetWebLookups(stack) {
   return boundarySwitchWidget(stack, {
@@ -7080,6 +7089,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.lend_fragment import render_lend_fragment
     from core.my_things_fragment import render_my_things_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
+    from core.page_poll_scheduler import POLL_SCHEDULER_JS
     from core.plugin_migration import retired_slots
     from core.provider_key_guide import provider_key_guide
     from core.routines_fragment import render_routines_fragment
@@ -7117,9 +7127,11 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
         .replace("__KEY_PROVIDER_GUIDE__", json.dumps(provider_key_guide(tag), ensure_ascii=False).replace("<", "\\u003c"))
         .replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         # The i18n bootstrap must run before the page's own script: it defines VOOLT.
+        # The shared poll scheduler (window.VoolPoll) comes next, before the page's own script and
+        # every appended fragment, which register their reads with it.
         .replace(
             "<script>\nconst MODEL",
-            bootstrap + "\n<script>\nconst MODEL",
+            bootstrap + "\n<script>" + POLL_SCHEDULER_JS + "</script>\n<script>\nconst MODEL",
             1,
         )
         .replace('<html lang="en">', f'<html lang="{tag}" dir="{direction}"{appearance_html_attrs(appearance)}>')

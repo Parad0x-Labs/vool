@@ -370,7 +370,8 @@ document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') pop.
 
 function mount(){
   refresh();
-  setInterval(refresh, 60000);
+  if (window.VoolPoll) window.VoolPoll.every('model-radar', refresh, { idle: 60000, duringTurn: false, immediate: false });
+  else setInterval(refresh, 60000);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
 else mount();

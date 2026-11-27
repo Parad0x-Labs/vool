@@ -450,9 +450,17 @@ SCRIPT = r"""
   // Another window (Settings, the native app, a browser tab) may flip the switch.
   var channel = null;
   try { channel = new BroadcastChannel('vool-screen-privacy'); channel.onmessage = function () { refresh(); }; } catch (e) {}
-  window.addEventListener('focus', refresh);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
-  setInterval(function () { if (!document.hidden) refresh(); }, 5000);
+  // The chat page and Settings define the shared poll scheduler (core/page_poll_scheduler.py)
+  // after this head script, so the choice waits for the document: there the switch is read on the
+  // scheduler's idle heartbeat (and when the page is shown or focused); on any other page it keeps
+  // its own 5 s read while visible. Another window of this browser announces a flip at once.
+  function pollWith() {
+    if (window.VoolPoll) { window.VoolPoll.every('screen-privacy', refresh, { duringTurn: false, immediate: false }); return; }
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+    setInterval(function () { if (!document.hidden) refresh(); }, 5000);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pollWith); else pollWith();
 
   window.VoolScreenPrivacy = {
     mask: mask,

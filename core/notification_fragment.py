@@ -676,9 +676,17 @@ function mount(){
       body:JSON.stringify({read_seq:state.readSeq, dismissed:Object.keys(state.dismissed).filter(function(k){ return /^s[0-9]+$/.test(k); }).map(function(k){ return Number(k.slice(1)); }).slice(0,200)})})
       .then(function(r){ return r.json(); }).then(function(j){ if (j && j.ok) { try { localStorage.removeItem(STATE_KEY); } catch (e) {} } return pollCentre(); }).catch(pollCentre);
   } else pollCentre();
-  setInterval(pollCentre, CENTRE_POLL_MS);
-  window.addEventListener('focus', pollCentre);
-  window.addEventListener('focus', function(){ pollMail(true); });
+  // The shared poll scheduler owns the cadence: CENTRE_POLL_MS while a turn runs, the idle
+  // heartbeat otherwise (a new mail alert or notice shows within one beat), HIDDEN_MS while the
+  // window is hidden; showing or focusing the window reads both at once.
+  if (window.VoolPoll) {
+    window.VoolPoll.every('notifications', pollCentre, { fast: CENTRE_POLL_MS, hidden: window.VoolPoll.HIDDEN_MS, immediate: false });
+    window.VoolPoll.every('mail-alerts', function(){ pollMail(true); }, { duringTurn: false, immediate: false });
+  } else {
+    setInterval(pollCentre, CENTRE_POLL_MS);
+    window.addEventListener('focus', pollCentre);
+    window.addEventListener('focus', function(){ pollMail(true); });
+  }
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
 else mount();

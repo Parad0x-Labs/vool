@@ -219,6 +219,11 @@ def render_disclosure_fragment() -> str:
     const mine=polling=Date.now();
     try{await poll();}finally{if(polling===mine)polling=0;}
   }
-  setInterval(tick,1000);tick();
+  // The shared poll scheduler (core/page_poll_scheduler.py) runs it every second while a turn is
+  // running on this page, a request is waiting for the person, or a comparison is open; on the
+  // idle heartbeat otherwise; paused while the page is hidden and read the moment it is shown.
+  const waiting=()=>!!current||receipts.some(p=>p&&p.state==='waiting')||!!(compareJob&&compareView&&compareView.open);
+  if(window.VoolPoll)window.VoolPoll.every('disclosure-pending',tick,{fast:1000,hot:waiting});
+  else{setInterval(tick,1000);tick();}
 })();
 </script>'''

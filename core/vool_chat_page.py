@@ -2416,6 +2416,9 @@ function isChatBusy(chatId) {
 }
 // Chats with a live run right now. Used for indicators and diagnostics -- never as a gate.
 function busyChatIds() { return Object.keys(chatStates).filter(isChatBusy); }
+// The shared poll scheduler's turn signal: while any chat of this page has a live run, the reads
+// a turn needs run at their fast cadence; with none, the page is idle and they ride the heartbeat.
+if (globalThis.VoolPoll) globalThis.VoolPoll.busyWhen(() => busyChatIds().length > 0);
 // Transcript writes are addressed by the RUN's chat, so an answer that arrives after the user has
 // moved on still lands in the chat that asked for it.
 function recordUserMessage(chatId, text, tsIso, attachments) {
@@ -2758,11 +2761,10 @@ function maybeReloadForNewBuild(liveCommit) {
 }
 
 // A window can sit open for days, so the load-time check alone is not enough: keep an eye on the
-// daemon and pick up an upgrade within a minute of it happening.
-setInterval(() => {
-  fetch('/api/runtime/version').then((r) => r.json())
-    .then((v) => maybeReloadForNewBuild(v.commit || '')).catch(() => {});
-}, 60000);
+// daemon and pick up an upgrade within a minute of it happening (60000 ms on the shared poll
+// scheduler, core/page_poll_scheduler.py; a hidden window checks again the moment it is shown).
+if (globalThis.VoolPoll) globalThis.VoolPoll.every('runtime-version', () => fetch('/api/runtime/version').then((r) => r.json())
+  .then((v) => maybeReloadForNewBuild(v.commit || '')).catch(() => {}), { idle: 60000, duringTurn: false, immediate: false });
 
 function emptyT(key, fallback) {
   // The greeting/opener catalog keys (first_run.*) resolve through the page's i18n
@@ -6390,6 +6392,9 @@ function reflectComposer() {
 // when the turn starts, cleared once when it ends -- never on navigation.
 function startRunTimers(run) {
   if (run.timer || run.ledgerTimer) return;
+  // A turn started: the shared poll scheduler moves the reads a turn needs (an approval or a
+  // disclosure card, the sidebar) to their fast cadence now, without a burst of other reads.
+  if (globalThis.VoolPoll) globalThis.VoolPoll.wake();
   run.timer = setInterval(() => {
     if (run.ended) return;
     // Named fragment call site: a browser request from this turn is answered in the chat itself.
@@ -6408,6 +6413,7 @@ function startRunTimers(run) {
 function clearRunTimers(run) {
   if (run.timer) { clearInterval(run.timer); run.timer = null; }
   if (run.ledgerTimer) { clearInterval(run.ledgerTimer); run.ledgerTimer = null; }
+  if (globalThis.VoolPoll) globalThis.VoolPoll.wake();
 }
 
 // Drop this run's DOM without touching a byte of its state. Called when its chat leaves the screen:
@@ -13738,6 +13744,9 @@ document.getElementById('browserBtn').addEventListener('click', () => {
 // overlay, one close path (Back / Escape / click outside), the chat and its draft untouched.
 function openSurfaceInFrame(url, label) {
   if (!settingsFrameOverlay || !settingsFrame) return;
+  // A framed page that was hidden kept its document; its polls were paused (VoolPoll reads the
+  // hidden overlay). Shown again, it reads everything at once.
+  try { const w = settingsFrame.contentWindow; if (w && w.VoolPoll) setTimeout(() => { try { w.VoolPoll.kick(); } catch (e) {} }, 0); } catch (e) {}
   if (settingsFrame.getAttribute('src') !== url) settingsFrame.setAttribute('src', url);
   settingsFrame.title = label || 'VOOL Settings';
   const dialog = settingsFrameOverlay.querySelector('[role="dialog"]');
@@ -15947,11 +15956,16 @@ if (updateOnlineBtn) updateOnlineBtn.addEventListener('click', () => {
   updateChip.setAttribute('aria-expanded', 'false');
   openSettings('permissions/automatic_checks');
 });
-setInterval(() => { if (!document.hidden) refreshUpdateStatusOnce(); }, _updateFast ? 700 : 3500);
-refreshUpdateStatusOnce();
+// The update chip rides the shared poll scheduler: 700 ms while an update is being checked,
+// downloaded or installed, the idle heartbeat otherwise, paused while the window is hidden (and
+// read again the moment it is shown). A press re-reads at once (pressUpdate).
+if (globalThis.VoolPoll) globalThis.VoolPoll.every('update-status', refreshUpdateStatusOnce, { fast: 700, hot: () => _updateFast, duringTurn: false });
+else refreshUpdateStatusOnce();
 
 setInterval(maybeRepaintSidebarLifecycle, 1200);  // local-only; repaints only when derived state actually changed
-setInterval(refreshSidebarActivityOnce, 5000);    // the only tick that touches the network
+// The only sidebar tick that touches the network: every 5 s while a turn runs, on the idle
+// heartbeat otherwise, and every HIDDEN_MS while hidden (it also pumps orphaned queued messages).
+if (globalThis.VoolPoll) globalThis.VoolPoll.every('sidebar-activity', refreshSidebarActivityOnce, { fast: 5000, hidden: globalThis.VoolPoll.HIDDEN_MS, immediate: false });
 document.addEventListener('visibilitychange', () => {
   // Regaining focus on the chat already on screen is the same acknowledgment as opening it.
   if (!document.hidden && displayedChat) markChatSeen(displayedChat);
@@ -16199,8 +16213,10 @@ function noModelLinePaint() {
   line.classList.toggle('no-model-line', show);
   if (show) line.hidden = false;
   else if (line.dataset.loaded === '1') setupLineReflect();   // wanted AND this chat still empty
-  if (show && !noModelPoll) noModelPoll = setInterval(() => { if (!document.hidden) setupLineLoad(); }, 20000);
-  if (!show && noModelPoll) { clearInterval(noModelPoll); noModelPoll = null; }
+  // While the notice is up, the setup state is read again on the shared idle heartbeat.
+  if (show && !noModelPoll && globalThis.VoolPoll) noModelPoll = globalThis.VoolPoll.every('no-model-setup', () => setupLineLoad(), { duringTurn: false, immediate: false, onShow: false });   // setupLineBoot reads it on show
+  else if (show && noModelPoll) noModelPoll.start();
+  if (!show && noModelPoll) noModelPoll.stop();
 }
 // The reply that says no model is set up carries the same button. Recognised by its own lead in
 // every shipped language (core.final_answer_authorship.no_model_notice_leads), never by wording a
@@ -16390,6 +16406,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
     # (Goal 2, 2026-09-18: the head-injected element preceded the house script and broke the
     # council script-order law; composing the body into the house script repairs it.)
     from core.i18n.page_bundle import i18n_bootstrap_js
+    from core.page_poll_scheduler import POLL_SCHEDULER_JS
 
     return (
         page.replace(
@@ -16398,7 +16415,9 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
         )
         .replace(
             "<script>\n",
-            "<script>\n" + i18n_bootstrap_js(tag) + "\n",
+            # The shared poll scheduler (window.VoolPoll) is defined before any statement of the
+            # house script and before every appended fragment, which all register with it.
+            "<script>\n" + i18n_bootstrap_js(tag) + "\n" + POLL_SCHEDULER_JS + "\n",
             1,
         )
     )

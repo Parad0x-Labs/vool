@@ -3127,10 +3127,19 @@ function refreshStatus(){
     return st;
   }).catch(function(){ return null; });
 }
-function poll(){ refreshStatus(); }
+function poll(){ return refreshStatus(); }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
+// The shared poll scheduler owns the cadence: every 2.5 s while a turn runs or a proposal, a
+// transfer in flight or the review sheet is open; on the idle heartbeat otherwise; paused while
+// the page is hidden and read the moment it is shown.
+function walletLive(){
+  if (sheetOpen) return true;
+  var st = lastStatus;
+  return !!(st && st.enabled && (((st.pending || []).length) || ((st.in_flight || []).length)));
+}
 setTimeout(poll, 400);
-setInterval(poll, 2500);
+if (window.VoolPoll) window.VoolPoll.every('wallet-status', poll, { fast: 2500, hot: walletLive, immediate: false });
+else setInterval(poll, 2500);
 
 // ---- the Wallet home: one entry in Home, one panel, one selection ------------------------------
 // A read-and-propose surface over the SAME doors Settings uses: /api/wallet/status (accounts, rows,

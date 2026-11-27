@@ -182,6 +182,8 @@ function activeRuns(){
 // run convened in another tab holds it just as hard. The server refuses the turn either
 // way; this only makes the refusal visible before the operator types into it.
 var lockTimer = null;
+// The last lock the server reported: while it is held, its release is read at LOCK_POLL_MS.
+var lockHeld = false;
 
 function applyServerLock(payload){
   var a = actions();
@@ -194,6 +196,7 @@ function refreshLock(){
     .then(function(r){ return r.json(); })
     .then(function(data){
       if (!data || data.ok !== true) return null;
+      lockHeld = data.locked === true;
       applyServerLock(data);
       return data;
     })
@@ -204,6 +207,9 @@ function refreshLock(){
 
 function startLockPolling(){
   if (lockTimer) return;
+  // The shared poll scheduler (core/page_poll_scheduler.py): LOCK_POLL_MS while a turn runs or
+  // the lock is held, the idle heartbeat otherwise, paused while the page is hidden.
+  if (window.VoolPoll) { lockTimer = window.VoolPoll.every('council-lock', refreshLock, { fast: LOCK_POLL_MS, hot: function(){ return lockHeld; } }); return; }
   var tick = function(){
     refreshLock().then(function(){ lockTimer = setTimeout(tick, LOCK_POLL_MS); });
   };
