@@ -13,7 +13,8 @@ fresh store connection, so the idle window alone held the API at 8-12 % CPU.
 
 - fast: the cadence while it matters now: a turn is running on this page (any `busyWhen` probe
   answers true) and `duringTurn` is not false, or the task's own `hot()` answers true (an approval
-  or disclosure waiting, an update installing).
+  or disclosure waiting, an update installing). A hot() that turns true from the surface's own
+  work (its first read, a sheet opening) is noticed within HOT_CHECK_MS, without a request.
 - idle: the cadence otherwise. Idle reads ride ONE heartbeat (IDLE_HEARTBEAT_MS): the scheduler
   wakes once per beat and runs every idle task whose interval has passed, so an idle window wakes
   the API in one short burst per beat instead of a steady trickle. An idle interval is a multiple
@@ -35,11 +36,13 @@ IDLE_HEARTBEAT_MS = 20000
 HIDDEN_HEARTBEAT_MS = 120000
 STALE_MS = 15000
 FRESH_MS = 10000
+# How soon a task whose own hot() turned true starts its fast cadence. Checking runs page code only.
+HOT_CHECK_MS = 1000
 
 POLL_SCHEDULER_JS = r"""
 (function () {
   if (typeof window === 'undefined' || window.VoolPoll) return;
-  var IDLE_MS = __IDLE_MS__, HIDDEN_MS = __HIDDEN_MS__, STALE_MS = __STALE_MS__, MIN_GAP_MS = 250, FRESH_MS = __FRESH_MS__;
+  var IDLE_MS = __IDLE_MS__, HIDDEN_MS = __HIDDEN_MS__, STALE_MS = __STALE_MS__, MIN_GAP_MS = 250, FRESH_MS = __FRESH_MS__, HOT_CHECK_MS = __HOT_CHECK_MS__;
   var tasks = {}, order = [], probes = [], timer = null, wakeAt = 0, lastBeat = Date.now();
   function now() { return Date.now(); }
   function frameHidden() {
@@ -84,6 +87,10 @@ POLL_SCHEDULER_JS = r"""
       var wait = waitFor(t, hidden, inTurn);
       if (!wait) continue;
       var slow = hidden || !isHot(t, inTurn);
+      // A task's own hot() can turn true from something the scheduler never sees (the surface's
+      // own first read, a sheet opening, a press): look again within HOT_CHECK_MS so its fast
+      // cadence starts then, not on the next beat. Looking sends nothing.
+      if (slow && !hidden && t.hot && next > at + HOT_CHECK_MS) next = at + HOT_CHECK_MS;
       if (slow) {
         // Idle and hidden reads only ever run on the shared beat. A read that ran off the beat (a
         // press, the fast cadence of a turn that just ended) counts if it is half a beat old, so
@@ -159,4 +166,4 @@ POLL_SCHEDULER_JS = r"""
 })();
 """.replace("__IDLE_MS__", str(IDLE_HEARTBEAT_MS)).replace("__HIDDEN_MS__", str(HIDDEN_HEARTBEAT_MS)).replace(
     "__STALE_MS__", str(STALE_MS)
-).replace("__FRESH_MS__", str(FRESH_MS))
+).replace("__FRESH_MS__", str(FRESH_MS)).replace("__HOT_CHECK_MS__", str(HOT_CHECK_MS))

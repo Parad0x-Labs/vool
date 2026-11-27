@@ -5007,7 +5007,12 @@ function boundarySwitchWidget(stack, cfg) {
     note.style.display = r.localOnly ? '' : 'none';
   };
   paint(first);
-  const reread = async () => paint((await readSource(WEB_LOOKUPS_URL)) ? reading() : null);
+  /* A switch here can change what other rows allow (the Browser switch needs Web lookups), so every
+     read-back after a press tells the page at once instead of leaving those rows to the idle poll. */
+  const reread = async () => {
+    paint((await readSource(WEB_LOOKUPS_URL)) ? reading() : null);
+    document.dispatchEvent(new CustomEvent('vool:boundary-changed', {detail: {key: cfg.key}}));
+  };
 
   sw.addEventListener('click', async () => {
     if (sw.disabled) return;
@@ -5116,6 +5121,9 @@ function widgetLiveBrowser(stack) {
   const recheck = () => { if (!button.isConnected) { job.stop(); return; } if (!busy) return reread().catch(() => { button.disabled = true; }); };
   const job = window.VoolPoll ? window.VoolPoll.every('live-browser-switch', recheck, {duringTurn: false, immediate: false})
     : (() => { const timer = setInterval(() => { if (!button.isConnected) { clearInterval(timer); return; } recheck(); }, 1500); return {stop: () => clearInterval(timer)}; })();
+  /* Web lookups turned on or off on this page: the switch follows at once, not on the next idle beat. */
+  const followBoundary = () => { if (!button.isConnected) { document.removeEventListener('vool:boundary-changed', followBoundary); return; } recheck(); };
+  document.addEventListener('vool:boundary-changed', followBoundary);
 }
 function widgetPrivateWeb(stack) {
   const data = state.sources['/api/private-web'];

@@ -3129,13 +3129,17 @@ function refreshStatus(){
 }
 function poll(){ return refreshStatus(); }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
-// The shared poll scheduler owns the cadence: every 2.5 s while a turn runs or a proposal, a
-// transfer in flight or the review sheet is open; on the idle heartbeat otherwise; paused while
-// the page is hidden and read the moment it is shown.
+// The shared poll scheduler owns the cadence: every 2.5 s while a turn runs, a proposal or a
+// transfer is in flight, the review sheet is open, or a wallet is connected; on the idle heartbeat
+// otherwise (crypto off, the default, or on with no account); paused while the page is hidden and
+// read the moment it is shown. A connected wallet can be asked to pay by work that is not this
+// page's turn (a routine, the phone, a browser step, another window), and a payment waiting on the
+// person has to reach them in seconds, not on the next idle beat.
 function walletLive(){
   if (sheetOpen) return true;
   var st = lastStatus;
-  return !!(st && st.enabled && (((st.pending || []).length) || ((st.in_flight || []).length)));
+  if (!st || !st.enabled) return false;
+  return !!(((st.pending || []).length) || ((st.in_flight || []).length) || ((st.accounts || []).length));
 }
 setTimeout(poll, 400);
 if (window.VoolPoll) window.VoolPoll.every('wallet-status', poll, { fast: 2500, hot: walletLive, immediate: false });
