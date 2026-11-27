@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import html
 import os
 import re
@@ -2353,13 +2354,14 @@ def send_file_to_phone(request: Any, *, source_context: dict | None) -> Any:
     if request.path:
         return execute_authorized_runtime_tool("machine.send_to_phone", {"path": request.path}, source_context=context)
     if request.listing is not None:
-        listed = list_files_of_kind(request.listing._replace(limit=1), source_context=source_context)
+        count = max(1, int(request.listing.limit or 1))
+        listed = list_files_of_kind(request.listing._replace(limit=count), source_context=source_context)
         if listed is None or not getattr(listed, "ok", False):
             return listed
         entries = list((getattr(listed, "details", None) or {}).get("entries") or [])
         if not entries:
             return listed  # "No PDFs in ~/Downloads." is the answer
-        return execute_authorized_runtime_tool("machine.send_to_phone", {"path": entries[0]["path"]}, source_context=context)
+        return send_files_to_phone([str(entry["path"]) for entry in entries[:count]], source_context=source_context)
     found = find_named_files(request.search, source_context=source_context)
     if found is None or not getattr(found, "ok", False):
         return found
@@ -2379,6 +2381,41 @@ def send_file_to_phone(request: Any, *, source_context: dict | None) -> Any:
     return RuntimeExecutionResult(
         handled=True, ok=True, status="needs_choice", response_text="\n".join(lines),
         details={**(getattr(found, "details", None) or {}), "matches": matches},
+    )
+
+
+def send_files_to_phone(paths: list[str], *, source_context: dict | None) -> Any:
+    """Send each file to the phone or chat app, through the one send tool (same gate, folder fence and receipts).
+
+    One file is that tool's own answer. Several are said together: what went, and what did not and why. Before
+    (sls, Telegram and phone 2026-11-27) only one file could ever be sent, so "fetch me the latest 10" failed."""
+    from core.authorized_tool_execution import execute_authorized_runtime_tool
+    from core.execution.constants import SEND_MANY_MAX
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    context = dict(source_context or {})
+    paths = [path for path in paths if path][:SEND_MANY_MAX]
+    if len(paths) == 1:
+        return execute_authorized_runtime_tool("machine.send_to_phone", {"path": paths[0]}, source_context=context)
+    sent, missed, first_refusal = [], [], None
+    for path in paths:
+        execution = execute_authorized_runtime_tool("machine.send_to_phone", {"path": path}, source_context=context)
+        if execution is not None and getattr(execution, "ok", False):
+            sent.append(dict((getattr(execution, "details", None) or {}).get("sent") or {}) or {"name": os.path.basename(path)})
+        else:
+            missed.append((os.path.basename(path), str(getattr(execution, "response_text", "") or "no step ran")))
+            first_refusal = first_refusal or execution
+    if not sent:
+        return first_refusal
+    lines = [f"Sending {len(sent)} files:"] + [f"- {item.get('name')}" for item in sent]
+    if missed:
+        lines.append(f"Not sent ({len(missed)}):")
+        lines.extend(f"- {name}: {why}" for name, why in missed)
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed", response_text="\n".join(lines),
+        details={"sent_files": sent, "not_sent": [name for name, _ in missed],
+                 "observation": {"intent": "machine.send_to_phone", "ok": True, "status": "executed",
+                                 "sent_count": len(sent), "not_sent_count": len(missed)}},
     )
 
 
@@ -2477,6 +2514,125 @@ def _open_newest_one_followup(user_input: str, *, session_id: str, source_contex
         return None
     replies = [str(row.get("content") or "") for row in transcript or [] if str(row.get("role") or "") == "assistant"]
     return machine_open_newest_one_followup(user_input, replies[-1]) if replies else None
+
+
+#: The headers of VOOL's own file listings (machine.list_directory, list_files_of_kind) and folder counts: the folder
+#: they name, so a follow-up can point into them.
+_LISTING_HEADER_RES = (
+    re.compile(r"^(?P<noun>[\w ]+?)(?:,\s+newest first,)?\s+under\s+`(?P<place>~[^`]*)`:\s*$"),
+    re.compile(r"^(?:Newest|Oldest)\s+in\s+`(?P<place>~[^`]*)`:\s*$"),
+    re.compile(r"^(?:\d+|The\s+\w+)\s+(?P<noun>[\w ]+?)\s+in\s+(?P<place>~/[^,:]+?)(?:\s+from the last [^,:]+)?(?:\s+bigger than [^,:]+)?[,:]"),
+    re.compile(r"^`(?P<place>~[^`]*)`\s+holds\s+\d+\s+(?P<noun>[\w ]+?)(?:\s+\(|\.)"),
+)
+_LISTED_ROW_RE = re.compile(r"^-\s+(?P<label>.+?)(?:/)?(?:\s+\([^()]*\))?\s*$")
+
+
+def _listing_in_reply(reply: str) -> tuple[str, str, list[str]] | None:
+    """(folder, kind noun, the files in shown order) of a file listing VOOL wrote, or ``None``.
+
+    Only files that exist are kept: a row is VOOL's own label, read back to a real path or dropped."""
+    lines = [line.rstrip() for line in str(reply or "").splitlines()]
+    for index, line in enumerate(lines):
+        header = next((m for rx in _LISTING_HEADER_RES if (m := rx.search(line.strip())) is not None), None)
+        if header is None:
+            continue
+        place = header.group("place").rstrip("/")
+        noun = (header.groupdict().get("noun") or "").strip().lower()
+        files: list[str] = []
+        for row in lines[index + 1:]:
+            match = _LISTED_ROW_RE.match(row.strip())
+            if match is None:
+                if files or row.strip():
+                    break
+                continue
+            if row.strip().endswith("/") or re.search(r"/\s*\(", row):
+                continue  # a folder
+            label = match.group("label").strip().strip("`")
+            path = label if label.startswith("~/") else f"{place}/{label}"
+            if os.path.isfile(os.path.expanduser(path)):
+                files.append(path)
+        return place, noun, files
+    return None
+
+
+def _with_intent(execution: Any, intent: str) -> Any:
+    if execution is not None:
+        with contextlib.suppress(Exception):
+            execution.details = {**dict(getattr(execution, "details", None) or {}), "_fast_path_intent": intent}
+    return execution
+
+
+def _listed_item_followup(user_input: str, *, session_id: str, source_context: dict | None) -> Any:
+    """Send or show the files a follow-up points at in the list VOOL gave just before; ``None`` when it is not one.
+
+    sls's phone and Telegram, 2026-11-27: "fetch me the top one from the list", "download this for me", "view this
+    picture" and "ok so fetch me latest 10" after a listing or a count went to the model, which has no file tool
+    there: the wrong file was named and nothing was sent. The pick is read by shape (core.execution.constants.
+    listed_item_pick), the files from VOOL's own last listing in this chat; nothing is guessed when there is none."""
+    from core.execution.constants import _KIND_WORDS, SEND_MANY_MAX, KindListing, listed_item_pick
+    from core.request_trust import turn_is_remote
+    from core.runtime_execution_tools import RuntimeExecutionResult
+
+    pick = listed_item_pick(user_input)
+    if pick is None:
+        return None
+    try:
+        transcript, _source = canonical_runtime_transcript(
+            session_id=session_id, source_context=source_context, current_user_text=user_input,
+            max_messages=6, max_chars=8000,
+        )
+    except Exception:
+        return None
+    replies = [str(row.get("content") or "") for row in transcript or [] if str(row.get("role") or "") == "assistant"][-3:]
+    back, found = next(((n, listed) for n, reply in enumerate(reversed(replies))
+                        if (listed := _listing_in_reply(reply)) is not None), (0, None))
+    if found is None:
+        return None
+    place, noun, files = found
+    if pick.this:
+        # "this" is the one file the last reply named, or the only one listed; with several, ask which.
+        named = [path for path in files if back and os.path.basename(path) in replies[-1]]
+        chosen = named[:1] if len(set(named)) == 1 else files[:1] if len(files) == 1 else []
+        if not chosen:
+            if not files:
+                return None
+            shown = "\n".join(f"{n}. {os.path.basename(path)}" for n, path in enumerate(files[:10], 1))
+            return RuntimeExecutionResult(
+                handled=True, ok=True, status="needs_choice",
+                response_text=f"Which one? Say its number from the list, like \"the second one\".\n{shown}",
+                details={"observation": {"intent": "machine.list_directory", "ok": True, "status": "needs_choice",
+                                         "path": place, "entries": [{"path": path} for path in files[:10]]}},
+            )
+    elif pick.positions:
+        chosen = [files[n - 1] for n in pick.positions if 0 < n <= len(files)]
+        if not chosen:
+            return RuntimeExecutionResult(
+                handled=True, ok=True, status="no_results",
+                response_text=f"That list has {len(files)} file{'s' if len(files) != 1 else ''}, so there is no number "
+                              f"{pick.positions[0]}. Ask for one of 1 to {len(files)}." if files else "That list has no files to send.",
+                details={"observation": {"intent": "machine.list_directory", "ok": True, "status": "no_results", "path": place}},
+            )
+    else:
+        count = min(pick.count, SEND_MANY_MAX)
+        chosen = files[:count]
+        if len(chosen) < count and noun:
+            # A count or a short list: list that kind in that folder again, newest first, as many as asked.
+            kind = _KIND_WORDS.get(noun.split()[-1], "")
+            listed = list_files_of_kind(KindListing(kind, place.removeprefix("~/"), None, "newest", count), source_context=source_context)
+            if listed is None or not getattr(listed, "ok", False):
+                return listed
+            chosen = [str(entry["path"]) for entry in (getattr(listed, "details", None) or {}).get("entries") or []][:count]
+        if not chosen:
+            return None
+    if pick.verb == "send" or turn_is_remote(source_context):
+        # A phone or chat app sees a file by getting it; on the computer, "send" goes to the paired phone.
+        return _with_intent(send_files_to_phone(chosen, source_context=source_context), "machine.send_to_phone")
+    where = "\n".join(f"- {path}" for path in chosen)
+    return RuntimeExecutionResult(
+        handled=True, ok=True, status="executed", response_text=f"{where}\n\n{OPEN_ON_COMPUTER_NOTE}",
+        details={"observation": {"intent": "machine.list_directory", "ok": True, "status": "executed", "path": place,
+                                 "entries": [{"path": path} for path in chosen]}},
+    )
 
 
 #: Said on the computer after the newest file is found: VOOL has no tool that opens a file in another app.
@@ -3449,6 +3605,18 @@ def maybe_handle_direct_machine_read_request(
                 execution=sent,
                 reason="machine_read_fast_path",
             )
+    # "send me the top one", "download this", "fetch me latest 10" right after VOOL listed or counted files.
+    picked = _listed_item_followup(user_input, session_id=session_id, source_context=source_context)
+    if picked is not None:
+        return _machine_tool_fast_path_result(
+            agent,
+            user_input=user_input,
+            session_id=session_id,
+            source_context=source_context,
+            intent=str((getattr(picked, "details", None) or {}).get("_fast_path_intent") or "machine.list_directory"),
+            execution=picked,
+            reason="machine_read_fast_path",
+        )
     # "open the newest screenshot": VOOL finds it; a phone gets the file, the computer is told where it is.
     open_newest = machine_open_newest_intent(user_input) or _open_newest_one_followup(
         user_input, session_id=session_id, source_context=source_context

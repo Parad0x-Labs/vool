@@ -2042,6 +2042,33 @@ def _age_days(text: str) -> float | None:
     return None
 
 
+_COUNT_NUMBERS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "a dozen": 12, "dozen": 12, "a couple of": 2,
+    "a couple": 2, "couple of": 2, "couple": 2, "a few": 3, "few": 3,
+}
+_COUNT_WORD = r"(?:\d{1,3}|" + "|".join(re.escape(w) for w in sorted(_COUNT_NUMBERS, key=len, reverse=True)) + r")"
+_COUNT_RANK = r"(?:latest|newest|most\s+recent|recent|top|first)"
+#: "the 10 latest", "latest 10", "ten newest", "top three", "the first 5": how many of a newest-first list. Never
+#: an age: "the last 10 days" is _AGE_RE's, so a count followed by a time unit is not a count.
+_COUNT_RE = re.compile(
+    r"\b(?:" + _COUNT_RANK + r"\s+(?P<after>" + _COUNT_WORD + r")|(?P<before>" + _COUNT_WORD + r")(?:\s+of)?(?:\s+the)?\s+" + _COUNT_RANK + r")\b"
+    r"(?!\s+(?:hours?|days?|weeks?|months?|years?|minutes?)\b)",
+    re.IGNORECASE,
+)
+
+
+def newest_count(text: str) -> int | None:
+    """How many newest items the words ask for ("the latest 3 pdfs" -> 3, "ten newest" -> 10), else ``None``."""
+    match = _COUNT_RE.search(" ".join(str(text or "").split()))
+    if match is None:
+        return None
+    word = (match.group("after") or match.group("before") or "").lower()
+    word = " ".join(word.split())
+    number = int(word) if word.isdigit() else _COUNT_NUMBERS.get(word, 0)
+    return number if number > 0 else None
+
+
 def machine_kind_listing_ask(text: str) -> KindListing | None:
     """A listing of one KIND of file ("the pictures in my Downloads from the last 2 days"), else ``None``.
 
@@ -2085,6 +2112,10 @@ def machine_kind_listing_ask(text: str) -> KindListing | None:
             return None  # machine.find_largest measures sizes
         order = "oldest" if word == "oldest" else "newest"
         limit = None if superlative.group(0).split()[-1].lower().endswith("s") else 1  # "the newest file"
+    counted = newest_count(raw)
+    if counted is not None and order == "newest":
+        # "the 10 latest pictures", "latest 3 pdfs": that many, newest first (sls's Telegram ask, 2026-11-27).
+        limit = counted
     min_bytes = None
     if (size := _SIZE_FILTER_RE.search(raw)) is not None:
         min_bytes = int(float(size.group("size")) * {"kb": 1024, "mb": 1024**2, "gb": 1024**3}[size.group("unit").lower()])
@@ -2148,6 +2179,10 @@ def machine_kind_listing_covers_turn(text: str) -> bool:
                 continue
         return False
     return listing_seen
+
+
+#: The most files one ask sends to a phone or chat app at once.
+SEND_MANY_MAX = 10
 
 
 class SendToPhone(NamedTuple):
@@ -2236,6 +2271,78 @@ def machine_open_newest_one_followup(text: str, previous_reply: str) -> KindList
     return KindListing("", listed.group("place").capitalize(), None, "newest", 1, None, "")
 
 
+class ListedPick(NamedTuple):
+    """Which of the files VOOL just listed a follow-up means, and what to do with them.
+
+    ``positions`` are 1-based places in that list; ``count`` the first N; ``this`` a single file pointed at
+    ("this", "that picture", "it"). ``verb`` is "send" (fetch, get, download, give...) or "view" (open, show,
+    view, see)."""
+
+    verb: str
+    positions: tuple[int, ...] = ()
+    count: int = 0
+    this: bool = False
+
+
+_PICK_VERB_RE = re.compile(
+    r"\b(?P<send>send|get|fetch|grab|download|pull|give|bring|forward|share)\b"
+    r"|\b(?P<view>open|view|show|see|display|look\s+at|pull\s+up)\b",
+    re.IGNORECASE,
+)
+_PICK_ORDINALS = {
+    "top": 1, "first": 1, "1st": 1, "newest": 1, "latest": 1, "most recent": 1, "second": 2, "2nd": 2, "third": 3,
+    "3rd": 3, "fourth": 4, "4th": 4, "fifth": 5, "5th": 5, "sixth": 6, "6th": 6, "seventh": 7, "7th": 7,
+    "eighth": 8, "8th": 8, "ninth": 9, "9th": 9, "tenth": 10, "10th": 10,
+}
+_PICK_NOUN = r"(?:one|file|item|entry|pic(?:ture)?|photo|image|screenshot|pdf|video|document|doc|song)s?"
+_PICK_ORDINAL_RE = re.compile(
+    r"\b(?:the\s+)?(?P<ord>" + "|".join(re.escape(w) for w in sorted(_PICK_ORDINALS, key=len, reverse=True)) + r")"
+    r"(?:\s+" + _PICK_NOUN + r"|\s+(?:on|in|from|of)\s+(?:the|that|this|your)\s+list)\b",
+    re.IGNORECASE,
+)
+_PICK_NUMBER_RE = re.compile(r"(?:\b(?:number|no\.?)\s*|#)(?P<n>\d{1,2})\b", re.IGNORECASE)
+_PICK_ALL_RE = re.compile(r"\b(?:all\s+of\s+(?:them|those|these)|(?:them|those|these)\s+all|all\s+(?:them|those|these))\b"
+                          r"|\b(?:them|those|these)\b", re.IGNORECASE)
+_PICK_THIS_RE = re.compile(r"\b(?:this|that|it)\b(?:\s+" + _PICK_NOUN + r")?", re.IGNORECASE)
+#: Another action on the files is not a send or a view: it keeps its own lane.
+_PICK_OTHER_ACTION_RE = re.compile(
+    r"\b(?:delete|remove|rename|move|copy|e-?mail|mail|zip|compress|convert|edit|print|upload|post|trash|erase)\b",
+    re.IGNORECASE,
+)
+#: Sent to someone else, not to the asker: "send it to bob", "share that with anna".
+_PICK_TO_OTHER_RE = re.compile(r"\b(?:to|with)\s+(?!me\b|my\s+(?:phone|mobile|telegram|discord|chat)\b|here\b|this\s+chat\b|us\b|the\s+phone\b|phone\b)[A-Za-z]", re.IGNORECASE)
+
+
+def listed_item_pick(text: str) -> ListedPick | None:
+    """A follow-up asking to send or view files from the list VOOL just gave, by position, count or "this".
+
+    sls's phone, 2026-11-27: after "Pictures, newest first, under ~/Downloads", "fetch me the top one from the
+    list", "download this for me" and "let's view this picture" went to the model with no tool; it named the
+    13th file as the top one, then said no step ran. Read by shape (a send/view verb and a pointer into the
+    list), never by the exact words; a new place or kind of file named is a new ask, not a pick."""
+    raw = " ".join(str(text or "").split())
+    if not raw or len(raw) > 200:
+        return None
+    verb = _PICK_VERB_RE.search(raw)
+    if verb is None or _PICK_OTHER_ACTION_RE.search(raw) or _PICK_TO_OTHER_RE.search(raw[verb.end():]):
+        return None
+    if re.search(_PLACE_PATTERN, raw, re.IGNORECASE) or _named_place(raw):
+        return None  # "the latest picture in downloads" names its own place: its lane reads it
+    kind = "send" if verb.group("send") else "view"
+    after = raw[verb.end():]
+    if (count := newest_count(after)) is not None and count > 1:
+        return ListedPick(kind, count=count)
+    if (number := _PICK_NUMBER_RE.search(after)) is not None:
+        return ListedPick(kind, positions=(int(number.group("n")),))
+    if (ordinal := _PICK_ORDINAL_RE.search(after)) is not None:
+        return ListedPick(kind, positions=(_PICK_ORDINALS[" ".join(ordinal.group("ord").lower().split())],))
+    if _PICK_ALL_RE.search(after):
+        return ListedPick(kind, count=SEND_MANY_MAX)
+    if _PICK_THIS_RE.search(after):
+        return ListedPick(kind, this=True)
+    return None
+
+
 _NAMED_FOLDER_CONTENTS_RE = re.compile(
     r"^\s*(?:(?:please|pls|hey|ok|okay|so|can\s+you|could\s+you|vool)[\s,]+)*"
     # "what invoices do i have in ...", "which files are in ...": a kind of thing named before the folder
@@ -2302,12 +2409,14 @@ def machine_send_to_phone_intent(text: str, *, phone_turn: bool = False) -> Send
         return None
     if _SEND_PATH_RE.match(rest):
         return SendToPhone(path=rest)
+    # A kind of file with how many ("the 10 latest pictures from downloads") is that listing, read before a name
+    # search: the search took "10 latest" for a file name (sls's Telegram ask, 2026-11-27).
+    listing = machine_kind_listing_ask("show me " + rest)
+    if listing is not None and listing.limit is not None:
+        return SendToPhone(listing=listing._replace(limit=min(listing.limit, SEND_MANY_MAX)))
     search = machine_file_search_intent("find " + rest)
     if search is not None:
         return SendToPhone(search=search)
-    listing = machine_kind_listing_ask("show me " + rest)
-    if listing is not None and listing.limit == 1:
-        return SendToPhone(listing=listing)
     return None
 
 
