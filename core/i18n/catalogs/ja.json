@@ -5642,9 +5642,10 @@
     "header.run_local_loaded": "実行中",
     "header.run_local_last_reply": "前回の返信を書いたモデル",
     "vcs.btn.mac_settings": "Macの設定を開く",
-    "vcs.saved.mac_settings": "システム設定の「カレンダー」を開きました。そこでVOOLをオンにしてから、「カレンダー一覧を更新」を選んでください。"
+    "vcs.saved.mac_settings": "システム設定の「カレンダー」を開きました。そこでVOOLをオンにしてから、「カレンダー一覧を更新」を選んでください。",
+    "memory.you_asked_remind": "リマインドを頼まれたこと:"
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

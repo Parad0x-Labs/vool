@@ -5642,9 +5642,10 @@
     "header.run_local_loaded": "працює зараз",
     "header.run_local_last_reply": "написала останню відповідь",
     "vcs.btn.mac_settings": "Відкрити налаштування Mac",
-    "vcs.saved.mac_settings": "Системні параметри відкрито на розділі «Календарі». Увімкніть там VOOL, потім виберіть «Оновити список календарів»."
+    "vcs.saved.mac_settings": "Системні параметри відкрито на розділі «Календарі». Увімкніть там VOOL, потім виберіть «Оновити список календарів».",
+    "memory.you_asked_remind": "Ви просили мене нагадати:"
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

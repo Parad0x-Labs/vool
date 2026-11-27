@@ -28,6 +28,10 @@ _FORGET_APPLIED_RE = re.compile(r"^Forget applied\. Removed (?P<count>\d+) memor
 _FORGET_NO_MATCH_RE = re.compile(
     r'^Nothing was removed\. Forget found no memory in this chat that matched "(?P<target>[^"\n]*)"\.$')
 _TOLD_HEAD = "You told me:"
+#: The recall's lead for the person's own reminders, on the line after the told facts or alone (gate 51: it stayed
+#: English in a Lithuanian chat while "You told me:" above it was translated).
+_REMIND_HEAD = "You asked me to remind you:"
+_HEAD_KEYS = ((_TOLD_HEAD, "memory.you_told_me"), (_REMIND_HEAD, "memory.you_asked_remind"))
 
 
 def reply_locale(user_text: str) -> str:
@@ -77,9 +81,17 @@ def in_the_persons_language(reply: str, user_text: str) -> str:
     key = _EXACT_KEYS.get(text.strip())
     if key:
         return said(key, text)
-    if text.startswith(_TOLD_HEAD):
-        return said("memory.you_told_me", _TOLD_HEAD) + text[len(_TOLD_HEAD):]
+    if text.startswith((_TOLD_HEAD, _REMIND_HEAD)):
+        return "\n".join(_recall_line(line, said) for line in text.split("\n"))
     return "\n".join(_forget_line(line, said) for line in text.split("\n"))
+
+
+def _recall_line(line: str, said) -> str:
+    """One line of a recall: its lead in the person's language when it opens with one; the told words as told."""
+    for head, key in _HEAD_KEYS:
+        if line.startswith(head):
+            return said(key, head) + line[len(head):]
+    return line
 
 
 def _forget_line(line: str, said) -> str:

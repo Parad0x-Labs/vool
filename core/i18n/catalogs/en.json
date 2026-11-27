@@ -5642,7 +5642,8 @@
     "header.run_local_loaded": "running now",
     "header.run_local_last_reply": "wrote the last reply",
     "vcs.btn.mac_settings": "Open Mac settings",
-    "vcs.saved.mac_settings": "System Settings is open on Calendars. Turn VOOL on there, then choose Refresh calendar list."
+    "vcs.saved.mac_settings": "System Settings is open on Calendars. Turn VOOL on there, then choose Refresh calendar list.",
+    "memory.you_asked_remind": "You asked me to remind you:"
   },
   "html_keys": [
     "bypass.modal_limits",

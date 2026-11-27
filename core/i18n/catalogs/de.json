@@ -5642,9 +5642,10 @@
     "header.run_local_loaded": "läuft gerade",
     "header.run_local_last_reply": "hat die letzte Antwort geschrieben",
     "vcs.btn.mac_settings": "Mac-Einstellungen öffnen",
-    "vcs.saved.mac_settings": "Die Systemeinstellungen sind bei Kalender geöffnet. Schalte VOOL dort ein und wähle dann „Kalenderliste aktualisieren“."
+    "vcs.saved.mac_settings": "Die Systemeinstellungen sind bei Kalender geöffnet. Schalte VOOL dort ein und wähle dann „Kalenderliste aktualisieren“.",
+    "memory.you_asked_remind": "Du hast mich gebeten, dich zu erinnern:"
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

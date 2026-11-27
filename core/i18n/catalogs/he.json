@@ -5642,9 +5642,10 @@
     "header.run_local_loaded": "פועל עכשיו",
     "header.run_local_last_reply": "כתב את התשובה האחרונה",
     "vcs.btn.mac_settings": "פתיחת הגדרות ה-Mac",
-    "vcs.saved.mac_settings": "הגדרות המערכת פתוחות במדור לוחות שנה. הפעילו שם את VOOL, ואז בחרו רענון רשימת היומנים."
+    "vcs.saved.mac_settings": "הגדרות המערכת פתוחות במדור לוחות שנה. הפעילו שם את VOOL, ואז בחרו רענון רשימת היומנים.",
+    "memory.you_asked_remind": "ביקשת שאזכיר לך:"
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

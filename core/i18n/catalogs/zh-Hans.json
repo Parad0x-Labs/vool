@@ -5642,9 +5642,10 @@
     "header.run_local_loaded": "正在运行",
     "header.run_local_last_reply": "写了上一条回复",
     "vcs.btn.mac_settings": "打开 Mac 设置",
-    "vcs.saved.mac_settings": "系统设置已打开到“日历”。请在那里打开 VOOL，然后选择“刷新日历列表”。"
+    "vcs.saved.mac_settings": "系统设置已打开到“日历”。请在那里打开 VOOL，然后选择“刷新日历列表”。",
+    "memory.you_asked_remind": "你让我提醒你："
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
