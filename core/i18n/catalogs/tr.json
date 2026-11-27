@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "Bu klasörler henüz VOOL'a açık değil. Mac'te Sistem Ayarları'nda Gizlilik ve Güvenlik, Dosyalar ve Klasörler altında VOOL'a izin verin, sonra İzinleri kaydet'e yeniden basın:",
     "phone.bot_everyday": "Anımsatıcılar, takvim, notlar ve kişiler",
     "phone.bot_everyday_help": "VOOL, {app} üzerinden anımsatıcılarınızı, takviminizi, notlarınızı ve kişilerinizi okuyup değiştirebilir. Kişi silme, uygulamalar, komutlar, e-posta ve para bilgisayarınızda kalır. Her seferinde 30 gün açık kalır.",
+    "phone.bot_mail": "Postamı oku",
+    "phone.bot_mail_help": "VOOL, {app} üzerinden bağlı postanızı okuyabilir ve içinde arama yapabilir. Orada size gösterdikleri, örneğin gönderenler, konular ve ileti metni, {app} üzerinden geçer ve orada saklanır. Göndermek veya yanıtlamak her zaman bilgisayarınızda onay ister. Her seferinde 30 gün açık kalır.",
     "permissions.chat_app_allowed": "İzin verildi. VOOL bunu bitirip {app} üzerinden yanıtlar.",
     "permissions.chat_app_denied": "Reddedildi. VOOL, {app} üzerinden yapılmadığını söyler.",
     "phone.bot_cloud": "Bulut modellerimle yanıtla",
@@ -5649,7 +5651,7 @@
     "vcs.btn.mac_settings": "Mac ayarlarını aç",
     "vcs.saved.mac_settings": "Sistem Ayarları Takvimler bölümünde açık. Orada VOOL'u açın, sonra Takvim listesini yenile'yi seçin."
   },
-  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
+  "source_catalog_sha256": "5999485545de602827ada2b5882034fe9d6e3a8f3a7acd8ec7a1da8e43d98e09",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

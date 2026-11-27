@@ -29,14 +29,17 @@ RIGHTS = (
     # A chat app's (Telegram, Discord) use of the owner's reminders, calendar, notes and contacts
     # (core.request_trust.CHAT_APP_EVERYDAY_TOOLS). A phone with "Use tools on my computer" has these.
     "everyday_tools",
+    # A chat app's reading of the owner's connected mail (core.request_trust.chat_app_mail_allowed); sending
+    # always asks on the computer. A phone with "Use tools on my computer" has mail already.
+    "mail",
     # A chat app's answers may use the owner's cloud models, every paid call held to the owner's AI
     # spending limits (core.request_trust.turn_may_use_owner_models, core.paid_call_reservation).
     "cloud_models",
 )
 STRONG = frozenset({"payment_propose", "payment_approve", "tool_approval", "computer_tools", "paid_services",
-                    "everyday_tools", "cloud_models"})
+                    "everyday_tools", "mail", "cloud_models"})
 #: Strong rights the computer grants for 30 days when switched on without a chosen expiry.
-_RENEWED_ON_ENABLE = ("computer_tools", "paid_services", "everyday_tools", "cloud_models")
+_RENEWED_ON_ENABLE = ("computer_tools", "paid_services", "everyday_tools", "mail", "cloud_models")
 ACTIONS = {
     "chats.list": "history",
     "chats.history": "history",

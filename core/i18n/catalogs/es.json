@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "Estas carpetas aún no están abiertas para VOOL. En un Mac, permite VOOL en Ajustes del Sistema, en Privacidad y seguridad, Archivos y carpetas, y luego pulsa de nuevo Guardar permisos:",
     "phone.bot_everyday": "Recordatorios, calendario, notas y contactos",
     "phone.bot_everyday_help": "VOOL puede leer y cambiar tus recordatorios, calendario, notas y contactos desde {app}. Borrar contactos, las apps, los comandos, el correo y el dinero se quedan en tu ordenador. Activo 30 días cada vez.",
+    "phone.bot_mail": "Leer mi correo",
+    "phone.bot_mail_help": "VOOL puede leer y buscar en tu correo conectado desde {app}. Lo que te muestra allí, como remitentes, asuntos y texto de los mensajes, pasa por {app} y queda guardado en él. Enviar o responder siempre pide permiso en tu ordenador. Activado durante 30 días cada vez.",
     "permissions.chat_app_allowed": "Permitido. VOOL lo termina y responde en {app}.",
     "permissions.chat_app_denied": "Denegado. VOOL te avisa en {app} de que no se hizo.",
     "phone.bot_cloud": "Responder con mis modelos en la nube",
@@ -5649,7 +5651,7 @@
     "vcs.btn.mac_settings": "Abrir ajustes del Mac",
     "vcs.saved.mac_settings": "Ajustes del Sistema está abierto en Calendarios. Activa VOOL allí y luego elige Actualizar la lista de calendarios."
   },
-  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
+  "source_catalog_sha256": "5999485545de602827ada2b5882034fe9d6e3a8f3a7acd8ec7a1da8e43d98e09",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

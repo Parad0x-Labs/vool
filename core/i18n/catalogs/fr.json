@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "Ces dossiers ne sont pas encore ouverts à VOOL. Sur un Mac, autorisez VOOL dans Réglages Système, sous Confidentialité et sécurité, Fichiers et dossiers, puis appuyez de nouveau sur Enregistrer les autorisations :",
     "phone.bot_everyday": "Rappels, calendrier, notes et contacts",
     "phone.bot_everyday_help": "VOOL peut lire et modifier vos rappels, votre calendrier, vos notes et vos contacts depuis {app}. Supprimer des contacts, les apps, les commandes, l’e-mail et l’argent restent sur votre ordinateur. Activé 30 jours à la fois.",
+    "phone.bot_mail": "Lire mes e-mails",
+    "phone.bot_mail_help": "VOOL peut lire et rechercher dans votre messagerie connectée depuis {app}. Ce qu’il vous y montre, comme les expéditeurs, les objets et le texte des messages, passe par {app} et y est conservé. Envoyer ou répondre demande toujours votre accord sur votre ordinateur. Activé 30 jours à la fois.",
     "permissions.chat_app_allowed": "Autorisé. VOOL le termine et répond dans {app}.",
     "permissions.chat_app_denied": "Refusé. VOOL vous dit dans {app} que rien n’a été fait.",
     "phone.bot_cloud": "Répondre avec mes modèles cloud",
@@ -5649,7 +5651,7 @@
     "vcs.btn.mac_settings": "Ouvrir les réglages du Mac",
     "vcs.saved.mac_settings": "Les Réglages Système sont ouverts sur Calendriers. Activez VOOL, puis choisissez Actualiser la liste des agendas."
   },
-  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
+  "source_catalog_sha256": "5999485545de602827ada2b5882034fe9d6e3a8f3a7acd8ec7a1da8e43d98e09",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -466,6 +466,48 @@ CHAT_APP_EVERYDAY_TEXT = (
     "computer, open Phone and chat apps, pick this app's tab and turn on \"Reminders, calendar, notes "
     "and contacts\"."
 )
+#: The owner's connected mail, which a chat app may use once the owner turns on "Read my mail" for it (the
+#: ``mail`` right, the owner's choice 2026-11-27; off by default, 30 days at a time). The tools are the registered
+#: ``email.*`` ones that a phone's computer right would open, read from their contracts, never from words. What
+#: they read is shown in the chat app, so it passes through that service. A send or reply is opened by the right
+#: but never covered by it: it asks on the computer (remote_standing_grant), and a draft's approval is the owner's
+#: own act there, so no chat app may run it.
+REMOTE_GRANT_MAIL = "mail"
+CHAT_APP_MAIL_TEXT = (
+    "This chat app can't use your mail yet. In VOOL Settings on your computer, open Phone and chat apps, "
+    "pick this app's tab and turn on \"Read my mail\"."
+)
+
+
+def _chat_app_mail_tool(intent: str) -> bool:
+    name = str(intent or "").strip()
+    if not name.startswith("email.") or name.endswith(".approve"):
+        return False
+    contract = _registered_contract(name)
+    return contract is not None and _class_from_contract(name, contract) == REMOTE_GRANT_COMPUTER
+
+
+def chat_app_mail_allowed(source_context: Any, intent: str) -> bool:
+    """Whether this chat-app turn may run the mail tool ``intent`` under the owner's ``mail`` right."""
+
+    if not _chat_app_mail_tool(intent):
+        return False
+    bot = remote_turn_chat_app(source_context)
+    if bot is None:
+        return False
+    try:
+        from core.mobile_companion.policy import enabled
+
+        return enabled(bot, REMOTE_GRANT_MAIL)
+    except Exception:
+        return False
+
+
+def _reads_only(intent: str) -> bool:
+    contract = _registered_contract(str(intent or "").strip())
+    return contract is not None and str(getattr(contract, "side_effect_class", "") or "") == "read_only"
+
+
 #: A tool no chat-app right opens (apps, commands, accounts, machine-wide searches): said as what it
 #: is, never as a missing files switch the owner could turn on and still not get it.
 _CHAT_APP_FILE_TOOL_PREFIXES = ("workspace.", "machine.", "pdf.", "file.")
@@ -737,6 +779,8 @@ def remote_turn_refusal_text(intent: str, source_context: Any = None) -> str:
     if remote_turn_chat_app(sc) is not None:
         if str(intent or "").strip() in CHAT_APP_EVERYDAY_TOOLS:
             return CHAT_APP_EVERYDAY_TEXT
+        if _chat_app_mail_tool(intent):
+            return CHAT_APP_MAIL_TEXT
         if grant != REMOTE_GRANT_COMPUTER:
             return REMOTE_TURN_REFUSAL_TEXT
         return remote_grant_refusal_text(sc, grant, intent=intent)
@@ -759,6 +803,8 @@ def remote_grant_refusal_text(source_context: Any, grant: str, *, intent: str = 
         clean = str(intent or "").strip()
         if clean in CHAT_APP_EVERYDAY_TOOLS:
             return CHAT_APP_EVERYDAY_TEXT
+        if _chat_app_mail_tool(clean):
+            return CHAT_APP_MAIL_TEXT
         if grant == REMOTE_GRANT_COMPUTER and clean and not clean.startswith(_CHAT_APP_FILE_TOOL_PREFIXES):
             # Only file tools can ever open for a chat app; the files switch would not open this one.
             # Asked before the folders: "how many unread emails?" from a chat app with folders on was
@@ -809,7 +855,7 @@ def remote_turn_tool_refusal(intent: str, source_context: Any) -> str:
         return ""
     if str(intent or "").strip() in REMOTE_TURN_TOOL_INTENTS:
         return ""
-    if chat_app_everyday_allowed(source_context, intent):
+    if chat_app_everyday_allowed(source_context, intent) or chat_app_mail_allowed(source_context, intent):
         return ""
     grant = _remote_intent_grant(intent)
     if grant in REMOTE_GRANT_REFUSAL_TEXT and remote_turn_has_grant(source_context, grant):
@@ -854,6 +900,9 @@ def remote_standing_grant(intent: str, actions: Any, source_context: Any) -> str
         return ""
     if chat_app_everyday_allowed(sc, clean):
         return REMOTE_GRANT_EVERYDAY
+    if chat_app_mail_allowed(sc, clean):
+        # Reading and searching mail is what the switch said; a send or reply asks on the computer.
+        return REMOTE_GRANT_MAIL if _reads_only(clean) else ""
     # "Use tools on my computer" (with its files) or "Look things up online": the right that opened
     # this tool for the device at all (remote_turn_tool_refusal above) is the one that answers it.
     grant = _remote_intent_grant(clean)
@@ -944,6 +993,7 @@ def turn_speaks_for_owner(source_context: Any, session_id: str = "") -> bool:
 
 __all__ = [
     "CHAT_APP_EVERYDAY_TOOLS",
+    "CHAT_APP_MAIL_TEXT",
     "HTTP_INGRESS_KEY",
     "IN_PROCESS_OWNER_PEER",
     "OWNER_LOCAL_CAPABILITIES",
@@ -956,6 +1006,7 @@ __all__ = [
     "REMOTE_GRANT_CLOUD_MODELS",
     "REMOTE_GRANT_COMPUTER",
     "REMOTE_GRANT_EVERYDAY",
+    "REMOTE_GRANT_MAIL",
     "REMOTE_GRANT_PAID",
     "REMOTE_TURN_REFUSAL_TEXT",
     "REMOTE_TURN_TOOL_INTENTS",
@@ -964,6 +1015,7 @@ __all__ = [
     "capability_requires_owner_local",
     "chat_app_cloud_allowed",
     "chat_app_everyday_allowed",
+    "chat_app_mail_allowed",
     "execution_peer_host",
     "in_process_owner_extra",
     "in_process_owner_source_context",

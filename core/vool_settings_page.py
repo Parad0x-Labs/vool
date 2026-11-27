@@ -5658,7 +5658,7 @@ function widgetPhoneAccess(host) {
     }
     if (isBot && (device.binding_state!=='bound' || device.platform!==phoneBotTab)) return;
     const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
-      if (isBot && ['camera','photos','location','microphone','media','tool_approval','payment_approve','computer_tools','paid_services','everyday_tools','cloud_models'].includes(name)) return;
+      if (isBot && ['camera','photos','location','microphone','media','tool_approval','payment_approve','computer_tools','paid_services','everyday_tools','mail','cloud_models'].includes(name)) return;
       const line=el('label','phone-right'); const box=el('input'); box.type='checkbox';
       /* An expired right shows as off, so saving anything else never sends it back on. */
       const until=(device.right_expiry || {})[name]; box.checked=!!(device.rules || {})[name] && !(until && until*1000<=Date.now());
@@ -5700,6 +5700,12 @@ function widgetPhoneAccess(host) {
       const everydayUntil=(device.right_expiry || {}).everyday_tools; everyday.checked=!!(device.rules || {}).everyday_tools && !(everydayUntil && everydayUntil*1000<=Date.now());
       boxes.everyday_tools=everyday; everydayLine.append(everyday,document.createTextNode(' '+T('phone.bot_everyday','Reminders, calendar, notes and contacts'))); everydayBox.appendChild(everydayLine);
       everydayBox.appendChild(el('p','help',T('phone.bot_everyday_help','VOOL can read and change your reminders, calendar, notes and contacts from {app}. Deleting contacts, apps, commands, email and money stay on your computer. On for 30 days at a time.').replace('{app}',appName)));
+      /* Mail for a chat app: its own switch, off until turned on (the owner, 2026-11-27). Reading mail here puts the
+         mail's text in the chat app; sending always asks on the computer, as every action a bot raises does. */
+      const mailLine=el('label','phone-right'); const mail=el('input'); mail.type='checkbox'; mail.dataset.right='mail';
+      const mailUntil=(device.right_expiry || {}).mail; mail.checked=!!(device.rules || {}).mail && !(mailUntil && mailUntil*1000<=Date.now());
+      boxes.mail=mail; mailLine.append(mail,document.createTextNode(' '+T('phone.bot_mail','Read my mail'))); everydayBox.appendChild(mailLine);
+      everydayBox.appendChild(el('p','help chat-app-mail-help',T('phone.bot_mail_help','VOOL can read and search your connected mail from {app}. What it shows you there, like senders, subjects and message text, passes through {app} and is kept by it. Sending or replying always asks on your computer. On for 30 days at a time.').replace('{app}',appName)));
       /* Cloud models for a chat app: off until turned on; paid answers are held to the AI spending limits. */
       const cloudLine=el('label','phone-right'); const cloud=el('input'); cloud.type='checkbox'; cloud.dataset.right='cloud_models';
       const cloudUntil=(device.right_expiry || {}).cloud_models; cloud.checked=!!(device.rules || {}).cloud_models && !(cloudUntil && cloudUntil*1000<=Date.now());

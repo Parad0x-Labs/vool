@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "这些文件夹还没有向 VOOL 开放。在 Mac 上，请在系统设置的“隐私与安全性”>“文件和文件夹”中允许 VOOL，然后再次点按“保存权限”：",
     "phone.bot_everyday": "提醒事项、日历、备忘录和联系人",
     "phone.bot_everyday_help": "VOOL 可以从 {app} 读取和更改你的提醒事项、日历、备忘录和联系人。删除联系人、应用、命令、电子邮件和资金仍留在你的电脑上。每次开启 30 天。",
+    "phone.bot_mail": "读取我的邮件",
+    "phone.bot_mail_help": "VOOL 可以从 {app} 读取和搜索你已连接的邮件。它在那里显示的内容，如发件人、主题和邮件正文，会经过 {app} 并由其保存。发送或回复始终需要在你的电脑上确认。每次开启 30 天。",
     "permissions.chat_app_allowed": "已允许。VOOL 会完成它并在 {app} 中回复。",
     "permissions.chat_app_denied": "已拒绝。VOOL 会在 {app} 中告诉你它没有执行。",
     "phone.bot_cloud": "用我的云端模型回答",
@@ -5649,7 +5651,7 @@
     "vcs.btn.mac_settings": "打开 Mac 设置",
     "vcs.saved.mac_settings": "系统设置已打开到“日历”。请在那里打开 VOOL，然后选择“刷新日历列表”。"
   },
-  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
+  "source_catalog_sha256": "5999485545de602827ada2b5882034fe9d6e3a8f3a7acd8ec7a1da8e43d98e09",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

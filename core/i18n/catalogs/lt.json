@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "Šie aplankai VOOL dar neatverti. „Mac“ kompiuteryje leiskite VOOL sistemos nustatymuose, skiltyje Privatumas ir sauga, Failai ir aplankai, tada dar kartą paspauskite Išsaugoti leidimus:",
     "phone.bot_everyday": "Priminimai, kalendorius, užrašai ir kontaktai",
     "phone.bot_everyday_help": "VOOL gali skaityti ir keisti jūsų priminimus, kalendorių, užrašus ir kontaktus iš {app}. Kontaktų trynimas, programos, komandos, el. paštas ir pinigai lieka jūsų kompiuteryje. Įjungiama 30 dienų.",
+    "phone.bot_mail": "Skaityti mano paštą",
+    "phone.bot_mail_help": "VOOL gali skaityti ir ieškoti jūsų prijungtame pašte iš {app}. Tai, ką jis ten parodo, pavyzdžiui, siuntėjai, temos ir laiškų tekstas, keliauja per {app} ir yra jo saugoma. Siuntimas ar atsakymas visada klausia jūsų kompiuteryje. Įjungta 30 dienų.",
     "permissions.chat_app_allowed": "Leista. VOOL tai užbaigs ir atsakys {app}.",
     "permissions.chat_app_denied": "Atmesta. VOOL praneš {app}, kad tai nebuvo padaryta.",
     "phone.bot_cloud": "Atsakyti mano debesies modeliais",
@@ -5649,7 +5651,7 @@
     "vcs.btn.mac_settings": "Atidaryti „Mac“ nustatymus",
     "vcs.saved.mac_settings": "Sistemos nustatymai atidaryti ties Kalendoriais. Įjunkite ten VOOL, tada pasirinkite „Atnaujinti kalendorių sąrašą“."
   },
-  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
+  "source_catalog_sha256": "5999485545de602827ada2b5882034fe9d6e3a8f3a7acd8ec7a1da8e43d98e09",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "이 폴더는 아직 VOOL에 열려 있지 않습니다. Mac에서는 시스템 설정의 개인정보 보호 및 보안, 파일 및 폴더에서 VOOL을 허용한 다음 권한 저장을 다시 누르세요:",
     "phone.bot_everyday": "미리 알림, 캘린더, 메모, 연락처",
     "phone.bot_everyday_help": "VOOL은 {app}에서 미리 알림, 캘린더, 메모, 연락처를 읽고 변경할 수 있습니다. 연락처 삭제, 앱, 명령, 이메일, 돈은 컴퓨터에 남습니다. 한 번에 30일 동안 켜집니다.",
+    "phone.bot_mail": "내 메일 읽기",
+    "phone.bot_mail_help": "VOOL이 {app}에서 연결된 메일을 읽고 검색할 수 있습니다. 그곳에 보여 주는 보낸 사람, 제목, 메시지 내용 등은 {app}를 거쳐 {app}에 보관됩니다. 보내기나 답장은 항상 컴퓨터에서 확인을 요청합니다. 한 번에 30일 동안 켜집니다.",
     "permissions.chat_app_allowed": "허용했습니다. VOOL이 마무리하고 {app}에서 답합니다.",
     "permissions.chat_app_denied": "거부했습니다. VOOL이 {app}에서 실행되지 않았다고 알려 줍니다.",
     "phone.bot_cloud": "내 클라우드 모델로 답하기",
@@ -5649,7 +5651,7 @@
     "vcs.btn.mac_settings": "Mac 설정 열기",
     "vcs.saved.mac_settings": "시스템 설정의 캘린더 항목이 열렸습니다. 거기서 VOOL을 켠 다음 캘린더 목록 새로 고침을 선택하세요."
   },
-  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
+  "source_catalog_sha256": "5999485545de602827ada2b5882034fe9d6e3a8f3a7acd8ec7a1da8e43d98e09",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

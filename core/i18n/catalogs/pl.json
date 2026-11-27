@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "Te foldery nie są jeszcze otwarte dla VOOL. Na Macu zezwól VOOL w Ustawieniach systemowych, w sekcji Prywatność i ochrona, Pliki i foldery, a potem ponownie naciśnij Zapisz uprawnienia:",
     "phone.bot_everyday": "Przypomnienia, kalendarz, notatki i kontakty",
     "phone.bot_everyday_help": "VOOL może odczytywać i zmieniać Twoje przypomnienia, kalendarz, notatki i kontakty z {app}. Usuwanie kontaktów, aplikacje, polecenia, e-mail i pieniądze zostają na Twoim komputerze. Włączone na 30 dni.",
+    "phone.bot_mail": "Czytaj moją pocztę",
+    "phone.bot_mail_help": "VOOL może czytać i przeszukiwać Twoją połączoną pocztę z {app}. To, co Ci tam pokazuje, np. nadawcy, tematy i treść wiadomości, przechodzi przez {app} i jest tam przechowywane. Wysyłanie lub odpowiadanie zawsze wymaga zgody na komputerze. Włączone na 30 dni.",
     "permissions.chat_app_allowed": "Zezwolono. VOOL to dokończy i odpowie w {app}.",
     "permissions.chat_app_denied": "Odmówiono. VOOL napisze w {app}, że nic nie zostało zrobione.",
     "phone.bot_cloud": "Odpowiadaj moimi modelami w chmurze",
@@ -5649,7 +5651,7 @@
     "vcs.btn.mac_settings": "Otwórz ustawienia Maca",
     "vcs.saved.mac_settings": "Ustawienia systemowe są otwarte na Kalendarzach. Włącz tam VOOL, a potem wybierz Odśwież listę kalendarzy."
   },
-  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
+  "source_catalog_sha256": "5999485545de602827ada2b5882034fe9d6e3a8f3a7acd8ec7a1da8e43d98e09",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

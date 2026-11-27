@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "これらのフォルダーはまだ VOOL に開かれていません。Mac では、システム設定のプライバシーとセキュリティ、ファイルとフォルダーで VOOL を許可してから、もう一度「権限を保存」を押してください:",
     "phone.bot_everyday": "リマインダー、カレンダー、メモ、連絡先",
     "phone.bot_everyday_help": "VOOL は {app} からリマインダー、カレンダー、メモ、連絡先を読み取り、変更できます。連絡先の削除、アプリ、コマンド、メール、お金はこのコンピューターに残ります。30 日ごとに有効です。",
+    "phone.bot_mail": "メールを読む",
+    "phone.bot_mail_help": "VOOL は {app} から、接続したメールを読んだり検索したりできます。そこで表示される差出人、件名、本文などは {app} を通り、{app} に保存されます。送信や返信は必ずコンピューターで確認します。毎回 30 日間有効です。",
     "permissions.chat_app_allowed": "許可しました。VOOL が完了し、{app} で返信します。",
     "permissions.chat_app_denied": "拒否しました。実行されなかったことを VOOL が {app} で伝えます。",
     "phone.bot_cloud": "自分のクラウドモデルで回答する",
@@ -5649,7 +5651,7 @@
     "vcs.btn.mac_settings": "Macの設定を開く",
     "vcs.saved.mac_settings": "システム設定の「カレンダー」を開きました。そこでVOOLをオンにしてから、「カレンダー一覧を更新」を選んでください。"
   },
-  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
+  "source_catalog_sha256": "5999485545de602827ada2b5882034fe9d6e3a8f3a7acd8ec7a1da8e43d98e09",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

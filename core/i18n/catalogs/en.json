@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Save permissions again:",
     "phone.bot_everyday": "Reminders, calendar, notes and contacts",
     "phone.bot_everyday_help": "VOOL can read and change your reminders, calendar, notes and contacts from {app}. Deleting contacts, apps, commands, email and money stay on your computer. On for 30 days at a time.",
+    "phone.bot_mail": "Read my mail",
+    "phone.bot_mail_help": "VOOL can read and search your connected mail from {app}. What it shows you there, like senders, subjects and message text, passes through {app} and is kept by it. Sending or replying always asks on your computer. On for 30 days at a time.",
     "permissions.chat_app_allowed": "Allowed. VOOL finishes it and answers in {app}.",
     "permissions.chat_app_denied": "Denied. VOOL tells you in {app} that it did not run.",
     "phone.bot_cloud": "Answer with my cloud models",

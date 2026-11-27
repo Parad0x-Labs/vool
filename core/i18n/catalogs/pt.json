@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "Essas pastas ainda não estão abertas ao VOOL. No Mac, permita o VOOL em Ajustes do Sistema, em Privacidade e Segurança, Arquivos e Pastas, e depois toque de novo em Guardar permissões:",
     "phone.bot_everyday": "Lembretes, calendário, notas e contatos",
     "phone.bot_everyday_help": "O VOOL pode ler e alterar seus lembretes, calendário, notas e contatos pelo {app}. Apagar contatos, apps, comandos, e-mail e dinheiro ficam no seu computador. Ligado por 30 dias de cada vez.",
+    "phone.bot_mail": "Ler o meu e-mail",
+    "phone.bot_mail_help": "O VOOL pode ler e pesquisar o seu e-mail ligado a partir do {app}. O que lhe mostra lá, como remetentes, assuntos e texto das mensagens, passa pelo {app} e fica guardado nele. Enviar ou responder pede sempre confirmação no seu computador. Ativo durante 30 dias de cada vez.",
     "permissions.chat_app_allowed": "Permitido. O VOOL termina e responde no {app}.",
     "permissions.chat_app_denied": "Negado. O VOOL avisa no {app} que não foi feito.",
     "phone.bot_cloud": "Responder com meus modelos na nuvem",
@@ -5649,7 +5651,7 @@
     "vcs.btn.mac_settings": "Abrir ajustes do Mac",
     "vcs.saved.mac_settings": "Os Ajustes do Sistema estão abertos em Calendários. Ative o VOOL lá e depois escolha Atualizar a lista de calendários."
   },
-  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
+  "source_catalog_sha256": "5999485545de602827ada2b5882034fe9d6e3a8f3a7acd8ec7a1da8e43d98e09",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

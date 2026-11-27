@@ -5455,6 +5455,8 @@
     "phone.bot_files_not_ready": "Các thư mục này chưa mở cho VOOL. Trên Mac, hãy cho phép VOOL trong Cài đặt hệ thống, mục Quyền riêng tư & Bảo mật, Tệp và thư mục, rồi bấm Lưu quyền lần nữa:",
     "phone.bot_everyday": "Lời nhắc, lịch, ghi chú và danh bạ",
     "phone.bot_everyday_help": "VOOL có thể đọc và thay đổi lời nhắc, lịch, ghi chú và danh bạ của bạn từ {app}. Xóa liên hệ, ứng dụng, lệnh, email và tiền vẫn ở trên máy tính của bạn. Bật 30 ngày mỗi lần.",
+    "phone.bot_mail": "Đọc thư của tôi",
+    "phone.bot_mail_help": "VOOL có thể đọc và tìm trong hộp thư đã kết nối của bạn từ {app}. Những gì nó hiển thị ở đó, như người gửi, tiêu đề và nội dung thư, đi qua {app} và được {app} lưu giữ. Gửi hoặc trả lời luôn hỏi trên máy tính của bạn. Bật trong 30 ngày mỗi lần.",
     "permissions.chat_app_allowed": "Đã cho phép. VOOL sẽ hoàn tất và trả lời trong {app}.",
     "permissions.chat_app_denied": "Đã từ chối. VOOL sẽ báo trong {app} rằng việc này không được thực hiện.",
     "phone.bot_cloud": "Trả lời bằng các mô hình đám mây của tôi",
@@ -5649,7 +5651,7 @@
     "vcs.btn.mac_settings": "Mở cài đặt Mac",
     "vcs.saved.mac_settings": "Cài đặt hệ thống đang mở ở mục Lịch. Hãy bật VOOL ở đó, rồi chọn Làm mới danh sách lịch."
   },
-  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
+  "source_catalog_sha256": "5999485545de602827ada2b5882034fe9d6e3a8f3a7acd8ec7a1da8e43d98e09",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
