@@ -125,6 +125,9 @@ PLANNER_SYSTEM_PROMPT = (
     "  change my tyres in vilnius', the weather request must say 'vilnius' too.\n"
     "- Keep requests that must be answered together as ONE request when they share a subject\n"
     "  and answer type.\n"
+    "- Facts the user states are not requests: they belong, word for word, to the request that\n"
+    "  uses them. 'the bus leaves at 8:10 and the trip is 95 minutes, when do I arrive?' is ONE\n"
+    "  request, never 'the bus leaves at 8:10' and 'when do I arrive?'.\n"
     "- Mark depends_on only when a request genuinely needs another's answer first.\n"
     "- No prose, no explanation, no markdown fence. Only the JSON array."
 )
