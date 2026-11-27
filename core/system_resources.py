@@ -68,6 +68,7 @@ class ResourceSnapshot:
     comfyui_running: bool
     reserve_gb: float               # RAM to keep free for the user
     usable_gb: float                # max a heavy task may take now: max(0, available - reserve)
+    ram_read: bool = True           # False when the machine's memory could not be read (not the same as none free)
 
     def to_dict(self) -> dict[str, object]:
         d = asdict(self)
@@ -75,8 +76,11 @@ class ResourceSnapshot:
 
 
 def _run(cmd: list[str], timeout: float = 2.0) -> str:
+    # The system tools by their full path: a packaged app may start with a PATH that does not reach them.
+    tool = next((f"{folder}/{cmd[0]}" for folder in ("/usr/bin", "/usr/sbin", "/bin", "/sbin")
+                 if "/" not in cmd[0] and os.path.isfile(f"{folder}/{cmd[0]}")), cmd[0])
     try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+        out = subprocess.run([tool, *cmd[1:]], capture_output=True, text=True, timeout=timeout, check=False)
         return out.stdout or ""
     except (OSError, subprocess.SubprocessError):
         return ""
@@ -93,7 +97,8 @@ def _macos_total_ram_bytes() -> float:
 
 def _macos_ram_available_and_pressure(total_bytes: float) -> tuple[float, str]:
     """Available bytes + a pressure verdict, from vm_stat page counts (no sudo, always works)."""
-    text = _run(["vm_stat"])
+    # A busy Mac (a local model generating, memory tight) can take more than two seconds to start a tool.
+    text = _run(["vm_stat"], timeout=6.0)
     if not text:
         return 0.0, "unknown"
     page = 4096
@@ -269,6 +274,8 @@ def _build_snapshot(*, base_url: str | None = None) -> ResourceSnapshot:
         comfyui_running=_comfyui_running(),
         reserve_gb=reserve / _GIB,
         usable_gb=usable / _GIB,
+        # No running machine has no free, inactive or speculative page at all: a zero is a reading that failed.
+        ram_read=total > 0.0 and available > 0.0,
     )
 
 

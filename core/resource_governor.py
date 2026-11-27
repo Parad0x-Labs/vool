@@ -204,8 +204,9 @@ def reclaim_if_pressured() -> list[str]:
 _LOAD_SAFETY_FLOOR_GB = float(os.environ.get("VOOL_MODEL_LOAD_FLOOR_GB", "1.5") or 1.5)
 
 
-def resident_models(*, base_url: str | None = None) -> list[dict]:
-    """What Ollama is holding in memory right now: [{name, size_gb}], best-effort ([] on error)."""
+def resident_models(*, base_url: str | None = None, none_if_unread: bool = False) -> list[dict] | None:
+    """What Ollama is holding in memory right now: [{name, size_gb}], best-effort ([] on error, or None on error with
+    ``none_if_unread``: a busy Ollama answers /api/ps late, and that is not "nothing loaded")."""
     from core.local_model_policy import local_models_enabled
 
     target = _local_ollama_base(base_url)
@@ -213,8 +214,17 @@ def resident_models(*, base_url: str | None = None) -> list[dict]:
         return []
     if not local_models_enabled():
         return []
+    rows = _read_resident_models(target)
+    if rows is None:
+        return None if none_if_unread else []
+    return rows
+
+
+def _read_resident_models(target: str) -> list[dict] | None:
+    """Ollama's /api/ps as [{name, size_gb}], largest first; None when it could not be read (not the same as nothing
+    loaded: a busy Ollama answers /api/ps late while it generates)."""
     rows: list[dict] = []
-    with contextlib.suppress(OSError, ValueError):
+    try:
         req = urllib.request.Request(f"{target}/api/ps", headers={"Accept": "application/json"})
         with urlopen(req, timeout=2.0) as resp:
             data = json.loads(resp.read().decode("utf-8", "replace") or "{}")
@@ -223,6 +233,8 @@ def resident_models(*, base_url: str | None = None) -> list[dict]:
             size = float(m.get("size_vram") or m.get("size") or 0) / (1024.0 ** 3)
             if name:
                 rows.append({"name": name, "size_gb": round(size, 1)})
+    except (OSError, ValueError, AttributeError, TypeError):
+        return None
     rows.sort(key=lambda r: r["size_gb"], reverse=True)
     if rows:
         # What each loaded model holds now is kept as its peak, which Auto's pick counts it at.
@@ -331,8 +343,20 @@ def plan_model_load(model_name: str, *, base_url: str | None = None) -> Governor
     target_options = {"base_url": target} if base_url is not None else {}
     name = str(model_name or "").strip()
     snap = sr.snapshot(force=True, **target_options)
-    residents = resident_models(**target_options)
-    if any(r["name"] == name for r in residents):
+    read = resident_models(**target_options, none_if_unread=True)
+    if read is None:
+        # What Ollama holds could not be read, so whether this model is already loaded is unknown: never block on
+        # ignorance. Sealed benchmark run on 21d4d4046 (qwen3:8b loaded, Ollama busy answering): the turn's model, the
+        # only one loaded, was refused for low memory beside ~6 GB free, and the reply was "I can't publish this
+        # answer". Ollama queues the load itself when it really has to make room.
+        return GovernorDecision(ok=True, usable_before_gb=snap.available_ram_gb, usable_after_gb=snap.available_ram_gb)
+    residents = read
+    if any(_same_model(r["name"], name) for r in residents):
+        return GovernorDecision(ok=True, usable_before_gb=snap.available_ram_gb, usable_after_gb=snap.available_ram_gb)
+    if not getattr(snap, "ram_read", True):
+        # The machine's memory could not be read (vm_stat did not answer in time on a busy Mac): that is not "nothing
+        # free". The same benchmark run refused all three fallback models at "~0.0 GB free" while ~5.8 GB was
+        # inactive and reclaimable.
         return GovernorDecision(ok=True, usable_before_gb=snap.available_ram_gb, usable_after_gb=snap.available_ram_gb)
     need = estimated_model_gb(name, **target_options)
     decision = GovernorDecision(
@@ -341,8 +365,8 @@ def plan_model_load(model_name: str, *, base_url: str | None = None) -> Governor
     )
     if _load_fits(need, snap.available_ram_gb):
         return decision
-    others = [r["name"] for r in residents if r["name"] != name]
-    sizes = [float(r.get("size_gb") or 0.0) for r in residents if r["name"] != name]
+    others = [r["name"] for r in residents if not _same_model(r["name"], name)]
+    sizes = [float(r.get("size_gb") or 0.0) for r in residents if not _same_model(r["name"], name)]
     if others and all(size > 0.0 for size in sizes) and not _load_fits(need, snap.available_ram_gb + sum(sizes)):
         # Every other resident model's size is known and all of them together would still not make room: unloading
         # them would only cost each one a reload on its next use, and the load is refused anyway.
@@ -364,8 +388,16 @@ def plan_model_load(model_name: str, *, base_url: str | None = None) -> Governor
                 time.sleep(0.5)
                 snap = sr.snapshot(force=True, **target_options)
     decision.usable_after_gb = snap.available_ram_gb
-    decision.ok = _load_fits(need, snap.available_ram_gb)
+    decision.ok = not getattr(snap, "ram_read", True) or _load_fits(need, snap.available_ram_gb)
     return decision
+
+
+def _same_model(resident: str, wanted: str) -> bool:
+    """One Ollama tag for another, "qwen3:8b" as "qwen3:8b:latest" or "QWEN3:8B" (Ollama lists the full tag)."""
+    def key(tag: str) -> str:
+        return str(tag or "").strip().lower().removesuffix(":latest")
+
+    return bool(key(wanted)) and key(resident) == key(wanted)
 
 
 def _load_fits(need_gb: float, available_gb: float) -> bool:
@@ -389,10 +421,13 @@ def models_that_cannot_load_now(model_names: list[str], *, base_url: str | None 
     target_options = {"base_url": target} if base_url is not None else {}
     try:
         snap = sr.snapshot(**target_options)
-        resident = {row["name"] for row in resident_models(**target_options)}
+        read = resident_models(**target_options, none_if_unread=True)
+        if read is None or not getattr(snap, "ram_read", True):
+            return frozenset()
         return frozenset(
             name for name in names
-            if name not in resident and not _load_fits(estimated_model_gb(name, **target_options), snap.available_ram_gb)
+            if not any(_same_model(row["name"], name) for row in read)
+            and not _load_fits(estimated_model_gb(name, **target_options), snap.available_ram_gb)
         )
     except Exception:
         return frozenset()
