@@ -2185,6 +2185,19 @@ _ASKS_TIME_RE = re.compile(
 # "time in <place>" is a clock reference only because a real timezone was named. Without one it is
 # "delivery time in Q3", so this alternative is gated on the caller having extracted a timezone.
 _TIME_IN_PLACE_RE = re.compile(r"\btime\s+in\b", re.IGNORECASE)
+# A clock reading by its shape: hours and minutes with a colon ("9:40", "18:05"), or an hour with a 12-hour
+# marker ("7pm", "7 p.m."). A plain number is never one ("2 hours", "3.50").
+_STATED_CLOCK_READING_RE = re.compile(r"(?<![\d:])\d{1,2}:[0-5]\d(?![\d:])|\b\d{1,2}\s?[ap]\.?m\b\.?", re.IGNORECASE)
+
+
+def _asks_from_a_stated_clock_reading(phrase: str) -> bool:
+    """Whether the message's question carries a clock reading of its own.
+
+    The question is each part that ends in a question mark, or the whole message when none does.
+    """
+    parts = [part for part in re.split(r"(?<=\?)", str(phrase or "")) if part.strip()]
+    questions = [part for part in parts if part.rstrip().endswith("?")] or [str(phrase or "")]
+    return any(_STATED_CLOCK_READING_RE.search(part) for part in questions)
 
 
 def _time_word_is_the_clock(cleaned: str, *, has_timezone: bool = False) -> bool:
@@ -2293,6 +2306,14 @@ def date_time_fast_path(
         for candidate in supplied_absolute_time_conversion(cleaned, now_utc=now_utc) or ():
             if not _fixed_shape_violates_a_stated_output_contract(normalized_input, candidate):
                 return candidate
+        return None
+    # A message that states a clock reading of its own and is no conversion ("a train leaves at 9:40 and the
+    # ride is 2 hours 35 minutes, what time does it get in?") asks for a time worked out from that reading, in
+    # any language. iMac gate52 on a6a5f29b7 answered it "Current time is 18:56 EET." The model works it out;
+    # the runtime's clock is still in its prompt for a message that needs both.
+    # The reading counts where the question is: "what time is it? if it is 9:00 pm in london i will call
+    # tomorrow" asks the clock in its own question and only mentions a time after it.
+    if _asks_from_a_stated_clock_reading(phrase):
         return None
     # A relative offset ("in 5h from now", "2 hours ago") is PART OF THE QUESTION, never noise.
     # Measured on the served surface, 2026-08-14: "what time is it in 5h from now in Tokyo? Output
