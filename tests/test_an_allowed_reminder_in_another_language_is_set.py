@@ -7,6 +7,11 @@ and a plain answer said "Reminder scheduled" with an earlier reminder's id while
 
 The resumed turn now runs the call the person allowed. The judge is scripted to pick the reminders once only (a
 second judgement may differ), and the note and the day are built from parts at random.
+
+Cut-list 29 (2026-11-27): a call whose time and note are the message's own, in a message that is no question, is the
+person's order (core.operator.reminder_order) and is set with no card, as "remind me ..." is by the chat lane in Manual
+mode. The card, its allow and the resume stay for a call the message does not plainly carry: a time the words never
+give in numbers, or an order put as a question.
 """
 from __future__ import annotations
 
@@ -17,6 +22,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.request import Request, urlopen
+
+import pytest
 
 from tests._blackbox_served_rig import ServedDaemon, run_in_home
 from tests._served_sufficiency_provider import SEED
@@ -85,19 +92,56 @@ def _allow(daemon: ServedDaemon, approval_id: str, session: str, turn_id: str) -
         assert response.status == 200
 
 
-def test_an_allowed_lithuanian_reminder_is_set_when_the_turn_resumes(tmp_path):
+def _rows(home, session: str) -> list[dict[str, Any]]:
+    return json.loads(run_in_home(home, (
+        "import json\n"
+        "from core.operator.reminders import list_reminders\n"
+        "from storage.db import get_connection\n"
+        f"print(json.dumps(list_reminders(session_id={session!r}, get_connection_fn=get_connection)))\n"
+    )).strip().splitlines()[-1])
+
+
+def _served(tmp_path, provider):
+    home = tmp_path / "home"
+    run_in_home(home, SEED.format(root=REPO, base_url=provider.base_url, models=[(MODEL, {})]))
+    env = {"VOOL_MODEL_LOAD_FLOOR_GB": "0", "OLLAMA_HOST": provider.base_url, "VOOL_OLLAMA_URL": provider.base_url,
+           "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat"}
+    return home, ServedDaemon(home, env_extra=env)
+
+
+def test_a_lithuanian_reminder_order_is_set_with_no_card(tmp_path):
     note = _RNG.choice(NOTES)
     word, days = _RNG.choice(DAYS)
     hour = _RNG.randint(8, 11)
     due = (datetime.now() + timedelta(days=days)).replace(hour=hour, minute=0, second=0, microsecond=0)
     text = f"Primink man {word} {hour} val. {note}"
-    home = tmp_path / "home"
     provider = _ReminderProvider(note, due.strftime("%Y-%m-%dT%H:%M"))
     with provider:
-        run_in_home(home, SEED.format(root=REPO, base_url=provider.base_url, models=[(MODEL, {})]))
-        env = {"VOOL_MODEL_LOAD_FLOOR_GB": "0", "OLLAMA_HOST": provider.base_url, "VOOL_OLLAMA_URL": provider.base_url,
-               "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat"}
-        with ServedDaemon(home, env_extra=env) as daemon:
+        home, served = _served(tmp_path, provider)
+        with served as daemon:
+            assert _certify(daemon).get("state") == "verified"
+            session = "openclaw:" + uuid.uuid4().hex[:20]
+            asked = _turn(daemon, text, session, uuid.uuid4().hex)
+            assert not [event for event in asked if event.get("type") == "permission.required"], (
+                provider.judged, [(e.get("type"), str(e.get("summary") or "")[:60]) for e in asked][-8:])
+            rows = _rows(home, session)
+    assert [row["note"] for row in rows if row["status"] == "scheduled"] == [note], (text, rows)
+    assert provider.judged >= 1 and provider.offered_reminder_tool == 1
+
+
+@pytest.mark.parametrize("shape", ["{Word} ryte {note}", "Gal gali {word} {hour} val. priminti {note}?"])
+def test_an_allowed_lithuanian_reminder_is_set_when_the_turn_resumes(shape, tmp_path):
+    """A call the message does not plainly carry (its 9:00 said only as "ryte", or the order asked as a question)
+    still asks first, and the allowed call runs when the turn resumes."""
+    note = _RNG.choice(NOTES)
+    word, days = _RNG.choice(DAYS)
+    hour = 9 if "ryte" in shape else _RNG.randint(8, 11)
+    due = (datetime.now() + timedelta(days=days)).replace(hour=hour, minute=0, second=0, microsecond=0)
+    text = shape.format(Word=word.capitalize(), word=word, hour=hour, note=note)
+    provider = _ReminderProvider(note, due.strftime("%Y-%m-%dT%H:%M"))
+    with provider:
+        home, served = _served(tmp_path, provider)
+        with served as daemon:
             assert _certify(daemon).get("state") == "verified"
             session = "openclaw:" + uuid.uuid4().hex[:20]
             turn_id = uuid.uuid4().hex
@@ -105,13 +149,9 @@ def test_an_allowed_lithuanian_reminder_is_set_when_the_turn_resumes(tmp_path):
             approvals = [event.get("approval") or {} for event in asked if event.get("type") == "permission.required"]
             assert approvals and "schedule_reminder" in str(approvals[0].get("intent")), (
                 provider.judged, [(e.get("type"), str(e.get("summary") or "")[:60]) for e in asked][-8:])
+            assert _rows(home, session) == []
             _allow(daemon, str(approvals[0]["approval_id"]), session, turn_id)
             _turn(daemon, text, session, turn_id, approval_token=str(approvals[0]["approval_id"]))
-            rows = json.loads(run_in_home(home, (
-                "import json\n"
-                "from core.operator.reminders import list_reminders\n"
-                "from storage.db import get_connection\n"
-                f"print(json.dumps(list_reminders(session_id={session!r}, get_connection_fn=get_connection)))\n"
-            )).strip().splitlines()[-1])
+            rows = _rows(home, session)
     assert [row["note"] for row in rows if row["status"] == "scheduled"] == [note], (text, rows)
     assert provider.judged >= 1 and provider.offered_reminder_tool == 1
