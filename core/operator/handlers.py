@@ -1726,6 +1726,31 @@ def _subject_after_leading_when(text: str) -> str:
     return after.group("subject").strip().rstrip(".,;:!?").strip() if after else ""
 
 
+#: The ask gives the reminder its name ("... in 5 minutes, named it test 123", "a reminder called rent", "with the
+#: title: dentist"): the name IS the note, and the words around it are the when-clause and the order's own frame.
+#: Read by shape: a naming verb bound to the reminder or to "it", never "to call it a day" or "the dog named Rex".
+_REMINDER_NAMED_RE = re.compile(
+    r"\breminders?\s+(?:named|called|titled)\s+"
+    r"|(?<!\bto )\b(?:named|called|titled|name|call|title)\s+it\s+(?:as\s+)?"
+    r"|\bwith\s+(?:the\s+|a\s+)?(?:name|title)\s*:?\s+(?:of\s+)?"
+    r"|(?:^|[,;]\s*|\band\s+)(?:the\s+)?(?:name|title)\s*:\s*",
+    re.IGNORECASE,
+)
+
+
+def _reminder_named(raw: str) -> str:
+    """The name the ask gave the reminder, with any when-clause after it read off; "" when it names none."""
+    match = _REMINDER_NAMED_RE.search(raw)
+    if not match or not re.search(r"\bremind", raw[: match.start()] + " " + match.group(0), re.IGNORECASE):
+        return ""
+    name = raw[match.end():].strip().strip("\"'\u201c\u201d\u2018\u2019")
+    if not name:
+        return ""
+    # "named test 123 in 5 min": the name is read like any subject, so a trailing when leaves it.
+    read = _reminder_note_from_text("remind me to " + name)
+    return read.strip().strip("\"'\u201c\u201d\u2018\u2019") or name
+
+
 def _reminder_note_from_text(text: str) -> str:
     """The reminder's SUBJECT: the thing to do, with every lead the seat accepts and the
     when-clause stripped -- whether the when trails the subject ('to call mom at 5pm'),
@@ -1741,6 +1766,9 @@ def _reminder_note_from_text(text: str) -> str:
     # A thanks at the end ("... tomorrow at 3pm ty") is said to VOOL, not part of the thing to do; left on, it kept the
     # when-clause in the note ("book a haircut tomorrow"; real-app check v3 on fe98e849, 2026-11-22).
     raw = _TRAILING_COURTESY_RE.sub("", raw).strip() or raw
+    named = _reminder_named(raw)
+    if named:
+        return named
     leading_when_subject = _subject_after_leading_when(raw)
     if leading_when_subject:
         return leading_when_subject
