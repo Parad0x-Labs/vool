@@ -1,9 +1,11 @@
-"""A Contacts pick stands only on a yes/no of its own, unless the message carries what a contact holds.
+"""A Contacts pick stands only on a question of its own, unless the message carries what a contact holds.
 
 iMac gate on f0a19600e (qwen3:8b): a fact about a friend's pet, told with "keep that bit to yourself", was picked
 Contacts; the fact went into a contact's notes behind two approval cards and the message was kept in memory. A recall
-about the person's own life ran a contact search. A message with a phone number or an email in it is the contact
-save's own and is not asked again. Names, pets and wordings drawn at random.
+about the person's own life ran a contact search. The shared yes/no then read a recall about the person's own number
+as a contacts ask (Intel app smoke of efb8e474c), so Contacts has a three-way question of its own: contact, the
+person's own life, or other. A message with a phone number or an email in it is the contact save's own and is not
+asked again. Names, pets and wordings drawn at random.
 """
 from __future__ import annotations
 
@@ -23,11 +25,14 @@ SAVES = ("save {p}, number {v}", "add {p} to my contacts: {v}", "{p}'s new email
 
 @pytest.fixture
 def judged(monkeypatch):
-    asked: list[tuple[str, str]] = []
+    asked: list[str] = []
 
-    def judge(verdict):
+    def judge(verdict, told="no"):
+        monkeypatch.setattr(intent_arbiter, "arbitrate_contact_ask",
+                            lambda text, **_k: asked.append(text) or verdict)
         monkeypatch.setattr(intent_arbiter, "arbitrate_choice_ask",
-                            lambda text, choice, **_k: asked.append((text, choice)) or verdict)
+                            lambda *_a, **_k: pytest.fail("Contacts is asked its own question"))
+        monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: told)
         return asked
     return judge
 
@@ -38,13 +43,18 @@ def test_a_contacts_pick_on_a_told_fact_is_dropped_by_its_own_no(seed, judged) -
     text = rng.choice(TELLS).format(p=rng.choice(PEOPLE), a=rng.choice(PETS))
     asked = judged("no")
     assert plugin_ask._actions_confirmed(text, ("contacts",), {}, "chat-1") == ()
-    assert len(asked) == 1 and asked[0][0] == text and asked[0][1].startswith("Contacts:")
+    assert asked == [text]
 
 
 @pytest.mark.parametrize("verdict", ["yes", None])
 def test_a_contacts_pick_stands_on_a_yes_or_with_no_answer(verdict, judged) -> None:
     judged(verdict)
     assert plugin_ask._actions_confirmed("find Rasa in my contacts", ("contacts",), {}, "chat-1") == ("contacts",)
+
+
+def test_no_answer_beside_a_told_fact_does_not_keep_the_pick(judged) -> None:
+    judged(None, told="yes")
+    assert plugin_ask._actions_confirmed("my neighbour Tomas has a parrot called Kiwi", ("contacts",), {}, "c") == ()
 
 
 @pytest.mark.parametrize("seed", range(6))
@@ -59,3 +69,11 @@ def test_a_message_holding_a_number_or_email_is_not_asked_again(seed, judged) ->
 def test_the_question_says_a_told_fact_about_the_persons_people_is_no() -> None:
     prompt = intent_arbiter._choice_ask_prompt("x", "Contacts: ...")
     assert "Telling or asking something about the person's own life, people or pets" in prompt
+
+
+def test_the_contact_question_reads_the_persons_own_numbers_as_theirs_not_a_contact() -> None:
+    prompt = intent_arbiter._contact_ask_prompt("x")
+    assert "the person's own life: their own things, numbers, codes" in prompt
+    assert intent_arbiter._contact_kind_reader('{"answer": "mine"}') == "no"
+    assert intent_arbiter._contact_kind_reader('{"answer": "contact"}') == "yes"
+    assert intent_arbiter._contact_kind_reader('{"answer": "yes"}') is None

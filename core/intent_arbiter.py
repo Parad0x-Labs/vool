@@ -2478,6 +2478,65 @@ def arbitrate_calendar_ask(
     )
 
 
+def _contact_ask_prompt(message: str) -> str:
+    """Which of three a message is: an ask about a saved contact, something about the person's own life, or something
+    else. Asked of a Contacts pick in place of the shared yes/no, which read a question about the person's own number
+    as a contacts ask: on the Intel app smoke of efb8e474c (qwen3:8b) a recall about a number of the person's own was
+    picked Contacts, confirmed, and handed to the model with the contact tools instead of the memory lane; on
+    f0a19600e a fact about a squash partner was written into a contact's notes. A number, a name or a person in a
+    message is no ask about a contact card."""
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
+    return "\n".join([
+        "A person wrote to their assistant. Which one is the message? Any language, any words.",
+        "contact = it asks to find, show, save, change or delete the saved contact details (phone number, email,",
+        "address) of another person or a business.",
+        "mine = it tells or asks about the person's own life: their own things, numbers, codes, plans or people, or",
+        "something they told the assistant before. Also when it names a number or a person.",
+        "other = anything else.",
+        "",
+        'Message: "what is Rūta\'s phone number?" -> {"answer": "contact"}',
+        'Message: "save Jonas Petraitis, jonas.p@example.com" -> {"answer": "contact"}',
+        'Message: "what is my gym membership number?" -> {"answer": "mine"}',
+        'Message: "koks mano buto kodas?" -> {"answer": "mine"}',
+        'Message: "wie lautet die E-Mail-Adresse meiner Vermieterin?" -> {"answer": "contact"}',
+        'Message: "my running buddy Aiste just got a puppy" -> {"answer": "mine"}',
+        'Message: "change the dentist\'s number to 555 0199" -> {"answer": "contact"}',
+        'Message: "wie hoch ist der Mount Everest?" -> {"answer": "other"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "contact"}, {"answer": "mine"} or {"answer": "other"}',
+    ])
+
+
+#: `_contact_ask_prompt`'s answers as the yes/no its callers read: only "contact" is about a contact.
+_CONTACT_KINDS = {"contact": "yes", "mine": "no", "other": "no"}
+
+
+def _contact_kind_reader(content: str) -> str | None:
+    return _named_answer(content, _CONTACT_KINDS)
+
+
+def arbitrate_contact_ask(
+    message: str,
+    *,
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a message asks about a saved contact: ``"yes"`` / ``"no"``, or None when nothing judged it. Asked of a
+    Contacts pick (core.plugin_ask)."""
+    if not str(message or "").strip():
+        return None
+    prompt = _contact_ask_prompt(message)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context, _contact_kind_reader)
+    return arbitrate_followup(
+        "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
+        operation="contact_ask_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+        patient=True, parse=_contact_kind_reader,
+    )
+
+
 def _means_the_one_reminder_prompt(message: str, reminder: str) -> str:
     """Whether a cancel, move or edit means the chat's only pending reminder, asked when its words named none."""
     flat = " ".join(str(message or "").split())[:400].replace('"', "'")

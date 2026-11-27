@@ -764,7 +764,7 @@ def _web_confirmed(text: str, keys: tuple[str, ...], source_context: dict[str, A
 
 #: Picks that act on this computer or on the person's saved records: each stands only on a yes/no of its own
 #: (`_actions_confirmed`).
-_ACTION_CHOICES_CONFIRMED = frozenset({"run", "files", "contacts"})
+_ACTION_CHOICES_CONFIRMED = frozenset({"run", "files"})
 #: Picks that no question of their own confirms (Reminders, Calendar, Find and the web have theirs). On a message the
 #: told-as-fact question reads as telling a fact, each is put to the shared yes/no too: a pick stops the keep of the
 #: fact, so an unchecked misreading kept nothing and handed the model a tool (memory wiring audit of efb8e474c, B2).
@@ -800,6 +800,21 @@ def _actions_confirmed(
     kept = []
     for key in keys:
         if key == "contacts" and _CONTACT_VALUE_RE.search(" ".join(str(text or "").split())):
+            kept.append(key)
+            continue
+        if key == "contacts":
+            # Without a contact value in it, a Contacts pick is asked a question of its own: the shared yes/no read a
+            # recall about the person's own number as a contacts ask, and the turn went to the model with the contact
+            # tools instead of the memory lane (Intel app smoke of efb8e474c). No answer keeps the pick.
+            try:
+                verdict = intent_arbiter.arbitrate_contact_ask(text, chat_id=str(session_id or ""),
+                                                               source_context=source_context)
+            except Exception as exc:
+                _log.info("tool ask: contacts pick not confirmed (%s)", type(exc).__name__)
+                verdict = None
+            if verdict == "no" or (verdict is None and tells_a_fact()):
+                _log.info("tool ask: contacts pick dropped by its own question (%s)", verdict or "no answer")
+                continue
             kept.append(key)
             continue
         if key == "find":
