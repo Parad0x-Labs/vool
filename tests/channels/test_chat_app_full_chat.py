@@ -89,9 +89,11 @@ def test_every_turn_in_a_chat_app_chat_is_answered_with_where_it_ran(bots, platf
     # The model question is answered in plain words, as in the app: no internal names or code marks.
     assert not any(w in replies[2].lower() for w in ('composer pin', 'footer', 'lane', '`')), replies[2]
     # Read away from the computer, the computer is "your desktop" (sls 2026-11-27); the app keeps "On this computer".
-    assert all(reply.rstrip().splitlines()[-1].startswith(('On your desktop', 'No AI model', 'Online', 'Your desktop + online', 'On your own network'))
+    assert all(reply.rstrip().splitlines()[-1].startswith(('On your desktop', 'Online', 'Your desktop + online', 'On your own network'))
                or reply.rstrip().splitlines()[-1].startswith('Done') for reply in replies[:2]), replies
     assert not any('On this computer' in reply for reply in replies), replies
+    # A greeting no model was asked for still says where it was made, never "No AI model" (list item 49).
+    assert not any('No AI model' in reply for reply in replies), replies
 
 
 @pytest.mark.parametrize('platform', ['telegram', 'discord'])
