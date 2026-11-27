@@ -3984,6 +3984,34 @@ _IMAGE_GEN_ACTION_RE = re.compile(
     r"(?!\s+generation\b)",
     re.IGNORECASE,
 )
+# What the verb makes is the phrase right after it, up to the first word that starts a phrase of its own (a place, a
+# name, a purpose) or a stop: "make a folder in Pictures called Trips" makes a folder, and the media noun is only
+# where it goes. Benchmark on 21d4d4046: that ask was sent to image generation and answered "Image generation isn't
+# set up yet". These are English grammar words, as the verbs and nouns above are.
+_IMAGE_GEN_OBJECT_END_RE = re.compile(
+    r"\s+(?:in|inside|into|within|under|on|at|to|from|called|named|titled|for|with|of|showing|depicting|that|which|"
+    r"where)\b|[,.:;!?(]|$",
+    re.IGNORECASE,
+)
+_IMAGE_GEN_FOR_WHOM_RE = re.compile(r"^\s*(?:(?:for\s+)?(?:me|us)\b)?", re.IGNORECASE)
+
+
+def _the_made_thing_is_a_picture(raw: str) -> bool:
+    """Whether a request verb's own object names a picture ("make me a poster", "generate an image please"), not
+    something else that only mentions where pictures are."""
+    for verb in _IMAGE_GEN_VERB_RE.finditer(raw):
+        rest = raw[verb.end():]
+        rest = rest[_IMAGE_GEN_FOR_WHOM_RE.match(rest).end():]
+        end = _IMAGE_GEN_OBJECT_END_RE.search(rest)
+        made = rest[: end.start() if end else len(rest)]
+        if not made.strip():
+            # "generate image: a red car" names the picture right at the stop.
+            made = rest[: (end.end() if end else len(rest))]
+        if _IMAGE_GEN_NOUN_RE.search(made):
+            return True
+    return False
+
+
 # A depictive verb asks for a picture with NO media noun at all: "draw me a cat", "sketch me a
 # dragon", "paint a sunset". Requiring a media noun (the rule above) meant the most natural way to
 # ask for an image was the one phrasing that never reached the image lane.
@@ -4109,7 +4137,7 @@ def image_generation_intent(text: str) -> str | None:
             if owner_file_demand(raw):
                 continue
         prompt = ""
-        if _IMAGE_GEN_ACTION_RE.search(raw):
+        if _IMAGE_GEN_ACTION_RE.search(raw) and _the_made_thing_is_a_picture(raw):
             match = _IMAGE_GEN_PROMPT_RE.search(raw)
             prompt = match.group(1).strip(" .!?,:;") if match else ""
         if not prompt:
