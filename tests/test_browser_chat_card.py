@@ -102,6 +102,11 @@ def test_card_in_chat_answers_the_waiting_model_call(world, tmp_path):
     old.stop()
     chat_id = rig.canonical_session()
     rig.post('/api/chat/session', {'session_id': chat_id, 'operation': 'create'})
+    # The separate view: with VOOL working in the person's own VOOL browser window (the default), "Open browser"
+    # opens that window instead of the pane (one browser, 2dd30c5d3). On a runner with Chrome and a display it did,
+    # the pane never showed and step 4 was red (CI on 695747f5a and efb8e474c).
+    status, _ = rig.post('/api/browser/settings', {'agent_in_window': False})
+    assert status == 200
     item = live.LiveSession(chat_id, fixture_origin=origin)
     live._SESSIONS[live._key(chat_id)] = item
     server = _serve(rig, tmp_path)
@@ -180,7 +185,8 @@ def test_card_in_chat_answers_the_waiting_model_call(world, tmp_path):
             before = list(requests)
             card.locator('.vbc-btn', has_text='Refuse').click()
             assert not future.result(timeout=20).ok and requests == before
-            # 4. "Open browser" on the card opens the pane over the chat on the same page.
+            # 4. "Open browser" on the card opens the pane over the chat on the same page (the separate view, set
+            # at the start).
             done.locator('.vbc-link').click()
             pane = page.frame_locator('#settingsFrame')
             expect(pane.locator('#hot button[aria-label="Later trains"]')).to_be_visible(timeout=10000)
