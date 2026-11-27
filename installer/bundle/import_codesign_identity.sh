@@ -32,6 +32,14 @@ security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${pass}" 
 # shellcheck disable=SC2046
 security list-keychains -d user -s "${keychain}" $(security list-keychains -d user | tr -d '"')
 
+# codesign builds the signer's chain and refuses a root nobody trusts for code signing, so the
+# runner (never a user's Mac) trusts this one root for code signing only.
+cert="${RUNNER_TEMP}/vool-codesign.cert.pem"
+security find-certificate -a -p -c "VOOL Publisher" "${keychain}" > "${cert}"
+[[ -s "${cert}" ]] || { echo "the publisher certificate is not in the imported keychain" >&2; exit 1; }
+sudo -n security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "${cert}"
+rm -f "${cert}"
+
 # A self-signed certificate is listed without -v (macOS does not trust it as a CA, and need not:
 # the signature only has to stay the same from build to build).
 identity="$(security find-identity -p codesigning "${keychain}" | awk '/^ *[0-9]+\) [0-9A-F]{40} /{print $2; exit}')"

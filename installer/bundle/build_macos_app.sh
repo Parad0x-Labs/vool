@@ -1374,7 +1374,9 @@ verify_bundle
 if [[ -n "${RELEASE_SIGN_DIR}" ]]; then
   say "  ad-hoc signature skipped: Developer ID signing follows the manifest checks"
 elif [[ -x /usr/bin/codesign ]]; then
-  if codesign --force --deep --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${APP}" >/dev/null 2>&1; then
+  sign_err="$(mktemp -t vool-codesign)"
+  if codesign --force --deep --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${APP}" >/dev/null 2>"${sign_err}"; then
+    rm -f "${sign_err}"
     say "  code signature applied to the bundle ($([[ "${CODESIGN_ID}" == "-" ]] && echo ad-hoc || echo publisher certificate))"
     codesign --verify --deep --strict "${APP}" >/dev/null 2>&1 \
       || die "the bundle signature did not verify after signing"
@@ -1429,7 +1431,9 @@ MACHO
   else
     # Apple Silicon refuses to execute arm64 code without a valid signature, so an unsigned
     # self-contained bundle would not start at all on the machines it is built for.
-    [[ "${SELF_CONTAINED}" -ne 1 ]] || die "ad-hoc codesign failed; an unsigned self-contained bundle cannot run on Apple Silicon."
+    sed 's/^/  codesign: /' "${sign_err}" | head -20 >&2
+    rm -f "${sign_err}"
+    [[ "${SELF_CONTAINED}" -ne 1 ]] || die "codesign failed; an unsigned self-contained bundle cannot run on Apple Silicon."
     say "WARNING: ad-hoc codesign failed; the bundle ships unsigned."
   fi
 else
