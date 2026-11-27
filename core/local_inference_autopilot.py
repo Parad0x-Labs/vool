@@ -710,6 +710,7 @@ def _select_primary_capability(
         return None
     if not explicit_heavy:
         viable = _without_unready_local_models(viable, unready_local_models)
+        viable = _without_local_models_that_outgrow_everyday_memory(viable)
         viable = _without_local_models_that_do_not_fit(viable, free_vram_gb, resident_model_tags)
     daily_nonthinking_alternative = lane == "daily" and any(
         _is_reliable_daily_nonthinking_model(item) for item in viable
@@ -763,6 +764,32 @@ def _without_local_models_that_do_not_fit(
     if not fitting_local:
         return viable
     return [item for item in viable if item.locality != "local" or item in fitting_local]
+
+
+def _without_local_models_that_outgrow_everyday_memory(
+    viable: list[ProviderCapabilityTruth],
+) -> list[ProviderCapabilityTruth]:
+    """Never make a local model Auto's primary when it has held more than this machine's everyday share of memory
+    and another local model has not (`core.local_model_footprint_record`).
+
+    Measured 2026-11-27 (24 GB gate iMac): qwen3.5:9b, 6.6 GB on disk, grew under Ollama's MLX engine from 8.2 GB to
+    16.4 GB across one session and never shrank; Auto kept picking it by its size on disk and turns took 71 s in swap.
+    The rule is the model's own measured peak against the machine's memory, so it holds for any model and engine. If
+    every local model has outgrown it, nothing is removed. The person can still pick any model by name."""
+
+    from core.local_model_footprint_record import everyday_budget_gb, outgrows_everyday_memory
+
+    budget = everyday_budget_gb()
+    if not budget:
+        return viable
+    kept = [
+        item
+        for item in viable
+        if item.locality != "local" or not outgrows_everyday_memory(str(item.model_id or ""), budget_gb=budget)
+    ]
+    if not any(item.locality == "local" for item in kept):
+        return viable
+    return kept
 
 
 def _without_unready_local_models(
