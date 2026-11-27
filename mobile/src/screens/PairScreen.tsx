@@ -12,6 +12,7 @@ import {
 } from "../protocol/client.ts";
 import { isVoolPairingCode, parsePairingUri, pairingUriIsFresh } from "../protocol/pairing.ts";
 import { generateDeviceKeypair, keypairFromSeed } from "../protocol/ed25519.ts";
+import { phoneModelName } from "../protocol/deviceName.ts";
 import { claimSealedPairing } from "../protocol/sealed.ts";
 import { credentialStoreForEnvironment } from "../store/credentials.ts";
 import {prepareApprovalKey, deleteApprovalKey} from "../security/approvalKey.ts";
@@ -33,7 +34,8 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
   const [desktopUrl, setDesktopUrl] = useState("");
   const [pairingId, setPairingId] = useState("");
   const [code, setCode] = useState("");
-  const [deviceName, setDeviceName] = useState("");
+  // The phone's own maker and model, so the computer lists it by name; the manual form can change it.
+  const [deviceName, setDeviceName] = useState(() => phoneModelName(Platform.OS, Platform.constants as unknown as Record<string, unknown>, Boolean((Platform as {isPad?: boolean}).isPad)));
   const [fingerprint, setFingerprint] = useState("");
   // The computer's away-from-home address, when its pairing code carries one.
   const [awayAddress, setAwayAddress] = useState("");
@@ -125,7 +127,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       const credentials = await claimSealedPairing(reached.base, {
         pairingId: pairingId.trim(),
         code: code.trim(),
-        deviceName: (deviceName.trim() || "VOOL phone").slice(0, 64),
+        deviceName: (deviceName.trim() || phoneModelName(Platform.OS, Platform.constants as unknown as Record<string, unknown>)).slice(0, 64),
         platform: "react-native",
         deviceSeedHex: keypair.seedHex,
         devicePublicKeyHex: keypair.publicKeyHex,
