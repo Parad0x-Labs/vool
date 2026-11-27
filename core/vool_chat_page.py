@@ -4968,16 +4968,24 @@ let _toastTimer = null;
 function toast(text, action) {
   let t = document.getElementById('nToast');
   if (!t) { t = document.createElement('div'); t.id = 'nToast'; t.className = 'n-toast'; document.body.appendChild(t); }
-  t.textContent = text; t.classList.add('show');
-  // An optional single action (e.g. Undo) rides the same toast; the toast stays its usual time.
-  if (action && action.label && typeof action.run === 'function') {
+  t.textContent = text;
+  // Above the whole composer area (approval bar, mode/attach chips, the box itself), never over one of its controls:
+  // a fixed offset from the window's bottom sat on the chip row once the composer grew (CUT 60).
+  const foot = inputEl ? inputEl.closest('footer') : null;
+  const footTop = foot && !foot.hidden ? foot.getBoundingClientRect().top : 0;
+  t.style.bottom = footTop > 0 ? Math.max(12, Math.round(window.innerHeight - footTop + 10)) + 'px' : '';
+  t.classList.add('show');
+  // An optional single action (e.g. Undo) rides the same toast and keeps it up long enough to reach the button.
+  const acting = !!(action && action.label && typeof action.run === 'function');
+  if (acting) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'n-toast-act'; b.textContent = action.label;
     b.addEventListener('click', () => { t.classList.remove('show'); try { action.run(); } catch (e) {} });
     t.appendChild(b);
   }
+  // A plain confirmation is read at a glance and goes on its own (sls: 3 to 4 seconds at most).
   if (_toastTimer) clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => { t.classList.remove('show'); }, 6500);
+  _toastTimer = setTimeout(() => { t.classList.remove('show'); }, acting ? 6500 : 3500);
 }
 
 async function restoreCurrent() {
