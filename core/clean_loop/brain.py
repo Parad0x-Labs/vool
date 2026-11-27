@@ -94,7 +94,54 @@ def resolve_local_manifest(router: Any, source_context: dict[str, Any] | None) -
             return None
     except Exception:
         return None
-    return next((m for m in local if _ready(m)), None)
+    return auto_local_manifest([m for m in local if _ready(m)])
+
+
+def auto_local_manifest(ready: list[Any]) -> Any | None:
+    """Of the ready local models, the one an Auto turn is answered by: the ordinary answer's own pick.
+
+    This was the first ready model in registry order. On sls's 24 GB iMac (installed 1e7b35e24,
+    2026-11-27) that was qwen3.8:27b, an 18 GB model, while the ordinary answer was written by
+    qwen3:8b: every judgement of a message (tool needed? follow-up?) is asked of this model
+    (`core.agent_runtime.turn_judge`), so each message loaded the 27b, pushed qwen3:8b out, and
+    reloaded qwen3:8b to answer: 90-116 s per check, free memory near 60 MB, 8 GB of swap. The pick
+    is the one the answer's routing plan makes (`core.local_inference_autopilot`, daily lane): the
+    size cap that keeps a model too big for everyday use off Auto, the free-memory fit next to what
+    is already loaded, and the ready model first. A bigger model answers only when the person picks
+    it. A pick that cannot be read keeps the registry order, as before."""
+    if len(ready) < 2:
+        return ready[0] if ready else None
+    try:
+        from core.final_answer_authorship import unready_local_model_names
+        from core.local_inference_autopilot import prioritize_daily_residency_capabilities
+        from core.local_inference_evidence import hydrate_capability_truth_with_benchmarks
+        from core.memory_first_router import (
+            _cached_default_model_tag,
+            _local_model_free_memory_gb,
+            _recent_resident_model_tags,
+        )
+        from core.provider_routing import provider_capability_truth_for_manifest
+
+        truth = hydrate_capability_truth_with_benchmarks(
+            tuple(provider_capability_truth_for_manifest(item) for item in ready)
+        )
+        ordered = prioritize_daily_residency_capabilities(
+            truth,
+            default_model_tag=_cached_default_model_tag(),
+            unready_local_models=unready_local_model_names(ready),
+            free_memory_gb=_local_model_free_memory_gb(),
+            resident_model_tags=_recent_resident_model_tags(),
+        )
+    except Exception:
+        return ready[0]
+    if not ordered:
+        return ready[0]
+    first = (str(ordered[0].provider_id or ""), str(ordered[0].model_id or "").lower())
+    return next(
+        (m for m in ready
+         if (str(getattr(m, "provider_id", "") or ""), str(getattr(m, "model_name", "") or "").lower()) == first),
+        ready[0],
+    )
 
 
 def cloud_enabled(env: Any = None) -> bool:
@@ -315,6 +362,7 @@ def model_label(manifest: Any) -> tuple[str, str]:
 __all__ = [
     "CLOUD_ENV",
     "MODEL_ENV",
+    "auto_local_manifest",
     "cloud_enabled",
     "make_brain",
     "model_label",

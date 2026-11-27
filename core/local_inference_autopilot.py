@@ -796,6 +796,8 @@ def prioritize_daily_residency_capabilities(
     *,
     default_model_tag: str | None = None,
     unready_local_models: Collection[str] | None = None,
+    free_memory_gb: float | None = None,
+    resident_model_tags: Collection[str] | None = None,
 ) -> tuple[ProviderCapabilityTruth, ...]:
     """Put the candidate ordinary Auto would keep resident first, preserving all fallbacks.
 
@@ -808,6 +810,10 @@ def prioritize_daily_residency_capabilities(
 
     No candidate is removed. A sole thinking model stays first, and deep/explicit selection never
     calls this helper.
+
+    ``free_memory_gb`` and ``resident_model_tags`` are the same readings the ordinary answer's plan
+    is given (`core.memory_first_router`): with them, a model that cannot load next to what is
+    already resident is not put first while one that can is, exactly as the answer's own pick.
     """
 
     ordered = tuple(capabilities or ())
@@ -832,6 +838,8 @@ def prioritize_daily_residency_capabilities(
         requested_heavy_marker=None,
         default_model_tag=default_model_tag,
         unready_local_models=unready_local_models,
+        free_vram_gb=free_memory_gb,
+        resident_model_tags=resident_model_tags,
     )
     if selected is None:
         return ordered
