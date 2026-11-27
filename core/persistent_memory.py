@@ -3463,6 +3463,13 @@ def _judged_items_named(
     none (Mac run of b43e6aced: "which colour did i say my boat was ...?" beside a saved "mano valtis mėlyna ...")."""
     if not items:
         return []
+    # The same question over the same list is asked once a turn: the tool judgement's check
+    # (`recall_names_a_held_fact`) and the recall lane both ask it of one message. Kept on the turn's own context, so
+    # nothing carries to another turn.
+    memo = source_context.get(_NAMED_KEY) if isinstance(source_context, dict) else None
+    key = "\n".join([str(session_id or ""), " ".join(str(question or "").split()), *items])
+    if isinstance(memo, dict) and key in memo:
+        return list(memo[key])
     from core.intent_arbiter import arbitrate_recall_facts
 
     try:
@@ -3473,7 +3480,43 @@ def _judged_items_named(
     except Exception as exc:
         LOGGER.warning("judged recall unavailable: %s", type(exc).__name__)
         picked = None
-    return list(dict.fromkeys(items[number - 1] for number in (picked or ()) if 1 <= number <= len(items)))
+    named = list(dict.fromkeys(items[number - 1] for number in (picked or ()) if 1 <= number <= len(items)))
+    if picked is not None and isinstance(memo, dict):
+        memo[key] = list(named)
+    return named
+
+
+#: Where a turn's context keeps the recall judge's answers (`_judged_items_named`); set by the first asker that owns it.
+_NAMED_KEY = "_judged_items_named"
+
+
+def recall_names(question: str, *, session_id: str | None, source_context: Mapping[str, Any] | None) -> str:
+    """What the recall judge names for this question among what the person told VOOL and their pending reminders:
+    "reminder" when it names a reminder, "fact" when it names only told facts, "" when it names nothing, the turn may
+    not read memory, or nothing judged it.
+
+    iMac gate56 on 3382964ea (qwen3:8b): with a vet reminder pending, "when is the boiler service?" (a saved fact) and
+    "what did I do this evening?" (nothing saved) were read recall, then put to the reminder question, which read both
+    as reminder asks; the reminder tools showed the agenda behind a Manual-mode card and nothing was answered. The
+    recall judge reads the reminders in the same list (`_judged_recall_reply`), so it is the one that says whether a
+    recall is about one of them."""
+    try:
+        if not _turn_may_read_memory(source_context, session_id):
+            return ""
+        policy = memory_entries.resolve_memory_access_policy(access_policy=None, chat_id=session_id)
+        held = _held_for_judgement(session_id=session_id, policy=policy, source_context=source_context, served=True)
+        reminders = [line for line in _pending_reminder_lines(session_id) if line not in held]
+        if not held and not reminders:
+            return ""
+        if isinstance(source_context, dict):
+            source_context.setdefault(_NAMED_KEY, {})
+        picked = _judged_items_named(question, [*held, *reminders], session_id=session_id,
+                                     source_context=source_context)
+    except Exception:
+        return ""
+    if any(item in reminders for item in picked):
+        return "reminder"
+    return "fact" if any(item in held for item in picked) else ""
 
 
 def _judged_forgotten_named(

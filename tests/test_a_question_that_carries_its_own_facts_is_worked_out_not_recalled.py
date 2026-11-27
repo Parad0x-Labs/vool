@@ -58,3 +58,29 @@ def test_the_recall_lane_still_answers_a_question_a_held_fact_answers(monkeypatc
     _held(monkeypatch, named)
     shown = persistent_memory._judged_recall_reply(question, session_id="c", policy=None, source_context={})
     assert shown and "7:15" in shown
+
+
+@pytest.mark.parametrize(("picked", "expected"), [([0], "fact"), ([2], "reminder"), ([0, 2], "reminder"), ([], "")])
+def test_the_recall_judge_says_whether_a_recall_is_about_a_reminder(monkeypatch, picked, expected):
+    held = ["the chimney sweep comes on the 4th at 8", "my locker is 41"]
+    reminders = ["take the cat to the vet (Tue 19:10)"]
+    items = [*held, *reminders]
+    monkeypatch.setattr(persistent_memory, "_turn_may_read_memory", lambda *_a, **_k: True)
+    monkeypatch.setattr(persistent_memory, "_held_for_judgement", lambda **_k: list(held))
+    monkeypatch.setattr(persistent_memory, "_pending_reminder_lines", lambda *_a, **_k: list(reminders))
+    monkeypatch.setattr(persistent_memory.memory_entries, "resolve_memory_access_policy", lambda **_k: None)
+    asked: list[str] = []
+
+    def judge(question, shown, **_k):
+        asked.append(question)
+        assert shown == items
+        return [number + 1 for number in picked]
+
+    from core import intent_arbiter
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", judge)
+    context: dict = {}
+    assert persistent_memory.recall_names("when is the sweep coming?", session_id="c", source_context=context) == expected
+    # The recall lane asks the same question of the same list in the same turn without a second judgement.
+    persistent_memory._judged_items_named("when is the sweep coming?", items, session_id="c", source_context=context)
+    assert asked == ["when is the sweep coming?"]

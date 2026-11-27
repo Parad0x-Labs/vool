@@ -473,7 +473,18 @@ def _memory_kind_confirmed(
         # ("delete my reminder"), with a reminder pending, was judged a memory forget and answered "I have nothing
         # saved about that", and the reminder stayed (iMac gate on 95fae99a0). With a reminder there to act on, a
         # forget or recall reading is asked whether the message is about a reminder.
-        if asked("reminder", intent_arbiter.arbitrate_reminder_ask) == "yes":
+        # A recall reading is settled by the recall judge, shown the pending reminders beside what the person told:
+        # a reminder it names is the reminders', a told fact it names is the memory lane's. Only when it names
+        # neither is the reminder question asked ("zeig mir meine Erinnerungen"), as for a forget reading ("lösche
+        # meine Erinnerung"). iMac gate56 on 3382964ea: with a vet reminder pending, "when is the boiler service?"
+        # (saved) was read as a reminder ask by the reminder question and ended at an agenda approval card.
+        named_kind = "" if "forget" in named else _recall_names(text, source_context, session_id)
+        if named_kind:
+            _log.info("memory kind judged: the recall judge named a %s", named_kind)
+            about_a_reminder = named_kind == "reminder"
+        else:
+            about_a_reminder = asked("reminder", intent_arbiter.arbitrate_reminder_ask) == "yes"
+        if about_a_reminder:
             _log.info("memory kind judged: %s read as a reminder order", ",".join(sorted(named)))
             return ("reminders",)
     one_keep_reading = (kind == "keep" and not picked) or (picked == {"keep"} and kind not in {"keep", "recall", "forget"})
@@ -520,6 +531,17 @@ def _judged_a_clock_ask(text: str) -> bool:
         return judged_a_clock_ask(text)
     except Exception:
         return False
+
+
+def _recall_names(text: str, source_context: dict[str, Any], session_id: str) -> str:
+    """What the recall judge names for this message: "reminder", "fact" or "" (`core.persistent_memory.recall_names`).
+    A fault reads as nothing."""
+    try:
+        from core.persistent_memory import recall_names
+
+        return recall_names(text, session_id=session_id, source_context=source_context)
+    except Exception:
+        return ""
 
 
 def _has_pending_reminders() -> bool:

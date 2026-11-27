@@ -382,6 +382,7 @@
     "whole_memory_erase_request": "transform",
     "everyday_memory_turn": "transform",
     "judged_memory_ask": "transform",
+    "recall_names": "reader",
     "keep_stated_facts": "writer",
     "held_fact_answer_before_a_lookup": "reader"
   },

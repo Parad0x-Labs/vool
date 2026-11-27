@@ -62,21 +62,39 @@ def test_a_recall_read_only_without_the_web_is_not_a_reminder_order(monkeypatch,
     assert plugin_ask.judged_builtins(text) == ("memory_recall",)
 
 
-def test_a_recall_judged_so_from_the_start_is_still_asked(monkeypatch):
-    # The whole-list judgement itself read a recall: with a reminder pending it is asked, as before
-    # ("lösche meine Erinnerung" / "Erinnerung" is both words).
+def test_a_recall_judged_so_from_the_start_goes_to_the_reminders_when_the_recall_judge_names_one(monkeypatch):
+    # The whole-list judgement itself read a recall ("Erinnerung" is both words): with a reminder pending, the recall
+    # judge, shown the reminders beside what the person told, says which it is about.
+    from core import persistent_memory
+
     text = "was war nochmal meine Erinnerung von gestern?"
     asked = _script(monkeypatch, ("memory_recall",), (), kind="recall")
+    monkeypatch.setattr(persistent_memory, "recall_names", lambda *_a, **_k: "reminder")
     plugin_ask.judge_turn(text, source_context=OWNER, session_id="x")
-    assert asked == [text]
+    assert asked == []
     assert plugin_ask.judged_builtins(text) == ("reminders",)
 
 
-def test_a_forget_first_read_as_the_web_is_still_asked(monkeypatch):
-    # One reading forget, the other recall, the forget question no: the forget reading still reaches the reminder
-    # question, as before.
-    text = "nimm die Erinnerung zum Training wieder raus"
-    asked = _script(monkeypatch, ("web",), ("memory_forget",), kind="recall", forget="no")
+@pytest.mark.parametrize("text", ["when is the chimney sweep coming?", "kada atvažiuoja kaminkrėtys?",
+                                  "wann kommt nochmal der Schornsteinfeger?"])
+def test_a_recall_of_a_told_fact_is_never_put_to_the_reminder_question(monkeypatch, text):
+    # iMac gate56 on 3382964ea: with a vet reminder pending, "when is the boiler service?" (saved) was read as a
+    # reminder ask by the reminder question and ended at an agenda approval card.
+    from core import persistent_memory
+
+    asked = _script(monkeypatch, ("memory_recall",), (), kind="recall")
+    monkeypatch.setattr(persistent_memory, "recall_names", lambda *_a, **_k: "fact")
+    plugin_ask.judge_turn(text, source_context=OWNER, session_id="x")
+    assert asked == []
+    assert plugin_ask.judged_builtins(text) == ("memory_recall",)
+
+
+def test_a_recall_the_recall_judge_names_nothing_for_is_put_to_the_reminder_question(monkeypatch):
+    from core import persistent_memory
+
+    text = "zeig mir mal meine Erinnerungen"
+    asked = _script(monkeypatch, ("memory_recall",), (), kind="recall")
+    monkeypatch.setattr(persistent_memory, "recall_names", lambda *_a, **_k: "")
     plugin_ask.judge_turn(text, source_context=OWNER, session_id="x")
     assert asked == [text]
     assert plugin_ask.judged_builtins(text) == ("reminders",)
