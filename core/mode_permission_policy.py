@@ -199,9 +199,12 @@ MODE_PERMISSION_MATRIX: dict[OperatingMode, dict[PermissionAction, PermissionEff
             PermissionAction.FINANCIAL_ACTION,
             PermissionAction.CHANGE_SECURITY_SETTINGS,
             PermissionAction.UNKNOWN_SIDE_EFFECT,
+            PermissionAction.SEND_EXTERNAL_MESSAGES,
         },
-        # Money retains its own explicit consent boundary even in bypass mode.
-        prompt={PermissionAction.FINANCIAL_ACTION},
+        # Money retains its own explicit consent boundary even in bypass mode, and so does anything sent to a
+        # person (mail, a reply, Drop, a chat app): with no card, a bad model's words or the person's private data
+        # could leave in someone else's inbox unseen (local-model leak check G3, 2026-11-26).
+        prompt={PermissionAction.FINANCIAL_ACTION, PermissionAction.SEND_EXTERNAL_MESSAGES},
     ),
 }
 
