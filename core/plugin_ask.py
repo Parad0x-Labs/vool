@@ -839,12 +839,14 @@ def _actions_confirmed(
             except Exception as exc:
                 _log.info("tool ask: find pick not confirmed (%s)", type(exc).__name__)
                 verdict = None
-            if verdict == "no":
-                _log.info("tool ask: find pick dropped by its own yes/no")
+            if verdict == "no" or (verdict is None and tells_a_fact()):
+                # Beside a told fact a Find pick with no answer is not confirmed either: gate55 on ace1c42cc (qwen3:8b,
+                # a busy Mac) read two dated facts as Find, a folder was listed and nothing was kept.
+                _log.info("tool ask: find pick dropped by its own yes/no (%s)", verdict or "no answer")
                 continue
             kept.append(key)
             continue
-        beside_a_fact = key in _CHOICES_CONFIRMED_BESIDE_A_TOLD_FACT and tells_a_fact()
+        beside_a_fact = (key in _CHOICES_CONFIRMED_BESIDE_A_TOLD_FACT or key in _ACTION_CHOICES_CONFIRMED) and tells_a_fact()
         if key in _ACTION_CHOICES_CONFIRMED or beside_a_fact:
             description = next((row[1] for row in BUILTIN_CHOICES if row[0] == key), "")
             try:

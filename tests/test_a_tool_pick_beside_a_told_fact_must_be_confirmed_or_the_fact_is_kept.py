@@ -48,10 +48,22 @@ def test_a_message_that_tells_no_fact_keeps_its_pick_unasked(told, monkeypatch):
     assert asked == ["told"]  # asked once for the whole message
 
 
-def test_the_told_as_fact_question_is_not_asked_for_picks_with_a_question_of_their_own(monkeypatch):
+def test_the_told_as_fact_question_is_not_asked_for_the_web_which_has_a_question_of_its_own(monkeypatch):
     asked = _judges(monkeypatch, told="yes", choice="yes")
-    assert plugin_ask._actions_confirmed(_FACT[0], ("run", "web"), {}, "c") == ("run", "web")
+    assert plugin_ask._actions_confirmed(_FACT[0], ("web",), {}, "c") == ("web",)
     assert "told" not in asked
+
+
+@pytest.mark.parametrize("pick", sorted(plugin_ask._ACTION_CHOICES_CONFIRMED))
+def test_an_action_pick_beside_a_told_fact_is_kept_only_on_its_own_yes(pick, monkeypatch):
+    """Gate55 on ace1c42cc: dated facts read as a tool ran it and kept nothing. Run and Files already had their own
+    yes/no; beside a told fact no answer no longer confirms them."""
+    _judges(monkeypatch, told="yes", choice="yes")
+    assert plugin_ask._actions_confirmed(_FACT[1], (pick,), {}, "c") == (pick,)
+    _judges(monkeypatch, told="yes", choice=None)
+    assert plugin_ask._actions_confirmed(_FACT[1], (pick,), {}, "c") == ()
+    _judges(monkeypatch, told="no", choice=None)
+    assert plugin_ask._actions_confirmed("run the tests in this folder please", (pick,), {}, "c") == (pick,)
 
 
 def _readings(monkeypatch, *, kind, told, forget="no"):
@@ -114,3 +126,11 @@ def test_a_reminder_or_calendar_ask_its_own_question_confirms_stands(pick, verdi
 def test_no_answer_on_an_ask_that_tells_no_fact_leaves_the_pick(pick, monkeypatch):
     _tool_readings(monkeypatch, kind="none", told="no")
     assert plugin_ask._memory_kind_confirmed("set something for the 9th at 14:00", (pick,), {}, "c") == (pick,)
+
+
+@pytest.mark.parametrize(("told", "verdict", "kept"), [
+    ("yes", None, ()), ("yes", "yes", ("find",)), ("no", None, ("find",)), ("yes", "no", ())])
+def test_a_find_pick_beside_a_told_fact_with_no_answer_is_not_confirmed(told, verdict, kept, monkeypatch):
+    _judges(monkeypatch, told=told, choice="yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_find_ask", lambda *_a, **_k: verdict)
+    assert plugin_ask._actions_confirmed(_FACT[2], ("find",), {}, "c") == kept
