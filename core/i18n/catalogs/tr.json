@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "Ödemeler donduruldu. Bilgisayarınızda cüzdan PIN’i ile dondurmayı kaldırın.",
     "phone.mobile.hide_balances": "Bakiyeleri gizle",
     "phone.mobile.identity_error": "Bilgisayarın kimliği doğrulanamadı. Yeniden eşleştirmeden önce kontrol edin.",
+    "phone.pair_other.title": "Farklı bir bilgisayar",
+    "phone.pair_other.body": "Bu kod başka bir bilgisayardan geliyor ya da oradaki VOOL yeniden kuruldu. Bu telefon onunla eşleştirilsin mi? Bu telefonun mevcut eşleştirmesi kaldırılır.",
+    "phone.pair_other.button": "Bu bilgisayarla eşleştir",
     "phone.mobile.lost_computer": "Bilgisayarımı kaybettim",
     "phone.mobile.lost_confirm": "Bilgisayarınıza ulaşılabiliyorsa ödemeleri dondurun ve bu telefonu kapatın. Ardından bu telefonun bağlantısını silin. Diğer telefonlarınızı bilgisayardaki Ayarlar'dan kapatırsınız. Tamamlanan ödemeler geri alınamaz.",
     "phone.mobile.new_count": "Yeni: {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "Kendi ağınızda",
     "proof.route.cloud": "Çevrimiçi",
     "proof.route.mixed": "Bu bilgisayar + çevrimiçi",
+    "proof.route.local_away": "Masaüstü bilgisayarınızda",
+    "proof.route.mixed_away": "Masaüstü bilgisayarınız + çevrimiçi",
     "proof.route.none": "Yapay zekâ modeli yok",
     "proof.route.unknown": "Yer kaydedilmedi",
     "proof.head_route": "Nerede çalıştı",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "Mac ayarlarını aç",
     "vcs.saved.mac_settings": "Sistem Ayarları Takvimler bölümünde açık. Orada VOOL'u açın, sonra Takvim listesini yenile'yi seçin."
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

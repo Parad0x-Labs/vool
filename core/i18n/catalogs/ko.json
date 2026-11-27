@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "결제가 동결되었습니다. 컴퓨터에서 지갑 PIN으로 해제하세요.",
     "phone.mobile.hide_balances": "잔액 숨기기",
     "phone.mobile.identity_error": "컴퓨터의 신원을 확인할 수 없습니다. 다시 연결하기 전에 확인하세요.",
+    "phone.pair_other.title": "다른 컴퓨터",
+    "phone.pair_other.body": "이 코드는 다른 컴퓨터의 코드이거나 그 컴퓨터의 VOOL이 다시 설정되었습니다. 대신 이 휴대전화를 그 컴퓨터와 페어링할까요? 이 휴대전화의 현재 페어링은 삭제됩니다.",
+    "phone.pair_other.button": "이 컴퓨터와 페어링",
     "phone.mobile.lost_computer": "컴퓨터를 잃어버렸습니다",
     "phone.mobile.lost_confirm": "컴퓨터에 연결할 수 있으면 결제를 동결하고 이 휴대폰을 끕니다. 그런 다음 이 휴대폰의 연결을 삭제합니다. 다른 휴대폰은 컴퓨터의 설정에서 끕니다. 완료된 결제는 되돌릴 수 없습니다.",
     "phone.mobile.new_count": "새 항목: {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "내 네트워크에서",
     "proof.route.cloud": "온라인",
     "proof.route.mixed": "이 컴퓨터 + 온라인",
+    "proof.route.local_away": "내 데스크톱에서",
+    "proof.route.mixed_away": "내 데스크톱 + 온라인",
     "proof.route.none": "AI 모델 없음",
     "proof.route.unknown": "위치가 기록되지 않음",
     "proof.head_route": "처리된 곳",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "Mac 설정 열기",
     "vcs.saved.mac_settings": "시스템 설정의 캘린더 항목이 열렸습니다. 거기서 VOOL을 켠 다음 캘린더 목록 새로 고침을 선택하세요."
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

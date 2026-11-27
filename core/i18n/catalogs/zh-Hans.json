@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "付款已冻结。请在电脑上使用钱包 PIN 解除冻结。",
     "phone.mobile.hide_balances": "隐藏余额",
     "phone.mobile.identity_error": "无法验证电脑身份。请先检查，再重新配对。",
+    "phone.pair_other.title": "另一台电脑",
+    "phone.pair_other.body": "此代码来自另一台电脑，或那里的 VOOL 已重新设置。改为将此手机与它配对？此手机当前的配对将被移除。",
+    "phone.pair_other.button": "与这台电脑配对",
     "phone.mobile.lost_computer": "我的电脑丢失了",
     "phone.mobile.lost_confirm": "如果电脑可连接，将冻结付款并关闭此手机，然后删除此手机的连接。其他手机请在电脑上的设置中关闭。已完成的付款无法撤销。",
     "phone.mobile.new_count": "新增：{count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "在你自己的网络中",
     "proof.route.cloud": "在线",
     "proof.route.mixed": "这台电脑 + 在线",
+    "proof.route.local_away": "在你的台式电脑上",
+    "proof.route.mixed_away": "你的台式电脑 + 在线",
     "proof.route.none": "未使用 AI 模型",
     "proof.route.unknown": "未记录位置",
     "proof.head_route": "在哪里运行",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "打开 Mac 设置",
     "vcs.saved.mac_settings": "系统设置已打开到“日历”。请在那里打开 VOOL，然后选择“刷新日历列表”。"
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

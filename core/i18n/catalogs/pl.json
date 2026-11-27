@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "Płatności są zablokowane. Odblokuj je na komputerze, podając PIN portfela.",
     "phone.mobile.hide_balances": "Ukryj salda",
     "phone.mobile.identity_error": "Nie można potwierdzić tożsamości komputera. Sprawdź ją przed ponownym parowaniem.",
+    "phone.pair_other.title": "Inny komputer",
+    "phone.pair_other.body": "Ten kod pochodzi z innego komputera albo VOOL został tam skonfigurowany od nowa. Sparować z nim ten telefon? Obecne sparowanie tego telefonu zostanie usunięte.",
+    "phone.pair_other.button": "Sparuj z tym komputerem",
     "phone.mobile.lost_computer": "Mój komputer zaginął",
     "phone.mobile.lost_confirm": "Jeśli komputer jest dostępny, zablokuj płatności i wyłącz ten telefon. Następnie usuń połączenie tego telefonu. Pozostałe telefony wyłączysz w Ustawieniach na komputerze. Zakończonych płatności nie można cofnąć.",
     "phone.mobile.new_count": "Nowe: {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "W Twojej własnej sieci",
     "proof.route.cloud": "W internecie",
     "proof.route.mixed": "Ten komputer + internet",
+    "proof.route.local_away": "Na twoim komputerze stacjonarnym",
+    "proof.route.mixed_away": "Twój komputer stacjonarny + online",
     "proof.route.none": "Bez modelu AI",
     "proof.route.unknown": "Miejsce nie zapisane",
     "proof.head_route": "Gdzie to działało",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "Otwórz ustawienia Maca",
     "vcs.saved.mac_settings": "Ustawienia systemowe są otwarte na Kalendarzach. Włącz tam VOOL, a potem wybierz Odśwież listę kalendarzy."
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

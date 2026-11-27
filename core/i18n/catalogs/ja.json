@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "支払いは凍結されています。コンピューターでウォレットのPINを入力して解除してください。",
     "phone.mobile.hide_balances": "残高を非表示",
     "phone.mobile.identity_error": "コンピューターの識別情報を確認できませんでした。再度ペアリングする前に確認してください。",
+    "phone.pair_other.title": "別のコンピューター",
+    "phone.pair_other.body": "このコードは別のコンピューターのもの、またはそこで VOOL が設定し直されています。代わりにこのコンピューターとペアリングしますか？このスマートフォンの現在のペアリングは削除されます。",
+    "phone.pair_other.button": "このコンピューターとペアリング",
     "phone.mobile.lost_computer": "コンピューターを紛失しました",
     "phone.mobile.lost_confirm": "コンピューターに接続できる場合は支払いを凍結し、このスマートフォンをオフにします。その後、このスマートフォンの接続を削除します。ほかのスマートフォンはコンピューターの設定でオフにします。完了した支払いは取り消せません。",
     "phone.mobile.new_count": "新着: {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "あなた自身のネットワーク上",
     "proof.route.cloud": "オンライン",
     "proof.route.mixed": "このコンピューター + オンライン",
+    "proof.route.local_away": "お使いのデスクトップで",
+    "proof.route.mixed_away": "お使いのデスクトップ + オンライン",
     "proof.route.none": "AIモデルなし",
     "proof.route.unknown": "場所は記録されていません",
     "proof.head_route": "処理された場所",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "Macの設定を開く",
     "vcs.saved.mac_settings": "システム設定の「カレンダー」を開きました。そこでVOOLをオンにしてから、「カレンダー一覧を更新」を選んでください。"
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

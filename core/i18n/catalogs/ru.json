@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "Платежи заблокированы. Разблокируйте их на компьютере с помощью PIN кошелька.",
     "phone.mobile.hide_balances": "Скрыть балансы",
     "phone.mobile.identity_error": "Не удалось подтвердить подлинность компьютера. Проверьте его перед повторным подключением.",
+    "phone.pair_other.title": "Другой компьютер",
+    "phone.pair_other.body": "Этот код с другого компьютера, или VOOL на нём настроили заново. Связать этот телефон с ним? Текущая связь этого телефона будет удалена.",
+    "phone.pair_other.button": "Связать с этим компьютером",
     "phone.mobile.lost_computer": "Мой компьютер потерян",
     "phone.mobile.lost_confirm": "Если компьютер доступен, заблокировать платежи и отключить этот телефон. Затем удалить подключение этого телефона. Другие телефоны отключаются в настройках на компьютере. Завершённые платежи нельзя отменить.",
     "phone.mobile.new_count": "Новые: {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "В вашей собственной сети",
     "proof.route.cloud": "Онлайн",
     "proof.route.mixed": "Этот компьютер + онлайн",
+    "proof.route.local_away": "На вашем компьютере",
+    "proof.route.mixed_away": "Ваш компьютер + интернет",
     "proof.route.none": "Без модели ИИ",
     "proof.route.unknown": "Место не записано",
     "proof.head_route": "Где это выполнялось",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "Открыть настройки Mac",
     "vcs.saved.mac_settings": "Системные настройки открыты на разделе «Календари». Включите там VOOL, затем выберите «Обновить список календарей»."
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

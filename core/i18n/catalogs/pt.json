@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "Os pagamentos estão bloqueados. Desbloqueie-os no computador com o PIN da carteira.",
     "phone.mobile.hide_balances": "Ocultar saldos",
     "phone.mobile.identity_error": "Não foi possível verificar a identidade do computador. Verifique-a antes de emparelhar novamente.",
+    "phone.pair_other.title": "Um computador diferente",
+    "phone.pair_other.body": "Este código é de outro computador, ou o VOOL foi configurado de novo nele. Emparelhar este telefone com ele? O emparelhamento atual deste telefone será removido.",
+    "phone.pair_other.button": "Emparelhar com este computador",
     "phone.mobile.lost_computer": "Perdi o meu computador",
     "phone.mobile.lost_confirm": "Se o computador estiver acessível, bloquear pagamentos e desligar este telemóvel. Depois, apagar a ligação deste telemóvel. Os outros telemóveis desligam-se nas Configurações do computador. Os pagamentos concluídos não podem ser anulados.",
     "phone.mobile.new_count": "Novos: {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "Na sua própria rede",
     "proof.route.cloud": "Na internet",
     "proof.route.mixed": "Este computador + internet",
+    "proof.route.local_away": "No seu computador de casa",
+    "proof.route.mixed_away": "Seu computador de casa + online",
     "proof.route.none": "Sem modelo de IA",
     "proof.route.unknown": "Local não registado",
     "proof.head_route": "Onde isto correu",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "Abrir ajustes do Mac",
     "vcs.saved.mac_settings": "Os Ajustes do Sistema estão abertos em Calendários. Ative o VOOL lá e depois escolha Atualizar a lista de calendários."
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

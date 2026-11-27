@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "התשלומים מוקפאים. יש לבטל את ההקפאה במחשב באמצעות קוד ה־PIN של הארנק.",
     "phone.mobile.hide_balances": "הסתרת יתרות",
     "phone.mobile.identity_error": "לא ניתן היה לאמת את זהות המחשב. בדקו אותה לפני קישור מחדש.",
+    "phone.pair_other.title": "מחשב אחר",
+    "phone.pair_other.body": "הקוד הזה הוא ממחשב אחר, או ש-VOOL הוגדר שם מחדש. לצמד את הטלפון הזה אליו במקום? הצימוד הנוכחי של הטלפון הזה יוסר.",
+    "phone.pair_other.button": "צימוד למחשב הזה",
     "phone.mobile.lost_computer": "המחשב שלי אבד",
     "phone.mobile.lost_confirm": "אם אפשר להגיע למחשב, התשלומים יוקפאו והטלפון הזה ייכבה. לאחר מכן יימחק החיבור של הטלפון הזה. את הטלפונים האחרים שלך מכבים בהגדרות במחשב. לא ניתן לבטל תשלומים שהושלמו.",
     "phone.mobile.new_count": "חדשים: {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "ברשת שלך",
     "proof.route.cloud": "ברשת",
     "proof.route.mixed": "המחשב הזה + ברשת",
+    "proof.route.local_away": "במחשב השולחני שלך",
+    "proof.route.mixed_away": "המחשב השולחני שלך + מקוון",
     "proof.route.none": "ללא מודל בינה מלאכותית",
     "proof.route.unknown": "המקום לא תועד",
     "proof.head_route": "היכן זה רץ",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "פתיחת הגדרות ה-Mac",
     "vcs.saved.mac_settings": "הגדרות המערכת פתוחות במדור לוחות שנה. הפעילו שם את VOOL, ואז בחרו רענון רשימת היומנים."
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

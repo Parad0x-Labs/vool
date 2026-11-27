@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "भुगतान रोके गए हैं। कंप्यूटर पर वॉलेट PIN से रोक हटाएँ।",
     "phone.mobile.hide_balances": "शेष राशि छिपाएँ",
     "phone.mobile.identity_error": "कंप्यूटर की पहचान सत्यापित नहीं हो सकी। फिर जोड़ने से पहले जाँचें।",
+    "phone.pair_other.title": "एक अलग कंप्यूटर",
+    "phone.pair_other.body": "यह कोड किसी दूसरे कंप्यूटर का है, या वहाँ VOOL फिर से सेट किया गया है। क्या इस फ़ोन को इसके बजाय उससे जोड़ें? इस फ़ोन की मौजूदा जोड़ी हटा दी जाएगी।",
+    "phone.pair_other.button": "इस कंप्यूटर से जोड़ें",
     "phone.mobile.lost_computer": "मेरा कंप्यूटर खो गया है",
     "phone.mobile.lost_confirm": "यदि कंप्यूटर उपलब्ध है तो भुगतान रोकें और यह फ़ोन बंद करें। फिर इस फ़ोन का कनेक्शन मिटाएँ। आपके दूसरे फ़ोन कंप्यूटर की सेटिंग्स में बंद किए जाते हैं। पूरे हो चुके भुगतान वापस नहीं लिए जा सकते।",
     "phone.mobile.new_count": "नए: {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "आपके अपने नेटवर्क पर",
     "proof.route.cloud": "ऑनलाइन",
     "proof.route.mixed": "यह कंप्यूटर + ऑनलाइन",
+    "proof.route.local_away": "आपके डेस्कटॉप पर",
+    "proof.route.mixed_away": "आपका डेस्कटॉप + ऑनलाइन",
     "proof.route.none": "कोई AI मॉडल नहीं",
     "proof.route.unknown": "स्थान दर्ज नहीं",
     "proof.head_route": "यह कहाँ चला",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "Mac सेटिंग्स खोलें",
     "vcs.saved.mac_settings": "सिस्टम सेटिंग्स कैलेंडर पर खुली है। वहाँ VOOL चालू करें, फिर कैलेंडर सूची रीफ़्रेश करें चुनें।"
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

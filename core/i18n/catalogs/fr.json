@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "Les paiements sont bloqués. Débloquez-les sur votre ordinateur avec le code PIN du portefeuille.",
     "phone.mobile.hide_balances": "Masquer les soldes",
     "phone.mobile.identity_error": "L’identité de l’ordinateur n’a pas pu être vérifiée. Vérifiez-la avant une nouvelle association.",
+    "phone.pair_other.title": "Un autre ordinateur",
+    "phone.pair_other.body": "Ce code vient d’un autre ordinateur, ou VOOL y a été réinstallé. Associer ce téléphone à celui-ci ? L’association actuelle de ce téléphone sera supprimée.",
+    "phone.pair_other.button": "Associer à cet ordinateur",
     "phone.mobile.lost_computer": "Mon ordinateur est perdu",
     "phone.mobile.lost_confirm": "Si votre ordinateur est joignable, bloquer les paiements et désactiver ce téléphone. Supprimer ensuite la connexion de ce téléphone. Vos autres téléphones se désactivent dans les Réglages sur l’ordinateur. Les paiements terminés ne peuvent pas être annulés.",
     "phone.mobile.new_count": "Nouveaux : {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "Sur votre propre réseau",
     "proof.route.cloud": "En ligne",
     "proof.route.mixed": "Cet ordinateur + en ligne",
+    "proof.route.local_away": "Sur votre ordinateur de bureau",
+    "proof.route.mixed_away": "Votre ordinateur de bureau + en ligne",
     "proof.route.none": "Aucun modèle d’IA",
     "proof.route.unknown": "Lieu non enregistré",
     "proof.head_route": "Où cela a été traité",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "Ouvrir les réglages du Mac",
     "vcs.saved.mac_settings": "Les Réglages Système sont ouverts sur Calendriers. Activez VOOL, puis choisissez Actualiser la liste des agendas."
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "Zahlungen sind gesperrt. Entsperre sie am Computer mit der Wallet-PIN.",
     "phone.mobile.hide_balances": "Guthaben ausblenden",
     "phone.mobile.identity_error": "Die Identität des Computers konnte nicht bestätigt werden. Prüfe sie vor einer erneuten Kopplung.",
+    "phone.pair_other.title": "Ein anderer Computer",
+    "phone.pair_other.body": "Dieser Code stammt von einem anderen Computer, oder VOOL wurde dort neu eingerichtet. Dieses Telefon stattdessen damit koppeln? Die aktuelle Kopplung dieses Telefons wird entfernt.",
+    "phone.pair_other.button": "Mit diesem Computer koppeln",
     "phone.mobile.lost_computer": "Mein Computer ist verloren",
     "phone.mobile.lost_confirm": "Wenn dein Computer erreichbar ist, Zahlungen sperren und dieses Telefon ausschalten. Danach die Verbindung dieses Telefons löschen. Deine anderen Telefone schaltest du in den Einstellungen am Computer aus. Abgeschlossene Zahlungen lassen sich nicht rückgängig machen.",
     "phone.mobile.new_count": "Neu: {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "In deinem eigenen Netzwerk",
     "proof.route.cloud": "Im Internet",
     "proof.route.mixed": "Dieser Computer + Internet",
+    "proof.route.local_away": "Auf deinem Desktop",
+    "proof.route.mixed_away": "Dein Desktop + online",
     "proof.route.none": "Kein KI-Modell",
     "proof.route.unknown": "Ort nicht erfasst",
     "proof.head_route": "Wo das lief",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "Mac-Einstellungen öffnen",
     "vcs.saved.mac_settings": "Die Systemeinstellungen sind bei Kalender geöffnet. Schalte VOOL dort ein und wähle dann „Kalenderliste aktualisieren“."
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

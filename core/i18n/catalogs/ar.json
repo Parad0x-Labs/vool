@@ -3949,6 +3949,9 @@
     "phone.mobile.frozen_help": "المدفوعات مجمّدة. ألغِ التجميد على الكمبيوتر باستخدام رقم PIN للمحفظة.",
     "phone.mobile.hide_balances": "إخفاء الأرصدة",
     "phone.mobile.identity_error": "تعذّر التحقق من هوية الكمبيوتر. تحقق منها قبل الاقتران مجدداً.",
+    "phone.pair_other.title": "حاسوب مختلف",
+    "phone.pair_other.body": "هذا الرمز من حاسوب آخر، أو أُعيد إعداد VOOL عليه. هل تريد إقران هذا الهاتف به بدلًا من ذلك؟ ستتم إزالة الإقران الحالي لهذا الهاتف.",
+    "phone.pair_other.button": "الإقران بهذا الحاسوب",
     "phone.mobile.lost_computer": "فقدت الكمبيوتر",
     "phone.mobile.lost_confirm": "إذا كان الكمبيوتر متاحاً، تُجمَّد المدفوعات ويُوقَف هذا الهاتف. ثم يُحذف اتصال هذا الهاتف. تُوقَف هواتفك الأخرى من الإعدادات على الكمبيوتر. لا يمكن التراجع عن المدفوعات المكتملة.",
     "phone.mobile.new_count": "جديد: {count}",
@@ -5239,6 +5242,8 @@
     "proof.route.own_network": "على شبكتك الخاصة",
     "proof.route.cloud": "عبر الإنترنت",
     "proof.route.mixed": "هذا الحاسوب + الإنترنت",
+    "proof.route.local_away": "على حاسوبك المكتبي",
+    "proof.route.mixed_away": "حاسوبك المكتبي + عبر الإنترنت",
     "proof.route.none": "بدون نموذج ذكاء اصطناعي",
     "proof.route.unknown": "المكان غير مسجّل",
     "proof.head_route": "أين جرى هذا",
@@ -5644,7 +5649,7 @@
     "vcs.btn.mac_settings": "فتح إعدادات Mac",
     "vcs.saved.mac_settings": "إعدادات النظام مفتوحة على التقويمات. شغّل VOOL هناك، ثم اختر تحديث قائمة التقويمات."
   },
-  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
+  "source_catalog_sha256": "a404c1898276a8e00211aecc8ffacf38abfd8057c6245df459716b3932115d0c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
