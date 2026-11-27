@@ -44,6 +44,33 @@ rm -f "${cert}"
 # the signature only has to stay the same from build to build).
 identity="$(security find-identity -p codesigning "${keychain}" | awk '/^ *[0-9]+\) [0-9A-F]{40} /{print $2; exit}')"
 [[ -n "${identity}" ]] || { echo "the publisher certificate has no code-signing identity" >&2; exit 1; }
+
+# Prove the identity signs here, before the long build: sign a scratch copy of a system tool, the
+# way the build will (its own HOME, the keychain named), and print codesign's own words if not.
+echo "Valid code-signing identities:"
+security find-identity -v -p codesigning "${keychain}" | sed 's/^/  /'
+probe="${RUNNER_TEMP}/vool-sign-probe"
+builder_home="${RUNNER_TEMP}/vool-builder-home"
+mkdir -p "${builder_home}"
+signed_with=""
+for how in keychain-runner-home keychain-builder-home search-list-builder-home; do
+  cp /usr/bin/true "${probe}"
+  case "${how}" in
+    keychain-runner-home) cmd=(codesign --force --sign "${identity}" --keychain "${keychain}" "${probe}") ;;
+    keychain-builder-home) cmd=(env HOME="${builder_home}" codesign --force --sign "${identity}" --keychain "${keychain}" "${probe}") ;;
+    search-list-builder-home) cmd=(env HOME="${builder_home}" codesign --force --sign "${identity}" "${probe}") ;;
+  esac
+  if "${cmd[@]}" 2>"${probe}.err" && codesign --verify --strict "${probe}" 2>>"${probe}.err"; then
+    echo "  signing probe ${how}: ok"
+    signed_with="${signed_with:-${how}}"
+  else
+    echo "  signing probe ${how}: FAILED: $(tr '\n' ' ' < "${probe}.err")"
+  fi
+done
+rm -f "${probe}" "${probe}.err"
+[[ -n "${signed_with}" ]] || { echo "the publisher identity cannot sign on this runner (see the probes above)" >&2; exit 1; }
 echo "VOOL_CODESIGN_IDENTITY=${identity}" >> "${GITHUB_ENV}"
-echo "VOOL_CODESIGN_KEYCHAIN=${keychain}" >> "${GITHUB_ENV}"
+case "${signed_with}" in
+  keychain-*) echo "VOOL_CODESIGN_KEYCHAIN=${keychain}" >> "${GITHUB_ENV}" ;;
+esac
 echo "Publisher signing identity ready: ${identity:0:8}..."
