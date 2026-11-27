@@ -83,3 +83,57 @@ def test_the_daily_pick_skips_the_grown_model(monkeypatch):
     assert autopilot.prioritize_daily_residency_capabilities(pool)[0].model_id == "qwen3.5:9b"
     record.record_resident([{"name": "qwen3.5:9b", "size_gb": 16.4}])
     assert autopilot.prioritize_daily_residency_capabilities(pool)[0].model_id == "qwen3:8b"
+
+
+def _inventory(monkeypatch, models: dict[str, tuple[float, str]]) -> None:
+    from core import local_ollama_inventory
+    from core.local_ollama_inventory import InstalledOllamaModel
+
+    monkeypatch.setattr(local_ollama_inventory, "installed_ollama_model_inventory", lambda **_k: tuple(
+        InstalledOllamaModel(name=n, size_bytes=int(gb * 1e9), weights_format=f) for n, (gb, f) in models.items()))
+    record._reset_for_tests()
+
+
+@pytest.mark.parametrize(("total", "kept"), [(24.0, ["qwen3:8b"]), (64.0, ["qwen3.5:9b", "qwen3:8b"])])
+def test_a_growing_runner_is_counted_at_its_growth_before_it_ever_loaded(monkeypatch, total, kept):
+    """Gate54 on 0c0901943: with nothing measured yet a fresh profile picked and certified qwen3.5:9b (safetensors,
+    Ollama's MLX runner), which reached 16 GB in five minutes. A GGUF model holds a fixed allocation."""
+    _ram(monkeypatch, total)
+    _inventory(monkeypatch, {"qwen3.5:9b": (6.6, "safetensors"), "qwen3:8b": (5.2, "gguf")})
+    assert record.everyday_gb("qwen3.5:9b") == pytest.approx(16.5)
+    assert record.everyday_gb("qwen3:8b") == 0.0
+    pool = [_local("qwen3.5:9b"), _local("qwen3:8b")]
+    assert [i.model_id for i in autopilot._without_local_models_that_outgrow_everyday_memory(pool)] == kept
+
+
+def test_every_reading_of_what_ollama_holds_is_recorded(monkeypatch):
+    import io
+    import json as _json
+
+    from core import resource_governor
+
+    body = _json.dumps({"models": [{"name": "qwen3.5:9b", "size": int(15.2 * 1024 ** 3), "runner": "mlx"}]})
+    monkeypatch.setattr(resource_governor, "_local_ollama_base", lambda _b=None: "http://169.254.0.9:11434")
+    monkeypatch.setattr("core.local_model_policy.local_models_enabled", lambda *a, **k: True)
+    monkeypatch.setattr(resource_governor, "urlopen", lambda *_a, **_k: io.BytesIO(body.encode()))
+    assert resource_governor.resident_models()[0]["name"] == "qwen3.5:9b"
+    assert record.peak_resident_gb("qwen3.5:9b") == 15.2
+
+
+def test_boot_checks_a_model_that_fits_everyday_use_before_one_that_does_not(monkeypatch):
+    from core import local_model_readiness, local_model_tool_certification
+
+    monkeypatch.setattr(local_model_tool_certification, "certification_applies", lambda _m: True)
+
+    class M:
+        def __init__(self, name):
+            self.model_name = name
+
+    order: list[str] = []
+    rows = local_model_readiness.ready_local_models(
+        [M("qwen2.5:7b"), M("qwen3.5:9b"), M("qwen3:8b")], primary_model="qwen2.5:7b",
+        status_of=lambda _m: {"state": "unknown"},
+        run_check=lambda m: order.append(m.model_name) or {"state": "degraded"},
+        everyday=lambda m: m.model_name != "qwen3.5:9b",
+    )
+    assert order == ["qwen2.5:7b", "qwen3:8b", "qwen3.5:9b"] and len(rows) == 3

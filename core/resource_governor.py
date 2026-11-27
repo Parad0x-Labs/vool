@@ -224,6 +224,12 @@ def resident_models(*, base_url: str | None = None) -> list[dict]:
             if name:
                 rows.append({"name": name, "size_gb": round(size, 1)})
     rows.sort(key=lambda r: r["size_gb"], reverse=True)
+    if rows:
+        # What each loaded model holds now is kept as its peak, which Auto's pick counts it at.
+        with contextlib.suppress(Exception):
+            from core.local_model_footprint_record import record_resident
+
+            record_resident(rows)
     return rows
 
 

@@ -256,12 +256,9 @@ def _recent_resident_model_tags() -> tuple[str, ...]:
         return _RESIDENT_MODEL_TAGS_CACHE
     _RESIDENT_MODEL_TAGS_PROBED_AT = now
     try:
-        from core.local_model_footprint_record import record_resident
         from core.resource_governor import resident_models
 
         rows = resident_models()
-        # What each loaded model holds now is kept as its peak, which Auto's pick counts it at.
-        record_resident(rows)
         _RESIDENT_MODEL_TAGS_CACHE = tuple(
             str(row.get("name") or "").strip() for row in rows if str(row.get("name") or "").strip()
         )

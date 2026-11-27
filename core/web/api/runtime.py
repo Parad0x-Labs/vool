@@ -827,7 +827,14 @@ def _ready_a_local_model_on_boot(registry: ModelRegistry, *, primary_model: str,
             ceiling = float(snap.total_ram_gb) - float(getattr(snap, "reserve_gb", 0.0) or 0.0)
             return need + _LOAD_SAFETY_FLOOR_GB <= ceiling
 
-        rows = ready_local_models(manifests, primary_model=primary_model, ready_now=_ready_now, fits=_fits)
+        def _everyday(manifest: Any) -> bool:
+            # Counted at what it holds in everyday use (core.local_model_footprint_record), not its size on disk.
+            from core.local_model_footprint_record import outgrows_everyday_memory
+
+            return not outgrows_everyday_memory(str(manifest.model_name or ""))
+
+        rows = ready_local_models(manifests, primary_model=primary_model, ready_now=_ready_now, fits=_fits,
+                                  everyday=_everyday)
         # Adopting other installed models is off when the setup said so in so many words.
         adoption_allowed = str(
             env.get("VOOL_REGISTER_INSTALLED_OLLAMA_MODELS") or os.environ.get("VOOL_REGISTER_INSTALLED_OLLAMA_MODELS") or ""
@@ -852,7 +859,7 @@ def _ready_a_local_model_on_boot(registry: ModelRegistry, *, primary_model: str,
                         added.append(manifest)
             if added:
                 rows += ready_local_models(
-                    added, primary_model=added[0].model_name, ready_now=_ready_now, fits=_fits
+                    added, primary_model=added[0].model_name, ready_now=_ready_now, fits=_fits, everyday=_everyday
                 )
         for row in rows:
             logger.info("Local model readiness on boot: %s is %s", row["model"], row["readiness"])

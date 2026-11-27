@@ -45,6 +45,7 @@ def judge_model_for(turn_model: str) -> str:
         installed = {item.name.strip().lower(): item for item in installed_ollama_model_inventory()}
         candidates = [tag for tag in PROVEN_JUDGE_MODELS if tag in installed]
         if not candidates:
+            _log.info("judgement model: %s judges its own turn; no proven model is installed", turn)
             return turn
         resident = {str(tag or "").strip().lower() for tag in (_recent_resident_model_tags() or ())}
         for tag in candidates:
@@ -67,6 +68,8 @@ def judge_model_for(turn_model: str) -> str:
             if free >= size + own_gb + _LOAD_HEADROOM_GB:
                 _log.info("judgement model: %s (proven, fits in %.1f GB free) for a turn answered by %s", tag, free, turn)
                 return tag
+        _log.info("judgement model: %s judges its own turn; no proven model is loaded and none fits in %.1f GB free",
+                  turn, free)
     except Exception as exc:
         _log.info("judgement model: machine unreadable (%s), the turn's own model judges", type(exc).__name__)
     return turn

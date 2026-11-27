@@ -13,6 +13,8 @@ from typing import Any
 class InstalledOllamaModel:
     name: str
     size_bytes: int = 0
+    #: Ollama's ``details.format`` ("gguf", "safetensors"), "" when not reported.
+    weights_format: str = ""
 
 
 def env_flag_enabled(env: Mapping[str, str], name: str, *, default: bool = False) -> bool:
@@ -90,7 +92,9 @@ def installed_ollama_model_inventory(
             size_bytes = max(0, int(item.get("size") or 0))
         except (TypeError, ValueError):
             size_bytes = 0
-        installed.append(InstalledOllamaModel(name=name, size_bytes=size_bytes))
+        details = item.get("details") if isinstance(item.get("details"), dict) else {}
+        weights_format = str(details.get("format") or "").strip().lower()
+        installed.append(InstalledOllamaModel(name=name, size_bytes=size_bytes, weights_format=weights_format))
     return tuple(installed)
 
 
