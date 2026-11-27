@@ -294,7 +294,7 @@ def _run(args: list[str], *, scratch: Path, timeout: int = SUBPROCESS_TIMEOUT_S)
                 "Voice typing needs your permission: speech recognition is not granted to VOOL on this Mac.",
                 code="speech_recognizer_unauthorized",
                 remediation=(
-                    "Open System Settings → Privacy & Security → Speech Recognition and turn VOOL on. "
+                    "Open the Mac's System Settings, then Privacy & Security → Speech Recognition, and turn VOOL on. "
                     "Until then voice typing and audio files stay off."
                 ),
                 fmt="audio",
@@ -406,7 +406,7 @@ def transcribe_unavailable(locale: str = DEFAULT_LOCALE) -> ReaderUnavailable | 
             "Voice typing needs your permission: speech recognition is not granted to VOOL on this Mac.",
             code="speech_recognizer_unauthorized",
             remediation=(
-                "Open System Settings → Privacy & Security → Speech Recognition and turn VOOL on. "
+                "Open the Mac's System Settings, then Privacy & Security → Speech Recognition, and turn VOOL on. "
                 "Until then voice typing and audio files stay off."
             ),
             fmt="audio",

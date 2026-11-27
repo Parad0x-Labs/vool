@@ -33,7 +33,7 @@ pytestmark = [pytest.mark.pa_beta]
 REPO = Path(__file__).resolve().parents[2]
 BUILD_SCRIPT = REPO / "installer" / "bundle" / "build_macos_app.sh"
 ENTITLEMENTS = REPO / "installer" / "bundle" / "VOOL.entitlements"
-PANE = "System Settings > Privacy & Security > Calendars"
+PANE = "the Mac's System Settings, under Privacy & Security > Calendars"
 
 
 class _Calendar:
@@ -55,18 +55,23 @@ class _Calendar:
 
 class _EventKitBinding:
     """LABELLED double of pyobjc's EventKit module. ``answer`` is what the user picks in the macOS prompt
-    (None: the prompt is never answered)."""
+    (None: the prompt is never answered). ``status`` is what the status call answers and ``granted`` is
+    the read access macOS really gives: on macOS 26 the two can differ. A store shows calendars only
+    with read access, and keeps the view it had when it was made."""
 
     EKEntityTypeEvent = 0
 
-    def __init__(self, status: int, *, answer: int | None = 3, full_access_selector: bool = True) -> None:
+    def __init__(self, status: int, *, answer: int | None = 3, full_access_selector: bool = True,
+                 granted: bool | None = None) -> None:
         binding = self
         self.status, self.answer, self.prompts, self.stores = status, answer, [], []
+        self.granted = status == 3 if granted is None else granted
         self.calendars = [_Calendar("EK-HOME", "Home")]
 
         class _Store:
             def __init__(self) -> None:
                 binding.stores.append(self)
+                self.sees = binding.granted
 
             def respondsToSelector_(self, selector: str) -> bool:
                 return full_access_selector and selector == "requestFullAccessToEventsWithCompletion:"
@@ -75,7 +80,7 @@ class _EventKitBinding:
                 binding.prompts.append(kind)
                 if binding.answer is None:
                     return
-                binding.status = binding.answer
+                binding.status, binding.granted = binding.answer, binding.answer == 3
                 # EventKit answers on its own queue, never on the caller's thread.
                 threading.Thread(target=handler, args=(binding.answer == 3, None)).start()
 
@@ -87,7 +92,7 @@ class _EventKitBinding:
                 self._ask("legacy", handler)
 
             def calendarsForEntityType_(self, entity):
-                return list(binding.calendars)
+                return list(binding.calendars) if self.sees and binding.granted else []
 
         class _EKEventStore:
             @staticmethod
@@ -167,6 +172,30 @@ def test_a_mac_before_14_asks_through_the_older_request():
     assert binding.prompts == ["legacy"]
 
 
+def test_full_access_given_in_system_settings_reads_even_when_the_status_call_says_not_asked():
+    """Owner's iMac, macOS 26.5, 2026-11-27: VOOL ON with Full Access, and VOOL said "not given access yet"."""
+    binding = _EventKitBinding(0, answer=None, granted=False)
+    store = _store(binding)
+    binding.granted = True  # the person turns VOOL on in System Settings; the status call still answers 0
+
+    assert store.authorization() == "authorized"
+    assert store.request_access() == "authorized"
+    assert binding.prompts == [], "access already given is never asked for again"
+    assert [c.calendarIdentifier() for c in store.calendars()] == ["EK-HOME"]
+    kept = store._store
+    store.calendars()
+    assert store._store is kept, "a store that reads is kept, so an event and its calendar share one store"
+
+
+def test_a_status_of_not_asked_with_no_access_still_reads_nothing():
+    from core.kas.contract import CalendarRefusedError
+
+    store = _store(_EventKitBinding(0, answer=None, granted=False))
+    assert store.authorization() == "not_determined"
+    with pytest.raises(CalendarRefusedError):
+        store.calendars()
+
+
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     return prepare_home(tmp_path, monkeypatch)
@@ -199,7 +228,7 @@ def test_adding_apple_calendar_in_settings_asks_and_sync_never_does(home, monkey
 
     assert calendar_accounts.select_calendar(account["account_id"], "EK-HOME", selected=True)["ok"]
     calendar_accounts.set_opt_in(account["account_id"], sync_enabled=True, alerts_enabled=True)
-    binding.status = 0  # the permission was reset on this Mac (tccutil reset Calendar) after setup
+    binding.status, binding.granted = 0, False  # the permission was reset on this Mac (tccutil reset Calendar) after setup
     report = calendar_alerts.sync_account(account["account_id"], now_fn=clock, adapter_factory=factory)
     assert not report["ok"], report
     assert binding.prompts == ["full_access"], "a background sync must never show the macOS prompt"

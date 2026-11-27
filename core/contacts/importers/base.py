@@ -23,7 +23,7 @@ REASON_BINDING_REQUIRED = "credential_binding_required"
 
 RECOVERY: dict[str, str] = {
     REASON_PERMISSION_NOT_DETERMINED: "macOS has not been asked yet. Choose Import again and answer the Contacts permission prompt.",
-    REASON_PERMISSION_DENIED: "Contacts access was declined. Allow it for VOOL in System Settings > Privacy & Security > Contacts, then try again.",
+    REASON_PERMISSION_DENIED: "Contacts access was declined. Allow it for VOOL in the Mac's System Settings, under Privacy & Security > Contacts, then try again.",
     REASON_PERMISSION_RESTRICTED: "A device policy restricts Contacts access on this Mac; it cannot be granted from VOOL.",
     REASON_OS_BINDING_UNAVAILABLE: "This build has no macOS Contacts bridge. The packaged app carries it; saved contacts and other imports still work.",
     REASON_NEEDS_RECONNECT: "The account's sign-in expired or was revoked. Reconnect the account's credential, then preview again.",

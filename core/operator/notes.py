@@ -775,7 +775,7 @@ def _schedule_hint_text(action: str) -> str:
 def _destination_guidance(delivery_state: str) -> str:
     """What the user can do next, given the delivery operation's recorded state."""
     if delivery_state == "refused":
-        return ("Nothing reached Notes. Fix the cause (for Automation access: System Settings > Privacy & Security >"
+        return ("Nothing reached Notes. Fix the cause (for Automation access: the Mac's System Settings, under Privacy & Security >"
                 " Automation), then ask again — a new request makes one new attempt.")
     if delivery_state == "unresolved":
         return ("Whether the note reached Notes is not established, so I will not send it again on my own — that could"

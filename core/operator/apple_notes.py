@@ -27,8 +27,8 @@ from collections.abc import Callable
 from typing import Any
 
 _PERMISSION_GUIDE = (
-    "allow this app to control Notes in System Settings > Privacy & Security > "
-    "Automation, then ask again"
+    "allow this app to control Notes in the Mac's System Settings, under "
+    "Privacy & Security > Automation, then ask again"
 )
 
 

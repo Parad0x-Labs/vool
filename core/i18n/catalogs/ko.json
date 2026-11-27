@@ -5640,9 +5640,11 @@
     "spend_card.keep": "그대로 두기",
     "header.run_last_answer": "마지막 답변: {model}",
     "header.run_local_loaded": "지금 실행 중",
-    "header.run_local_last_reply": "마지막 답변을 작성함"
+    "header.run_local_last_reply": "마지막 답변을 작성함",
+    "vcs.btn.mac_settings": "Mac 설정 열기",
+    "vcs.saved.mac_settings": "시스템 설정의 캘린더 항목이 열렸습니다. 거기서 VOOL을 켠 다음 캘린더 목록 새로 고침을 선택하세요."
   },
-  "source_catalog_sha256": "eed8cfa36c87bda0c1d4f6e6b2edbb1a864e0e732721a9406761de76c32f0e4f",
+  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

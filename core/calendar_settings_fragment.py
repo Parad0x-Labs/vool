@@ -183,6 +183,18 @@ function mountInto(host){
     if (detail) card.appendChild(h('div', 'vcs-detail', detail));
     if (account.recovery) card.appendChild(h('div', 'vcs-recovery', recoveryText(account.status, account.recovery)));
     if (account.status_detail) card.appendChild(h('div', 'vcs-detail', account.status_detail));
+    /* A Mac permission step opens the Mac's own System Settings on the Calendars pane: the words alone
+       sent the owner looking for "Privacy & Security" inside VOOL. */
+    if (account.provider === 'eventkit' && account.status_detail && account.status !== 'connected') {
+      var macBtn = button(CT('vcs.btn.mac_settings', 'Open Mac settings'), function(){
+        request('POST', '/api/system/open-mac-settings', {pane: 'calendars'}).then(function(j){
+          if (j && j.ok) say(CT('vcs.saved.mac_settings', 'System Settings is open on Calendars. Turn VOOL on there, then choose Refresh calendar list.'));
+          else say(CT('vns.status.failed', 'That did not work.'), true);
+        }).catch(function(){ say(CT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
+      });
+      macBtn.setAttribute('data-testid', 'vcs-mac-settings');
+      card.appendChild(macBtn);
+    }
     if (account.status === 'disconnected') {
       card.appendChild(button(CT('vcs.btn.reconnect', 'Reconnect'), function(){ act('/api/calendar/accounts/reconnect', {account_id: account.account_id}, CT('vcs.saved.reconnected', 'Reconnected. Choose calendars and turn sync on to fetch again.')); }));
       card.appendChild(removeButton(account, title));

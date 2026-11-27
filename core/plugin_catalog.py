@@ -552,7 +552,7 @@ def _reason_for(state: str, plugins_dir: str, detail: str, budget_s: float | Non
     if state == STORAGE_DENIED:
         return (
             f"Access to the plugin folder was denied ({plugins_dir}: {detail}). Grant VOOL access to "
-            "that folder (System Settings › Privacy & Security › Files and Folders), then Rescan. "
+            "that folder (the Mac's System Settings, under Privacy & Security › Files and Folders), then Rescan. "
             "The app is running without plugins until then; nothing was disabled or changed."
         )
     if state == STORAGE_STALLED:

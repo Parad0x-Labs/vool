@@ -3726,6 +3726,16 @@ def dispatch_post(
             payload.setdefault("ok", bool(payload.get("check_ok", _uc_status == 200)))
         return apply_runtime_headers(json_response(_uc_status, payload), runtime)
 
+    # The Mac's own System Settings, opened on one allowlisted privacy pane for a permission step.
+    if normalized_path == "/api/system/open-mac-settings":
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.mac_settings import open_pane
+
+        result = open_pane(str(body.get("pane") or ""))
+        status_code = 200 if result.get("ok") else 400 if result.get("error") == "unknown_pane" else 409
+        return apply_runtime_headers(json_response(status_code, result), runtime)
+
     # Calendar and notifications lane: owner-local actions on the notification centre, its preferences and the
     # calendar alert policy. Each changes this runtime's own schedule and history only; the one route that reaches
     # a provider is the explicit sync, which runs the same bounded account sync the background worker runs.

@@ -5640,9 +5640,11 @@
     "spend_card.keep": "Garder celles-ci",
     "header.run_last_answer": "dernière réponse par {model}",
     "header.run_local_loaded": "en cours d’exécution",
-    "header.run_local_last_reply": "a écrit la dernière réponse"
+    "header.run_local_last_reply": "a écrit la dernière réponse",
+    "vcs.btn.mac_settings": "Ouvrir les réglages du Mac",
+    "vcs.saved.mac_settings": "Les Réglages Système sont ouverts sur Calendriers. Activez VOOL, puis choisissez Actualiser la liste des agendas."
   },
-  "source_catalog_sha256": "eed8cfa36c87bda0c1d4f6e6b2edbb1a864e0e732721a9406761de76c32f0e4f",
+  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

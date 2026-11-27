@@ -51,7 +51,8 @@ from core.kas.contract import (
 )
 from core.kas.registry import register_adapter
 
-_PANE = "System Settings > Privacy & Security > Calendars"
+#: Named as the Mac's own settings app: "Privacy & Security" alone reads as a VOOL setting, and VOOL has none.
+_PANE = "the Mac's System Settings, under Privacy & Security > Calendars"
 #: What the user sees for each state that is not full access. Plain words, the pane named, nothing touched.
 _STATE_DETAIL = {
     "not_determined": f"VOOL has not been given access to Apple Calendar yet. Choose Refresh calendar list to see the "
@@ -119,13 +120,42 @@ class EventKitStore:
             code = int(raw)
         except (TypeError, ValueError):
             code = -1
-        return {
+        state = {
             0: "not_determined",
             1: "restricted",
             2: "denied",
             3: "authorized",
             4: "write_only",
         }.get(code, str(raw))
+        if state == "not_determined" and self._store_reads_calendars():
+            return "authorized"
+        return state
+
+    def _store_reads_calendars(self) -> bool:
+        """Whether a fresh store sees the person's calendars: the database itself answering.
+
+        Owner's iMac, macOS 26.5, 2026-11-27: VOOL was ON with Full Access under Privacy & Security
+        and still showed "not given access yet". The status call asks macOS the old (version 1)
+        question, and macOS answered it "not determined" for a Full Access grant, while the same
+        process's full-access checks were allowed. EventKit shows no calendar to a process without
+        read access and never prompts for reading one, so a store that lists calendars is read
+        access proven, without a prompt. Only a "not determined" answer is checked this way: a
+        denied, restricted or write-only answer stands as given.
+        """
+        entity = self._ek.EKEntityTypeEvent
+        try:
+            if list(self._store.calendarsForEntityType_(entity) or []):
+                # The store in use already reads; keep it, so an event and its calendar share one store.
+                return True
+            fresh = self._ek.EKEventStore.alloc().init()
+            found = list(fresh.calendarsForEntityType_(entity) or [])
+        except Exception:
+            return False
+        if not found:
+            return False
+        # A store made before the grant keeps its empty view of the database; read through this one.
+        self._store = fresh
+        return True
 
     def request_access(self) -> str:
         """Ask macOS for full Calendars access, and return the state after the answer.

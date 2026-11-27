@@ -5640,9 +5640,11 @@
     "spend_card.keep": "保持现状",
     "header.run_last_answer": "上一条回复：{model}",
     "header.run_local_loaded": "正在运行",
-    "header.run_local_last_reply": "写了上一条回复"
+    "header.run_local_last_reply": "写了上一条回复",
+    "vcs.btn.mac_settings": "打开 Mac 设置",
+    "vcs.saved.mac_settings": "系统设置已打开到“日历”。请在那里打开 VOOL，然后选择“刷新日历列表”。"
   },
-  "source_catalog_sha256": "eed8cfa36c87bda0c1d4f6e6b2edbb1a864e0e732721a9406761de76c32f0e4f",
+  "source_catalog_sha256": "d91b987d69534715b162e6d7607cedc54636827ea9004149ad659b806daf1681",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
