@@ -5679,7 +5679,13 @@
     "mac_settings.opened.files": "System Settings is open on Files and Folders. Turn VOOL on there, then choose Rescan.",
     "mac_settings.opened.other": "System Settings is open. Turn VOOL on there, then try again.",
     "mac_settings.failed": "That did not work.",
-    "mac_settings.no_answer": "VOOL did not answer; nothing was changed."
+    "mac_settings.no_answer": "VOOL did not answer; nothing was changed.",
+    "header.model_auto_using": "Auto · {model}",
+    "header.model_auto_using_title": "Auto is answering with {model}",
+    "setup.picker.ready_any": "Your private model is ready. VOOL answers with it on this computer.",
+    "settings.local_models.find": "Find local models",
+    "header.find_local_models": "Find local models",
+    "header.find_local_models_hint": "free models that fit this computer"
   },
   "html_keys": [
     "bypass.modal_limits",

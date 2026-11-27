@@ -4663,6 +4663,7 @@ function widgetLocalModels(stack) {
     if (!models.length) {
       body.appendChild(el('div', 'empty', T('settings.models.local_empty', 'No local model yet. A local model runs privately on this computer; once one is installed, it appears here.')));
       body.appendChild(ways(models, false));
+      findModels();
       return;
     }
     for (const m of models) {
@@ -4700,7 +4701,23 @@ function widgetLocalModels(stack) {
     const fastMissing = !recMissing && !!(rec && rec.faster && rec.faster.model_name && !models.some(x => x.model_name === rec.faster.model_name));
     if (pull || (outcome && outcome.kind !== 'ready') || (!anyReady && models.some(m => m.readiness === 'not_suitable'))) body.appendChild(ways(models, anyReady && !(outcome && outcome.kind !== 'ready')));
     else if (anyReady && (recMissing || bigMissing || fastMissing)) body.appendChild(ways(models, true));
+    findModels();
     body.appendChild(el('div', 'subtle', LM('footer', 'VOOL checks a model on this computer before it answers with it. The check never leaves your computer.')));
+  };
+  /* "Find local models": the same fit-aware picker first-run setup shows (core/local_model_picker_fragment.py),
+     for anyone who skipped it there. One node, kept across redraws so a download keeps its place; it opens
+     by itself when Settings was opened for it (#models/local_models/find, the chat's model menu). */
+  let pickerEl = null, pickerOpen = /local_models\/find/.test(String(location.hash || ''));
+  const findModels = () => {
+    if (!window.VoolModelPicker) return;
+    if (!pickerOpen) {
+      const b = el('button', 'btn', LM('find', 'Find local models')); b.type = 'button'; b.id = 'findLocalModels';
+      b.addEventListener('click', () => { pickerOpen = true; render(); });
+      const line = el('div', 'inline'); line.appendChild(b); body.appendChild(line);
+      return;
+    }
+    if (!pickerEl) pickerEl = window.VoolModelPicker.mount(null, { id: 'settingsModelPicker', onFinished: () => { load().then(render); } });
+    body.appendChild(pickerEl);
   };
   body.appendChild(el('div', 'empty', LM('reading', 'Looking for models on this computer…')));
   load().then(render);
@@ -7110,12 +7127,14 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
     # here: each fragment renders itself into the host its group provides
 
+    from core.local_model_picker_fragment import LOCAL_MODEL_PICKER_CSS, LOCAL_MODEL_PICKER_JS
+
     page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("/*__X_FEATURES__*/", X_FEATURES_JS, 1).replace(
         "/*__PHONE_QR_VENDOR__*/", _qr_vendor_js(), 1
     ).replace(
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS + "\n" + SETTINGS_KIT_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS + "\n" + SEASONAL_JS, 1).replace(
-        "</body>", render_addon_store_fragment() + "\n" + render_settings_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
+        "</body>", "<style>" + LOCAL_MODEL_PICKER_CSS + "</style>\n<script>" + LOCAL_MODEL_PICKER_JS + "</script>\n" + render_addon_store_fragment() + "\n" + render_settings_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
         + "\n" + render_x_social_fragment() + "\n" + render_my_things_fragment() + "\n" + render_routines_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n" + render_drop_settings_fragment() + "\n" + render_lend_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)

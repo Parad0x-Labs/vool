@@ -396,6 +396,7 @@ _EXTERNAL: dict[str, str] = {
     "http:POST:/api/discovery/refresh": "provider discovery lane operator action (refresh)",
     "http:GET:/api/models/local": "model registry read feed (local models)",
     "http:GET:/api/models/local/pull": "model registry read feed (recommended model download progress)",
+    "http:GET:/api/models/local/auto": "model registry read feed (the local model Auto answers with now)",
     "http:GET:/api/models/local/choices": "model registry read feed (first-run local model picker)",
     "http:GET:/api/cloud/spend-limits": "effect-budget lane read feed (spend limits)",
     "http:GET:/api/addons": "add-on lane read feed (bundled and installed catalogue)",

@@ -123,3 +123,54 @@ def test_an_unreadable_machine_invents_no_size_warning():
         assert local_model_lag("qwen3.8:27b", size_gb=17.7) == LAG_HEAVY
     finally:
         local_model_fit._probe = original
+
+
+# ---- the model pill: the local model Auto answers the NEXT message with -------------------------
+
+
+def _get(path: str) -> dict:
+    import json
+
+    from core.web.api.runtime import RuntimeServices
+    from core.web.api.service import dispatch_get
+
+    response = dispatch_get(path=path, query={}, runtime=RuntimeServices(), model_name="vool", client_host="127.0.0.1", headers={})
+    assert response.status == 200
+    return json.loads(response.body)
+
+
+def test_the_pill_route_names_the_turns_own_auto_choice(monkeypatch):
+    import core.clean_loop.brain as brain
+
+    seen = {}
+
+    def fake_resolve(router, context):
+        seen["context"] = context
+        seen["has_registry"] = hasattr(router, "registry")
+        return type("M", (), {"model_name": "qwen3:8b"})()
+
+    monkeypatch.setattr(brain, "resolve_local_manifest", fake_resolve)
+    assert _get("/api/models/local/auto") == {"model": "qwen3:8b"}
+    # An Auto request (no requested model), asked of the registry exactly as a turn asks it.
+    assert seen == {"context": {}, "has_registry": True}
+
+
+def test_the_pill_route_says_nothing_when_no_local_model_answers(monkeypatch):
+    import core.clean_loop.brain as brain
+
+    monkeypatch.setattr(brain, "resolve_local_manifest", lambda router, context: None)
+    assert _get("/api/models/local/auto") == {"model": ""}
+
+    def broken(router, context):
+        raise RuntimeError("registry unreadable")
+
+    monkeypatch.setattr(brain, "resolve_local_manifest", broken)
+    assert _get("/api/models/local/auto") == {"model": ""}
+
+
+def test_the_chat_page_paints_the_pill_from_that_route_and_never_on_a_timer():
+    from core.vool_chat_page import render_vool_chat_html
+
+    html = render_vool_chat_html()
+    assert "fetch('/api/models/local/auto')" in html
+    assert "setInterval(refreshAutoLocalModel" not in html and "setTimeout(refreshAutoLocalModel" not in html

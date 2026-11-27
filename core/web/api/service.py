@@ -2455,6 +2455,22 @@ def _dispatch_get(
             runtime,
         )
 
+    if normalized_path == "/api/models/local/auto":
+        # The local model an Auto turn answers with right now, for the chat's model pill before this
+        # chat has a reply: the same choice the turn makes (core.clean_loop.brain.resolve_local_manifest,
+        # auto branch, over the ready local manifests). A read only: nothing is loaded. "" when no local
+        # model is ready, local models are off, or Auto would not answer locally.
+        model = ""
+        with contextlib.suppress(Exception):
+            from types import SimpleNamespace
+
+            from core.clean_loop.brain import resolve_local_manifest
+            from core.model_registry import ModelRegistry
+
+            manifest = resolve_local_manifest(SimpleNamespace(registry=ModelRegistry()), {})
+            model = str(getattr(manifest, "model_name", "") or "") if manifest is not None else ""
+        return apply_runtime_headers(json_response(200, {"model": model}), runtime)
+
     if normalized_path == "/api/models/local/choices":
         # The first-run picker's list: the free local models that fit this computer, the one VOOL
         # would pick ticked, bigger ones with their lag reason. A read only: nothing is downloaded

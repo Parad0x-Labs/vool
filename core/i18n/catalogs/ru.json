@@ -5679,9 +5679,15 @@
     "mac_settings.opened.files": "Системные настройки открыты на разделе «Файлы и папки». Включите там VOOL, затем выберите «Rescan».",
     "mac_settings.opened.other": "Системные настройки открыты. Включите там VOOL и попробуйте снова.",
     "mac_settings.failed": "Не получилось.",
-    "mac_settings.no_answer": "VOOL не ответил; ничего не изменилось."
+    "mac_settings.no_answer": "VOOL не ответил; ничего не изменилось.",
+    "header.model_auto_using": "Авто · {model}",
+    "header.model_auto_using_title": "Авто отвечает моделью {model}",
+    "setup.picker.ready_any": "Ваша приватная модель готова. VOOL отвечает ею на этом компьютере.",
+    "settings.local_models.find": "Найти локальные модели",
+    "header.find_local_models": "Найти локальные модели",
+    "header.find_local_models_hint": "бесплатные модели, подходящие этому компьютеру"
   },
-  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
+  "source_catalog_sha256": "6bd3b22fd85827b9a84baa4a815e9fcadcf4b623de69d0256489ec104649f433",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5690,6 +5696,8 @@
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
     "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
-    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)",
+    "model_pill_names_auto_model_addendum": "2 keys translated by the lane author (single writer)",
+    "find_local_models_addendum": "4 keys translated by the lane author (single writer)"
   }
 }

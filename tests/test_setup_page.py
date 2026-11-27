@@ -213,7 +213,11 @@ def test_the_prefs_door_accepts_and_reads_back_the_two_setup_fields(tmp_path, mo
 
 
 def _page_script() -> str:
-    html = render_vool_setup_html()
+    # The shared local model picker (core/local_model_picker_fragment.py) rides in the head as its own
+    # script and is checked on its own below: its lines speak the server's check verdict, not a step's state.
+    from core.local_model_picker_fragment import LOCAL_MODEL_PICKER_JS
+
+    html = render_vool_setup_html().replace("<script>" + LOCAL_MODEL_PICKER_JS + "</script>", "", 1)
     m = re.search(r"<script>(.*)</script>", html, re.S)
     assert m, "the setup page carries one inline script"
     return m.group(1)
@@ -290,3 +294,13 @@ def test_the_page_carries_no_oauth_and_no_deep_links() -> None:
             or "https://" in probe
             or re.search(r"\b[a-z][a-z0-9+.-]*://", probe.replace("http://", "").replace("https://", ""))
         ), f"the outbound scan went blind to: {hostile}"
+
+
+def test_the_model_picker_calls_a_model_ready_only_after_its_check_said_so() -> None:
+    """The picker's "ready" line is gated on the check's own readiness answer, never on the download alone."""
+    from core.local_model_picker_fragment import LOCAL_MODEL_PICKER_JS as js
+
+    assert js.index("/api/model-tool-certification/run") < js.index("st.readiness[tag] = ")
+    ready_line = js.index("else if (result.ready)")
+    assert "ready: states.includes('ready')" in js and ready_line > js.index("st.readiness[tag] = ")
+    assert "'/api/models/local/pull'" in js and "addEventListener('click', run)" in js, "a download starts only from the button"

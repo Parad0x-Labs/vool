@@ -229,19 +229,6 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 .choice.unavailable:hover { border-color:var(--border); }
 .example-bar[hidden] { display:none; }
 .cloud-default { margin:0 0 12px; }
-/* First-run model picker: free local models that fit this computer, one ticked row per model. */
-.mp { margin:0 0 14px; border:1px solid var(--border); border-radius:10px; padding:12px 14px; background:var(--panel); }
-.mp h3 { margin:0 0 2px; font-size:15px; }
-.mp-row { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--border); cursor:pointer; }
-.mp-row:first-of-type { border-top:0; }
-.mp-row input { margin-top:3px; width:16px; height:16px; accent-color:var(--accent); flex:0 0 auto; }
-.mp-row b { display:block; font-size:14px; }
-.mp-row span { display:block; color:var(--muted); font-size:13px; }
-.mp-row .mp-lag { color:var(--warn); font-weight:600; }
-.mp-row.have { cursor:default; opacity:.75; }
-.mp details { margin-top:4px; }
-.mp summary { cursor:pointer; color:var(--muted); font-size:13px; padding:6px 0; }
-.mp .inline { margin-top:10px; }
 .inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .inp { background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:9px 11px; font:inherit; font-size:15px; min-width:220px; flex:1 1 220px; }
 .inp:focus { outline:none; border-color:var(--accent); }
@@ -640,146 +627,26 @@ function controlThinking(host, step) {
   online.addEventListener('click', () => openSettings('keys'));
   row.appendChild(local); row.appendChild(online);
   // No private model yet: offer the free ones that fit this computer before anything else.
-  if (unavailable) controlModelPicker(host);
+  // Once used, the picker stays on the step, so its result (ready, or why not) stays readable.
+  if (unavailable || view.pickerEl) controlModelPicker(host);
   const cloud = view.snap && view.snap.cloud_default;
   if (cloud && cloud.local_model_running === false) controlCloudDefault(host, cloud);
   host.appendChild(row);
   host.appendChild(el('p', 'hint', T('setup.thinking.hint', 'You can switch between the two whenever you like.')));
 }
 /* ------------------------------------------------------------------ first-run model picker
-   The free local models that fit this computer (GET /api/models/local/choices, from the one suggestion
-   table). The model VOOL would pick for speed and quality is ticked, with the small helper that keeps
-   the quick checks on every message off the big model. Bigger models carry the server's lag reason.
-   Nothing is downloaded until the person presses Download; then one model at a time is fetched
-   (POST /api/models/local/pull), added and checked, exactly as Settings > Local models does. */
-const MP = (k, f, p) => (p ? fmt(T('setup.picker.' + k, f), p) : T('setup.picker.' + k, f));
-function plainModelName(tag) {
-  const t = String(tag || '').trim();
-  const [base, variant = ''] = t.slice(t.lastIndexOf('/') + 1).split(':');
-  const words = (base + ' ' + variant).split(/[-_\s:]+/).filter(Boolean).map((w) => {
-    const lw = w.toLowerCase();
-    if (/^\d+(\.\d+)?[bm]$/.test(lw)) return lw.toUpperCase();
-    return w.charAt(0).toUpperCase() + w.slice(1);
-  });
-  return words.join(' ') || t;
-}
-function pickerRoleText(o) {
-  if (o.role === 'best') return MP('role.best', 'Best for this computer: quick, with good answers.');
-  if (o.role === 'helper') return MP('role.helper', 'Small helper for quick checks, so everyday answers stay fast.');
-  if (o.role === 'smaller') return MP('role.smaller', 'Smaller and faster, with simpler answers.');
-  return MP('role.bigger', 'Smarter, but slower.');
-}
-function pickerLagText(lag) {
-  if (lag === 'too_big') return MP('lag.too_big', 'Bigger than this computer runs smoothly. It may make the whole computer lag.');
-  if (lag === 'beside_loaded') return MP('lag.beside_loaded', 'It does not fit next to the models already running. It may make the computer lag.');
-  if (lag === 'heavy') return MP('lag.heavy', 'Heavy for everyday chat. It may make the computer lag. Good for trying out.');
-  return '';
-}
-async function loadPickerChoices() {
-  const pk = view.picker;
-  pk.loading = true;
-  try { pk.data = await getJSON('/api/models/local/choices'); }
-  catch (e) { pk.data = null; pk.loadFailed = true; }
-  pk.loading = false;
-  if (pk.data && Array.isArray(pk.data.options) && !pk.chosenSet) {
-    pk.chosen = new Set(pk.data.options.filter((o) => o.chosen).map((o) => o.model_name));
-    pk.chosenSet = true;
-  }
-  if (current().id === 'thinking') render();
-}
-async function pickerRun(host) {
-  const pk = view.picker;
-  const queue = (pk.data.options || []).filter((o) => pk.chosen.has(o.model_name) && !o.installed).map((o) => o.model_name);
-  if (!queue.length) return;
-  pk.running = true; pk.failed = ''; pk.total = queue.length; pk.doneCount = 0; pk.readiness = {}; render();
-  for (const tag of queue) {
-    pk.current = tag; pk.percent = 0; render();
-    const start = await postJSON('/api/models/local/pull', { model_name: tag });
-    if (!start.ok) { pk.failed = tag; break; }
-    let status = '';
-    for (;;) {
-      await new Promise((r) => setTimeout(r, 1500));
-      let st = null;
-      try { st = await getJSON('/api/models/local/pull?model_name=' + encodeURIComponent(tag)); } catch (e) { st = null; }
-      status = st ? String(st.status || '') : 'failed';
-      if (status === 'ready' || status === 'failed' || status === 'idle' || status === 'skipped') break;
-      pk.percent = Number(st.percent || 0); render();
-    }
-    if (status !== 'ready') { pk.failed = tag; break; }
-    pk.current = ''; pk.checking = tag; render();
-    // Added and checked like Settings does it: only a model that passes the check may answer.
-    await postJSON('/api/models/local/register', { model_name: tag });
-    const check = await postJSON('/api/model-tool-certification/run', { provider_name: 'ollama-local', model_name: tag, timeout_seconds: 150 });
-    pk.readiness[tag] = String((check.json && check.json.readiness) || 'check_unfinished');
-    pk.checking = ''; pk.doneCount += 1;
-    const row = (pk.data.options || []).find((o) => o.model_name === tag); if (row) row.installed = true;
-    pk.chosen.delete(tag);
-  }
-  pk.running = false; pk.current = ''; pk.checking = '';
-  await refresh();
-  // Only a model that passed VOOL's check is called ready; the words never run ahead of the check.
-  const states = Object.keys(pk.readiness).map((t) => pk.readiness[t]);
-  // The small helper only runs quick checks, never writes answers: its own check result is not the verdict.
-  const roleOf = (t) => { const o = (pk.data.options || []).find((x) => x.model_name === t); return o ? o.role : ''; };
-  const refused = Object.keys(pk.readiness).find((t) => pk.readiness[t] === 'not_suitable' && roleOf(t) !== 'helper' && !states.includes('ready'));
-  if (pk.failed) setNote('failed', MP('failed', 'The download of {model} didn’t finish. Check your internet connection, then press Download again.', { model: plainModelName(pk.failed) }));
-  else if (states.includes('ready') && !noLocalModel()) setNote('info', fmt(MP('ready', 'Your private model is ready. Choose “{local}”.'), { local: T(PC('setup.thinking.local_title'), PC_WORDS.local_title) }));
-  else if (refused) setNote('failed', MP('not_suitable', '{model} can’t use VOOL’s tools well enough, so VOOL won’t answer with it. Pick another model and press Download.', { model: plainModelName(refused) }));
-  else setNote('info', MP('downloaded', 'Downloaded. VOOL is still getting the model ready. This can take a minute.'));
-}
+   The shared picker (core/local_model_picker_fragment.py): the same list, warnings and one-click
+   download Settings and the model menu open later. Mounted once; a redraw re-appends the same node,
+   so a download in progress keeps its place. */
 function controlModelPicker(host) {
-  if (!view.picker) { view.picker = { chosen: new Set() }; loadPickerChoices(); }
-  const pk = view.picker;
-  const box = el('div', 'mp'); box.id = 'modelPicker';
-  box.appendChild(el('h3', null, MP('title', 'Get a free private model')));
-  if (pk.loading || (!pk.data && !pk.loadFailed)) { box.appendChild(el('p', 'hint', MP('loading', 'Looking at what fits this computer…'))); host.appendChild(box); return; }
-  if (pk.data && pk.data.local_models_disabled) return;
-  const options = (pk.data && Array.isArray(pk.data.options)) ? pk.data.options : [];
-  if (!options.length) { box.appendChild(el('p', 'hint', MP('none', 'VOOL couldn’t find a model that fits this computer.'))); host.appendChild(box); return; }
-  box.appendChild(el('p', 'hint', MP('lead', 'These fit this computer. VOOL ticked the best one for speed and quality. Nothing downloads until you press Download.')));
-  const rowFor = (o) => {
-    const row = el('label', 'mp-row' + (o.installed ? ' have' : ''));
-    row.setAttribute('data-model', o.model_name);
-    const box2 = document.createElement('input'); box2.type = 'checkbox';
-    box2.checked = o.installed || pk.chosen.has(o.model_name);
-    box2.disabled = !!o.installed || !!pk.running;
-    box2.addEventListener('change', () => { if (box2.checked) pk.chosen.add(o.model_name); else pk.chosen.delete(o.model_name); render(); });
-    const text = el('div');
-    text.appendChild(el('b', null, fmt(MP('row', '{model} · {gb} GB'), { model: plainModelName(o.model_name), gb: o.download_gb })));
-    text.appendChild(el('span', null, o.installed ? MP('installed', 'Already on this computer.') : pickerRoleText(o)));
-    const lag = pickerLagText(o.lag);
-    if (lag) { const w = el('span', 'mp-lag', lag); w.setAttribute('data-lag', o.lag); text.appendChild(w); }
-    row.appendChild(box2); row.appendChild(text);
-    return row;
-  };
-  const main = options.filter((o) => o.role === 'best' || o.role === 'helper');
-  const more = options.filter((o) => o.role !== 'best' && o.role !== 'helper');
-  main.forEach((o) => box.appendChild(rowFor(o)));
-  if (more.length) {
-    const fold = document.createElement('details');
-    if (pk.openMore || more.some((o) => pk.chosen.has(o.model_name))) fold.open = true;
-    fold.addEventListener('toggle', () => { pk.openMore = fold.open; });
-    fold.appendChild(el('summary', null, MP('more', 'Other models')));
-    more.forEach((o) => fold.appendChild(rowFor(o)));
-    box.appendChild(fold);
+  if (!window.VoolModelPicker) return;
+  if (!view.pickerEl) {
+    view.pickerEl = window.VoolModelPicker.mount(null, {
+      readyText: () => fmt(T('setup.picker.ready', 'Your private model is ready. Choose “{local}”.'), { local: T(PC('setup.thinking.local_title'), PC_WORDS.local_title) }),
+      onFinished: () => { refresh(); },
+    });
   }
-  const picked = options.filter((o) => pk.chosen.has(o.model_name) && !o.installed);
-  const total = Math.round(picked.reduce((n, o) => n + Number(o.download_gb || 0), 0) * 10) / 10;
-  const line = el('div', 'inline');
-  if (pk.running) {
-    const n = pk.doneCount + 1;
-    line.appendChild(el('span', 'status info', pk.checking
-      ? fmt(MP('checking', 'Getting {model} ready…'), { model: plainModelName(pk.checking) })
-      : fmt(MP('progress', 'Downloading {model}… {percent}% ({n} of {total})'), { model: plainModelName(pk.current), percent: pk.percent || 0, n: n, total: pk.total })));
-  } else {
-    const go = el('button', 'btn primary', picked.length ? fmt(MP('download', 'Download ({gb} GB)'), { gb: total }) : MP('download_none', 'Download'));
-    go.type = 'button'; go.id = 'pickerDownload'; go.disabled = !picked.length;
-    go.addEventListener('click', () => pickerRun(host));
-    line.appendChild(go);
-    if (picked.some((o) => o.lag)) line.appendChild(el('span', 'hint mp-lag', MP('lag_picked', 'You picked a model that may make this computer lag. You can remove it later in Settings.')));
-  }
-  box.appendChild(line);
-  host.appendChild(box);
+  host.appendChild(view.pickerEl);
 }
 // No local model answers on this computer (no Ollama, or local models off). Auto stays opt-in:
 // the owner names the cloud model once, and Auto uses it only while no local model runs.
@@ -1209,6 +1076,9 @@ def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en", app
     # "Same as this computer" with a light operating system -- the same choice the chat follows.
     page = (_SETUP_HTML + _SETUP_JS).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS)
     page = page.replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1)
+    from core.local_model_picker_fragment import LOCAL_MODEL_PICKER_CSS, LOCAL_MODEL_PICKER_JS
+
+    page = page.replace("</head>", "<style>" + LOCAL_MODEL_PICKER_CSS + "</style>\n<script>" + LOCAL_MODEL_PICKER_JS + "</script>\n</head>", 1)
     return (
         page.replace("__SETUP_STEPS__", json.dumps(setup_steps_model(ui_locale), separators=(",", ":"), ensure_ascii=False))
         .replace("__SETUP_COPY__", json.dumps(_localized_copy(ui_locale), separators=(",", ":"), ensure_ascii=False))

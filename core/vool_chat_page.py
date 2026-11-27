@@ -2372,6 +2372,8 @@ function chatState(chatId) {
 let displayedChat = '';
 // Per chat: the model that wrote its newest reply finished on this page (the proof chip names it).
 const lastAnswerModel = {};
+// The local model Auto answers the next message with (refreshAutoLocalModel); '' = none ready or unknown.
+let autoLocalModel = '';
 let view = chatState('');
 function setDisplayedChat(chatId) {
   const previousChat = displayedChat;
@@ -2382,6 +2384,7 @@ function setDisplayedChat(chatId) {
   try { if (CANONICAL.test(displayedChat) && location.hash !== '#' + displayedChat) history.replaceState(null, '', '#' + displayedChat); } catch (e) {}
   // Named fragment call site: per-chat composer state (drafts, accent) follows the ONE place the
   // displayed chat is allowed to change. Guarded — the fragment may not be mounted.
+  if (previousChat !== displayedChat && typeof refreshAutoLocalModel === 'function') refreshAutoLocalModel();
   if (window.VoolComposerExtras && previousChat !== displayedChat) {
     try { window.VoolComposerExtras.chatSwitched(previousChat, displayedChat); } catch (e) {}
   }
@@ -6774,7 +6777,8 @@ const HUMAN_ACTIVITY_STATES = {
 function humanActivityState(run) {
   if (run.permission) return pageT('run.stage_waiting_approval', 'Waiting for approval');
   const stage = String(run.stage || '').trim();
-  return HUMAN_ACTIVITY_STATES[stage] || pageT('run.stage_working', 'Working');
+  const word = HUMAN_ACTIVITY_STATES[stage] || pageT('run.stage_working', 'Working');
+  return run.autoModel ? word + ' · ' + compactModelName(run.autoModel) : word;
 }
 function recordedModelProvider(model) {
   if (!model) return '';
@@ -7015,6 +7019,8 @@ function runSummaryWords(text) {
 }
 function finishRun(run, kind, summaryText, tsIso) {
   if (run.ended) return; run.ended = true; run.status = kind;
+  // A reply can change what Auto answers with next (a model loaded, memory used): ask again once.
+  if (typeof refreshAutoLocalModel === 'function') refreshAutoLocalModel();
   // A run that was not refused held the chat's slot itself: no other holder is known now.
   if (!run.slotRefused) ownerOf(run).slotHeldElsewhere = false;
   // The bubble's real completion time: the server's own ts on the terminal event when the stream
@@ -10198,6 +10204,9 @@ async function runTurn(text, queueItemId, opts) {
     // inherit the pin's hard-refusal semantics.
     const trialServing = !isNoCloudModel(chatModel) && activeTryOnce(chatId, lastUser.content || '');
     const modelSelection = isNoCloudModel(chatModel) ? 'pin' : opts.queuedModel ? 'pin' : trialServing ? 'sticky' : (chatModel !== 'vool') ? 'pin' : (selectedModel !== 'vool' ? 'sticky' : 'auto');
+    // The working line names the model the pill named: Auto's next local model, from the moment the turn starts.
+    run.autoModel = (selectedModel === 'vool' || isNoCloudModel(selectedModel)) ? autoLocalModel : '';
+    if (run.refs) renderCard(run);
     // Restored pins need an explicit decision in this app session. A successful paid selection
     // already supplies it for the selected conversation, so the first send never asks twice.
     let sendRequiresPaidAck = false;
@@ -11933,7 +11942,7 @@ function reflectModel() {
   if (isLocalOnlyMode()) renderSelectionProvenance(null);
   renderConnections(lastConnectionRows || []);
   syncModelConnectionTitle();
-
+  paintAutoPill();
 }
 // The Auto row's hint: the run mode in a few words, then the model that wrote this chat's newest
 // reply, and on each local row whether it is that model. Auto picks per message, so this names what
@@ -11950,6 +11959,36 @@ function paintAutoLastAnswer() {
     const h = row.querySelector('.pi-hint');
     if (h) h.textContent = localRowHint(row.getAttribute('data-model'), row.classList.contains('is-loaded'));
   });
+  paintAutoPill();
+}
+// The pill names the model Auto will answer the NEXT message with, in any chat and before anything
+// is sent: GET /api/models/local/auto, the turn's own choice (core.clean_loop.brain). Asked again on
+// boot, on chat open, after each reply and when the model menu reads the installed models; never on a
+// timer. With no ready local model it stays "VOOL Auto". A pinned or cloud choice keeps its own label.
+async function refreshAutoLocalModel() {
+  try {
+    const r = await fetch('/api/models/local/auto');
+    if (!r.ok) return;
+    const j = await r.json();
+    autoLocalModel = (j && typeof j.model === 'string') ? j.model.trim() : '';
+  } catch (e) { return; }
+  paintAutoPill();
+}
+function paintAutoPill() {
+  const lbl = document.getElementById('modelLbl');
+  if (!lbl) return;
+  if (!(modelValue === 'vool' || isLocalOnlyMode())) { if (lbl.dataset.autoTitle) { lbl.removeAttribute('title'); delete lbl.dataset.autoTitle; } return; }
+  const raw = autoLocalModel;
+  const name = compactModelName(String(raw || '').indexOf('ollama-local:') === 0 ? String(raw).slice('ollama-local:'.length) : raw);
+  // Auto sticking to this chat's cloud model keeps its own pinned label (reflectModel): no local name.
+  if (modelValue === 'vool' && view.stickyModel) return;
+  const text = name ? pageTF('header.model_auto_using', 'Auto · {model}', { model: name }) : pageT('header.model_auto_option', 'VOOL Auto');
+  lbl.textContent = compactLabel(text);
+  // The static "VOOL Auto" key would repaint over a named model on the next language pass: it rides
+  // only while the pill says "VOOL Auto" itself.
+  if (name) lbl.removeAttribute('data-i18n'); else lbl.setAttribute('data-i18n', 'header.model_auto_option');
+  lbl.setAttribute('title', name ? pageTF('header.model_auto_using_title', 'Auto is answering with {model}', { model: name }) : text);
+  lbl.dataset.autoTitle = '1';
 }
 function localRowHint(id, loaded) {
   const words = [];
@@ -12553,6 +12592,7 @@ async function renderLocalModels() {
   installed.forEach((n) => names.push(n));
   const rows = localModelRows(names);
   rows.forEach((m) => { m.loaded = loadedNow.has(m.id); m.lag = lagBy[m.id] || ''; });
+  refreshAutoLocalModel();
   localModelIds = new Set(rows.map((m) => m.id));
   try { localStorage.setItem('vool_local_models', JSON.stringify([...localModelIds])); } catch (e) {}
   document.querySelectorAll('#modelPop .local-dyn').forEach((n) => n.remove());
@@ -12584,6 +12624,21 @@ async function renderLocalModels() {
   group.textContent = pageT('header.run_local_models', 'Local · installed on this computer');
   list.appendChild(group);
   rows.forEach((m) => list.appendChild(makeLocalRow(m)));
+  // More free models that fit this computer: the same picker setup shows, in Settings > Local models.
+  const find = document.createElement('button');
+  find.type = 'button'; find.className = 'pop-item local-find'; find.setAttribute('role', 'menuitem');
+  find.innerHTML = '<span class="pi-check"></span><span class="pi-body"></span>';
+  find.querySelector('.pi-body').textContent = pageT('header.find_local_models', 'Find local models');
+  const findHint = document.createElement('span'); findHint.className = 'pi-hint';
+  findHint.textContent = pageT('header.find_local_models_hint', 'free models that fit this computer');
+  find.querySelector('.pi-body').appendChild(findHint);
+  find.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const btn = document.getElementById('modelBtn');
+    pop.classList.remove('open'); if (btn) btn.setAttribute('aria-expanded', 'false');
+    openSettings('models/local_models/find');
+  });
+  list.appendChild(find);
   pop.insertBefore(list, anchor);
   reflectModel();
   positionPopover(pop, document.getElementById('modelBtn'));
@@ -15825,6 +15880,7 @@ refreshCredentials();
 refreshCloudStatus();
 renderLocalModels();   // installed local models are selectable with or without a cloud key
 hydrateModelFromServer();   // A11: adopt the server's authoritative selection, never a stale cache
+refreshAutoLocalModel();    // the pill names the local model Auto answers with before this chat has a reply
 window.addEventListener('load', () => { if (window.VoolCompanionBoot) window.VoolCompanionBoot(); });  // companion layer (idempotent; boots after the fragment script evaluates)
 setInterval(refreshCloudStatus, 60000);  // cheap cache-only poll; keeps the pill fresh
 refreshSidebarActivity();   // seed activityHistory before the first repaint so boot never reads every chat as idle
