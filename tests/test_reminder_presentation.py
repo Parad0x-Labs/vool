@@ -16,13 +16,26 @@ def test_delivery_qualifier_does_not_become_reminder_subject(prompt, expected):
     assert _reminder_note_from_text(prompt) == expected
 
 
+@pytest.fixture
+def computer_clock_utc(monkeypatch):
+    """The computer's own clock is UTC: a due time says its zone only when it is not the computer's clock."""
+    import time
+
+    monkeypatch.setenv("TZ", "UTC")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
 @pytest.mark.parametrize("instant,zone,expected", [
-    ("2026-09-12T21:15:08.662139+00:00", "UTC", "12 Sep 2026 at 21:15:08 UTC"),
-    ("2026-09-12T21:15:08.662139+00:00", "Europe/Athens", "13 Sep 2026 at 00:15:08 EEST"),
-    ("2026-11-01T05:30:00+00:00", "America/New_York", "01 Nov 2026 at 01:30:00 EDT"),
-    ("2026-11-01T06:30:00+00:00", "America/New_York", "01 Nov 2026 at 01:30:00 EST"),
+    # To the minute, no seconds (sls 2026-11-27: "10:00:00 EET" read as dev text); the zone only off the computer's clock.
+    ("2026-09-12T21:15:08.662139+00:00", "UTC", "Sat 12 Sep 2026 at 21:15."),
+    ("2026-09-12T21:15:08.662139+00:00", "Europe/Athens", "Sun 13 Sep 2026 at 00:15 EEST"),
+    ("2026-11-01T05:30:00+00:00", "America/New_York", "Sun 01 Nov 2026 at 01:30 EDT"),
+    ("2026-11-01T06:30:00+00:00", "America/New_York", "Sun 01 Nov 2026 at 01:30 EST"),
 ])
-def test_confirmation_and_delivery_share_human_due_time(monkeypatch, instant, zone, expected):
+def test_confirmation_and_delivery_share_human_due_time(monkeypatch, computer_clock_utc, instant, zone, expected):
     from core.operator.handlers import handle_schedule_reminder
     from core.operator.reminder_dispatcher import _deliver_to_session_log
     from core.operator.when import WhenResolution
@@ -50,6 +63,6 @@ def test_confirmation_and_delivery_share_human_due_time(monkeypatch, instant, zo
     assert result.details["due_at_utc"] == saved["due_at_utc"] == instant
     delivery = _deliver_to_session_log(dict(saved, reminder_id="presentation-reminder"))
     assert delivery["ok"]
-    assert expected in rendered["text"]
+    assert expected.rstrip(".") in rendered["text"]
     assert instant not in rendered["text"]
     assert rendered["artifact"] == {"reminder_id": "presentation-reminder", "status": "delivered"}

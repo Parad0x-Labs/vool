@@ -91,8 +91,20 @@ def test_a_reminder_set_after_a_wait_is_due_on_the_owners_clock(minutes, unsaved
     assert " UTC" not in stored.response_text, stored.response_text
 
 
-def test_a_stored_offset_zone_is_shown_on_that_offset() -> None:
-    assert format_due_time("2026-11-27T02:57:00+00:00", "UTC+05:30").startswith("27 Nov 2026 at 08:27:00")
+@pytest.fixture
+def computer_clock_utc(monkeypatch):
+    """The computer's own clock is UTC: a due time says its zone only when it is not the computer's clock."""
+    import time
+
+    monkeypatch.setenv("TZ", "UTC")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+def test_a_stored_offset_zone_is_shown_on_that_offset(computer_clock_utc) -> None:
+    assert format_due_time("2026-11-27T02:57:00+00:00", "UTC+05:30") == "Fri 27 Nov 2026 at 08:27 UTC+05:30"
     assert "UTC-03:00" in format_due_time("2026-11-27T02:57:00+00:00", "UTC-03:00")
     assert "EET" in format_due_time("2026-11-27T02:57:00+00:00", "Europe/Vilnius")
 

@@ -220,7 +220,19 @@ def format_due_time(due_at_utc: str, tz_name: str = "", due_wall: str = "") -> s
         # Preserve the stored offset if a legacy zone cannot be resolved.
         with contextlib.suppress(ZoneInfoNotFoundError, ValueError):
             instant = instant.astimezone(_named_or_offset_zone(tz_name))
-    return instant.strftime("%d %b %Y at %H:%M:%S %Z")
+    return _plain_wall(instant)
+
+
+def _plain_wall(instant: datetime) -> str:
+    """A due instant the way a person reads one: "Sat 28 Nov 2026 at 10:00".
+
+    sls, Telegram 2026-11-27: "Due 28 Nov 2026 at 10:00:00 EET" read as dev text. A reminder is set to the
+    minute, so seconds are never shown, and the zone only when it is not
+    the computer's own clock at that moment (a reminder typed in "Tokyo time" still says so)."""
+    text = instant.strftime("%a %d %b %Y at %H:%M")
+    if instant.utcoffset() != instant.astimezone().utcoffset():
+        text += " " + (instant.strftime("%Z") or instant.strftime("%z"))
+    return text
 
 
 def _named_or_offset_zone(tz_name: str) -> tzinfo:
