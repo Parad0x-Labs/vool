@@ -3797,6 +3797,20 @@ def _judged_recall_with_nothing_behind_it(
     if world == "yes":
         LOGGER.info("judged recall with nothing held: a question about the world")
         return None
+    # A question about the person's own life can carry all it needs: "my flight boards at 6:50 and the flight is 1
+    # hour 55 minutes long, so when do I land?" was answered "I don't have that saved" (iMac gate53 on efb8e474c).
+    # It is worked out by the model, not looked up.
+    try:
+        from core.intent_arbiter import arbitrate_self_contained_ask
+
+        whole = arbitrate_self_contained_ask(text, chat_id=str(session_id or ""),
+                                             source_context=dict(source_context or {}) or None)
+    except Exception as exc:
+        LOGGER.warning("recall with nothing held: self-contained question unreadable (%s)", type(exc).__name__)
+        whole = None
+    if whole == "yes":
+        LOGGER.info("judged recall with nothing held: the question carries what it needs")
+        return None
     return JUDGED_RECALL_NOTHING
 
 

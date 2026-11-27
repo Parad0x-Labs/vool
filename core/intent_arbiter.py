@@ -2226,6 +2226,49 @@ def arbitrate_world_follow_up(
     )
 
 
+def _self_contained_ask_prompt(question: str) -> str:
+    """Whether a question gives, in its own words, everything it needs to be answered.
+
+    The memory question reads "my flight boards at 6:50 and the flight is 1 hour 55 minutes long, so when do I
+    land?" as a recall (it is about the person's own flight), nothing saved names it, and it was answered "I don't
+    have that saved" (iMac gate53 on efb8e474c). A question that states the times, amounts or facts it asks about is
+    worked out, not looked up."""
+    flat = " ".join(str(question or "").split())[:400].replace('"', "'")
+    return "\n".join([
+        "Here is a message a person wrote. Does the message itself give everything needed to answer its question, so",
+        "that it can be worked out from the message alone (times, amounts, distances or facts stated in it), with",
+        "nothing the person told before needed? Answer yes or no. Any language.",
+        "",
+        "Example: \"my train leaves at 8:10 and takes 40 minutes, when am I there?\" -> {\"answer\": \"yes\"}",
+        "Example: \"turiu 3 obuolius ir nupirkau dar 5, kiek dabar turiu?\" -> {\"answer\": \"yes\"}",
+        "Example: \"what's my dog's name?\" -> {\"answer\": \"no\"}",
+        "Example: \"kur aš laikau pasą?\" -> {\"answer\": \"no\"}",
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_self_contained_ask(
+    question: str,
+    *,
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """``"yes"`` when a recall nothing saved answers states in its own words what it needs to be worked out, ``"no"``
+    when it asks about something told before, None when nothing judged it (core.persistent_memory)."""
+    if not str(question or "").strip():
+        return None
+    prompt = _self_contained_ask_prompt(question)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
+        operation="self_contained_ask_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def _find_ask_prompt(message: str, previous: str = "") -> str:
     """Whether a message asks to find something the person keeps on this computer, asked of a Find pick only.
 
@@ -2375,6 +2418,63 @@ def arbitrate_reminder_ask(
         "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
         operation="reminder_ask_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
         patient=True, parse=_reminder_kind_reader,
+    )
+
+
+def _calendar_ask_prompt(message: str) -> str:
+    """Which of three a message is: an ask about the person's calendar, news to remember, or something else. Asked of
+    a Calendar pick. iMac gate53 on efb8e474c (qwen3.5:9b): "heads up, the vet moved Pipiras's checkup to thursday
+    15:20" was picked Calendar, the model wrote a reminder nobody asked for, and nothing was kept; on a6a5f29b7 such
+    lines in Manual mode got an approval card. A day or a time in news told in passing is no ask to put it anywhere."""
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
+    return "\n".join([
+        "A person wrote to their assistant. Which one is the message? Any language, any words.",
+        "calendar = it asks the assistant to show the person's calendar or agenda, check when they are free, or add,",
+        "move or cancel an event on it.",
+        "remember = it tells the assistant news or a fact, also when it names an appointment, a day, a date or a time.",
+        "It does not ask the assistant to do anything with a calendar.",
+        "other = anything else.",
+        "",
+        'Message: "what do I have on Tuesday?" -> {"answer": "calendar"}',
+        'Message: "put lunch with Ieva on my calendar for friday at 1" -> {"answer": "calendar"}',
+        'Message: "fyi my dentist appointment got moved to monday 9:00" -> {"answer": "remember"}',
+        'Message: "ar turiu laisvo laiko rytoj po pietų?" -> {"answer": "calendar"}',
+        'Message: "beje, mano kirpimas perkeltas į trečiadienį 17:00" -> {"answer": "remember"}',
+        'Message: "trag das Teammeeting am Donnerstag um 10 ein" -> {"answer": "calendar"}',
+        'Message: "übrigens ist mein Kurs jetzt immer montags um 18 Uhr" -> {"answer": "remember"}',
+        'Message: "how long does it take to boil an egg?" -> {"answer": "other"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "calendar"}, {"answer": "remember"} or {"answer": "other"}',
+    ])
+
+
+#: `_calendar_ask_prompt`'s answers as the yes/no its callers read: only "calendar" is about the calendar.
+_CALENDAR_KINDS = {"calendar": "yes", "remember": "no", "other": "no"}
+
+
+def _calendar_kind_reader(content: str) -> str | None:
+    return _named_answer(content, _CALENDAR_KINDS)
+
+
+def arbitrate_calendar_ask(
+    message: str,
+    *,
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether a message asks about or for the person's calendar: ``"yes"`` / ``"no"``, or None when nothing judged it.
+    Asked of a Calendar pick (core.plugin_ask)."""
+    if not str(message or "").strip():
+        return None
+    prompt = _calendar_ask_prompt(message)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context, _calendar_kind_reader)
+    return arbitrate_followup(
+        "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
+        operation="calendar_ask_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+        patient=True, parse=_calendar_kind_reader,
     )
 
 

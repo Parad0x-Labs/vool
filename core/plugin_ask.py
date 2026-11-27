@@ -403,6 +403,21 @@ def _memory_kind_confirmed(
                 # The Reminders pick was the tool judgement's reading of "remember" placed on the wrong choice: with it
                 # dropped, both readings name the keep.
                 picked.add("keep")
+    if "calendar" in tools:
+        # A Calendar pick is confirmed by a three-way question of its own, like Reminders. iMac gate53 on efb8e474c
+        # (qwen3.5:9b): "heads up, the vet moved <pet>'s checkup to thursday 15:20" was picked Calendar with no memory
+        # reading, the model wrote a reminder nobody asked for and nothing was kept; on a6a5f29b7 such lines got the
+        # Manual-mode approval card. No answer leaves the pick as it was.
+        calendar_verdict = asked("calendar", intent_arbiter.arbitrate_calendar_ask)
+        _log.info("tool ask: calendar pick, its own question read %s", calendar_verdict or "nothing")
+        if calendar_verdict == "no":
+            _log.info("tool ask: calendar pick not confirmed")
+            tools = tuple(key for key in tools if key != "calendar")
+            keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)
+            if not tools:
+                # The pick was the tool judgement's reading of news about an appointment: it stands as one keep
+                # reading, which the told-as-fact and forget questions below settle.
+                picked.add("keep")
     named = picked | ({kind} if kind in {"keep", "recall", "forget"} else set())
     decided = ""
     # Two readings that each name a different kind of memory ask are unsure of it: a forget typed without accents
