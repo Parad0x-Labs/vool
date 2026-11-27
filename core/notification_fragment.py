@@ -502,7 +502,10 @@ function readItems(items){
 function openPop(){
   paintList();
   pop.hidden = false;
-  readItems(visibleItems());
+  // Opening the list reads it at once: on the shared idle heartbeat (20 s) the last read can be older than the
+  // notice the person opened the bell for (macOS CI on ace1c42cc: a lend job in the inbox, not in the list). What
+  // the list shows is marked read after that read, so a read sent first is never answered by an older inbox.
+  pollCentre().then(function(){ if (!pop.hidden) { paintList(); readItems(visibleItems()); } });
   var r = bell.getBoundingClientRect();
   pop.style.top = (r.bottom + 6) + 'px';
   pop.style.left = Math.max(8, Math.min(r.right - 380, window.innerWidth - 388)) + 'px';
