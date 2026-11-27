@@ -150,6 +150,10 @@ def test_spending_is_enforced_counted_told_apart_and_warned_about(rig):
             assert "billed by the provider" in today and "estimated by VOOL" in today, today
             assert page.get_attribute("[data-window=today]", "data-state") in {"near", "reached"}
             assert page.input_value("[data-limit=daily]") == f"{limit:.2f}"
+            # The link names the limits: the cursor is in the first of them, and that field still got the limit in
+            # force although it held the focus when the read came back (CUT 59).
+            assert page.evaluate("document.activeElement && document.activeElement.dataset.limit") == "per_call"
+            assert page.input_value("[data-limit=per_call]") != ""
         finally:
             browser.close()
     service.reply = _or_scripted

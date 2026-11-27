@@ -2287,7 +2287,13 @@ function renderPane() {
   }
   if (state.focusRow) {
     const target = body.querySelector('[data-row="' + CSS.escape(state.focusRow) + '"]');
-    if (target) { $('#pane').scrollTop = state.onlyRow ? 0 : target.offsetTop; target.classList.add('hit'); }
+    if (target) {
+      $('#pane').scrollTop = state.onlyRow ? 0 : target.offsetTop; target.classList.add('hit');
+      /* A link to one setting ("Set my limits" asks for budgets/spend) lands with the cursor in that setting's first
+         field, so the person can type at once; a setting with no field to type in keeps the page's focus. */
+      const field = target.querySelector('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+      if (field) { try { field.focus({ preventScroll: true }); field.scrollIntoView({ block: 'center' }); } catch (_) { /* a frame that refuses focus still shows the setting */ } }
+    }
     state.focusRow = '';
   } else if (pane && keepTop && pane.scrollTop !== keepTop) pane.scrollTop = keepTop;
 }
@@ -2566,7 +2572,9 @@ function widgetSpend(stack) {
     let resets = '';
     try { resets = new Date(Number(got.day_resets_at) * 1000).toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' }); } catch (e) {}
     status.textContent = resets ? tfmt('spend.resets', 'The day\u2019s count starts again at {time}.', { time: resets }) : '';
-    LIMITS.forEach(([key]) => { if (inputs[key] && document.activeElement !== inputs[key]) inputs[key].value = Number(got.limits[key]).toFixed(2); });
+    /* A field the person is typing in keeps their text; an empty one (a deep link put the cursor in it before the read
+       came back) still gets the limit in force. */
+    LIMITS.forEach(([key]) => { if (inputs[key] && (document.activeElement !== inputs[key] || inputs[key].value === '')) inputs[key].value = Number(got.limits[key]).toFixed(2); });
   };
   const said = el('div', 'state idle'); said.setAttribute('role', 'status'); said.dataset.testid = 'spend-saved';
   LIMITS.forEach(([key, label]) => {
@@ -6950,10 +6958,13 @@ async function boot() {
     if (!setup || !setup.show_entry) removeSetupGroup();
   }
   const deep = sectionFromHash();
+  /* The first paint below consumes the linked setting; the paint after the group's reads rebuilds the pane, so it
+     is handed the setting again (or it would land at the top, with the cursor nowhere). */
+  const deepRow = state.focusRow;
   if (deep) state.group = deep;
   renderNav();
   renderPane();
-  await go(state.group);          /* reads ONLY the first group's sources */
+  await go(state.group, deepRow);  /* reads ONLY the first group's sources */
   const late = sectionFromHash();  /* the hash may have arrived during that await */
   if (late && late !== state.group) await go(late);
 }

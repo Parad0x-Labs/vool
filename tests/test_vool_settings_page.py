@@ -286,7 +286,7 @@ out({nested,row,part,simple,unknown,onlyRow:state.onlyRow});
     assert 'f"{SETTINGS_URL}#{wanted}" if wanted else SETTINGS_URL' in window
     # The fragment reaching the native bridge is allowlisted, so a page cannot turn it into a
     # navigation of its own choosing.
-    assert 'wanted.replace("_", "").replace("-", "").isalnum()' in window
+    assert 'p.replace("_", "").replace("-", "").isalnum() for p in parts' in window
     assert "existing.load_url(url)" in window
 
 

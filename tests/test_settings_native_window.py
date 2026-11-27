@@ -149,6 +149,10 @@ def test_a_hostile_section_cannot_steer_the_window(api) -> None:
         "a b",
         "//evil.example",
         "memory?x=1",
+        "budgets/../../x",
+        "budgets/spend/limits/extra",
+        "budgets//spend",
+        "budgets/spend?x=1",
     ):
         bridge._settings_window = None
         fake.created.clear()
@@ -159,6 +163,16 @@ def test_a_hostile_section_cannot_steer_the_window(api) -> None:
     fake.created.clear()
     bridge.open_settings("agent-network_1")
     assert fake.created[0].url == module.SETTINGS_URL + "#agent-network_1"
+
+
+def test_a_setting_deep_link_keeps_its_setting(api) -> None:
+    """The chat's "Set my limits" asks for budgets/spend. The bridge once allowed only a bare section, so the slash
+    made it drop the whole link and open Settings at its first page (CUT 59)."""
+    module, bridge, fake = api
+    bridge.open_settings("budgets/spend")
+    assert fake.created[0].url == module.SETTINGS_URL + "#budgets/spend"
+    bridge.open_settings("permissions/automatic_checks")
+    assert fake.created[0].loaded[-1] == module.SETTINGS_URL + "#permissions/automatic_checks"
 
 
 def test_settings_is_unavailable_rather_than_broken_without_pywebview(api) -> None:

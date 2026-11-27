@@ -1042,10 +1042,13 @@ class _WindowApi:
             webview_module = self._webview
             if webview_module is None:
                 return {"ok": False, "error": "native_window_unavailable"}
-            # A section deep link (#memory, #models, ...). Allowlisted to a bare identifier so
-            # nothing a page can say turns this into an arbitrary navigation.
+            # A section deep link (#memory, #models, #budgets/spend, ...). Allowlisted to at most
+            # three slash-separated bare identifiers (section / setting / part, the same shape the
+            # page's sectionFromHash reads) so nothing a page can say turns this into an arbitrary
+            # navigation. A rejected link opens Settings itself.
             wanted = str(section or "").strip().lstrip("#")
-            if not wanted.replace("_", "").replace("-", "").isalnum():
+            parts = wanted.split("/")
+            if len(parts) > 3 or not all(p.replace("_", "").replace("-", "").isalnum() for p in parts):
                 wanted = ""
             url = f"{SETTINGS_URL}#{wanted}" if wanted else SETTINGS_URL
             existing = self._settings_window
