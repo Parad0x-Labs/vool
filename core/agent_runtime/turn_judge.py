@@ -45,7 +45,9 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
     or after Ollama unloaded the model when idle, none is loaded, and every judgement said "nobody judged" in a few
     milliseconds: a reminder, note or calendar ask in Lithuanian got no tool and the reply said it was done (blind
     audit of 58f60bbf3, 31 of 50 judgements None). The model this judge asks is the one the turn loads to answer
-    anyway (`core.clean_loop.brain.resolve_local_manifest`), so asking it first loads nothing extra.
+    anyway (`core.clean_loop.brain.resolve_local_manifest`), so asking it first loads nothing extra. When that model is
+    not one the judgements were proven on, a proven one is asked instead if it is installed and loaded or fits in free
+    memory beside the turn's model (`core.memory_judge_record`, memory wiring audit B1).
 
     It asks through the arbiter's own direct Ollama call (`core.intent_arbiter.ask_local_model`, on the runner the
     turn is served on), never through the turn's provider: through the provider the judge's question was a turn of
@@ -76,8 +78,17 @@ def _local_judge_for(agent: Any, source_context: dict, session_id: str) -> Any |
             model = str(getattr(manifest, "model_name", "") or "").strip()
             ollama = str(metadata.get("runtime_family") or "").strip().lower() == "ollama"
             named = (model, str(metadata.get("bundle_role") or "general")) if model and ollama else None
-            found.append(named or _requested_ollama_model(source_context)
-                         or _registered_chat_model(router, in_use=str(source_context.get("runtime_model_in_use") or "")))
+            named = named or _requested_ollama_model(source_context) or _registered_chat_model(
+                router, in_use=str(source_context.get("runtime_model_in_use") or ""))
+            if named is not None:
+                # VOOL's judgements are asked of a model they were proven on when the machine has one that fits
+                # (core.memory_judge_record); the turn's own model otherwise.
+                from core.memory_judge_record import judge_model_for
+
+                judge_tag = judge_model_for(named[0])
+                if judge_tag and judge_tag != named[0]:
+                    named = (judge_tag, "general")
+            found.append(named)
             _log.info("turn judge model: %s", (found[0] or ("none",))[0])
         return found[0]
 
