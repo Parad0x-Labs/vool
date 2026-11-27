@@ -198,6 +198,8 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         # Local/Cloud differ translate them (the allowlist only carries the homographs
         # that are genuinely the locale's own correct word).
         "header.lane_auto",
+        # the first-run model picker's row: a model name and a size in GB, placeholders and unit only
+        "setup.picker.row",
         "header.lane_cloud",
         "header.lane_local",
         "header.update_chip",

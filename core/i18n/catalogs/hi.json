@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "पिछला जवाब इसी ने लिखा",
     "vcs.btn.mac_settings": "Mac सेटिंग्स खोलें",
     "vcs.saved.mac_settings": "सिस्टम सेटिंग्स कैलेंडर पर खुली है। वहाँ VOOL चालू करें, फिर कैलेंडर सूची रीफ़्रेश करें चुनें।",
-    "memory.you_asked_remind": "आपने मुझसे याद दिलाने को कहा:"
+    "memory.you_asked_remind": "आपने मुझसे याद दिलाने को कहा:",
+    "setup.picker.title": "एक मुफ़्त निजी मॉडल लें",
+    "setup.picker.loading": "देख रहा हूँ कि इस कंप्यूटर पर क्या फ़िट होता है…",
+    "setup.picker.none": "VOOL को इस कंप्यूटर पर फ़िट होने वाला कोई मॉडल नहीं मिला।",
+    "setup.picker.lead": "ये इस कंप्यूटर पर फ़िट होते हैं। VOOL ने रफ़्तार और गुणवत्ता के लिए सबसे अच्छा चुना है। डाउनलोड दबाने तक कुछ भी डाउनलोड नहीं होता।",
+    "setup.picker.row": "{model} · {gb} GB",
+    "setup.picker.installed": "पहले से इस कंप्यूटर पर है।",
+    "setup.picker.role.best": "इस कंप्यूटर के लिए सबसे अच्छा: तेज़, अच्छे जवाबों के साथ।",
+    "setup.picker.role.helper": "तेज़ जाँचों के लिए छोटा सहायक, ताकि रोज़ के जवाब तेज़ रहें।",
+    "setup.picker.role.smaller": "छोटा और तेज़, सरल जवाबों के साथ।",
+    "setup.picker.role.bigger": "ज़्यादा समझदार, पर धीमा।",
+    "setup.picker.lag.too_big": "यह कंप्यूटर जितना आराम से चला सकता है, उससे बड़ा। पूरा कंप्यूटर अटक सकता है।",
+    "setup.picker.lag.beside_loaded": "पहले से चल रहे मॉडलों के साथ फ़िट नहीं होता। कंप्यूटर अटक सकता है।",
+    "setup.picker.lag.heavy": "रोज़ की चैट के लिए भारी। कंप्यूटर अटक सकता है। आज़माने के लिए ठीक।",
+    "setup.picker.lag_picked": "आपने ऐसा मॉडल चुना है जिससे यह कंप्यूटर अटक सकता है। आप इसे बाद में सेटिंग्स में हटा सकते हैं।",
+    "setup.picker.more": "दूसरे मॉडल",
+    "setup.picker.download": "डाउनलोड करें ({gb} GB)",
+    "setup.picker.download_none": "डाउनलोड करें",
+    "setup.picker.progress": "{model} डाउनलोड हो रहा है… {percent}% ({total} में से {n})",
+    "setup.picker.checking": "{model} तैयार हो रहा है…",
+    "setup.picker.failed": "{model} का डाउनलोड पूरा नहीं हुआ। अपना इंटरनेट कनेक्शन जाँचें, फिर से डाउनलोड दबाएँ।",
+    "setup.picker.ready": "आपका निजी मॉडल तैयार है। “{local}” चुनें।",
+    "setup.picker.downloaded": "डाउनलोड हो गया। VOOL अभी मॉडल तैयार कर रहा है। इसमें एक मिनट लग सकता है।",
+    "header.run_local_lag_too_big": "यह कंप्यूटर जितना आराम से चला सकता है, उससे बड़ा: अटक सकता है",
+    "header.run_local_lag_beside": "चल रहे मॉडलों के साथ फ़िट नहीं होता: अटक सकता है",
+    "header.run_local_lag_heavy": "रोज़ की चैट के लिए भारी: अटक सकता है",
+    "header.run_local_lag_picked": "{model} से यह कंप्यूटर अटक सकता है। Auto ऐसा मॉडल चुनता है जो आराम से चले।",
+    "settings.local_models.suggest.bigger_lag": "इससे आपका कंप्यूटर अटक सकता है। जब तक आप बड़ा न चुनें, VOOL {model} से जवाब देता रहेगा।",
+    "setup.picker.not_suitable": "{model} VOOL के टूल ठीक से इस्तेमाल नहीं कर पाता, इसलिए VOOL इससे जवाब नहीं देगा। कोई दूसरा मॉडल चुनें और डाउनलोड दबाएँ।"
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

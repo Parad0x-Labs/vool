@@ -2423,6 +2423,25 @@ def _dispatch_get(
                         entry["certification_state"] = str(_status.get("state") or "unknown")
                         entry["readiness"] = plain_readiness(_status)
                 models.append(entry)
+            # A model picked by hand may be bigger than this computer runs smoothly: each row says
+            # so (core/local_model_fit.py, the router's own fit gate), and the chat's model menu
+            # warns before it is used. Nothing is loaded or downloaded by asking.
+            with contextlib.suppress(Exception):
+                from core.local_model_fit import lag_for_listed_models
+
+                sizes = {m["model_name"]: float(m.get("size_gb") or 0.0) for m in models}
+                lag = lag_for_listed_models(
+                    models, loaded={name: sizes.get(name, 0.0) for name in loaded_now}
+                )
+                for m in models:
+                    m["lag"] = lag.get(m["model_name"], "")
+        recommended = None if policy.local_models_disabled else recommended_local_model()
+        if isinstance(recommended, dict) and isinstance(recommended.get("bigger"), dict):
+            with contextlib.suppress(Exception):
+                from core.local_model_fit import local_model_lag
+
+                big = recommended["bigger"]
+                big["lag"] = local_model_lag(str(big.get("model_name") or ""), size_gb=float(big.get("download_gb") or 0.0))
         return apply_runtime_headers(
             json_response(
                 200,
@@ -2430,11 +2449,27 @@ def _dispatch_get(
                     "models": models,
                     "local_models_disabled": bool(policy.local_models_disabled),
                     "apple_silicon_notice": apple_silicon_build_notice(),
-                    "recommended": None if policy.local_models_disabled else recommended_local_model(),
+                    "recommended": recommended,
                 },
             ),
             runtime,
         )
+
+    if normalized_path == "/api/models/local/choices":
+        # The first-run picker's list: the free local models that fit this computer, the one VOOL
+        # would pick ticked, bigger ones with their lag reason. A read only: nothing is downloaded
+        # until the person presses Download (POST /api/models/local/pull, one model at a time).
+        from core.local_model_policy import resolve_local_model_policy
+
+        if resolve_local_model_policy().local_models_disabled:
+            return apply_runtime_headers(json_response(200, {"options": [], "local_models_disabled": True}), runtime)
+        from core.local_model_fit import first_run_choices
+
+        try:
+            choices = first_run_choices()
+        except Exception:
+            choices = {"options": [], "unavailable": True}
+        return apply_runtime_headers(json_response(200, {**choices, "local_models_disabled": False}), runtime)
 
     if normalized_path == "/api/models/local/pull":
         # Live progress of a recommended-model download Settings started; reads memory only.

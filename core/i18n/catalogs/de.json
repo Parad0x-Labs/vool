@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "hat die letzte Antwort geschrieben",
     "vcs.btn.mac_settings": "Mac-Einstellungen öffnen",
     "vcs.saved.mac_settings": "Die Systemeinstellungen sind bei Kalender geöffnet. Schalte VOOL dort ein und wähle dann „Kalenderliste aktualisieren“.",
-    "memory.you_asked_remind": "Du hast mich gebeten, dich zu erinnern:"
+    "memory.you_asked_remind": "Du hast mich gebeten, dich zu erinnern:",
+    "setup.picker.title": "Ein kostenloses privates Modell holen",
+    "setup.picker.loading": "Schaue, was zu diesem Computer passt…",
+    "setup.picker.none": "VOOL hat kein Modell gefunden, das zu diesem Computer passt.",
+    "setup.picker.lead": "Diese passen zu diesem Computer. VOOL hat das beste für Tempo und Qualität angehakt. Nichts wird geladen, bevor du auf Herunterladen drückst.",
+    "setup.picker.row": "{model} · {gb} GB",
+    "setup.picker.installed": "Schon auf diesem Computer.",
+    "setup.picker.role.best": "Am besten für diesen Computer: schnell, mit guten Antworten.",
+    "setup.picker.role.helper": "Kleiner Helfer für schnelle Prüfungen, damit Alltagsantworten schnell bleiben.",
+    "setup.picker.role.smaller": "Kleiner und schneller, mit einfacheren Antworten.",
+    "setup.picker.role.bigger": "Klüger, aber langsamer.",
+    "setup.picker.lag.too_big": "Größer, als dieser Computer flüssig schafft. Der ganze Computer kann ruckeln.",
+    "setup.picker.lag.beside_loaded": "Passt nicht neben die Modelle, die schon laufen. Der Computer kann ruckeln.",
+    "setup.picker.lag.heavy": "Schwer für den Alltags-Chat. Der Computer kann ruckeln. Gut zum Ausprobieren.",
+    "setup.picker.lag_picked": "Du hast ein Modell gewählt, bei dem dieser Computer ruckeln kann. Du kannst es später in den Einstellungen entfernen.",
+    "setup.picker.more": "Andere Modelle",
+    "setup.picker.download": "Herunterladen ({gb} GB)",
+    "setup.picker.download_none": "Herunterladen",
+    "setup.picker.progress": "Lade {model}… {percent} % ({n} von {total})",
+    "setup.picker.checking": "{model} wird vorbereitet…",
+    "setup.picker.failed": "Der Download von {model} wurde nicht fertig. Prüfe deine Internetverbindung und drücke dann erneut auf Herunterladen.",
+    "setup.picker.ready": "Dein privates Modell ist bereit. Wähle „{local}“.",
+    "setup.picker.downloaded": "Heruntergeladen. VOOL bereitet das Modell noch vor. Das kann eine Minute dauern.",
+    "header.run_local_lag_too_big": "Größer, als dieser Computer flüssig schafft: kann ruckeln",
+    "header.run_local_lag_beside": "Passt nicht neben die laufenden Modelle: kann ruckeln",
+    "header.run_local_lag_heavy": "Schwer für den Alltags-Chat: kann ruckeln",
+    "header.run_local_lag_picked": "{model} kann diesen Computer ruckeln lassen. Auto wählt ein Modell, das flüssig läuft.",
+    "settings.local_models.suggest.bigger_lag": "Dieses kann deinen Computer ruckeln lassen. VOOL antwortet weiter mit {model}, außer du wählst das größere.",
+    "setup.picker.not_suitable": "{model} kann die Werkzeuge von VOOL nicht gut genug nutzen, daher antwortet VOOL nicht damit. Wähle ein anderes Modell und drücke auf Herunterladen."
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

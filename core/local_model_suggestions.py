@@ -329,6 +329,27 @@ def _step_down_for_disk(ladder: tuple[tuple[float, str], ...], tag: str, free_di
     return tags[-1] if tags else tag
 
 
+def _keeps_resident_daily(ladder: tuple[tuple[float, str], ...], tag: str) -> str:
+    """Step down to the first ladder model the daily lane itself keeps resident.
+
+    The daily lane never keeps a model of 24B or more resident unless it is a no-thinking build
+    (``core.local_model_fit.daily_lane_keeps_resident``, the test
+    ``prioritize_daily_residency_capabilities`` applies). Suggesting such a model as the daily one
+    downloaded a model that Auto then passed over for the small helper, or that made the Mac lag
+    (owner's 24 GB iMac, 2026-11-27). It is still offered as a bigger choice, with a lag warning.
+    """
+    try:
+        from core.local_model_fit import daily_lane_keeps_resident
+    except Exception:
+        return tag
+    tags = [item for _minimum, item in ladder if item]
+    start = tags.index(tag) if tag in tags else 0
+    for candidate in tags[start:]:
+        if daily_lane_keeps_resident(candidate):
+            return candidate
+    return tag
+
+
 def parse_ollama_version(raw: str) -> tuple[int, int, int] | None:
     match = re.search(r"(\d+)\.(\d+)\.(\d+)", str(raw or ""))
     if not match:
@@ -359,7 +380,7 @@ def suggest_local_models(
     else:
         sized_by = _as_float(_probe_value(probe, "ram_gb"))
         daily_ladder, deep_ladder, fast_ladder = _CPU_DAILY, _CPU_DEEP, _CPU_FAST
-    daily = _step_down_for_disk(daily_ladder, _pick(daily_ladder, sized_by), free_disk_gb)
+    daily = _step_down_for_disk(daily_ladder, _keeps_resident_daily(daily_ladder, _pick(daily_ladder, sized_by)), free_disk_gb)
     deep = _pick(deep_ladder, sized_by)
     if deep and (deep == daily or not _fits_disk(deep, free_disk_gb)):
         deep = ""

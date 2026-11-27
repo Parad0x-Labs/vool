@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "đã viết câu trả lời gần nhất",
     "vcs.btn.mac_settings": "Mở cài đặt Mac",
     "vcs.saved.mac_settings": "Cài đặt hệ thống đang mở ở mục Lịch. Hãy bật VOOL ở đó, rồi chọn Làm mới danh sách lịch.",
-    "memory.you_asked_remind": "Bạn đã nhờ tôi nhắc:"
+    "memory.you_asked_remind": "Bạn đã nhờ tôi nhắc:",
+    "setup.picker.title": "Lấy một mô hình riêng tư miễn phí",
+    "setup.picker.loading": "Đang xem mô hình nào hợp với máy tính này…",
+    "setup.picker.none": "VOOL không tìm thấy mô hình nào hợp với máy tính này.",
+    "setup.picker.lead": "Các mô hình này hợp với máy tính này. VOOL đã đánh dấu mô hình tốt nhất về tốc độ và chất lượng. Không có gì được tải về cho đến khi bạn bấm Tải về.",
+    "setup.picker.row": "{model} · {gb} GB",
+    "setup.picker.installed": "Đã có trên máy tính này.",
+    "setup.picker.role.best": "Tốt nhất cho máy tính này: nhanh, trả lời tốt.",
+    "setup.picker.role.helper": "Trợ lý nhỏ cho các kiểm tra nhanh, để câu trả lời hằng ngày vẫn nhanh.",
+    "setup.picker.role.smaller": "Nhỏ và nhanh hơn, trả lời đơn giản hơn.",
+    "setup.picker.role.bigger": "Thông minh hơn, nhưng chậm hơn.",
+    "setup.picker.lag.too_big": "Lớn hơn mức máy tính này chạy mượt. Cả máy có thể bị giật.",
+    "setup.picker.lag.beside_loaded": "Không vừa bên cạnh các mô hình đang chạy. Máy có thể bị giật.",
+    "setup.picker.lag.heavy": "Nặng cho trò chuyện hằng ngày. Máy có thể bị giật. Hợp để thử.",
+    "setup.picker.lag_picked": "Bạn đã chọn một mô hình có thể làm máy tính này bị giật. Bạn có thể gỡ nó sau trong Cài đặt.",
+    "setup.picker.more": "Mô hình khác",
+    "setup.picker.download": "Tải về ({gb} GB)",
+    "setup.picker.download_none": "Tải về",
+    "setup.picker.progress": "Đang tải {model}… {percent}% ({n} / {total})",
+    "setup.picker.checking": "Đang chuẩn bị {model}…",
+    "setup.picker.failed": "Việc tải {model} chưa xong. Hãy kiểm tra kết nối internet rồi bấm Tải về lần nữa.",
+    "setup.picker.ready": "Mô hình riêng tư của bạn đã sẵn sàng. Hãy chọn “{local}”.",
+    "setup.picker.downloaded": "Đã tải về. VOOL vẫn đang chuẩn bị mô hình. Việc này có thể mất một phút.",
+    "header.run_local_lag_too_big": "Lớn hơn mức máy tính này chạy mượt: có thể giật",
+    "header.run_local_lag_beside": "Không vừa bên cạnh các mô hình đang chạy: có thể giật",
+    "header.run_local_lag_heavy": "Nặng cho trò chuyện hằng ngày: có thể giật",
+    "header.run_local_lag_picked": "{model} có thể làm máy tính này bị giật. Auto chọn mô hình chạy mượt.",
+    "settings.local_models.suggest.bigger_lag": "Mô hình này có thể làm máy bạn bị giật. VOOL vẫn trả lời bằng {model} trừ khi bạn chọn mô hình lớn hơn.",
+    "setup.picker.not_suitable": "{model} chưa dùng được công cụ của VOOL đủ tốt, nên VOOL sẽ không trả lời bằng nó. Hãy chọn mô hình khác rồi bấm Tải về."
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "כתב את התשובה האחרונה",
     "vcs.btn.mac_settings": "פתיחת הגדרות ה-Mac",
     "vcs.saved.mac_settings": "הגדרות המערכת פתוחות במדור לוחות שנה. הפעילו שם את VOOL, ואז בחרו רענון רשימת היומנים.",
-    "memory.you_asked_remind": "ביקשת שאזכיר לך:"
+    "memory.you_asked_remind": "ביקשת שאזכיר לך:",
+    "setup.picker.title": "קבלו מודל פרטי בחינם",
+    "setup.picker.loading": "בודק מה מתאים למחשב הזה…",
+    "setup.picker.none": "VOOL לא מצא מודל שמתאים למחשב הזה.",
+    "setup.picker.lead": "אלה מתאימים למחשב הזה. VOOL סימן את הטוב ביותר במהירות ובאיכות. שום דבר לא יורד עד שתלחצו הורדה.",
+    "setup.picker.row": "{model} · {gb} GB",
+    "setup.picker.installed": "כבר נמצא במחשב הזה.",
+    "setup.picker.role.best": "הטוב ביותר למחשב הזה: מהיר, עם תשובות טובות.",
+    "setup.picker.role.helper": "עוזר קטן לבדיקות מהירות, כדי שתשובות יומיומיות יישארו מהירות.",
+    "setup.picker.role.smaller": "קטן ומהיר יותר, עם תשובות פשוטות יותר.",
+    "setup.picker.role.bigger": "חכם יותר, אבל איטי יותר.",
+    "setup.picker.lag.too_big": "גדול ממה שהמחשב הזה מריץ בצורה חלקה. כל המחשב עלול להאט.",
+    "setup.picker.lag.beside_loaded": "לא נכנס לצד המודלים שכבר רצים. המחשב עלול להאט.",
+    "setup.picker.lag.heavy": "כבד לצ׳אט יומיומי. המחשב עלול להאט. טוב לניסיון.",
+    "setup.picker.lag_picked": "בחרתם מודל שעלול להאט את המחשב הזה. אפשר להסיר אותו אחר כך בהגדרות.",
+    "setup.picker.more": "מודלים אחרים",
+    "setup.picker.download": "הורדה ({gb} GB)",
+    "setup.picker.download_none": "הורדה",
+    "setup.picker.progress": "מוריד את {model}… {percent}% ({n} מתוך {total})",
+    "setup.picker.checking": "מכין את {model}…",
+    "setup.picker.failed": "ההורדה של {model} לא הסתיימה. בדקו את החיבור לאינטרנט ולחצו שוב הורדה.",
+    "setup.picker.ready": "המודל הפרטי שלכם מוכן. בחרו ״{local}״.",
+    "setup.picker.downloaded": "הורד. VOOL עדיין מכין את המודל. זה יכול לקחת דקה.",
+    "header.run_local_lag_too_big": "גדול ממה שהמחשב הזה מריץ בצורה חלקה: עלול להאט",
+    "header.run_local_lag_beside": "לא נכנס לצד המודלים שרצים: עלול להאט",
+    "header.run_local_lag_heavy": "כבד לצ׳אט יומיומי: עלול להאט",
+    "header.run_local_lag_picked": "{model} עלול להאט את המחשב הזה. Auto בוחר מודל שרץ בצורה חלקה.",
+    "settings.local_models.suggest.bigger_lag": "זה עלול להאט את המחשב שלכם. VOOL ממשיך לענות עם {model} אלא אם תבחרו בגדול יותר.",
+    "setup.picker.not_suitable": "{model} לא משתמש בכלים של VOOL מספיק טוב, ולכן VOOL לא יענה איתו. בחרו מודל אחר ולחצו הורדה."
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

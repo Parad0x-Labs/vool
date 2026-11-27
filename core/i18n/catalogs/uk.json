@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "написала останню відповідь",
     "vcs.btn.mac_settings": "Відкрити налаштування Mac",
     "vcs.saved.mac_settings": "Системні параметри відкрито на розділі «Календарі». Увімкніть там VOOL, потім виберіть «Оновити список календарів».",
-    "memory.you_asked_remind": "Ви просили мене нагадати:"
+    "memory.you_asked_remind": "Ви просили мене нагадати:",
+    "setup.picker.title": "Отримати безкоштовну приватну модель",
+    "setup.picker.loading": "Дивлюся, що підходить цьому комп’ютеру…",
+    "setup.picker.none": "VOOL не знайшов модель, яка підходить цьому комп’ютеру.",
+    "setup.picker.lead": "Ці підходять цьому комп’ютеру. VOOL позначив найкращу за швидкістю та якістю. Нічого не завантажується, доки ви не натиснете «Завантажити».",
+    "setup.picker.row": "{model} · {gb} ГБ",
+    "setup.picker.installed": "Уже є на цьому комп’ютері.",
+    "setup.picker.role.best": "Найкраща для цього комп’ютера: швидка, з добрими відповідями.",
+    "setup.picker.role.helper": "Маленький помічник для швидких перевірок, щоб звичайні відповіді лишалися швидкими.",
+    "setup.picker.role.smaller": "Менша й швидша, відповіді простіші.",
+    "setup.picker.role.bigger": "Розумніша, але повільніша.",
+    "setup.picker.lag.too_big": "Більша, ніж цей комп’ютер тягне плавно. Увесь комп’ютер може гальмувати.",
+    "setup.picker.lag.beside_loaded": "Не вміщується поруч із уже запущеними моделями. Комп’ютер може гальмувати.",
+    "setup.picker.lag.heavy": "Важка для звичайного чату. Комп’ютер може гальмувати. Підходить, щоб спробувати.",
+    "setup.picker.lag_picked": "Ви вибрали модель, через яку цей комп’ютер може гальмувати. Її можна видалити пізніше в Налаштуваннях.",
+    "setup.picker.more": "Інші моделі",
+    "setup.picker.download": "Завантажити ({gb} ГБ)",
+    "setup.picker.download_none": "Завантажити",
+    "setup.picker.progress": "Завантажую {model}… {percent}% ({n} з {total})",
+    "setup.picker.checking": "Готую {model}…",
+    "setup.picker.failed": "Завантаження {model} не завершилося. Перевірте з’єднання з інтернетом і знову натисніть «Завантажити».",
+    "setup.picker.ready": "Ваша приватна модель готова. Виберіть «{local}».",
+    "setup.picker.downloaded": "Завантажено. VOOL ще готує модель. Це може тривати хвилину.",
+    "header.run_local_lag_too_big": "Більша, ніж цей комп’ютер тягне плавно: може гальмувати",
+    "header.run_local_lag_beside": "Не вміщується поруч із запущеними моделями: може гальмувати",
+    "header.run_local_lag_heavy": "Важка для звичайного чату: може гальмувати",
+    "header.run_local_lag_picked": "Через {model} цей комп’ютер може гальмувати. Auto вибирає модель, яка працює плавно.",
+    "settings.local_models.suggest.bigger_lag": "Ця може сповільнити ваш комп’ютер. VOOL і далі відповідає моделлю {model}, якщо ви не виберете більшу.",
+    "setup.picker.not_suitable": "{model} недостатньо добре працює з інструментами VOOL, тому VOOL не відповідатиме нею. Виберіть іншу модель і натисніть «Завантажити»."
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

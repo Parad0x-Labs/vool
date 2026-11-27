@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "parašė paskutinį atsakymą",
     "vcs.btn.mac_settings": "Atidaryti „Mac“ nustatymus",
     "vcs.saved.mac_settings": "Sistemos nustatymai atidaryti ties Kalendoriais. Įjunkite ten VOOL, tada pasirinkite „Atnaujinti kalendorių sąrašą“.",
-    "memory.you_asked_remind": "Prašėte man priminti:"
+    "memory.you_asked_remind": "Prašėte man priminti:",
+    "setup.picker.title": "Gauti nemokamą privatų modelį",
+    "setup.picker.loading": "Žiūriu, kas tinka šiam kompiuteriui…",
+    "setup.picker.none": "VOOL nerado modelio, tinkančio šiam kompiuteriui.",
+    "setup.picker.lead": "Šie tinka šiam kompiuteriui. VOOL pažymėjo geriausią pagal greitį ir kokybę. Niekas nesisiunčia, kol nepaspausite Atsisiųsti.",
+    "setup.picker.row": "{model} · {gb} GB",
+    "setup.picker.installed": "Jau yra šiame kompiuteryje.",
+    "setup.picker.role.best": "Geriausias šiam kompiuteriui: greitas, gerai atsako.",
+    "setup.picker.role.helper": "Mažas pagalbininkas greitiems patikrinimams, kad kasdieniai atsakymai liktų greiti.",
+    "setup.picker.role.smaller": "Mažesnis ir greitesnis, paprastesni atsakymai.",
+    "setup.picker.role.bigger": "Protingesnis, bet lėtesnis.",
+    "setup.picker.lag.too_big": "Didesnis, nei šis kompiuteris sklandžiai patempia. Gali strigti visas kompiuteris.",
+    "setup.picker.lag.beside_loaded": "Netelpa šalia jau veikiančių modelių. Kompiuteris gali strigti.",
+    "setup.picker.lag.heavy": "Sunkus kasdieniam pokalbiui. Kompiuteris gali strigti. Tinka išbandyti.",
+    "setup.picker.lag_picked": "Pasirinkote modelį, dėl kurio šis kompiuteris gali strigti. Vėliau jį galite pašalinti Nustatymuose.",
+    "setup.picker.more": "Kiti modeliai",
+    "setup.picker.download": "Atsisiųsti ({gb} GB)",
+    "setup.picker.download_none": "Atsisiųsti",
+    "setup.picker.progress": "Siunčiamas {model}… {percent} % ({n} iš {total})",
+    "setup.picker.checking": "Ruošiamas {model}…",
+    "setup.picker.failed": "{model} atsisiuntimas nebaigtas. Patikrinkite interneto ryšį ir vėl paspauskite Atsisiųsti.",
+    "setup.picker.ready": "Jūsų privatus modelis paruoštas. Pasirinkite „{local}“.",
+    "setup.picker.downloaded": "Atsisiųsta. VOOL dar ruošia modelį. Tai gali užtrukti minutę.",
+    "header.run_local_lag_too_big": "Didesnis, nei šis kompiuteris sklandžiai patempia: gali strigti",
+    "header.run_local_lag_beside": "Netelpa šalia veikiančių modelių: gali strigti",
+    "header.run_local_lag_heavy": "Sunkus kasdieniam pokalbiui: gali strigti",
+    "header.run_local_lag_picked": "Dėl {model} šis kompiuteris gali strigti. Auto parenka sklandžiai veikiantį modelį.",
+    "settings.local_models.suggest.bigger_lag": "Dėl šio kompiuteris gali strigti. VOOL ir toliau atsakys su {model}, nebent pasirinksite didesnį.",
+    "setup.picker.not_suitable": "{model} nepakankamai gerai naudoja VOOL įrankius, todėl VOOL su juo neatsakys. Pasirinkite kitą modelį ir paspauskite Atsisiųsti."
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

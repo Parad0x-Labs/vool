@@ -114,9 +114,14 @@ def test_the_page_writes_only_through_existing_doors() -> None:
         "/api/projects",
         "/api/settings/prefs",
         "/api/profile/remember",
+        # The first-run model picker uses the same local-model doors Settings > Local models uses:
+        # download a suggested model, add it, check it. No door of its own.
+        "/api/models/local/pull",
+        "/api/models/local/register",
+        "/api/model-tool-certification/run",
     }, posts
     gets = set(re.findall(r"getJSON\('([^']+)'", html))
-    assert gets == {"/api/setup/state"}
+    assert gets == {"/api/setup/state", "/api/models/local/choices", "/api/models/local/pull?model_name="}
     assert "/api/setup/skip" not in html and "/api/setup/dismiss" not in html, "skip and dismiss are preferences, not new doors"
 
 

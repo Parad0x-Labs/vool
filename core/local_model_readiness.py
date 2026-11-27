@@ -13,6 +13,7 @@ refuse every model answer, so boot checks the installed local models itself unti
 """
 from __future__ import annotations
 
+import contextlib
 import threading
 from collections.abc import Mapping
 from typing import Any
@@ -196,6 +197,12 @@ def start_recommended_pull(model_name: str) -> dict[str, Any]:
             progress.update(status="failed")
         finally:
             progress.finish()
+            # A model that just landed is a private model on this computer now: the 30 s presence
+            # cache must not keep saying "none" to the setup step that started the download.
+            with contextlib.suppress(Exception):
+                from core.local_model_presence import reset_cache
+
+                reset_cache()
 
     threading.Thread(target=_run, name=f"vool-model-pull-{tag}", daemon=True).start()
     return pull_status(tag)

@@ -1324,6 +1324,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/models/local/choices": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/models/local/choices",
+      "note": "model registry read feed (first-run local model picker)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/models/local/pull": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/models/local/pull",
@@ -3693,7 +3700,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 344,
+    "EXTERNAL_TRANSPORT_ONLY": 345,
     "GENERATED_ADAPTER": 174,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

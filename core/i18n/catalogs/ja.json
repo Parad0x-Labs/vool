@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "前回の返信を書いたモデル",
     "vcs.btn.mac_settings": "Macの設定を開く",
     "vcs.saved.mac_settings": "システム設定の「カレンダー」を開きました。そこでVOOLをオンにしてから、「カレンダー一覧を更新」を選んでください。",
-    "memory.you_asked_remind": "リマインドを頼まれたこと:"
+    "memory.you_asked_remind": "リマインドを頼まれたこと:",
+    "setup.picker.title": "無料の非公開モデルを入手",
+    "setup.picker.loading": "このコンピュータに合うものを確認しています…",
+    "setup.picker.none": "このコンピュータに合うモデルが見つかりませんでした。",
+    "setup.picker.lead": "これらはこのコンピュータに合います。速さと質のバランスが一番よいものにVOOLがチェックを入れました。「ダウンロード」を押すまで何もダウンロードされません。",
+    "setup.picker.row": "{model} · {gb} GB",
+    "setup.picker.installed": "すでにこのコンピュータにあります。",
+    "setup.picker.role.best": "このコンピュータに最適：速く、よい答え。",
+    "setup.picker.role.helper": "すばやい確認用の小さな補助モデル。普段の返事が速いままになります。",
+    "setup.picker.role.smaller": "小さくて速い。答えはシンプルになります。",
+    "setup.picker.role.bigger": "より賢いが、遅い。",
+    "setup.picker.lag.too_big": "このコンピュータがなめらかに動かせる大きさを超えています。コンピュータ全体が重くなることがあります。",
+    "setup.picker.lag.beside_loaded": "すでに動いているモデルと一緒には収まりません。コンピュータが重くなることがあります。",
+    "setup.picker.lag.heavy": "普段のチャットには重いモデルです。コンピュータが重くなることがあります。試すのには向いています。",
+    "setup.picker.lag_picked": "このコンピュータが重くなるかもしれないモデルを選びました。あとで設定から削除できます。",
+    "setup.picker.more": "ほかのモデル",
+    "setup.picker.download": "ダウンロード（{gb} GB）",
+    "setup.picker.download_none": "ダウンロード",
+    "setup.picker.progress": "{model} をダウンロード中… {percent}%（{total} 件中 {n} 件目）",
+    "setup.picker.checking": "{model} を準備しています…",
+    "setup.picker.failed": "{model} のダウンロードが完了しませんでした。インターネット接続を確認して、もう一度「ダウンロード」を押してください。",
+    "setup.picker.ready": "非公開モデルの準備ができました。「{local}」を選んでください。",
+    "setup.picker.downloaded": "ダウンロードしました。VOOL がまだモデルを準備しています。1分ほどかかることがあります。",
+    "header.run_local_lag_too_big": "このコンピュータがなめらかに動かせる大きさを超えています：重くなることがあります",
+    "header.run_local_lag_beside": "動いているモデルと一緒に収まりません：重くなることがあります",
+    "header.run_local_lag_heavy": "普段のチャットには重い：重くなることがあります",
+    "header.run_local_lag_picked": "{model} でこのコンピュータが重くなることがあります。Auto はなめらかに動くモデルを選びます。",
+    "settings.local_models.suggest.bigger_lag": "これはコンピュータを重くすることがあります。大きいほうを選ばない限り、VOOL は {model} で答え続けます。",
+    "setup.picker.not_suitable": "{model} は VOOL のツールを十分に使えないため、VOOL はこのモデルでは答えません。別のモデルを選んで「ダウンロード」を押してください。"
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

@@ -880,6 +880,7 @@ body:not(.panel-open) #xpResize { display:none; }
 .pop-item .pi-icon { flex:0 0 auto; width:16px; color:var(--muted); font-size:12px; text-align:center; }
 .pop-item .pi-body { flex:1; min-width:0; }
 .pop-item .pi-hint { color:var(--muted); font-size:11px; }
+.pop-item .pi-hint.pi-lag { display:block; color:var(--warn); }
 .pop-item .pi-price { flex:0 0 auto; color:var(--muted); font-size:11px; margin-left:auto; padding-left:8px; }
 .pop-item .pi-price.free { color:var(--ok); }
 .pop-note, .pop-hint { color:var(--muted); font-size:11px; padding:5px 8px 4px; }
@@ -12482,9 +12483,19 @@ function makeLocalRow(m) {
   // A model the local server holds in memory now is the one running: its row says so (`ollama ps`).
   const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = localRowHint(m.id, !!m.loaded);
   body.appendChild(hint);
+  // A model bigger than this computer runs smoothly says so before it is picked, and once more when
+  // it is (the server's lag reason: core/local_model_fit.py, the router's own fit gate).
+  const lagText = localLagText(m.lag);
+  if (lagText) { const w = document.createElement('span'); w.className = 'pi-hint pi-lag'; w.setAttribute('data-lag', m.lag); w.textContent = lagText; body.appendChild(w); }
   it.appendChild(chk); it.appendChild(body);
-  it.addEventListener('click', (e) => { e.stopPropagation(); pinLocalModel(m.id, it); });
+  it.addEventListener('click', (e) => { e.stopPropagation(); pinLocalModel(m.id, it); if (lagText) toast(pageTF('header.run_local_lag_picked', '{model} may make this computer lag. Auto picks a model that runs smoothly.', { model: m.name })); });
   return it;
+}
+function localLagText(lag) {
+  if (lag === 'too_big') return pageT('header.run_local_lag_too_big', 'Bigger than this computer runs smoothly: it may lag');
+  if (lag === 'beside_loaded') return pageT('header.run_local_lag_beside', 'Does not fit next to the models running now: it may lag');
+  if (lag === 'heavy') return pageT('header.run_local_lag_heavy', 'Heavy for everyday chat: it may lag');
+  return '';
 }
 async function renderLocalModels() {
   const pop = document.getElementById('modelPop');
@@ -12505,6 +12516,7 @@ async function renderLocalModels() {
   // runtime entry. An unreachable inventory proves nothing, so it adds nothing.
   let installed = new Set();
   let loadedNow = new Set();
+  const lagBy = Object.create(null);
   try {
     const r2 = await fetch('/api/models/local');
     const inv = r2.ok ? await r2.json() : null;
@@ -12513,6 +12525,7 @@ async function renderLocalModels() {
       const bare = n && (n.indexOf('ollama-local:') === 0 ? n.slice('ollama-local:'.length) : n);
       if (bare) installed.add(bare);
       if (bare && m.loaded === true) loadedNow.add(bare);
+      if (bare && m.lag) lagBy[bare] = String(m.lag);
     });
   } catch (e) { installed = new Set(); loadedNow = new Set(); }
   const synthetic = (m) => m && m.digest === 'vool-runtime' && !Number(m.size || 0);
@@ -12524,7 +12537,7 @@ async function renderLocalModels() {
   }) : [];
   installed.forEach((n) => names.push(n));
   const rows = localModelRows(names);
-  rows.forEach((m) => { m.loaded = loadedNow.has(m.id); });
+  rows.forEach((m) => { m.loaded = loadedNow.has(m.id); m.lag = lagBy[m.id] || ''; });
   localModelIds = new Set(rows.map((m) => m.id));
   try { localStorage.setItem('vool_local_models', JSON.stringify([...localModelIds])); } catch (e) {}
   document.querySelectorAll('#modelPop .local-dyn').forEach((n) => n.remove());

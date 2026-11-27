@@ -4617,6 +4617,13 @@ function widgetLocalModels(stack) {
       b.type = 'button'; b.disabled = !!busy;
       b.addEventListener('click', () => startPull(big));
       line.appendChild(b);
+      /* The server's lag reason (core/local_model_fit.py): a bigger model that this computer does not
+         run smoothly says so next to its button, before anyone downloads it. */
+      if (big.lag) {
+        const w = el('div', 'subtle', LM('suggest.bigger_lag', 'This one may make your computer lag. VOOL keeps answering with {model} unless you pick the bigger one.', { model: plainLocalModelName(rec.model_name) }));
+        w.setAttribute('data-lag', String(big.lag)); w.style.color = 'var(--warn)';
+        wrap.appendChild(w);
+      }
     }
     const fast = rec && rec.faster;
     if (fast && fast.model_name && models.some(x => x.model_name === rec.model_name) && !models.some(x => x.model_name === fast.model_name) && (!pull || pull.failed)) {

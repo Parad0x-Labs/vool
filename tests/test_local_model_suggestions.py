@@ -45,8 +45,10 @@ def _nvidia(vram_gb: float, ram_gb: float = 32.0) -> dict[str, object]:
         (24.0, "qwen3.5:9b", ""),
         (32.0, "qwen3.5:9b", "qwen3.8:27b"),
         (36.0, "qwen3:30b-instruct", "qwen3.8:27b"),
-        (48.0, "qwen3.6:35b", "qwen3.8:27b"),
-        (128.0, "qwen3.6:35b", "qwen3.8:27b"),
+        # 44 GB+: the 35B is 24B or more with thinking, which the daily lane never keeps resident
+        # (core.local_model_fit.daily_lane_keeps_resident), so the no-thinking 30B stays the daily pick.
+        (48.0, "qwen3:30b-instruct", "qwen3.8:27b"),
+        (128.0, "qwen3:30b-instruct", "qwen3.8:27b"),
     ],
 )
 def test_every_apple_silicon_size_gets_a_current_model(ram_gb: float, daily: str, deep: str) -> None:
@@ -67,7 +69,7 @@ def test_a_24_gb_mac_never_gets_a_daily_model_its_memory_refused() -> None:
         (7.7, "qwen3.5:2b", "qwen3.5:4b"),
         (15.6, "qwen3.5:4b", "qwen3.5:9b"),
         (31.8, "qwen3.5:4b", "qwen3.5:9b"),
-        (64.0, "qwen3.6:35b", "qwen3.8:27b"),
+        (64.0, "qwen3.5:4b", "qwen3.8:27b"),  # the 35B is not a daily-lane model (see above)
     ],
 )
 def test_a_computer_without_a_usable_gpu_stays_on_a_model_the_cpu_can_run(ram_gb: float, daily: str, deep: str) -> None:
@@ -112,7 +114,7 @@ def test_small_unready_or_unverified_cards_size_like_a_cpu_machine(probe: dict[s
 
 def test_free_disk_steps_the_suggestion_down_to_a_download_that_lands() -> None:
     roomy = suggest_local_models(_apple(48.0), free_disk_gb=500.0)
-    assert (roomy.daily, roomy.deep) == ("qwen3.6:35b", "qwen3.8:27b")
+    assert (roomy.daily, roomy.deep) == ("qwen3:30b-instruct", "qwen3.8:27b")
 
     tight = suggest_local_models(_apple(48.0), free_disk_gb=15.0)
     assert tight.daily == "qwen3.5:9b"
@@ -123,8 +125,8 @@ def test_free_disk_steps_the_suggestion_down_to_a_download_that_lands() -> None:
 
 
 def test_unknown_free_disk_never_blocks_a_suggestion() -> None:
-    assert suggest_local_models(_apple(48.0), free_disk_gb=None).daily == "qwen3.6:35b"
-    assert suggest_local_models(_apple(48.0), free_disk_gb=0.0).daily == "qwen3.6:35b"
+    assert suggest_local_models(_apple(48.0), free_disk_gb=None).daily == "qwen3:30b-instruct"
+    assert suggest_local_models(_apple(48.0), free_disk_gb=0.0).daily == "qwen3:30b-instruct"
 
 
 @pytest.mark.parametrize(

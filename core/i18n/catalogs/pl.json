@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "napisał ostatnią odpowiedź",
     "vcs.btn.mac_settings": "Otwórz ustawienia Maca",
     "vcs.saved.mac_settings": "Ustawienia systemowe są otwarte na Kalendarzach. Włącz tam VOOL, a potem wybierz Odśwież listę kalendarzy.",
-    "memory.you_asked_remind": "Prosiłeś, żebym ci przypomniał:"
+    "memory.you_asked_remind": "Prosiłeś, żebym ci przypomniał:",
+    "setup.picker.title": "Pobierz darmowy prywatny model",
+    "setup.picker.loading": "Sprawdzam, co pasuje do tego komputera…",
+    "setup.picker.none": "VOOL nie znalazł modelu, który pasuje do tego komputera.",
+    "setup.picker.lead": "Te pasują do tego komputera. VOOL zaznaczył najlepszy pod względem szybkości i jakości. Nic się nie pobiera, dopóki nie naciśniesz Pobierz.",
+    "setup.picker.row": "{model} · {gb} GB",
+    "setup.picker.installed": "Już jest na tym komputerze.",
+    "setup.picker.role.best": "Najlepszy dla tego komputera: szybki, z dobrymi odpowiedziami.",
+    "setup.picker.role.helper": "Mały pomocnik do szybkich sprawdzeń, żeby codzienne odpowiedzi były szybkie.",
+    "setup.picker.role.smaller": "Mniejszy i szybszy, z prostszymi odpowiedziami.",
+    "setup.picker.role.bigger": "Mądrzejszy, ale wolniejszy.",
+    "setup.picker.lag.too_big": "Większy, niż ten komputer płynnie uciągnie. Cały komputer może się zacinać.",
+    "setup.picker.lag.beside_loaded": "Nie mieści się obok już działających modeli. Komputer może się zacinać.",
+    "setup.picker.lag.heavy": "Ciężki do codziennego czatu. Komputer może się zacinać. Dobry do wypróbowania.",
+    "setup.picker.lag_picked": "Wybrałeś model, przez który ten komputer może się zacinać. Możesz go później usunąć w Ustawieniach.",
+    "setup.picker.more": "Inne modele",
+    "setup.picker.download": "Pobierz ({gb} GB)",
+    "setup.picker.download_none": "Pobierz",
+    "setup.picker.progress": "Pobieranie {model}… {percent}% ({n} z {total})",
+    "setup.picker.checking": "Przygotowuję {model}…",
+    "setup.picker.failed": "Pobieranie {model} nie dobiegło końca. Sprawdź połączenie z internetem i naciśnij Pobierz jeszcze raz.",
+    "setup.picker.ready": "Twój prywatny model jest gotowy. Wybierz „{local}”.",
+    "setup.picker.downloaded": "Pobrano. VOOL wciąż przygotowuje model. To może potrwać minutę.",
+    "header.run_local_lag_too_big": "Większy, niż ten komputer płynnie uciągnie: może się zacinać",
+    "header.run_local_lag_beside": "Nie mieści się obok działających modeli: może się zacinać",
+    "header.run_local_lag_heavy": "Ciężki do codziennego czatu: może się zacinać",
+    "header.run_local_lag_picked": "{model} może spowolnić ten komputer. Auto wybiera model, który działa płynnie.",
+    "settings.local_models.suggest.bigger_lag": "Ten może spowolnić twój komputer. VOOL dalej odpowiada modelem {model}, chyba że wybierzesz większy.",
+    "setup.picker.not_suitable": "{model} nie radzi sobie wystarczająco z narzędziami VOOL, więc VOOL nie będzie nim odpowiadać. Wybierz inny model i naciśnij Pobierz."
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "a écrit la dernière réponse",
     "vcs.btn.mac_settings": "Ouvrir les réglages du Mac",
     "vcs.saved.mac_settings": "Les Réglages Système sont ouverts sur Calendriers. Activez VOOL, puis choisissez Actualiser la liste des agendas.",
-    "memory.you_asked_remind": "Tu m’as demandé de te rappeler :"
+    "memory.you_asked_remind": "Tu m’as demandé de te rappeler :",
+    "setup.picker.title": "Obtenir un modèle privé gratuit",
+    "setup.picker.loading": "Je regarde ce qui convient à cet ordinateur…",
+    "setup.picker.none": "VOOL n’a trouvé aucun modèle adapté à cet ordinateur.",
+    "setup.picker.lead": "Ceux-ci conviennent à cet ordinateur. VOOL a coché le meilleur pour la vitesse et la qualité. Rien n’est téléchargé avant que vous appuyiez sur Télécharger.",
+    "setup.picker.row": "{model} · {gb} Go",
+    "setup.picker.installed": "Déjà sur cet ordinateur.",
+    "setup.picker.role.best": "Le meilleur pour cet ordinateur : rapide, avec de bonnes réponses.",
+    "setup.picker.role.helper": "Petit assistant pour les vérifications rapides, pour que les réponses du quotidien restent rapides.",
+    "setup.picker.role.smaller": "Plus petit et plus rapide, avec des réponses plus simples.",
+    "setup.picker.role.bigger": "Plus intelligent, mais plus lent.",
+    "setup.picker.lag.too_big": "Plus gros que ce que cet ordinateur fait tourner sans à-coups. Tout l’ordinateur peut ralentir.",
+    "setup.picker.lag.beside_loaded": "Il ne tient pas à côté des modèles déjà lancés. L’ordinateur peut ralentir.",
+    "setup.picker.lag.heavy": "Lourd pour la discussion de tous les jours. L’ordinateur peut ralentir. Bien pour essayer.",
+    "setup.picker.lag_picked": "Vous avez choisi un modèle qui peut ralentir cet ordinateur. Vous pourrez le retirer plus tard dans Réglages.",
+    "setup.picker.more": "Autres modèles",
+    "setup.picker.download": "Télécharger ({gb} Go)",
+    "setup.picker.download_none": "Télécharger",
+    "setup.picker.progress": "Téléchargement de {model}… {percent} % ({n} sur {total})",
+    "setup.picker.checking": "Préparation de {model}…",
+    "setup.picker.failed": "Le téléchargement de {model} ne s’est pas terminé. Vérifiez votre connexion internet, puis appuyez à nouveau sur Télécharger.",
+    "setup.picker.ready": "Votre modèle privé est prêt. Choisissez « {local} ».",
+    "setup.picker.downloaded": "Téléchargé. VOOL prépare encore le modèle. Cela peut prendre une minute.",
+    "header.run_local_lag_too_big": "Plus gros que ce que cet ordinateur fait tourner sans à-coups : peut ralentir",
+    "header.run_local_lag_beside": "Ne tient pas à côté des modèles lancés : peut ralentir",
+    "header.run_local_lag_heavy": "Lourd pour la discussion de tous les jours : peut ralentir",
+    "header.run_local_lag_picked": "{model} peut ralentir cet ordinateur. Auto choisit un modèle qui tourne sans à-coups.",
+    "settings.local_models.suggest.bigger_lag": "Celui-ci peut ralentir votre ordinateur. VOOL continue de répondre avec {model} sauf si vous choisissez le plus gros.",
+    "setup.picker.not_suitable": "{model} n’utilise pas assez bien les outils de VOOL, donc VOOL ne répondra pas avec lui. Choisissez un autre modèle et appuyez sur Télécharger."
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

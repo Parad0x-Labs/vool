@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "كتب آخر رد",
     "vcs.btn.mac_settings": "فتح إعدادات Mac",
     "vcs.saved.mac_settings": "إعدادات النظام مفتوحة على التقويمات. شغّل VOOL هناك، ثم اختر تحديث قائمة التقويمات.",
-    "memory.you_asked_remind": "طلبت مني أن أذكّرك:"
+    "memory.you_asked_remind": "طلبت مني أن أذكّرك:",
+    "setup.picker.title": "احصل على نموذج خاص مجاني",
+    "setup.picker.loading": "أبحث عمّا يناسب هذا الحاسوب…",
+    "setup.picker.none": "لم يجد VOOL نموذجًا يناسب هذا الحاسوب.",
+    "setup.picker.lead": "هذه تناسب هذا الحاسوب. حدّد VOOL الأفضل من حيث السرعة والجودة. لا يُنزَّل شيء حتى تضغط تنزيل.",
+    "setup.picker.row": "{model} · {gb} غيغابايت",
+    "setup.picker.installed": "موجود بالفعل على هذا الحاسوب.",
+    "setup.picker.role.best": "الأفضل لهذا الحاسوب: سريع وبإجابات جيدة.",
+    "setup.picker.role.helper": "مساعد صغير للفحوص السريعة، لتبقى الإجابات اليومية سريعة.",
+    "setup.picker.role.smaller": "أصغر وأسرع، بإجابات أبسط.",
+    "setup.picker.role.bigger": "أذكى، لكنه أبطأ.",
+    "setup.picker.lag.too_big": "أكبر مما يشغّله هذا الحاسوب بسلاسة. قد يجعل الحاسوب كله يتباطأ.",
+    "setup.picker.lag.beside_loaded": "لا يتسع بجانب النماذج التي تعمل الآن. قد يتباطأ الحاسوب.",
+    "setup.picker.lag.heavy": "ثقيل على المحادثة اليومية. قد يتباطأ الحاسوب. جيد للتجربة.",
+    "setup.picker.lag_picked": "اخترت نموذجًا قد يبطئ هذا الحاسوب. يمكنك إزالته لاحقًا من الإعدادات.",
+    "setup.picker.more": "نماذج أخرى",
+    "setup.picker.download": "تنزيل ({gb} غيغابايت)",
+    "setup.picker.download_none": "تنزيل",
+    "setup.picker.progress": "جارٍ تنزيل {model}… {percent}% ({n} من {total})",
+    "setup.picker.checking": "جارٍ تجهيز {model}…",
+    "setup.picker.failed": "لم يكتمل تنزيل {model}. تحقّق من اتصالك بالإنترنت، ثم اضغط تنزيل مرة أخرى.",
+    "setup.picker.ready": "نموذجك الخاص جاهز. اختر «{local}».",
+    "setup.picker.downloaded": "تم التنزيل. ما زال VOOL يجهّز النموذج. قد يستغرق ذلك دقيقة.",
+    "header.run_local_lag_too_big": "أكبر مما يشغّله هذا الحاسوب بسلاسة: قد يتباطأ",
+    "header.run_local_lag_beside": "لا يتسع بجانب النماذج العاملة: قد يتباطأ",
+    "header.run_local_lag_heavy": "ثقيل على المحادثة اليومية: قد يتباطأ",
+    "header.run_local_lag_picked": "قد يبطئ {model} هذا الحاسوب. يختار Auto نموذجًا يعمل بسلاسة.",
+    "settings.local_models.suggest.bigger_lag": "قد يبطئ هذا حاسوبك. يواصل VOOL الإجابة بـ {model} ما لم تختر الأكبر.",
+    "setup.picker.not_suitable": "لا يستخدم {model} أدوات VOOL جيدًا بما يكفي، لذلك لن يجيب VOOL به. اختر نموذجًا آخر واضغط تنزيل."
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

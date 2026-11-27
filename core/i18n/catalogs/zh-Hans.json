@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "写了上一条回复",
     "vcs.btn.mac_settings": "打开 Mac 设置",
     "vcs.saved.mac_settings": "系统设置已打开到“日历”。请在那里打开 VOOL，然后选择“刷新日历列表”。",
-    "memory.you_asked_remind": "你让我提醒你："
+    "memory.you_asked_remind": "你让我提醒你：",
+    "setup.picker.title": "获取免费的私密模型",
+    "setup.picker.loading": "正在查看适合这台电脑的模型…",
+    "setup.picker.none": "VOOL 没有找到适合这台电脑的模型。",
+    "setup.picker.lead": "这些适合这台电脑。VOOL 已勾选速度和质量最佳的一个。在你按“下载”之前不会下载任何内容。",
+    "setup.picker.row": "{model} · {gb} GB",
+    "setup.picker.installed": "已在这台电脑上。",
+    "setup.picker.role.best": "最适合这台电脑：速度快，回答好。",
+    "setup.picker.role.helper": "用于快速检查的小助手，让日常回答保持快速。",
+    "setup.picker.role.smaller": "更小更快，回答更简单。",
+    "setup.picker.role.bigger": "更聪明，但更慢。",
+    "setup.picker.lag.too_big": "超出这台电脑能流畅运行的大小。整台电脑可能会卡顿。",
+    "setup.picker.lag.beside_loaded": "放不下在已运行的模型旁边。电脑可能会卡顿。",
+    "setup.picker.lag.heavy": "日常聊天用它太重。电脑可能会卡顿。适合试用。",
+    "setup.picker.lag_picked": "你选了一个可能让这台电脑卡顿的模型。之后可以在设置中删除它。",
+    "setup.picker.more": "其他模型",
+    "setup.picker.download": "下载（{gb} GB）",
+    "setup.picker.download_none": "下载",
+    "setup.picker.progress": "正在下载 {model}… {percent}%（第 {n} 个，共 {total} 个）",
+    "setup.picker.checking": "正在准备 {model}…",
+    "setup.picker.failed": "{model} 没有下载完。请检查网络连接，然后再按一次“下载”。",
+    "setup.picker.ready": "你的私密模型已就绪。请选择“{local}”。",
+    "setup.picker.downloaded": "已下载。VOOL 仍在准备模型，可能需要一分钟。",
+    "header.run_local_lag_too_big": "超出这台电脑能流畅运行的大小：可能卡顿",
+    "header.run_local_lag_beside": "放不下在正在运行的模型旁边：可能卡顿",
+    "header.run_local_lag_heavy": "日常聊天用它太重：可能卡顿",
+    "header.run_local_lag_picked": "{model} 可能让这台电脑卡顿。Auto 会选择运行流畅的模型。",
+    "settings.local_models.suggest.bigger_lag": "这个可能让你的电脑卡顿。除非你选更大的那个，VOOL 会继续用 {model} 回答。",
+    "setup.picker.not_suitable": "{model} 不能很好地使用 VOOL 的工具，所以 VOOL 不会用它回答。请选择其他模型，然后按“下载”。"
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

@@ -5643,9 +5643,37 @@
     "header.run_local_last_reply": "son yanıtı yazdı",
     "vcs.btn.mac_settings": "Mac ayarlarını aç",
     "vcs.saved.mac_settings": "Sistem Ayarları Takvimler bölümünde açık. Orada VOOL'u açın, sonra Takvim listesini yenile'yi seçin.",
-    "memory.you_asked_remind": "Sana hatırlatmamı istedin:"
+    "memory.you_asked_remind": "Sana hatırlatmamı istedin:",
+    "setup.picker.title": "Ücretsiz özel bir model al",
+    "setup.picker.loading": "Bu bilgisayara neyin uyduğuna bakılıyor…",
+    "setup.picker.none": "VOOL bu bilgisayara uyan bir model bulamadı.",
+    "setup.picker.lead": "Bunlar bu bilgisayara uyuyor. VOOL hız ve kalite için en iyisini işaretledi. İndir’e basana kadar hiçbir şey indirilmez.",
+    "setup.picker.row": "{model} · {gb} GB",
+    "setup.picker.installed": "Zaten bu bilgisayarda.",
+    "setup.picker.role.best": "Bu bilgisayar için en iyisi: hızlı, iyi yanıtlar verir.",
+    "setup.picker.role.helper": "Hızlı kontroller için küçük yardımcı; günlük yanıtlar hızlı kalır.",
+    "setup.picker.role.smaller": "Daha küçük ve hızlı, daha basit yanıtlar.",
+    "setup.picker.role.bigger": "Daha akıllı ama daha yavaş.",
+    "setup.picker.lag.too_big": "Bu bilgisayarın akıcı çalıştırabileceğinden büyük. Tüm bilgisayar takılabilir.",
+    "setup.picker.lag.beside_loaded": "Zaten çalışan modellerin yanına sığmıyor. Bilgisayar takılabilir.",
+    "setup.picker.lag.heavy": "Günlük sohbet için ağır. Bilgisayar takılabilir. Denemek için iyi.",
+    "setup.picker.lag_picked": "Bu bilgisayarı takılmaya zorlayabilecek bir model seçtin. Daha sonra Ayarlar’dan kaldırabilirsin.",
+    "setup.picker.more": "Diğer modeller",
+    "setup.picker.download": "İndir ({gb} GB)",
+    "setup.picker.download_none": "İndir",
+    "setup.picker.progress": "{model} indiriliyor… %{percent} ({n} / {total})",
+    "setup.picker.checking": "{model} hazırlanıyor…",
+    "setup.picker.failed": "{model} indirmesi bitmedi. İnternet bağlantını kontrol et, sonra yeniden İndir’e bas.",
+    "setup.picker.ready": "Özel modelin hazır. “{local}” seçeneğini seç.",
+    "setup.picker.downloaded": "İndirildi. VOOL modeli hâlâ hazırlıyor. Bu bir dakika sürebilir.",
+    "header.run_local_lag_too_big": "Bu bilgisayarın akıcı çalıştırabileceğinden büyük: takılabilir",
+    "header.run_local_lag_beside": "Çalışan modellerin yanına sığmıyor: takılabilir",
+    "header.run_local_lag_heavy": "Günlük sohbet için ağır: takılabilir",
+    "header.run_local_lag_picked": "{model} bu bilgisayarı yavaşlatabilir. Auto akıcı çalışan bir model seçer.",
+    "settings.local_models.suggest.bigger_lag": "Bu, bilgisayarını yavaşlatabilir. Büyük olanı seçmedikçe VOOL {model} ile yanıt vermeye devam eder.",
+    "setup.picker.not_suitable": "{model}, VOOL’un araçlarını yeterince iyi kullanamıyor, bu yüzden VOOL onunla yanıt vermez. Başka bir model seç ve İndir’e bas."
   },
-  "source_catalog_sha256": "390d436f3c40c65b6482ffeebe1f21e1332251632f1a03329da23ec1f85e72f2",
+  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
@@ -5653,6 +5681,7 @@
     "generated_at": "2026-09-04T14:20:28Z",
     "language_picker_addendum": "2 keys translated by the lane author (single writer)",
     "hide_name_on_screen_addendum": "3 keys translated by the lane author (single writer)",
-    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)"
+    "new_mail_alerts_addendum": "19 keys translated by the lane author (single writer)",
+    "first_run_model_picker_addendum": "28 keys translated by the lane author (single writer)"
   }
 }

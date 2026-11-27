@@ -195,7 +195,7 @@ rows:
     title: Register local models served on this machine
     area: chat-models
     ui: [local_models]
-    wired: ["/api/models/local", "/api/models/local/register"]
+    wired: ["/api/models/local", "/api/models/local/register", "/api/models/local/choices"]
     default: []
     tests: [tests/test_local_ollama_inventory.py]
     label: TESTED
