@@ -181,7 +181,7 @@ def ollama_client(model: str, ollama_url: str | None = None, *, timeout: float =
     # lane bypasses the provider adapter, so nothing else stamps num_ctx and the model would load
     # at its native context. The runner keys come with the window so this lane reuses the chat
     # model's runner instead of reloading it.
-    from core.runtime_provider_defaults import ollama_direct_runner_options
+    from core.runtime_provider_defaults import ollama_direct_residency_fields, ollama_direct_runner_options
 
     runner_options = ollama_direct_runner_options(str(model or ""), bundle_role="general")
 
@@ -192,6 +192,7 @@ def ollama_client(model: str, ollama_url: str | None = None, *, timeout: float =
             "stream": False,
             "think": False,
             "options": {"temperature": 0.7, **runner_options},
+            **ollama_direct_residency_fields(),
         }
         permit = seal_direct_provider_invocation(
             provider_id="ollama:craft-upgrade",

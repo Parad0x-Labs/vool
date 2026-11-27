@@ -45,7 +45,7 @@ from core.disclosure.direct import (
 )
 from core.prompt_debug import dump_outbound_prompt
 from core.provider_invocation_gateway import seal_direct_provider_invocation
-from core.runtime_provider_defaults import ollama_direct_runner_options
+from core.runtime_provider_defaults import ollama_direct_residency_fields, ollama_direct_runner_options
 
 _FLAG_ENV = "VOOL_INTENT_ARBITER"
 _MODEL_ENV = "VOOL_ARBITER_MODEL"
@@ -306,9 +306,11 @@ def arbitrate(
             "stream": False,
             "format": "json",
             "think": False,
-            "keep_alive": "30m",  # keep the tiny arbiter model resident: only the FIRST arbitration pays a load
-            # Sized, because keep_alive makes this residency LAST: an unsized load pins the
-            # model at its native context for the full thirty minutes (see _arbiter_runner_options).
+            # Keeps the tiny arbiter model resident, so only the FIRST arbitration pays a load: the one residency
+            # every lane on a local model sends (core.resource_governor.serving_keep_alive). Sized, because
+            # keep_alive makes this residency LAST: an unsized load pins the model at its native context for the
+            # full thirty minutes (see _arbiter_runner_options).
+            **ollama_direct_residency_fields(),
             "options": {
                 "temperature": 0,
                 "num_predict": 96,
@@ -516,7 +518,7 @@ def arbitrate_followup(
             "stream": False,
             "format": "json",
             "think": False,
-            "keep_alive": "30m",
+            **ollama_direct_residency_fields(),
             "options": {"temperature": 0, "num_predict": 24, **_arbiter_runner_options(model, runner_role)},
         }
         permit = seal_direct_provider_invocation(
@@ -2863,7 +2865,7 @@ def prewarm_async() -> None:
                 "messages": [{"role": "user", "content": "ok"}],
                 "stream": False,
                 "think": False,
-                "keep_alive": "30m",
+                **ollama_direct_residency_fields(),
                 "options": {"num_predict": 1, **_arbiter_runner_options(model)},
             }
             _disclosure_endpoint = _ollama_chat_url()

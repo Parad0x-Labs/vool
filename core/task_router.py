@@ -2647,7 +2647,6 @@ def _classify_via_model(user_input: str) -> str:
     try:
         import requests as _req
 
-        from core.hardware_tier import recommended_ollama_model
         from core.ollama_endpoint import ollama_base_url
 
         base_url = ollama_base_url()
@@ -2665,14 +2664,25 @@ def _classify_via_model(user_input: str) -> str:
             f"User message: {user_input[:300]}\n\n"
             f"Reply with ONLY the category name, nothing else."
         )
-        model = recommended_ollama_model()
+        # The classifier lane's own model on the classifier lane's own runner: the intent arbiter's model, window,
+        # runner keys and residency (core.intent_arbiter). This call named the hardware tier's suggested tag
+        # (qwen3.5:9b on a 24 GB Mac) through Ollama's OpenAI-compatible door, which takes no window, so a second
+        # 9B model loaded at the server's own context (262,144 on the owner's iMac) beside the chat model.
+        from core import intent_arbiter
+        from core.runtime_provider_defaults import ollama_direct_residency_fields
+
+        model = intent_arbiter._resolve_model()
+        if not model:
+            return ""
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "max_tokens": 20,
+            "stream": False,
+            "think": False,
+            **ollama_direct_residency_fields(),
+            "options": {"temperature": 0.1, "num_predict": 20, **intent_arbiter._arbiter_runner_options(model)},
         }
-        _disclosure_endpoint = f"{base_url}/v1/chat/completions"
+        _disclosure_endpoint = f"{base_url.rstrip('/')}/api/chat"
         permit = seal_direct_provider_invocation(
             destination_url=_disclosure_endpoint,
             provider_id="ollama:task-classifier",
@@ -2696,7 +2706,7 @@ def _classify_via_model(user_input: str) -> str:
         )
         received_headers(_disclosure_body)
         resp.raise_for_status()
-        raw = resp.json()["choices"][0]["message"]["content"].strip().lower()
+        raw = str(((resp.json().get("message") or {}).get("content")) or "").strip().lower()
         clean = raw.strip().strip("'\"`.").strip()
         if clean in _VALID_TASK_CLASSES:
             return clean

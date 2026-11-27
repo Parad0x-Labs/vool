@@ -333,11 +333,15 @@ def plan_model_load(model_name: str, *, base_url: str | None = None) -> Governor
         ok=True, footprint_gb=need,
         usable_before_gb=snap.available_ram_gb, usable_after_gb=snap.available_ram_gb,
     )
-    if need <= 0:
-        return decision
-    if snap.available_ram_gb >= need + _LOAD_SAFETY_FLOOR_GB:
+    if _load_fits(need, snap.available_ram_gb):
         return decision
     others = [r["name"] for r in residents if r["name"] != name]
+    sizes = [float(r.get("size_gb") or 0.0) for r in residents if r["name"] != name]
+    if others and all(size > 0.0 for size in sizes) and not _load_fits(need, snap.available_ram_gb + sum(sizes)):
+        # Every other resident model's size is known and all of them together would still not make room: unloading
+        # them would only cost each one a reload on its next use, and the load is refused anyway.
+        decision.ok = False
+        return decision
     if others:
         freed = _unload_models(others, **target_options)
         if freed:
@@ -354,8 +358,58 @@ def plan_model_load(model_name: str, *, base_url: str | None = None) -> Governor
                 time.sleep(0.5)
                 snap = sr.snapshot(force=True, **target_options)
     decision.usable_after_gb = snap.available_ram_gb
-    decision.ok = snap.available_ram_gb >= need + _LOAD_SAFETY_FLOOR_GB
+    decision.ok = _load_fits(need, snap.available_ram_gb)
     return decision
+
+
+def _load_fits(need_gb: float, available_gb: float) -> bool:
+    """The one load-fit rule: an unknown size never gates; a known one needs its size plus the headroom floor free."""
+    return need_gb <= 0 or available_gb >= need_gb + _LOAD_SAFETY_FLOOR_GB
+
+
+def models_that_cannot_load_now(model_names: list[str], *, base_url: str | None = None) -> frozenset[str]:
+    """The named local models a load right now would not fit without unloading the models resident beside them.
+
+    The same arithmetic `plan_model_load` gates every serving call with, read without its side effects, so the turn's
+    plan picks a model this machine can serve as it stands. Measured on the owner's 24 GB iMac (2026-11-27, ~100 MB
+    free): the plan picked qwen3:4b while qwen3:8b was resident, the call's gate unloaded every resident model to make
+    room, still refused, and the turn ran on qwen3:8b after reloading it (lane proof `planned_adapter_mismatch`), on
+    every turn. A resident model and a model of unknown size are never named; an unreadable machine names none.
+    """
+    names = [str(name or "").strip() for name in model_names if str(name or "").strip()]
+    target = _local_ollama_base(base_url)
+    if not names or not target:
+        return frozenset()
+    target_options = {"base_url": target} if base_url is not None else {}
+    try:
+        snap = sr.snapshot(**target_options)
+        resident = {row["name"] for row in resident_models(**target_options)}
+        return frozenset(
+            name for name in names
+            if name not in resident and not _load_fits(estimated_model_gb(name, **target_options), snap.available_ram_gb)
+        )
+    except Exception:
+        return frozenset()
+
+
+#: How long a call to a local Ollama model holds that model resident. Every lane sends the same value: Ollama keeps a
+#: model for the keep_alive of the LAST request it served, and a request with none drops it to the server's own
+#: 5-minute default. On the owner's 24 GB iMac (2026-11-27) the embedding model, posted with none, reloaded 13 times in
+#: a day, and the summary and memory lanes, posted with none on the chat model, cut its 30-minute residency to five.
+#: Longer than the boot prewarm's 15 m on purpose: the model must still be loaded for the first turn after a
+#: twenty-minute idle.
+OLLAMA_SERVING_KEEP_ALIVE = "30m"
+
+
+def serving_keep_alive() -> str | None:
+    """The keep_alive every call to a local Ollama model sends (the adapter's serving calls and every lane that posts
+    straight to Ollama), or None to send none: under memory pressure residency stands down (`may_keep_warm`), and the
+    release path's keep_alive 0 is not undone by the next call. A failed reading sends none, as before the residency
+    rule existed."""
+    try:
+        return OLLAMA_SERVING_KEEP_ALIVE if may_keep_warm() else None
+    except Exception:
+        return None
 
 
 def may_keep_warm() -> bool:

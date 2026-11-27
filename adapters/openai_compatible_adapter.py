@@ -75,7 +75,7 @@ def _with_native_wire_catalog(request: ModelRequest, *, native: bool) -> ModelRe
 #: prewarm's 15 m on purpose: the model must still be loaded for the first turn after a
 #: twenty-minute idle, which Ollama's 5-minute default (and the prewarm value alone) cannot
 #: cover. The resource governor can stand this down (see _build_ollama_payload).
-_SERVING_KEEP_ALIVE = "30m"
+from core.resource_governor import OLLAMA_SERVING_KEEP_ALIVE as _SERVING_KEEP_ALIVE
 
 #: How long a loopback certification-identity read (backend version, tags digest, chat-template
 #: hash) is reused per (endpoint, model). The authorship lane asks for it on every ranked
@@ -1462,11 +1462,11 @@ class OpenAICompatibleAdapter(ModelAdapter):
             # governor stands the extension down under active memory pressure -- its release path
             # unloads with keep_alive 0 and nothing here re-warms until the pressure clears. An
             # absent or failing signal keeps BASE behaviour (no keep_alive on the wire).
-            with contextlib.suppress(Exception):
-                from core.resource_governor import may_keep_warm
+            # The same rule every lane that posts straight to Ollama follows
+            # (core.resource_governor.serving_keep_alive).
+            from core.resource_governor import serving_keep_alive
 
-                if may_keep_warm():
-                    keep_alive = _SERVING_KEEP_ALIVE
+            keep_alive = serving_keep_alive() or ""
         if keep_alive:
             payload["keep_alive"] = keep_alive
         # Ollama's /api/chat speaks the OpenAI `tools` shape. Without this the local lane can

@@ -128,6 +128,8 @@ def _call_ollama(model: str, messages: list[dict], timeout: int = 60) -> str:
     if not local_models_enabled():
         return ""
 
+    from core.runtime_provider_defaults import ollama_direct_residency_fields
+
     payload = {
         "model": model,
         "messages": messages,
@@ -141,6 +143,9 @@ def _call_ollama(model: str, messages: list[dict], timeout: int = 60) -> str:
             "num_predict": 1024,
             **_summarizer_runner_options(model),
         },
+        # The chat model's own residency: with none, a summary after the answer cut the chat model's 30 minutes to
+        # Ollama's 5-minute default, and the next turn after a short pause reloaded it.
+        **ollama_direct_residency_fields(),
     }
     invocation_context = dict(_SUMMARY_CONTEXT.get() or {})
     _disclosure_endpoint = f"{ollama_base_url()}/api/chat"

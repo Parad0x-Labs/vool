@@ -707,6 +707,19 @@ def ollama_direct_runner_options(
     return options
 
 
+def ollama_direct_keep_alive() -> str | None:
+    """The keep_alive every call to a local Ollama model sends (`core.resource_governor.serving_keep_alive`)."""
+    from core.resource_governor import serving_keep_alive
+
+    return serving_keep_alive()
+
+
+def ollama_direct_residency_fields() -> dict[str, str]:
+    """``{"keep_alive": ...}`` for a payload posted straight to Ollama, or ``{}`` when none is sent."""
+    keep_alive = ollama_direct_keep_alive()
+    return {"keep_alive": keep_alive} if keep_alive else {}
+
+
 def default_local_provider_base_url(env: Mapping[str, str] | None = None) -> str:
     """The base_url written into the auto-registered local provider's manifest. Resolved from the environment,
     so the certification probe -- which reads the manifest -- follows the same fence as every other client."""
@@ -2082,6 +2095,8 @@ def _profile_allows_generic_remote_provider(profile_id: str) -> bool:
 __all__ = [
     "default_runtime_model_tag",
     "ensure_default_runtime_providers",
+    "ollama_direct_keep_alive",
+    "ollama_direct_residency_fields",
     "ollama_direct_runner_options",
     "preferred_fast_local_model",
 ]

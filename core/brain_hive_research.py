@@ -377,7 +377,7 @@ def _derive_questions_via_model(
         # tokens for a Qwen3 30B, 42.5 GiB measured on a 24 GB Mac), and its default thinking
         # spent the 400-token budget before any query was written.
         from core.agent_runtime.builder.controller import is_thinking_capable_model
-        from core.runtime_provider_defaults import ollama_direct_runner_options
+        from core.runtime_provider_defaults import ollama_direct_residency_fields, ollama_direct_runner_options
 
         payload = {
             "model": model,
@@ -388,6 +388,7 @@ def _derive_questions_via_model(
                 "num_predict": 400,
                 **ollama_direct_runner_options(model, bundle_role="general"),
             },
+            **ollama_direct_residency_fields(),
         }
         if is_thinking_capable_model(model):
             payload["think"] = False

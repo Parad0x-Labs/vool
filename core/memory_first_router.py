@@ -6175,7 +6175,11 @@ class MemoryFirstRouter:
             resident_model_tags=_recent_resident_model_tags(),
             # The model the person made ready goes first: a local model the call fence would
             # refuse is never the primary while a ready one is ranked (it stays a fallback).
-            unready_local_models=_unready_local_models(ranked_manifests),
+            # Nor is one this machine cannot load as it stands, or one the memory gate benched:
+            # the call's own gate reorders those behind the others, so planning them first
+            # named a model the turn never ran on, after unloading the one it did.
+            unready_local_models=_unready_local_models(ranked_manifests)
+            | _local_models_that_cannot_load_now(ranked_manifests),
         )
         autopilot_plan = autopilot.to_dict()
         emergency_rejected = False
@@ -8702,6 +8706,54 @@ def _unready_local_models(ranked_manifests: list[Any]) -> frozenset[str]:
         return unready_local_model_names(ranked_manifests)
     except Exception:
         return frozenset()
+
+
+def _local_models_that_cannot_load_now(ranked_manifests: list[Any]) -> frozenset[str]:
+    """Local Ollama models the serving call would not run first this turn: benched by the memory gate
+    (`_demote_ram_gated`), or not resident and too big for the memory free now (the arithmetic the call's own gate,
+    `core.resource_governor.plan_model_load`, applies). The plan reads them as not ready, so the model it names is
+    the model the turn runs on, and no turn unloads the resident model to try a load its gate then refuses."""
+    names: set[str] = set()
+    local_models: set[str] = set()
+    by_base: dict[str, list[str]] = {}
+    for manifest in ranked_manifests or ():
+        if not _manifest_is_local(manifest):
+            continue
+        local_models.add(str(getattr(manifest, "model_name", "") or "").strip().lower())
+        metadata = getattr(manifest, "metadata", {}) or {}
+        if str(metadata.get("runtime_family") or "").strip().lower() != "ollama":
+            continue
+        model = str(getattr(manifest, "model_name", "") or "").strip()
+        if not model:
+            continue
+        if _ram_gate_active(str(getattr(manifest, "provider_id", "") or "")):
+            names.add(model)
+            continue
+        base = str((getattr(manifest, "runtime_config", {}) or {}).get("base_url") or "").strip()
+        by_base.setdefault(base, []).append(model)
+    try:
+        from core.ollama_endpoint import ollama_base_url
+        from core.resource_governor import models_that_cannot_load_now
+
+        default_base = str(ollama_base_url() or "").strip().rstrip("/")
+        for base, models in by_base.items():
+            native = _ollama_native_base(base)
+            # The default server reads the snapshot's short cache; another named server is read fresh.
+            names |= models_that_cannot_load_now(models, base_url=native if native and native != default_base else None)
+    except Exception:
+        pass
+    lowered = frozenset(name.lower() for name in names)
+    # Only a choice BETWEEN local models: when none of them can load as things stand, nothing is named, so a tight
+    # moment never hands a local turn to another lane by itself (the call's own gate and fallbacks still decide).
+    if not (local_models - lowered - {""}):
+        return frozenset()
+    return lowered
+
+
+def _ollama_native_base(base_url: str) -> str:
+    """The Ollama server root of a manifest's base_url ("" when none): the OpenAI door's /v1 suffix dropped."""
+    clean = str(base_url or "").strip().rstrip("/")
+    return clean[: -len("/v1")] if clean.endswith("/v1") else clean
 
 
 def _can_prioritize_autopilot_selection(

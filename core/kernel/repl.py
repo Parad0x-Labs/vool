@@ -362,11 +362,20 @@ def _ollama_chat(system: str, user: str, *, json_mode: bool = True) -> str:
     """
 
     def call(think_field: bool) -> str:
+        # The model's shared runner options and residency: with none, Ollama loads it at the server's own context and
+        # every other lane on the same model reloads it (core.runtime_provider_defaults.ollama_direct_runner_options).
+        from core.runtime_provider_defaults import ollama_direct_residency_fields, ollama_direct_runner_options
+
         body: dict[str, object] = {
             "model": _ARBITER_MODEL,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "stream": False,
-            "options": {"temperature": 0, "num_predict": 1200},
+            "options": {
+                "temperature": 0,
+                "num_predict": 1200,
+                **ollama_direct_runner_options(_ARBITER_MODEL, bundle_role="general"),
+            },
+            **ollama_direct_residency_fields(),
         }
         if json_mode:
             body["format"] = "json"

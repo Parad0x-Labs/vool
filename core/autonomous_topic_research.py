@@ -1069,13 +1069,26 @@ def _generate_refinement_queries(
         from core.hardware_tier import recommended_ollama_model
 
         model = recommended_ollama_model()
+        # Ollama's own chat door with the model's shared runner options and residency, the way the first research
+        # pass posts (core.brain_hive_research): the OpenAI-compatible door takes no window, so this second pass
+        # loaded the model again at the server's own context and evicted the runner the first pass had just used.
+        from core.agent_runtime.builder.controller import is_thinking_capable_model
+        from core.runtime_provider_defaults import ollama_direct_residency_fields, ollama_direct_runner_options
+
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.8,
-            "max_tokens": 300,
+            "stream": False,
+            "options": {
+                "temperature": 0.8,
+                "num_predict": 300,
+                **ollama_direct_runner_options(model, bundle_role="general"),
+            },
+            **ollama_direct_residency_fields(),
         }
-        _disclosure_endpoint = f"{base_url}/v1/chat/completions"
+        if is_thinking_capable_model(model):
+            payload["think"] = False
+        _disclosure_endpoint = f"{base_url.rstrip('/')}/api/chat"
         permit = seal_direct_provider_invocation(
             destination_url=_disclosure_endpoint,
             provider_id="ollama:research-refinement",
@@ -1108,7 +1121,7 @@ def _generate_refinement_queries(
         )
         received_headers(_disclosure_body)
         resp.raise_for_status()
-        text = resp.json()["choices"][0]["message"]["content"].strip()
+        text = str(((resp.json().get("message") or {}).get("content")) or "").strip()
         lines = [
             line.strip().lstrip("0123456789.-) ").strip()
             for line in text.splitlines()

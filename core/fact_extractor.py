@@ -508,6 +508,8 @@ class FactExtractor:
             # Nothing local runs here: posting would only reach a dead port on every turn. The
             # deterministic self-disclosed facts are extracted without the model.
             return ""
+        from core.runtime_provider_defaults import ollama_direct_residency_fields
+
         payload = {
             "model": self._model,
             "messages": [
@@ -527,6 +529,9 @@ class FactExtractor:
                 "num_predict": 512,
                 **_direct_lane_runner_options(self._model),
             },
+            # The one residency every lane on a local model sends: with none, this call cut the model's 30-minute
+            # residency to Ollama's 5-minute default.
+            **ollama_direct_residency_fields(),
         }
         try:
             _disclosure_endpoint = f"{self._ollama_url}/api/chat"

@@ -156,7 +156,13 @@ def _ollama_embed_batch(texts: list[str], model: str, timeout: int = 15) -> list
         return None
     if model.split(":")[0] == "nomic-embed-text":
         texts = [f"{_RETRIEVAL_TASK.get()}: {text}" for text in texts]
-    payload = {"model": model, "input": list(texts)}
+    from core.runtime_provider_defaults import ollama_direct_residency_fields
+
+    # The one residency every call to a local model sends. With none, Ollama kept the embedding model for its own
+    # 5-minute default, so a chat with pauses between messages reloaded it again and again (13 loads in a day on the
+    # owner's 24 GB iMac, 2026-11-27). The window stays the model's own: this is the only lane that posts to it, and
+    # Ollama caps an embedding model at its trained context.
+    payload = {"model": model, "input": list(texts), **ollama_direct_residency_fields()}
     request_id = "embedding-" + hashlib.sha256(
         "\x00".join(texts).encode("utf-8")
     ).hexdigest()

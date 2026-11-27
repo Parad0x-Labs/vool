@@ -433,11 +433,14 @@ def builder_chat_payload(prompt: str, *, model_tag: str, num_predict: int = _BUI
     Non-thinking models reject the flag outright (qwen2.5:7b -> HTTP 400 "does not support
     thinking"), so it is omitted for them.
     """
+    from core.runtime_provider_defaults import ollama_direct_residency_fields
+
     payload: dict[str, Any] = {
         "model": model_tag,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
         "options": {"temperature": 0.2, "num_predict": int(num_predict), **builder_runner_options(model_tag)},
+        **ollama_direct_residency_fields(),
     }
     if is_thinking_capable_model(model_tag):
         payload["think"] = True
