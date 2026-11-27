@@ -4,6 +4,7 @@ Each question below is built from a pool of wordings with a fresh subject every 
 is the thing that passes.
 """
 import random
+import re
 import secrets
 import time
 
@@ -87,7 +88,10 @@ def test_every_turn_in_a_chat_app_chat_is_answered_with_where_it_ran(bots, platf
     assert 'Remember something about you' in replies[0] and 'Done, checked' in replies[0], replies[0]
     # The model question is answered in plain words, as in the app: no internal names or code marks.
     assert not any(w in replies[2].lower() for w in ('composer pin', 'footer', 'lane', '`')), replies[2]
-    assert all(reply.rstrip().splitlines()[-1].startswith(('On this computer', 'No AI model', 'Online', 'This computer + online', 'On your own network')) for reply in replies[:2]), replies
+    # Read away from the computer, the computer is "your desktop" (sls 2026-11-27); the app keeps "On this computer".
+    assert all(reply.rstrip().splitlines()[-1].startswith(('On your desktop', 'No AI model', 'Online', 'Your desktop + online', 'On your own network'))
+               or reply.rstrip().splitlines()[-1].startswith('Done') for reply in replies[:2]), replies
+    assert not any('On this computer' in reply for reply in replies), replies
 
 
 @pytest.mark.parametrize('platform', ['telegram', 'discord'])
@@ -108,7 +112,10 @@ def test_reminders_need_the_owners_switch_and_then_say_what_was_set(bots, platfo
                                                          'rules': {'chat': True, 'everyday_tools': True, 'cloud_models': True}})
     assert status == 200 and record(base, platform)['right_expiry'].get('cloud_models'), result
     done = ask(host, platform, rng.choice(REMIND).format(h=hour, c=chore))
-    assert chore in done and 'Set a reminder' in done and 'Done, checked' in done, done
+    # One plain confirmation: what and when, to the minute, no id; the receipt under it is its state alone, as the
+    # reply already says what was set (sls 2026-11-27: the same reminder was said twice, with seconds and an id).
+    assert chore in done and 'Done, checked' in done and 'Set a reminder' not in done, done
+    assert 'reminder id' not in done and not re.search(r'\d\d:\d\d:\d\d', done), done
     listed = ask(host, platform, rng.choice(LIST))
     assert chore in listed, listed
     # Paying, apps and approvals still are not a chat app's.

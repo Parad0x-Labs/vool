@@ -407,6 +407,39 @@ CHAT_APP_COMPUTER_TEXT = (
     "This chat app can't use files on your computer yet. In VOOL Settings on your computer, open "
     "Phone and chat apps, pick this app's tab, turn on \"Files in chosen folders\" and add the folders."
 )
+
+
+def folder_name(path: Any) -> str:
+    """A folder as a phone or chat app shows it: its own name, never the full path on the computer.
+
+    sls, Telegram 2026-11-27: a refusal listed "/Users/<name>/Downloads, /Users/<name>/Documents, ..." in the
+    chat app, so the computer's account name and layout left it. The home folder itself is "your home folder"."""
+    from pathlib import Path, PurePath
+
+    text = str(path or "").strip()
+    if not text:
+        return ""
+    bare = text.rstrip("/\\")
+    if bare in {"", "~"} or bare == str(Path.home()).rstrip("/\\"):
+        return "your home folder" if bare else text
+    return PurePath(bare.replace("\\", "/")).name or bare
+
+
+def folder_names(paths: Any) -> str:
+    """Chosen folders named for a phone or chat app; a name two folders share keeps its parent ("Work/Notes")."""
+    from pathlib import PurePath
+
+    items = [str(p) for p in (paths or ()) if str(p or "").strip()]
+    names = [folder_name(p) for p in items]
+    shown = []
+    for path, name in zip(items, names, strict=True):
+        if names.count(name) > 1:
+            parent = PurePath(path.rstrip("/\\").replace("\\", "/")).parent.name
+            name = f"{parent}/{name}" if parent else name
+        shown.append(name)
+    return ", ".join(shown)
+
+
 CHAT_APP_FOLDERS_ONLY_TEXT = (
     "This chat app can only find and send files from the folders you chose: {folders}. Change this "
     "in VOOL Settings on your computer."
@@ -732,7 +765,7 @@ def remote_grant_refusal_text(source_context: Any, grant: str, *, intent: str = 
             # told to change its folders (Telegram, 2026-11-27), which no folder choice would answer.
             return CHAT_APP_COMPUTER_ONLY_TEXT
         if remote_turn_has_grant(source_context, grant) and clean and _outside_folder_tools(clean, source_context):
-            return CHAT_APP_FOLDERS_ONLY_TEXT.format(folders=", ".join(remote_turn_folders(source_context) or ()))
+            return CHAT_APP_FOLDERS_ONLY_TEXT.format(folders=folder_names(remote_turn_folders(source_context)))
         return CHAT_APP_COMPUTER_TEXT if grant == REMOTE_GRANT_COMPUTER else REMOTE_TURN_REFUSAL_TEXT
     return REMOTE_GRANT_REFUSAL_TEXT[grant]
 
@@ -749,10 +782,10 @@ def phone_folders_text(folders: tuple[str, ...], source_context: Any = None) -> 
     """What the phone (or chat app) reads when a tool would reach past the folders the owner chose."""
 
     if source_context is not None and remote_turn_chat_app(source_context) is not None:
-        return CHAT_APP_FOLDERS_ONLY_TEXT.format(folders=", ".join(folders)) if folders else CHAT_APP_COMPUTER_TEXT
+        return CHAT_APP_FOLDERS_ONLY_TEXT.format(folders=folder_names(folders)) if folders else CHAT_APP_COMPUTER_TEXT
     if not folders:
         return PHONE_NO_FOLDERS_TEXT
-    return PHONE_FOLDERS_ONLY_TEXT.format(folders=", ".join(folders))
+    return PHONE_FOLDERS_ONLY_TEXT.format(folders=folder_names(folders))
 
 
 def turn_is_remote(source_context: Any) -> bool:

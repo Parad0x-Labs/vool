@@ -30,7 +30,7 @@ def worker(tmp_path, monkeypatch):
     # No chat service here: the working note is posted nowhere (the served tests cover it).
     monkeypatch.setattr(bot_runtime.ManagedBot, "working_note", lambda self, channel, locale="en": "")
     monkeypatch.setattr(bot_runtime.ManagedBot, "deliver_files", lambda self, channel: None)
-    monkeypatch.setattr(bot_runtime, "turn_notes", lambda platform, result, locale="en": [])
+    monkeypatch.setattr(bot_runtime, "turn_notes", lambda platform, result, locale="en", **_: [])
 
     def fake_send(params, *, approval_token="", resume_turn_id="", **_kw):
         calls.append({"params": dict(params), "approval_token": approval_token, "resume_turn_id": resume_turn_id})
