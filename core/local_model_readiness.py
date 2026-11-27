@@ -296,11 +296,12 @@ def ready_local_models(
         except Exception:
             return True
 
-    # The boot primary first, then the models that fit everyday use on this computer: a fresh profile checked the
-    # boot primary, saw it fail, then certified the next registered model, qwen3.5:9b, which grew to 16 GB on a
-    # 24 GB Mac while qwen3:8b waited unchecked (gate54 on 0c0901943).
-    candidates.sort(key=lambda item: (0 if str(item[0].model_name).strip().lower() == primary else 1,
-                                      0 if _everyday(item[0]) else 1))
+    # The models that fit everyday use on this computer first, the boot primary first among them: a fresh profile
+    # checked the boot primary, saw it fail, then certified the next registered model, qwen3.5:9b, which grew to
+    # 16 GB on a 24 GB Mac while qwen3:8b waited unchecked (gate54 on 0c0901943); boot's adoption pass then named
+    # qwen3.5:9b itself the primary and checked it first (gate55 on ace1c42cc).
+    candidates.sort(key=lambda item: (0 if _everyday(item[0]) else 1,
+                                      0 if str(item[0].model_name).strip().lower() == primary else 1))
     checked: list[dict[str, str]] = []
     for manifest, state in candidates:
         if len(checked) >= max(0, int(limit)):

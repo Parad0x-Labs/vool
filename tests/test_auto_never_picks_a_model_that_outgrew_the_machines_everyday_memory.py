@@ -137,3 +137,23 @@ def test_boot_checks_a_model_that_fits_everyday_use_before_one_that_does_not(mon
         everyday=lambda m: m.model_name != "qwen3.5:9b",
     )
     assert order == ["qwen2.5:7b", "qwen3:8b", "qwen3.5:9b"] and len(rows) == 3
+
+
+def test_a_boot_primary_that_outgrows_everyday_memory_is_checked_after_one_that_fits(monkeypatch):
+    """Gate55 on ace1c42cc: boot's adoption pass named qwen3.5:9b the primary, and it was checked before qwen3:8b."""
+    from core import local_model_readiness, local_model_tool_certification
+
+    monkeypatch.setattr(local_model_tool_certification, "certification_applies", lambda _m: True)
+
+    class M:
+        def __init__(self, name):
+            self.model_name = name
+
+    order: list[str] = []
+    local_model_readiness.ready_local_models(
+        [M("qwen3.5:9b"), M("qwen3:8b")], primary_model="qwen3.5:9b",
+        status_of=lambda _m: {"state": "unknown"},
+        run_check=lambda m: order.append(m.model_name) or {"state": "degraded"},
+        everyday=lambda m: m.model_name != "qwen3.5:9b",
+    )
+    assert order == ["qwen3:8b", "qwen3.5:9b"]
