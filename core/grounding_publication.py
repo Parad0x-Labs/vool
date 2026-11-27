@@ -1144,6 +1144,23 @@ def _publication_verdict_of(lifecycle: GroundingLifecycle, content: str) -> Publ
             detail="browser step outcome composed by runtime code, not generated",
         )
 
+    from core.agent_runtime.action_honesty_validator import is_web_unavailable_decline
+
+    if is_web_unavailable_decline(text):
+        # The runtime's own decline for a turn that cannot reach the web, with the reason this turn has (an Offline
+        # chat, the Web lookups switch, a computer kept local). It claims nothing to check. Replaced here, an Offline
+        # chat was told "Web lookups are off ... turn them on in Settings" (gate 43 case 15: the refusal re-derived
+        # without the turn's context) or "I didn't look anything up for this ..." once a judge had run (gate 50 case 8),
+        # neither naming Offline (CUT 33, 44).
+        return PublicationVerdict(
+            state=STAGE_PUBLISHED,
+            content=text,
+            coverage="runtime_composed",
+            support_origin=lifecycle.support_origin,
+            evidence_set_id=lifecycle.bound_evidence_set_id,
+            detail="web-unavailable decline composed by runtime code, not generated",
+        )
+
     rows, origin = _support_rows(lifecycle)
     from core.grounding_lifecycle import REASON_RE_PRESENTATION_OF_WITHHELD
 

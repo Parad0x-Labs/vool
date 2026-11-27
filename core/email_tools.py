@@ -370,6 +370,13 @@ OFFLINE_MAIL_TEXT = (
 )
 
 
+#: An Offline chat asked to read or send mail with no email account connected: both facts, Offline first.
+OFFLINE_NO_MAIL_ACCOUNT_TEXT = (
+    "This chat is Offline, so nothing leaves this computer: no mailbox was opened and nothing was sent. "
+    "No email account is connected yet either; you can add one under Settings > Email accounts."
+)
+
+
 def _offline_refusal(kind: str, creds: dict[str, Any] | None) -> str:
     """The Offline refusal for this mailbox, or "" when this turn may reach it.
 

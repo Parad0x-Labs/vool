@@ -2031,10 +2031,20 @@ def email_not_connected_reply(text: str, source_context: dict[str, Any] | None =
 
         if _mail_connected() is not False:
             return None
+        from core.remote_fetch_policy import local_only_active
+
+        if local_only_active(source_context):
+            # An Offline chat says so first: "email hello to ..." was answered as an inbox read with no account,
+            # never naming Offline (gate 43 case 18, CUT 33).
+            from core.email_tools import OFFLINE_NO_MAIL_ACCOUNT_TEXT
+
+            return OFFLINE_NO_MAIL_ACCOUNT_TEXT
+        # A message to write or send is not an inbox read: its line says nothing was sent.
+        form = "read" if mailbox_retrieval_intents(str(text or "")) else "action"
         return no_action_reply(
             ["mail"],
             connected=lambda name: False if name == "mail" else None,
-            forms={"mail": {"read"}},
+            forms={"mail": {form}},
             language=reply_language(str(text or "")),
         )
     except Exception:

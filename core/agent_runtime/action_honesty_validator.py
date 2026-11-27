@@ -2715,6 +2715,24 @@ def _says_the_web_is_off(response: str) -> bool:
     return any(text and " ".join(str(text).split()).casefold() in folded for text in declines)
 
 
+def is_web_unavailable_decline(response: str) -> bool:
+    """Whether a reply is exactly one of the runtime's own web-unavailable declines (core.remote_fetch_policy), and
+    nothing else: a model's answer that only quotes one of them still goes through every check."""
+    try:
+        from core import remote_fetch_policy as policy
+
+        declines = {
+            " ".join(str(getattr(policy, name, "") or "").split()).casefold() for name in (
+                "WEB_OFF_LOOKUP_TEXT", "OFFLINE_LOOKUP_TEXT", "MACHINE_OFFLINE_LOOKUP_TEXT", "WEB_FORCED_OFF_LOOKUP_TEXT",
+                "WEB_OFF_TEXT", "OFFLINE_TEXT", "MACHINE_OFFLINE_TEXT", "WEB_FORCED_OFF_TEXT", "LOCAL_ONLY_EGRESS_DENIAL",
+            )
+        }
+    except Exception:
+        return False
+    folded = " ".join(str(response or "").split()).casefold()
+    return bool(folded) and folded in declines
+
+
 def response_describes_unfetched_url(*, user_input: str, response: str, fetch_attempts: int) -> bool:
     """Whether the model answered ABOUT a URL it never fetched. If a URL is named with a
     review/check/score intent and no web fetch happened this turn, any substantive answer is a
