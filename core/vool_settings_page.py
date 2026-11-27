@@ -5670,7 +5670,7 @@ function widgetPhoneAccess(host) {
       expiry.disabled=box.disabled;expiryInputs[name]=expiry;const expiryLabel=el('label','phone-expiry',T('phone.right_expiry','Expires'));expiryLabel.appendChild(expiry);rightsGrid.appendChild(expiryLabel);
     });
     /* Files for a chat app: off until the owner turns it on and names the folders; never the whole computer. */
-    let botFolders=null;
+    let botFolders=null, botAll=null;
     if(isBot){
       const filesBox=el('div','chat-app-files'); holder.appendChild(filesBox);
       const line=el('label','phone-right'); const box=el('input'); box.type='checkbox'; box.dataset.right='computer_tools';
@@ -5682,9 +5682,15 @@ function widgetPhoneAccess(host) {
       botFolders=el('textarea','inp'); botFolders.rows=3; botFolders.placeholder='~/Downloads';
       const scope=device.file_scope || {}; botFolders.value=(scope.mode==='folders'?(scope.folders || []):[]).join('\n');
       botFolders.setAttribute('aria-label',T('phone.setup.folders','Folders, one per line'));
+      /* "All folders": the owner's choice past a plain warning; still files only, never the system's own folders. */
+      const allLine=el('label','phone-right'); botAll=el('input'); botAll.type='checkbox'; botAll.className='chat-app-all-folders'; botAll.checked=scope.mode==='all';
+      allLine.append(botAll,document.createTextNode(' '+T('phone.bot_files_all','All my folders'))); more.appendChild(allLine);
+      const allWarning=el('p','help chat-app-all-warning',T('phone.bot_files_all_warning','All my folders: VOOL can find, read and send any file in your home folder from {app}, and so can anyone who gets into your {app} account. A file sent here is kept by {app}. The system’s own folders and your home Library (keychains, mail, app settings) stay closed, and apps, commands and accounts stay on this computer. What VOOL can open also depends on this computer: on a Mac, folders like Documents and Downloads open only after you allow VOOL in System Settings, under Privacy & Security, Files and Folders; on Linux, only what your user account can read. Choose folders instead unless you need all of them.').split('{app}').join(appName));
+      allWarning.setAttribute('role','note'); more.appendChild(allWarning);
       const folderLine=el('label','phone-expiry',T('phone.setup.folders','Folders, one per line')); folderLine.appendChild(botFolders); more.appendChild(folderLine);
       const quick=el('div','phone-actions'); ['~/Downloads','~/Pictures','~/Documents','~/Desktop'].forEach(path=>{const add=el('button','btn',path);add.type='button';add.onclick=()=>{const list=botFolders.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!list.includes(path))list.push(path);botFolders.value=list.join('\n');row.dispatchEvent(new Event('change'));};quick.appendChild(add);});
       more.appendChild(quick);
+      const syncAll=()=>{allWarning.hidden=!botAll.checked;folderLine.hidden=quick.hidden=botAll.checked;}; botAll.addEventListener('change',syncAll); syncAll();
       const waiting=(phonePrepared[device.device_id] || {}).folders;
       if(waiting){const blocked=waiting.filter(f=>f.state!=='ready');if(blocked.length){more.appendChild(el('p','help',T('phone.bot_files_not_ready','These folders are not open to VOOL yet. On a Mac, allow VOOL in System Settings, under Privacy & Security, Files and Folders, then press Save permissions again:')));blocked.forEach(f=>more.appendChild(el('p','help',f.folder)));}}
       const syncFiles=()=>{more.hidden=!box.checked;}; box.addEventListener('change',syncFiles); syncFiles();
@@ -5725,7 +5731,8 @@ function widgetPhoneAccess(host) {
       const body={operation:'device_rules',device_id:device.device_id,rules,expected_permission_revision:device.permission_revision || 0};
       const changedExpiry={};Object.entries(expiryInputs).forEach(([name,input])=>{if(input.value!==input.dataset.initial)changedExpiry[name]=input.value?new Date(input.value).getTime()/1000:0;});
       if(Object.keys(changedExpiry).length)body.right_expiry=changedExpiry;
-      if (isBot && rules.computer_tools) {
+      if (isBot && rules.computer_tools && botAll.checked) body.file_scope={mode:'all'};
+      else if (isBot && rules.computer_tools) {
         const list=botFolders.value.split('\n').map(v=>v.trim()).filter(Boolean);
         if(!list.length){saved.className='chat-app-saved failed';saved.textContent=T('phone.setup.need_folder','Add at least one folder.');return;}
         body.file_scope={mode:'folders',folders:list};

@@ -5445,6 +5445,8 @@
     "phone.bot_discord_say_hi_help": "O Discord abre o VOOL. Toque em Mensagem, envie oi e volte. Esta página muda sozinha para Conectado.",
     "phone.bot_files": "Arquivos nas pastas escolhidas",
     "phone.bot_files_help": "O VOOL pode encontrar arquivos nessas pastas e enviá-los a você nesta conversa. Um arquivo enviado aqui fica guardado no {app}. Nada mais neste computador fica acessível. Ligado por 30 dias de cada vez.",
+    "phone.bot_files_all": "Todas as minhas pastas",
+    "phone.bot_files_all_warning": "Todas as minhas pastas: o VOOL pode encontrar, ler e enviar qualquer ficheiro da sua pasta pessoal a partir do {app}, e qualquer pessoa que entre na sua conta {app} também. Um ficheiro enviado aqui fica guardado pelo {app}. As pastas do sistema e a sua Biblioteca (porta-chaves, e-mail, definições das apps) continuam fechadas, e as apps, os comandos e as contas ficam neste computador. O que o VOOL consegue abrir também depende deste computador: num Mac, pastas como Documentos e Transferências só abrem depois de permitir o VOOL nas Definições do Sistema, em Privacidade e segurança, Ficheiros e pastas; no Linux, só o que a sua conta de utilizador consegue ler. Escolha pastas, a menos que precise de todas.",
     "phone.bot_files_not_ready": "Essas pastas ainda não estão abertas ao VOOL. No Mac, permita o VOOL em Ajustes do Sistema, em Privacidade e Segurança, Arquivos e Pastas, e depois toque de novo em Guardar permissões:",
     "phone.bot_everyday": "Lembretes, calendário, notas e contatos",
     "phone.bot_everyday_help": "O VOOL pode ler e alterar seus lembretes, calendário, notas e contatos pelo {app}. Apagar contatos, apps, comandos, e-mail e dinheiro ficam no seu computador. Ligado por 30 dias de cada vez.",
@@ -5640,7 +5642,7 @@
     "header.run_local_loaded": "em execução agora",
     "header.run_local_last_reply": "escreveu a última resposta"
   },
-  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
+  "source_catalog_sha256": "eed8cfa36c87bda0c1d4f6e6b2edbb1a864e0e732721a9406761de76c32f0e4f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

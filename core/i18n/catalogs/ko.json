@@ -5445,6 +5445,8 @@
     "phone.bot_discord_say_hi_help": "디스코드에서 VOOL이 열립니다. 메시지를 눌러 인사를 보낸 뒤 돌아오세요. 이 페이지는 저절로 연결됨으로 바뀝니다.",
     "phone.bot_files": "선택한 폴더의 파일",
     "phone.bot_files_help": "VOOL은 이 폴더에서 파일을 찾아 이 채팅으로 보내 드릴 수 있습니다. 여기로 보낸 파일은 {app}에 보관됩니다. 이 컴퓨터의 다른 것에는 닿을 수 없습니다. 한 번에 30일 동안 켜집니다.",
+    "phone.bot_files_all": "내 모든 폴더",
+    "phone.bot_files_all_warning": "내 모든 폴더: VOOL은 {app}에서 홈 폴더의 어떤 파일이든 찾고 읽고 보낼 수 있으며, {app} 계정에 들어오는 사람도 마찬가지입니다. 여기로 보낸 파일은 {app}에 보관됩니다. 시스템 폴더와 홈 Library(키체인, 메일, 앱 설정)는 닫힌 채로 유지되고, 앱, 명령, 계정은 이 컴퓨터에만 남습니다. VOOL이 열 수 있는 것은 이 컴퓨터에 따라서도 다릅니다. Mac에서는 문서, 다운로드 같은 폴더는 시스템 설정의 개인정보 보호 및 보안 > 파일 및 폴더에서 VOOL을 허용해야 열립니다. Linux에서는 사용자 계정이 읽을 수 있는 것만 열립니다. 모두 필요하지 않다면 폴더를 선택하세요.",
     "phone.bot_files_not_ready": "이 폴더는 아직 VOOL에 열려 있지 않습니다. Mac에서는 시스템 설정의 개인정보 보호 및 보안, 파일 및 폴더에서 VOOL을 허용한 다음 권한 저장을 다시 누르세요:",
     "phone.bot_everyday": "미리 알림, 캘린더, 메모, 연락처",
     "phone.bot_everyday_help": "VOOL은 {app}에서 미리 알림, 캘린더, 메모, 연락처를 읽고 변경할 수 있습니다. 연락처 삭제, 앱, 명령, 이메일, 돈은 컴퓨터에 남습니다. 한 번에 30일 동안 켜집니다.",
@@ -5640,7 +5642,7 @@
     "header.run_local_loaded": "지금 실행 중",
     "header.run_local_last_reply": "마지막 답변을 작성함"
   },
-  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
+  "source_catalog_sha256": "eed8cfa36c87bda0c1d4f6e6b2edbb1a864e0e732721a9406761de76c32f0e4f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

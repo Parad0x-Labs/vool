@@ -29,6 +29,7 @@ def _desktop_clock_clear_of_the_small_hours(monkeypatch):
     # Etc/GMT names count the other way round: Etc/GMT-3 is three hours ahead of UTC.
     monkeypatch.setenv("TZ", "Etc/UTC" if offset == 0 else f"Etc/GMT{-offset:+d}")
 
+WORKING = 'Your computer is working on it\u2026'
 CHORES = ("water the plants", "call the dentist", "pay the gas bill", "take the bins out", "book the car service")
 REMIND = ("remind me tomorrow at {h}am to {c}", "set a reminder for {h}am tomorrow: {c}", "tomorrow {h}am remind me to {c}")
 LIST = ("what reminders do I have?", "show my reminders", "which reminders are pending?")
@@ -54,7 +55,11 @@ def ask(host, platform, text, timeout=90):
         with host.lock:
             if len(host.outgoing) > before:
                 row = host.outgoing[before]
-                return str(row.get('text') or row.get('content') or '')
+                said = str((row or {}).get('text') or (row or {}).get('content') or '')
+                # The first message is the working note; the answer is that same message, edited.
+                if said and said != WORKING:
+                    return said
+                assert row is not None, 'The working note was removed and no answer took its place.'
         time.sleep(0.1)
     raise AssertionError('No answer arrived for: ' + text)
 
@@ -110,3 +115,56 @@ def test_reminders_need_the_owners_switch_and_then_say_what_was_set(bots, platfo
     for right in ('tool_approval', 'payment_approve', 'paid_services'):
         status, _ = http(base, '/api/mobile/settings', {'operation': 'device_rules', 'device_id': 'bot:' + platform, 'rules': {right: True}})
         assert status == 400, right
+
+
+GREET = ("hi there, are you awake?", "hello! what can you do for me?", "good morning, quick question: what day is it?",
+         "hey, how is it going?", "yo, tell me a fun fact")
+
+
+@pytest.mark.parametrize('platform', ['telegram', 'discord'])
+def test_the_working_note_turns_into_the_answer(bots, platform):
+    """One message per ask: "working on it" at once, then that same message edited into the answer.
+
+    sls 2026-11-27: "I say hello, right then it shows something like VOOL working, when the answer comes it
+    replaces that working message with the answer". A note the service will not edit is removed and the answer
+    sent new, so no note is ever left claiming work."""
+    desktop, hosts = bots
+    host, base = hosts[platform], desktop[0]
+    pair(base, host, platform)
+
+    with host.lock:
+        before, edits = len(host.outgoing), len(host.edits)
+    said = ask(host, platform, random.choice(GREET))
+    with host.lock:
+        rows, edited = list(host.outgoing[before:]), list(host.edits[edits:])
+    assert said != WORKING and len(rows) == 1 and rows[0].get('edited'), rows
+    assert [kind for kind, _ in edited] == (['editMessageText'] if platform == 'telegram' else ['PATCH']), edited
+    if platform == 'telegram':
+        assert rows[0]['link_preview_options'] == {'is_disabled': True}
+    else:
+        assert int(rows[0]['flags']) & (1 << 2) and rows[0]['allowed_mentions'] == {'parse': []}
+
+    # The person deleted the note, or the app will not edit it: the answer arrives as its own message.
+    host.edit_refused = True
+    with host.lock:
+        before = len(host.outgoing)
+    host.add(platform, random.choice(GREET))
+    wait_for(lambda: len([r for r in host.outgoing[before:] if r and (r.get('text') or r.get('content'))]) >= 1
+             and host.outgoing[before] is None, timeout=90)
+    with host.lock:
+        rows = list(host.outgoing[before:])
+    assert rows[0] is None and len(rows) == 2 and str(rows[1].get('text') or rows[1].get('content')) != WORKING, rows
+
+    if platform == 'telegram':
+        # Telegram's Start button pressed again once paired opens the chat; it is no command for a turn.
+        host.edit_refused = False
+        turns = sum(r['kind'] == 'bot.turn_finished' for r in receipts(base))
+        with host.lock:
+            before = len(host.outgoing)
+        host.add(platform, '/start')
+        wait_for(lambda: len(host.outgoing) > before)
+        time.sleep(1)
+        with host.lock:
+            rows = list(host.outgoing[before:])
+        assert len(rows) == 1 and rows[0]['text'].startswith('Paired.'), rows
+        assert sum(r['kind'] == 'bot.turn_finished' for r in receipts(base)) == turns

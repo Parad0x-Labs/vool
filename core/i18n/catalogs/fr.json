@@ -5445,6 +5445,8 @@
     "phone.bot_discord_say_hi_help": "Discord ouvre VOOL. Appuyez sur Message, envoyez bonjour, puis revenez. Cette page passe d’elle-même à Connecté.",
     "phone.bot_files": "Fichiers des dossiers choisis",
     "phone.bot_files_help": "VOOL peut trouver des fichiers dans ces dossiers et vous les envoyer dans cette discussion. {app} conserve les fichiers envoyés ici. Rien d’autre sur cet ordinateur n’est accessible. Activé 30 jours à la fois.",
+    "phone.bot_files_all": "Tous mes dossiers",
+    "phone.bot_files_all_warning": "Tous mes dossiers : VOOL peut trouver, lire et envoyer n’importe quel fichier de votre dossier personnel depuis {app}, et toute personne qui accède à votre compte {app} aussi. Un fichier envoyé ici est conservé par {app}. Les dossiers du système et votre Bibliothèque (trousseaux, mail, réglages des apps) restent fermés, et les apps, commandes et comptes restent sur cet ordinateur. Ce que VOOL peut ouvrir dépend aussi de cet ordinateur : sur un Mac, des dossiers comme Documents et Téléchargements ne s’ouvrent qu’après avoir autorisé VOOL dans Réglages Système, Confidentialité et sécurité, Fichiers et dossiers ; sous Linux, seulement ce que votre compte utilisateur peut lire. Choisissez plutôt des dossiers, sauf si vous avez besoin de tous.",
     "phone.bot_files_not_ready": "Ces dossiers ne sont pas encore ouverts à VOOL. Sur un Mac, autorisez VOOL dans Réglages Système, sous Confidentialité et sécurité, Fichiers et dossiers, puis appuyez de nouveau sur Enregistrer les autorisations :",
     "phone.bot_everyday": "Rappels, calendrier, notes et contacts",
     "phone.bot_everyday_help": "VOOL peut lire et modifier vos rappels, votre calendrier, vos notes et vos contacts depuis {app}. Supprimer des contacts, les apps, les commandes, l’e-mail et l’argent restent sur votre ordinateur. Activé 30 jours à la fois.",
@@ -5640,7 +5642,7 @@
     "header.run_local_loaded": "en cours d’exécution",
     "header.run_local_last_reply": "a écrit la dernière réponse"
   },
-  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
+  "source_catalog_sha256": "eed8cfa36c87bda0c1d4f6e6b2edbb1a864e0e732721a9406761de76c32f0e4f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5445,6 +5445,8 @@
     "phone.bot_discord_say_hi_help": "Discord 会打开 VOOL。点击“发消息”，发一句你好，然后回到这里。此页面会自动变为已连接。",
     "phone.bot_files": "所选文件夹中的文件",
     "phone.bot_files_help": "VOOL 可以在这些文件夹中查找文件，并在此聊天中发给你。发到这里的文件会由 {app} 保存。这台电脑上的其他内容都无法访问。每次开启 30 天。",
+    "phone.bot_files_all": "我的所有文件夹",
+    "phone.bot_files_all_warning": "我的所有文件夹：VOOL 可以从 {app} 查找、读取并发送你个人文件夹中的任何文件，任何进入你 {app} 账户的人也可以。发送到这里的文件由 {app} 保存。系统自己的文件夹和你的 Library（钥匙串、邮件、应用设置）保持关闭，应用、命令和账户留在这台电脑上。VOOL 能打开什么也取决于这台电脑：在 Mac 上，文稿和下载等文件夹只有在你于“系统设置”的“隐私与安全性”→“文件和文件夹”中允许 VOOL 后才能打开；在 Linux 上，只有你的用户账户能读取的内容。除非你需要全部，否则请选择文件夹。",
     "phone.bot_files_not_ready": "这些文件夹还没有向 VOOL 开放。在 Mac 上，请在系统设置的“隐私与安全性”>“文件和文件夹”中允许 VOOL，然后再次点按“保存权限”：",
     "phone.bot_everyday": "提醒事项、日历、备忘录和联系人",
     "phone.bot_everyday_help": "VOOL 可以从 {app} 读取和更改你的提醒事项、日历、备忘录和联系人。删除联系人、应用、命令、电子邮件和资金仍留在你的电脑上。每次开启 30 天。",
@@ -5640,7 +5642,7 @@
     "header.run_local_loaded": "正在运行",
     "header.run_local_last_reply": "写了上一条回复"
   },
-  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
+  "source_catalog_sha256": "eed8cfa36c87bda0c1d4f6e6b2edbb1a864e0e732721a9406761de76c32f0e4f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

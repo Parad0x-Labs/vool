@@ -5445,6 +5445,8 @@
     "phone.bot_discord_say_hi_help": "Discord で VOOL が開きます。メッセージを押して挨拶を送り、ここに戻ってください。このページは自動で接続済みに変わります。",
     "phone.bot_files": "選んだフォルダーのファイル",
     "phone.bot_files_help": "VOOL はこれらのフォルダーでファイルを探し、このチャットに送れます。ここに送られたファイルは {app} に保存されます。このコンピューターのそれ以外には届きません。一度に 30 日間オンになります。",
+    "phone.bot_files_all": "すべてのフォルダ",
+    "phone.bot_files_all_warning": "すべてのフォルダ：VOOL は {app} からホームフォルダ内のどのファイルでも検索・読み取り・送信できます。{app} アカウントに入れる人も同じことができます。ここに送ったファイルは {app} に保存されます。システムのフォルダとホームの Library（キーチェーン、メール、アプリの設定）は閉じたままで、アプリ、コマンド、アカウントはこのコンピュータに残ります。VOOL が開けるものはこのコンピュータにもよります。Mac では、書類、ダウンロードなどのフォルダは、システム設定の「プライバシーとセキュリティ」→「ファイルとフォルダ」で VOOL を許可してから開けます。Linux では、あなたのユーザーアカウントが読めるものだけです。すべてが必要でなければ、フォルダを選んでください。",
     "phone.bot_files_not_ready": "これらのフォルダーはまだ VOOL に開かれていません。Mac では、システム設定のプライバシーとセキュリティ、ファイルとフォルダーで VOOL を許可してから、もう一度「権限を保存」を押してください:",
     "phone.bot_everyday": "リマインダー、カレンダー、メモ、連絡先",
     "phone.bot_everyday_help": "VOOL は {app} からリマインダー、カレンダー、メモ、連絡先を読み取り、変更できます。連絡先の削除、アプリ、コマンド、メール、お金はこのコンピューターに残ります。30 日ごとに有効です。",
@@ -5640,7 +5642,7 @@
     "header.run_local_loaded": "実行中",
     "header.run_local_last_reply": "前回の返信を書いたモデル"
   },
-  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
+  "source_catalog_sha256": "eed8cfa36c87bda0c1d4f6e6b2edbb1a864e0e732721a9406761de76c32f0e4f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

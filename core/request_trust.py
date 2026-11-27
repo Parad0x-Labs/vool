@@ -393,6 +393,10 @@ PHONE_SYSTEM_AREA_TEXT = (
     "Your phone can't open the system's own folders or your home Library, where keychains, mail and "
     "app settings live. Everything else you allowed stays open to it."
 )
+CHAT_APP_SYSTEM_AREA_TEXT = (
+    "This chat app can't open the system's own folders or your home Library, where keychains, mail "
+    "and app settings live. Your other folders stay open to it."
+)
 PHONE_NO_FOLDERS_TEXT = (
     "This phone has no folders to use yet. Choose folders for it in VOOL Settings on your computer."
 )
@@ -530,6 +534,12 @@ def remote_turn_chat_app(source_context: Any) -> dict[str, Any] | None:
         return None
 
 
+def _chat_app_all_folders(device: dict[str, Any]) -> bool:
+    """Whether the owner gave this chat app all folders (still files only, never the system's own)."""
+    scope = device.get("file_scope")
+    return isinstance(scope, dict) and scope.get("mode") == "all" and set(scope) == {"mode"}
+
+
 def _chat_app_folders(device: dict[str, Any]) -> tuple[str, ...]:
     scope = device.get("file_scope")
     if not isinstance(scope, dict) or scope.get("mode") != "folders":
@@ -551,7 +561,7 @@ def remote_turn_has_grant(source_context: Any, grant: str) -> bool:
     device = remote_turn_device(source_context)
     if device is None:
         bot = remote_turn_chat_app(source_context) if grant == REMOTE_GRANT_COMPUTER else None
-        if bot is None or not _chat_app_folders(bot):
+        if bot is None or not (_chat_app_folders(bot) or _chat_app_all_folders(bot)):
             return False
         device = bot
     try:
@@ -572,6 +582,8 @@ def remote_turn_folders(source_context: Any) -> tuple[str, ...] | None:
     device = remote_turn_device(source_context)
     if device is None:
         bot = remote_turn_chat_app(source_context)
+        if bot is not None and _chat_app_all_folders(bot):
+            return None
         return _chat_app_folders(bot) if bot is not None else ()
     scope = device.get("file_scope")
     if scope is None:
@@ -714,13 +726,23 @@ def remote_grant_refusal_text(source_context: Any, grant: str, *, intent: str = 
         clean = str(intent or "").strip()
         if clean in CHAT_APP_EVERYDAY_TOOLS:
             return CHAT_APP_EVERYDAY_TEXT
-        if remote_turn_has_grant(source_context, grant) and clean and _outside_folder_tools(clean, source_context):
-            return CHAT_APP_FOLDERS_ONLY_TEXT.format(folders=", ".join(remote_turn_folders(source_context) or ()))
         if grant == REMOTE_GRANT_COMPUTER and clean and not clean.startswith(_CHAT_APP_FILE_TOOL_PREFIXES):
             # Only file tools can ever open for a chat app; the files switch would not open this one.
+            # Asked before the folders: "how many unread emails?" from a chat app with folders on was
+            # told to change its folders (Telegram, 2026-11-27), which no folder choice would answer.
             return CHAT_APP_COMPUTER_ONLY_TEXT
+        if remote_turn_has_grant(source_context, grant) and clean and _outside_folder_tools(clean, source_context):
+            return CHAT_APP_FOLDERS_ONLY_TEXT.format(folders=", ".join(remote_turn_folders(source_context) or ()))
         return CHAT_APP_COMPUTER_TEXT if grant == REMOTE_GRANT_COMPUTER else REMOTE_TURN_REFUSAL_TEXT
     return REMOTE_GRANT_REFUSAL_TEXT[grant]
+
+
+def system_area_text(source_context: Any = None) -> str:
+    """What the phone (or chat app) reads when a tool would reach the system's own folders."""
+
+    if source_context is not None and remote_turn_chat_app(source_context) is not None:
+        return CHAT_APP_SYSTEM_AREA_TEXT
+    return PHONE_SYSTEM_AREA_TEXT
 
 
 def phone_folders_text(folders: tuple[str, ...], source_context: Any = None) -> str:
@@ -760,6 +782,11 @@ def remote_turn_tool_refusal(intent: str, source_context: Any) -> str:
     if grant in REMOTE_GRANT_REFUSAL_TEXT and remote_turn_has_grant(source_context, grant):
         if grant == REMOTE_GRANT_COMPUTER and _outside_folder_tools(intent, source_context):
             return PHONE_FOLDERS_ONLY
+        if (grant == REMOTE_GRANT_COMPUTER and remote_turn_chat_app(source_context) is not None
+                and str(intent or "").strip() not in PHONE_FOLDER_TOOLS):
+            # A chat app's files right opens file tools only, whatever folders it holds ("All" too):
+            # apps, commands and accounts stay on the computer.
+            return "owner_local_required"
         return ""
     return "owner_local_required"
 
@@ -920,6 +947,7 @@ __all__ = [
     "seal_remote_grant_refusal",
     "stamp_remote_device",
     "strip_reserved_trust_keys",
+    "system_area_text",
     "trusted_remote_device",
     "trusted_remote_device_active",
     "turn_author_from_request",

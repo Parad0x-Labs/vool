@@ -4426,9 +4426,9 @@ def phone_folder_refusal(intent: str, arguments: dict[str, Any], *, source_conte
     from core.mobile_companion.policy import system_area
     from core.request_trust import (
         PHONE_PATH_TOOLS,
-        PHONE_SYSTEM_AREA_TEXT,
         phone_folders_text,
         remote_turn_folders,
+        system_area_text,
         turn_is_remote,
     )
 
@@ -4441,7 +4441,7 @@ def phone_folder_refusal(intent: str, arguments: dict[str, Any], *, source_conte
         return ""
     args = arguments if isinstance(arguments, dict) else {}
     folders = remote_turn_folders(source_context)
-    refused = PHONE_SYSTEM_AREA_TEXT if folders is None else phone_folders_text(folders, source_context)
+    refused = system_area_text(source_context) if folders is None else phone_folders_text(folders, source_context)
     pattern = str(args.get("glob") or "")
     if ".." in Path(pattern).parts or pattern.startswith(("/", "~")):
         return refused
@@ -4456,7 +4456,7 @@ def phone_folder_refusal(intent: str, arguments: dict[str, Any], *, source_conte
     if _protected_refusal(target, write=False):
         return refused
     if system_area(target) and not (folders is None and _in_workspace(target, source_context)):
-        return PHONE_SYSTEM_AREA_TEXT
+        return system_area_text(source_context)
     if folders is None:
         return ""
     for folder in folders:

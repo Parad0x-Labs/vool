@@ -5445,6 +5445,8 @@
     "phone.bot_discord_say_hi_help": "Discord atidarys VOOL. Spauskite Žinutė, parašykite labas ir grįžkite. Šis puslapis pats pasikeis į Prijungta.",
     "phone.bot_files": "Failai pasirinktuose aplankuose",
     "phone.bot_files_help": "VOOL gali rasti failus šiuose aplankuose ir atsiųsti juos jums į šį pokalbį. Čia atsiųstus failus saugo {app}. Niekas kitas šiame kompiuteryje nepasiekiama. Įjungta 30 dienų vienu kartu.",
+    "phone.bot_files_all": "Visi mano aplankai",
+    "phone.bot_files_all_warning": "Visi mano aplankai: VOOL iš {app} gali rasti, skaityti ir atsiųsti bet kurį failą jūsų namų aplanke, ir tą patį gali bet kas, patekęs į jūsų {app} paskyrą. Čia atsiųstus failus saugo {app}. Sistemos aplankai ir jūsų namų Library (raktinės, paštas, programų nustatymai) lieka uždaryti, o programos, komandos ir paskyros lieka šiame kompiuteryje. Ką VOOL gali atidaryti, priklauso ir nuo šio kompiuterio: Mac kompiuteryje tokie aplankai kaip Documents ir Downloads atsidaro tik leidus VOOL System Settings, skiltyje Privacy & Security, Files and Folders; Linux sistemoje – tik tai, ką gali skaityti jūsų naudotojo paskyra. Geriau pasirinkite aplankus, nebent jums reikia visų.",
     "phone.bot_files_not_ready": "Šie aplankai VOOL dar neatverti. „Mac“ kompiuteryje leiskite VOOL sistemos nustatymuose, skiltyje Privatumas ir sauga, Failai ir aplankai, tada dar kartą paspauskite Išsaugoti leidimus:",
     "phone.bot_everyday": "Priminimai, kalendorius, užrašai ir kontaktai",
     "phone.bot_everyday_help": "VOOL gali skaityti ir keisti jūsų priminimus, kalendorių, užrašus ir kontaktus iš {app}. Kontaktų trynimas, programos, komandos, el. paštas ir pinigai lieka jūsų kompiuteryje. Įjungiama 30 dienų.",
@@ -5640,7 +5642,7 @@
     "header.run_local_loaded": "veikia dabar",
     "header.run_local_last_reply": "parašė paskutinį atsakymą"
   },
-  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
+  "source_catalog_sha256": "eed8cfa36c87bda0c1d4f6e6b2edbb1a864e0e732721a9406761de76c32f0e4f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -586,8 +586,8 @@ def prepare_phone_folders(device: dict[str, Any]) -> list[dict[str, str]]:
     scope = device.get("file_scope") or {}
     if not (device.get("rules") or {}).get("computer_tools"):
         return []
-    if device.get("kind") == "bot" and scope.get("mode") != "folders":
-        return []  # a chat app never has the whole computer
+    if device.get("kind") == "bot" and scope.get("mode") not in {"folders", "all"}:
+        return []  # a chat app has files only once the owner chose folders, or all of them
     paths = list(scope.get("folders") or []) if scope.get("mode") == "folders" else [str(p) for p in _safe_machine_roots()]
     report = []
     deadline = time.monotonic() + 60.0

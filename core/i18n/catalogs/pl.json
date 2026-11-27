@@ -5445,6 +5445,8 @@
     "phone.bot_discord_say_hi_help": "Discord otworzy VOOL. Naciśnij Wiadomość, wyślij cześć i wróć. Ta strona sama zmieni się na Połączono.",
     "phone.bot_files": "Pliki w wybranych folderach",
     "phone.bot_files_help": "VOOL może znaleźć pliki w tych folderach i wysłać je do Ciebie na tym czacie. Plik wysłany tutaj przechowuje {app}. Nic innego na tym komputerze nie jest dostępne. Włączone na 30 dni naraz.",
+    "phone.bot_files_all": "Wszystkie moje foldery",
+    "phone.bot_files_all_warning": "Wszystkie moje foldery: VOOL może z {app} znaleźć, przeczytać i wysłać każdy plik z Twojego folderu domowego, i może to też każdy, kto dostanie się na Twoje konto {app}. Plik wysłany tutaj przechowuje {app}. Foldery systemowe i Twoja Biblioteka (pęki kluczy, poczta, ustawienia aplikacji) pozostają zamknięte, a aplikacje, polecenia i konta zostają na tym komputerze. To, co VOOL może otworzyć, zależy też od tego komputera: na Macu foldery takie jak Dokumenty i Pobrane otwierają się dopiero po zezwoleniu VOOL w Ustawieniach systemowych, w Prywatność i ochrona, Pliki i foldery; w Linuksie tylko to, co może odczytać Twoje konto użytkownika. Lepiej wybierz foldery, chyba że potrzebujesz wszystkich.",
     "phone.bot_files_not_ready": "Te foldery nie są jeszcze otwarte dla VOOL. Na Macu zezwól VOOL w Ustawieniach systemowych, w sekcji Prywatność i ochrona, Pliki i foldery, a potem ponownie naciśnij Zapisz uprawnienia:",
     "phone.bot_everyday": "Przypomnienia, kalendarz, notatki i kontakty",
     "phone.bot_everyday_help": "VOOL może odczytywać i zmieniać Twoje przypomnienia, kalendarz, notatki i kontakty z {app}. Usuwanie kontaktów, aplikacje, polecenia, e-mail i pieniądze zostają na Twoim komputerze. Włączone na 30 dni.",
@@ -5640,7 +5642,7 @@
     "header.run_local_loaded": "działa teraz",
     "header.run_local_last_reply": "napisał ostatnią odpowiedź"
   },
-  "source_catalog_sha256": "2b79348b9afcc516dc2485218adb7c97bc4de6844ae0b16aaac4a08b37ef6f1b",
+  "source_catalog_sha256": "eed8cfa36c87bda0c1d4f6e6b2edbb1a864e0e732721a9406761de76c32f0e4f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

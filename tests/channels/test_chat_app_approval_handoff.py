@@ -26,7 +26,9 @@ def worker(tmp_path, monkeypatch):
         "binding": {"state": "bound", "channel_id": "444", "user_id": "111"}, "last_update": 0,
     })
     sent, calls = [], []
-    monkeypatch.setattr(bot_runtime.ManagedBot, "send", lambda self, channel, text, right="chat": sent.append((channel, text)))
+    monkeypatch.setattr(bot_runtime.ManagedBot, "send", lambda self, channel, text, right="chat", replace="": sent.append((channel, text)))
+    # No chat service here: the working note is posted nowhere (the served tests cover it).
+    monkeypatch.setattr(bot_runtime.ManagedBot, "working_note", lambda self, channel, locale="en": "")
     monkeypatch.setattr(bot_runtime.ManagedBot, "deliver_files", lambda self, channel: None)
     monkeypatch.setattr(bot_runtime, "turn_notes", lambda platform, result, locale="en": [])
 

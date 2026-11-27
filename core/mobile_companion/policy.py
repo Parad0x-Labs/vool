@@ -257,11 +257,12 @@ def update(service, body):
     if "file_scope" in body:
         extra["file_scope"] = _file_scope(body["file_scope"])
     if current.get("kind") == "bot":
-        # A chat app reaches files only in folders the owner chose, never the whole computer.
+        # A chat app reaches files only in folders the owner chose, or in all of them once the owner
+        # picked "All folders" past its warning (sls 2026-11-27). Either way it stays files only: no
+        # apps, commands or accounts (core.request_trust.remote_turn_tool_refusal), and never the
+        # system's own folders or the home Library (core.runtime_execution_tools.phone_folder_refusal).
         scope = extra.get("file_scope", current.get("file_scope"))
-        if isinstance(scope, dict) and scope.get("mode") == "all":
-            raise ValueError("A chat app can only use folders you choose.")
-        if rules.get("computer_tools") and not (isinstance(scope, dict) and scope.get("mode") == "folders"):
+        if rules.get("computer_tools") and not (isinstance(scope, dict) and scope.get("mode") in {"folders", "all"}):
             raise ValueError("Choose at least one folder for this chat app.")
     if "cloud_monthly_usd" in body:
         extra["cloud_monthly_usd"] = _cloud_monthly(body["cloud_monthly_usd"])

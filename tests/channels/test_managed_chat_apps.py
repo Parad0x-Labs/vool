@@ -18,12 +18,14 @@ class FakeChatHost:
         # Connect-time identity reads that hang past VOOL's wait once each (a slow moment on the service).
         self.stall_identity=0
         # Discord: the bot can write to its owner only once they share a server (the invite).
-        self.invited=False;self.dm_closed=False;self.owner_id='111';self.posts=[];self.owner_mode=False;self.no_owner=False;self.uploads=[]
+        self.invited=False;self.dm_closed=False;self.edits=[];self.edit_refused=False;self.owner_id='111';self.posts=[];self.owner_mode=False;self.no_owner=False;self.uploads=[]
         parent=self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*_):pass
             def do_GET(self):self.dispatch()
             def do_POST(self):self.dispatch()
+            def do_PATCH(self):self.dispatch()
+            def do_DELETE(self):self.dispatch()
             def dispatch(self):
                 body=self.rfile.read(int(self.headers.get('Content-Length') or 0))
                 path=urlsplit(self.path).path
@@ -65,6 +67,22 @@ class FakeChatHost:
                     elif path.endswith('/getUpdates') and parent.poll_unavailable:result=[]
                     elif path.endswith('/getUpdates'):
                         result={'ok':True,'result':[x for x in parent.incoming if x.get('update_id',0)>=data.get('offset',0)]}
+                    elif path.endswith('/editMessageText') or path.endswith('/deleteMessage'):
+                        # The working note turns into the answer: the same message, edited (or removed).
+                        at=int(data.get('message_id') or 0)-1
+                        if not 0<=at<len(parent.outgoing) or parent.outgoing[at] is None or (parent.edit_refused and path.endswith('/editMessageText')):
+                            raw=b'{"ok":false}';self.send_response(400);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+                        parent.edits.append((path.rsplit('/',1)[-1],at))
+                        parent.outgoing[at]=None if path.endswith('/deleteMessage') else {**data,'edited':True}
+                        result={'ok':True,'result':True}
+                    elif path.startswith('/channels/444/messages/') and self.command in ('PATCH','DELETE'):
+                        at=int(path.rsplit('/',1)[-1])-1001
+                        if not 0<=at<len(parent.outgoing) or parent.outgoing[at] is None or (parent.edit_refused and self.command=='PATCH'):
+                            raw=b'{"code":10008}';self.send_response(404);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+                        parent.edits.append((self.command,at))
+                        if self.command=='DELETE':
+                            parent.outgoing[at]=None;self.send_response(204);self.end_headers();return
+                        parent.outgoing[at]={**data,'edited':True};result={'id':str(at+1001)}
                     elif path.endswith('/sendMessage'):
                         if data.get('chat_id')=='@vool_news':parent.posts.append(('@vool_news',data))
                         else:parent.outgoing.append(data)
@@ -228,6 +246,17 @@ def test_settings_connect_and_rules_in_chromium(bots,tmp_path):
             expect(row.locator('.chat-app-saved.failed')).to_contain_text('wallet')
             assert not record(base,'telegram')['rules'].get('payment_propose')
             page.get_by_role('button',name='Refresh permissions',exact=True).click()
+            # "All my folders": its warning shows only once ticked, the folder list steps aside, and Save keeps "all".
+            row=page.locator('[data-device="bot:telegram"]');row.locator('[data-right="computer_tools"]').check()
+            warning=row.locator('.chat-app-all-warning');assert not warning.is_visible()
+            row.locator('.chat-app-all-folders').check()
+            expect(warning).to_be_visible();expect(warning).to_contain_text('anyone who gets into your Telegram account')
+            expect(warning).to_contain_text('Privacy & Security');expect(warning).to_contain_text('Linux')
+            assert not row.get_by_label('Folders, one per line',exact=True).is_visible()
+            row.get_by_role('button',name='Save permissions',exact=True).click()
+            wait_for(lambda:record(base,'telegram')['file_scope']=={'mode':'all'} and record(base,'telegram')['rules']['computer_tools'])
+            page.get_by_role('button',name='Refresh permissions',exact=True).click()
+            row=page.locator('[data-device="bot:telegram"]');expect(row.locator('.chat-app-all-folders')).to_be_checked()
             shots=Path(os.environ.get('VOOL_PHONE_SHOTS_DIR') or tmp_path);shots.mkdir(exist_ok=True)
             page.screenshot(path=str(shots/'phone-chat-app-rules.png'),full_page=True)
             page.locator('.chat-app-card[data-app="telegram"]').get_by_role('button',name='Disconnect chat app',exact=True).click()

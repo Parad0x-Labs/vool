@@ -490,7 +490,7 @@ class ManagedBot:
                 if attempt + 1 >= CONNECT_ATTEMPTS:
                     raise
 
-    def call(self, path, value=None, *, timeout=4):
+    def call(self, path, value=None, *, timeout=4, method=None):
         headers = {"Content-Type": "application/json"}
         if self.platform == "telegram":
             url = self.remote_base + "/bot" + self.token + "/" + path
@@ -504,7 +504,7 @@ class ManagedBot:
             url,
             data=None if value is None else json.dumps(value).encode(),
             headers=headers,
-            method="GET" if value is None else "POST",
+            method=method or ("GET" if value is None else "POST"),
             timeout=timeout,
             no_proxy=True,
             redirect_policy="refuse",
@@ -513,16 +513,76 @@ class ManagedBot:
             raw = response.read(1024 * 1024 + 1)
             if len(raw) > 1024 * 1024:
                 raise ValueError("Chat service response too large.")
-            result = json.loads(raw)
+            # Discord answers a delete with 204 and no body.
+            result = json.loads(raw) if raw.strip() else {}
             if self.platform == "telegram" and (not isinstance(result, dict) or result.get("ok") is not True):
                 raise ValueError("Chat service refused the request.")
             return result
 
-    def send(self, channel, text, *, right="chat"):
+    def _post(self, channel, chunk):
+        """Post one message; its id on the chat service, or "" when the service named none."""
+        # No link preview or embed on either app: their servers fetch a link in a message to draw
+        # it, so an address the model was led to write would leave with no tap (security review
+        # 2026-11-13). Discord's flag 1 << 2 is SUPPRESS_EMBEDS.
+        if self.platform == "telegram":
+            result = self.call(
+                "sendMessage", {"chat_id": channel, "text": chunk, "link_preview_options": {"is_disabled": True}}
+            )
+            sent = (result or {}).get("result") if isinstance(result, dict) else None
+            return str(sent.get("message_id") or "") if isinstance(sent, dict) else ""
+        result = self.call(
+            "/channels/" + channel + "/messages",
+            {"content": chunk, "allowed_mentions": {"parse": []}, "flags": 1 << 2},
+        )
+        return str(result.get("id") or "") if isinstance(result, dict) else ""
+
+    def _edit(self, channel, message_id, chunk):
+        """Put ``chunk`` in place of what message ``message_id`` said (the same message, edited)."""
+        if self.platform == "telegram":
+            self.call(
+                "editMessageText",
+                {"chat_id": channel, "message_id": int(message_id), "text": chunk,
+                 "link_preview_options": {"is_disabled": True}},
+            )
+        else:
+            self.call(
+                "/channels/" + channel + "/messages/" + message_id,
+                {"content": chunk, "allowed_mentions": {"parse": []}, "flags": 1 << 2},
+                method="PATCH",
+            )
+
+    def _delete(self, channel, message_id):
+        if self.platform == "telegram":
+            self.call("deleteMessage", {"chat_id": channel, "message_id": int(message_id)})
+        else:
+            self.call("/channels/" + channel + "/messages/" + message_id, {}, method="DELETE")
+
+    def working_note(self, channel, locale="en"):
+        """Say at once that the computer has the message, before the turn runs; the note's id, or "".
+
+        The answer later takes this note's place (``send(..., replace=id)``), so the chat shows one
+        message that turns from "working on it" into the answer, not a note left above the answer.
+        A note the service did not take is no reason to drop the turn: it runs and is sent as usual.
+        """
+        if not self.active() or not enabled(self.device(), "chat"):
+            return ""
+        words = _catalog_text("phone.ui.your_computer_is_working_on_it", "Your computer is working on it\u2026", locale)
+        try:
+            message_id = self._post(channel, words)
+        except (OSError, ValueError, remote_fetch_policy.RemoteFetchRefusedError) as error:
+            logger.info("%s working note: not posted (%s)", self.platform, type(error).__name__)
+            return ""
+        return message_id if re.fullmatch(r"[0-9]{1,22}", message_id) else ""
+
+    def send(self, channel, text, *, right="chat", replace=""):
+        """Send ``text`` in chunks the app takes. With ``replace``, the first chunk is edited into that
+        message (the working note); a note that cannot be edited is removed and the text sent new."""
         from core.secret_redaction import redact_secrets
         from relay.bridge_workers.telegram_chat_bridge import _strip_local_image_refs
 
         if not self.active() or (right and not enabled(self.device(), right)):
+            # Nothing more may be said here: the note must not stay behind claiming work.
+            self.drop_note(channel, replace)
             return
         clean = redact_secrets(_strip_local_image_refs(str(text)))
         size = 3200 if self.platform == "telegram" else 1800
@@ -530,18 +590,26 @@ class ManagedBot:
             if not self.active() or (right and not enabled(self.device(), right)):
                 break
             chunk = clean[offset : offset + size]
-            # No link preview or embed on either app: their servers fetch a link in a message to draw
-            # it, so an address the model was led to write would leave with no tap (security review
-            # 2026-11-13). Discord's flag 1 << 2 is SUPPRESS_EMBEDS.
-            if self.platform == "telegram":
-                self.call(
-                    "sendMessage", {"chat_id": channel, "text": chunk, "link_preview_options": {"is_disabled": True}}
-                )
-            else:
-                self.call(
-                    "/channels/" + channel + "/messages",
-                    {"content": chunk, "allowed_mentions": {"parse": []}, "flags": 1 << 2},
-                )
+            if replace:
+                note, replace = replace, ""
+                try:
+                    self._edit(channel, note, chunk)
+                    continue
+                except (OSError, ValueError, remote_fetch_policy.RemoteFetchRefusedError) as error:
+                    # Deleted by the person, too old to edit, or the service said no: the answer goes new.
+                    logger.info("%s working note: not edited (%s)", self.platform, type(error).__name__)
+                    self.drop_note(channel, note)
+            self._post(channel, chunk)
+        self.drop_note(channel, replace)
+
+    def drop_note(self, channel, message_id):
+        """Remove a working note that no answer will replace; quiet when it is already gone."""
+        if not message_id:
+            return
+        try:
+            self._delete(channel, message_id)
+        except (OSError, ValueError, remote_fetch_policy.RemoteFetchRefusedError) as error:
+            logger.info("%s working note: not removed (%s)", self.platform, type(error).__name__)
 
     def post_file(self, channel, name, media_type, data):
         """Post one file into the owner's private chat, as a file (no recompression)."""
@@ -666,6 +734,12 @@ class ManagedBot:
                 return
             if binding.get("channel_id") != channel or binding.get("user_id") != user:
                 return self.refused("stranger", channel)
+            if self.platform == "telegram" and re.fullmatch(r"/start(?:@\w+)?(?:\s+\S+)?", text.strip()):
+                # Telegram's own Start button (pressed again, or a pairing link opened again) is the app
+                # opening this chat, not something the owner wrote: no turn reads it as a command
+                # (Telegram 2026-11-27: "/start" after pairing got "That shortcut doesn't work here").
+                self.send(channel, PAIRED_WORDS, right=None)
+                return
             if text.strip().lower() in {"/freeze", "freeze", "/stopx402"}:
                 from core.web.api.mobile_companion_api import _action_freeze
 
@@ -855,13 +929,24 @@ class ManagedBot:
         if not self.active() or not enabled(self.device(), "chat"):
             return
         params = {"message": text[:16000], "chat_id": chat_id, "attachments": attachment_ids, "idempotency_key": identity}
-        status, result = self._run_turn(params, device)
+        note = self.working_note(channel, _locale_of(params["message"]))
+        status, result = self._run_turn_noted(channel, note, params, device)
         service().store.append_receipt(
             "bot.turn_finished" if status == 200 else "bot.turn_pending" if status == 202 else "bot.turn_refused",
             device_id=self.device_id,
             detail={"status": status, "turn_id": result.get("turn_id"), "commit": result.get("commit")},
         )
-        self._answer(channel, status, result, params=params)
+        self._answer(channel, status, result, params=params, note=note)
+
+    def _run_turn_noted(self, channel, note, params, device, **resume):
+        """``_run_turn`` with a working note up: a turn that breaks says so in the note's place."""
+        try:
+            return self._run_turn(params, device, **resume)
+        except BaseException:
+            if note:
+                with contextlib.suppress(Exception):
+                    self.send(channel, "Could not complete that turn. Check your computer.", replace=note)
+            raise
 
     def _run_turn(self, params, device, *, approval_token="", resume_turn_id=""):
         """Run one chat turn through the real /api/chat, and wait for it while it is still running.
@@ -891,7 +976,7 @@ class ManagedBot:
                 return status, result
             self.stop_event.wait(2)
 
-    def _answer(self, channel, status, result, *, params):
+    def _answer(self, channel, status, result, *, params, note=""):
         """Send a finished turn's reply, then where it ran and what its actions did, then its files.
 
         The notes are read from the turn's own records (core.proof_projection), the same ones the app
@@ -900,10 +985,10 @@ class ManagedBot:
         computer (``_resume_approved``).
         """
         if status == 202:
-            self.send(channel, "Still working on that. The answer will be in VOOL on your computer.")
+            self.send(channel, "Still working on that. The answer will be in VOOL on your computer.", replace=note)
             return
         if status != 200:
-            self.send(channel, "Could not complete that turn. Check your computer.")
+            self.send(channel, "Could not complete that turn. Check your computer.", replace=note)
             return
         waiting = self._approval_waiting(result)
         reply = str(result.get("reply") or "")
@@ -915,7 +1000,8 @@ class ManagedBot:
         # A turn that came back with nothing to say is not "Done.": nothing claims work that may not
         # have happened (the phone's empty bubble, 2026-11-23, is the same turn seen there).
         self.send(channel, "\n\n".join(part for part in (reply, "\n".join(notes)) if part)
-                  or _catalog_text("phone.ui.no_answer_came", "No answer came back. Send it again.", locale))
+                  or _catalog_text("phone.ui.no_answer_came", "No answer came back. Send it again.", locale),
+                  replace=note)
         self.deliver_files(channel)
 
     def _approval_waiting(self, result):
@@ -993,15 +1079,17 @@ class ManagedBot:
             params["idempotency_key"] = hashlib.sha256(
                 (str(params.get("idempotency_key") or "") + ":approved:" + str(row["approval_id"])).encode()
             ).hexdigest()
-            status, result = self._run_turn(
-                params, self.device(), approval_token=str(row["approval_id"]), resume_turn_id=str(row.get("turn_id") or "")
+            note = self.working_note(channel, _locale_of(params.get("message")))
+            status, result = self._run_turn_noted(
+                channel, note, params, self.device(),
+                approval_token=str(row["approval_id"]), resume_turn_id=str(row.get("turn_id") or ""),
             )
             service().store.append_receipt(
                 "bot.turn_resumed" if status == 200 else "bot.turn_refused",
                 device_id=self.device_id,
                 detail={"status": status, "turn_id": result.get("turn_id")},
             )
-            self._answer(channel, status, result, params=params)
+            self._answer(channel, status, result, params=params, note=note)
 
     def _ask_owner(self, device, binding, channel, user, who):
         """Someone pressed Start without the code (the plain link BotFather shows, say): ask the owner.
