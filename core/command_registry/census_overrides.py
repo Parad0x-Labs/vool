@@ -385,6 +385,7 @@ _EXTERNAL: dict[str, str] = {
     "http:POST:/api/calendar/accounts/disconnect": "calendar lane operator action (account disconnect)",
     "http:POST:/api/calendar/accounts/reconnect": "calendar lane operator action (account reconnect)",
     "http:POST:/api/calendar/accounts/remove": "calendar lane operator action (account remove)",
+    "http:POST:/api/system/open-mac-settings": "owner-local action: open one allowlisted privacy pane of the Mac's System Settings",
     "http:GET:/api/email/accounts": "email lane read feed (accounts)",
     "http:GET:/api/email/recovery": "email lane read feed (store recovery surface)",
     "http:POST:/api/email/recovery/acknowledge": "email lane operator action (recovery acknowledgement)",

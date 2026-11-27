@@ -2983,6 +2983,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/system/open-mac-settings": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/system/open-mac-settings",
+      "note": "owner-local action: open one allowlisted privacy pane of the Mac's System Settings",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/task/recovery": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/task/recovery",
@@ -3686,7 +3693,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 343,
+    "EXTERNAL_TRANSPORT_ONLY": 344,
     "GENERATED_ADAPTER": 174,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
