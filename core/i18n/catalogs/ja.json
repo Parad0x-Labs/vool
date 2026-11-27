@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "普段のチャットには重い：重くなることがあります",
     "header.run_local_lag_picked": "{model} でこのコンピュータが重くなることがあります。Auto はなめらかに動くモデルを選びます。",
     "settings.local_models.suggest.bigger_lag": "これはコンピュータを重くすることがあります。大きいほうを選ばない限り、VOOL は {model} で答え続けます。",
-    "setup.picker.not_suitable": "{model} は VOOL のツールを十分に使えないため、VOOL はこのモデルでは答えません。別のモデルを選んで「ダウンロード」を押してください。"
+    "setup.picker.not_suitable": "{model} は VOOL のツールを十分に使えないため、VOOL はこのモデルでは答えません。別のモデルを選んで「ダウンロード」を押してください。",
+    "mac_settings.button": "Macの設定を開く",
+    "mac_settings.opened.contacts": "システム設定の「連絡先」を開きました。そこでVOOLをオンにしてから、もう一度お試しください。",
+    "mac_settings.opened.automation": "システム設定の「オートメーション」を開きました。そこでVOOLの下の「メモ」をオンにしてから、もう一度お試しください。",
+    "mac_settings.opened.speech": "システム設定の「音声認識」を開きました。そこでVOOLをオンにしてから、もう一度お試しください。",
+    "mac_settings.opened.files": "システム設定の「ファイルとフォルダ」を開きました。そこでVOOLをオンにしてから、「Rescan」を選んでください。",
+    "mac_settings.opened.other": "システム設定を開きました。そこでVOOLをオンにしてから、もう一度お試しください。",
+    "mac_settings.failed": "うまくいきませんでした。",
+    "mac_settings.no_answer": "VOOLは応答しませんでした。何も変更されていません。"
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -275,6 +275,24 @@ def ensure_tool() -> Path:
     return binary
 
 
+def _not_authorized() -> ReaderUnavailable:
+    """Speech recognition is not granted to VOOL. The macOS state ("notDetermined", "denied", "restricted") is
+    a code, not words: dictation and audio files say this one thing, and carry the Speech Recognition pane so
+    the page shows "Open Mac settings"."""
+    from core.mac_settings import settings_pane
+
+    return ReaderUnavailable(
+        "Voice typing needs your permission: speech recognition is not granted to VOOL on this Mac.",
+        code="speech_recognizer_unauthorized",
+        remediation=(
+            "Open the Mac's System Settings, then Privacy & Security → Speech Recognition, and turn VOOL on. "
+            "Until then voice typing and audio files stay off."
+        ),
+        fmt="audio",
+        mac_settings_pane=settings_pane("speech"),
+    )
+
+
 def _run(args: list[str], *, scratch: Path, timeout: int = SUBPROCESS_TIMEOUT_S) -> dict[str, Any]:
     binary = ensure_tool()
     result = run_confined(
@@ -290,15 +308,7 @@ def _run(args: list[str], *, scratch: Path, timeout: int = SUBPROCESS_TIMEOUT_S)
         if detail.startswith("unauthorized:"):
             # The macOS authorization state ("notDetermined", "denied", "restricted") is a code, not
             # words; the person reads what to do. The code stays on the typed error for diagnostics.
-            raise ReaderUnavailable(
-                "Voice typing needs your permission: speech recognition is not granted to VOOL on this Mac.",
-                code="speech_recognizer_unauthorized",
-                remediation=(
-                    "Open the Mac's System Settings, then Privacy & Security → Speech Recognition, and turn VOOL on. "
-                    "Until then voice typing and audio files stay off."
-                ),
-                fmt="audio",
-            )
+            raise _not_authorized()
         if "recognizer-unavailable" in detail:
             raise ReaderUnavailable(
                 "No speech recogniser is installed for this language on this machine.",
@@ -402,15 +412,7 @@ def transcribe_unavailable(locale: str = DEFAULT_LOCALE) -> ReaderUnavailable | 
     if authorization != "authorized":
         # The macOS state ("notDetermined", "denied", "restricted") is a code, not words: the same
         # message as the transcription path, so dictation and audio files say one thing.
-        return ReaderUnavailable(
-            "Voice typing needs your permission: speech recognition is not granted to VOOL on this Mac.",
-            code="speech_recognizer_unauthorized",
-            remediation=(
-                "Open the Mac's System Settings, then Privacy & Security → Speech Recognition, and turn VOOL on. "
-                "Until then voice typing and audio files stay off."
-            ),
-            fmt="audio",
-        )
+        return _not_authorized()
     if facts.get("recognizer_available") is not True:
         return ReaderUnavailable(
             "No speech recogniser is installed for this language on this machine.",

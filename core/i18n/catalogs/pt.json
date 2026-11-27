@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "Pesado para o chat do dia a dia: pode ficar lento",
     "header.run_local_lag_picked": "{model} pode deixar este computador lento. O Auto escolhe um modelo que roda com fluidez.",
     "settings.local_models.suggest.bigger_lag": "Este pode deixar seu computador lento. O VOOL continua respondendo com {model}, a menos que você escolha o maior.",
-    "setup.picker.not_suitable": "{model} não usa as ferramentas do VOOL bem o suficiente, então o VOOL não vai responder com ele. Escolha outro modelo e toque em Baixar."
+    "setup.picker.not_suitable": "{model} não usa as ferramentas do VOOL bem o suficiente, então o VOOL não vai responder com ele. Escolha outro modelo e toque em Baixar.",
+    "mac_settings.button": "Abrir ajustes do Mac",
+    "mac_settings.opened.contacts": "Os Ajustes do Sistema estão abertos em Contatos. Ative o VOOL lá e tente de novo.",
+    "mac_settings.opened.automation": "Os Ajustes do Sistema estão abertos em Automação. Ative Notas abaixo do VOOL lá e tente de novo.",
+    "mac_settings.opened.speech": "Os Ajustes do Sistema estão abertos em Reconhecimento de Fala. Ative o VOOL lá e tente de novo.",
+    "mac_settings.opened.files": "Os Ajustes do Sistema estão abertos em Arquivos e Pastas. Ative o VOOL lá e depois escolha Rescan.",
+    "mac_settings.opened.other": "Os Ajustes do Sistema estão abertos. Ative o VOOL lá e tente de novo.",
+    "mac_settings.failed": "Isso não funcionou.",
+    "mac_settings.no_answer": "O VOOL não respondeu; nada foi alterado."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

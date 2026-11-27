@@ -141,6 +141,11 @@ _JS = r"""
       return r.json().catch(function() { return {}; }).then(function(j) { j = j || {}; return {ok: r.ok && j.ok !== false, status: r.status, body: j}; });
     }).catch(function() { return {ok: false, status: 0, body: {message: 'Contacts could not be reached.'}}; });
   }
+  // A step in the Mac's System Settings carries its pane (mac_settings_pane): the one shared "Open Mac settings" button.
+  function macSettings(host, pane) {
+    var control = pane && window.VoolMacSettings ? window.VoolMacSettings.control(pane) : null;
+    if (control) host.appendChild(control);
+  }
   function why(res, fallback) { var b = (res && res.body) || {}; return b.message || b.error || fallback; }
   function copyText(text) {
     var done = function() { var a = actions(); if (a && a.toast) a.toast('Copied.'); };
@@ -992,6 +997,7 @@ _JS = r"""
     form.appendChild(el('div', 'vc-kind', 'Connect a source'));
     var provider = selectField(form, 'Import from', providers.map(function(p) { return [p.provider, p.label]; }), providers.length ? providers[0].provider : '', 'vcImportProvider');
     var auth = el('div', 'vc-note'); form.appendChild(auth);
+    var authMac = el('div'); form.appendChild(authMac);
     var bindingCell = el('div'); form.appendChild(bindingCell);
     var binding = selectField(bindingCell, 'Account connection', [], '', 'vcImportBinding');
     var label = field(form, 'Name for this source (optional)', 'input', '', 'vcImportAccount');
@@ -1013,6 +1019,7 @@ _JS = r"""
       })).forEach(function(c) { var o = el('option', null, c[1]); o.value = c[0]; binding.appendChild(o); });
       auth.textContent = [AUTH_STATES[a.state] || a.state || '', a.recovery || ''].filter(Boolean).join(' · ');
       auth.className = 'vc-note' + (a.recovery ? ' vc-warn' : '');
+      authMac.textContent = ''; macSettings(authMac, a.mac_settings_pane);
     };
     provider.addEventListener('change', sync); sync();
     form.addEventListener('submit', function(ev) {
@@ -1039,6 +1046,7 @@ _JS = r"""
     card.appendChild(top);
     if (s.last_read_at) card.appendChild(el('div', 'vc-where', 'Last read ' + String(s.last_read_at).slice(0, 16).replace('T', ' ') + ' UTC'));
     if (s.recovery) card.appendChild(el('div', 'vc-note vc-warn', s.recovery));
+    if (s.recovery) macSettings(card, s.mac_settings_pane);
     var out = el('div');
     var bar = el('div', 'vc-ep-actions');
     var preview = button('Preview', 'vc-primary', function() { previewImport(s, out, preview); });
@@ -1055,6 +1063,8 @@ _JS = r"""
       btn.disabled = false; out.textContent = '';
       if (!res.ok) {
         out.appendChild(el('div', 'vc-note vc-warn', why(res, 'The source could not be read; nothing was imported.')));
+        var pane = res.body && res.body.mac_settings_pane;
+        if (pane && !(s.recovery && s.mac_settings_pane === pane)) macSettings(out, pane);  // the card already shows it
         var run = res.body && res.body.run, partial = run && run.error && run.error.partial_read;
         if (partial) out.appendChild(el('div', 'vc-note', partial + ' contacts were read before it stopped; none were saved.'));
         return;

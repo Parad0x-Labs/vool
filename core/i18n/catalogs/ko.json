@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "평소 대화에는 무거움: 느려질 수 있음",
     "header.run_local_lag_picked": "{model} 때문에 이 컴퓨터가 느려질 수 있습니다. Auto는 부드럽게 도는 모델을 고릅니다.",
     "settings.local_models.suggest.bigger_lag": "이 모델은 컴퓨터를 느리게 할 수 있습니다. 더 큰 모델을 고르지 않으면 VOOL은 계속 {model}(으)로 답합니다.",
-    "setup.picker.not_suitable": "{model}은(는) VOOL의 도구를 충분히 잘 쓰지 못해서 VOOL이 이 모델로 답하지 않습니다. 다른 모델을 고르고 다운로드를 누르세요."
+    "setup.picker.not_suitable": "{model}은(는) VOOL의 도구를 충분히 잘 쓰지 못해서 VOOL이 이 모델로 답하지 않습니다. 다른 모델을 고르고 다운로드를 누르세요.",
+    "mac_settings.button": "Mac 설정 열기",
+    "mac_settings.opened.contacts": "시스템 설정의 연락처 항목이 열렸습니다. 거기서 VOOL을 켠 다음 다시 시도하세요.",
+    "mac_settings.opened.automation": "시스템 설정의 자동화 항목이 열렸습니다. 거기서 VOOL 아래의 메모를 켠 다음 다시 시도하세요.",
+    "mac_settings.opened.speech": "시스템 설정의 음성 인식 항목이 열렸습니다. 거기서 VOOL을 켠 다음 다시 시도하세요.",
+    "mac_settings.opened.files": "시스템 설정의 파일 및 폴더 항목이 열렸습니다. 거기서 VOOL을 켠 다음 Rescan을 선택하세요.",
+    "mac_settings.opened.other": "시스템 설정이 열렸습니다. 거기서 VOOL을 켠 다음 다시 시도하세요.",
+    "mac_settings.failed": "작동하지 않았습니다.",
+    "mac_settings.no_answer": "VOOL이 응답하지 않았습니다; 아무 것도 변경되지 않았습니다."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

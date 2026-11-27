@@ -759,6 +759,13 @@ def handle_save_note(
                                    # The fallback write is an executed effect of this failed request (see
                                    # `operator_step_executed`); a reused fallback wrote nothing this time.
                                    "files_modified": not bool(record.get("reused"))}
+    # A refusal whose next step is a switch in the Mac's System Settings carries that pane, so the answer
+    # shows "Open Mac settings" (read from the typed reason, also when the outcome is a recorded replay).
+    from core.operator.apple_notes import mac_settings_pane
+
+    pane = mac_settings_pane(reason)
+    if pane:
+        details_out["mac_settings_pane"] = pane
     if actions and parsed["wants_schedule"]:
         details_out["schedule_proposal_hint"] = actions[0]
         response += _schedule_hint_text(actions[0])

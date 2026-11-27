@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "Lourd pour la discussion de tous les jours : peut ralentir",
     "header.run_local_lag_picked": "{model} peut ralentir cet ordinateur. Auto choisit un modèle qui tourne sans à-coups.",
     "settings.local_models.suggest.bigger_lag": "Celui-ci peut ralentir votre ordinateur. VOOL continue de répondre avec {model} sauf si vous choisissez le plus gros.",
-    "setup.picker.not_suitable": "{model} n’utilise pas assez bien les outils de VOOL, donc VOOL ne répondra pas avec lui. Choisissez un autre modèle et appuyez sur Télécharger."
+    "setup.picker.not_suitable": "{model} n’utilise pas assez bien les outils de VOOL, donc VOOL ne répondra pas avec lui. Choisissez un autre modèle et appuyez sur Télécharger.",
+    "mac_settings.button": "Ouvrir les réglages du Mac",
+    "mac_settings.opened.contacts": "Les Réglages Système sont ouverts sur Contacts. Activez VOOL, puis réessayez.",
+    "mac_settings.opened.automation": "Les Réglages Système sont ouverts sur Automatisation. Activez Notes sous VOOL, puis réessayez.",
+    "mac_settings.opened.speech": "Les Réglages Système sont ouverts sur Reconnaissance vocale. Activez VOOL, puis réessayez.",
+    "mac_settings.opened.files": "Les Réglages Système sont ouverts sur Fichiers et dossiers. Activez VOOL, puis choisissez Rescan.",
+    "mac_settings.opened.other": "Les Réglages Système sont ouverts. Activez VOOL, puis réessayez.",
+    "mac_settings.failed": "Cela n’a pas fonctionné.",
+    "mac_settings.no_answer": "VOOL n'a pas répondu ; rien n'a été changé."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

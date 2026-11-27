@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "Ciężki do codziennego czatu: może się zacinać",
     "header.run_local_lag_picked": "{model} może spowolnić ten komputer. Auto wybiera model, który działa płynnie.",
     "settings.local_models.suggest.bigger_lag": "Ten może spowolnić twój komputer. VOOL dalej odpowiada modelem {model}, chyba że wybierzesz większy.",
-    "setup.picker.not_suitable": "{model} nie radzi sobie wystarczająco z narzędziami VOOL, więc VOOL nie będzie nim odpowiadać. Wybierz inny model i naciśnij Pobierz."
+    "setup.picker.not_suitable": "{model} nie radzi sobie wystarczająco z narzędziami VOOL, więc VOOL nie będzie nim odpowiadać. Wybierz inny model i naciśnij Pobierz.",
+    "mac_settings.button": "Otwórz ustawienia Maca",
+    "mac_settings.opened.contacts": "Ustawienia systemowe są otwarte na Kontaktach. Włącz tam VOOL, a potem spróbuj ponownie.",
+    "mac_settings.opened.automation": "Ustawienia systemowe są otwarte na Automatyzacji. Włącz tam Notatki pod VOOL, a potem spróbuj ponownie.",
+    "mac_settings.opened.speech": "Ustawienia systemowe są otwarte na Rozpoznawaniu mowy. Włącz tam VOOL, a potem spróbuj ponownie.",
+    "mac_settings.opened.files": "Ustawienia systemowe są otwarte na Plikach i folderach. Włącz tam VOOL, a potem wybierz Rescan.",
+    "mac_settings.opened.other": "Ustawienia systemowe są otwarte. Włącz tam VOOL, a potem spróbuj ponownie.",
+    "mac_settings.failed": "To nie zadziałało.",
+    "mac_settings.no_answer": "VOOL nie odpowiedział; nic nie zmieniono."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

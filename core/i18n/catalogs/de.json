@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "Schwer für den Alltags-Chat: kann ruckeln",
     "header.run_local_lag_picked": "{model} kann diesen Computer ruckeln lassen. Auto wählt ein Modell, das flüssig läuft.",
     "settings.local_models.suggest.bigger_lag": "Dieses kann deinen Computer ruckeln lassen. VOOL antwortet weiter mit {model}, außer du wählst das größere.",
-    "setup.picker.not_suitable": "{model} kann die Werkzeuge von VOOL nicht gut genug nutzen, daher antwortet VOOL nicht damit. Wähle ein anderes Modell und drücke auf Herunterladen."
+    "setup.picker.not_suitable": "{model} kann die Werkzeuge von VOOL nicht gut genug nutzen, daher antwortet VOOL nicht damit. Wähle ein anderes Modell und drücke auf Herunterladen.",
+    "mac_settings.button": "Mac-Einstellungen öffnen",
+    "mac_settings.opened.contacts": "Die Systemeinstellungen sind bei Kontakte geöffnet. Schalte VOOL dort ein und versuche es dann erneut.",
+    "mac_settings.opened.automation": "Die Systemeinstellungen sind bei Automation geöffnet. Schalte dort unter VOOL „Notizen“ ein und versuche es dann erneut.",
+    "mac_settings.opened.speech": "Die Systemeinstellungen sind bei Spracherkennung geöffnet. Schalte VOOL dort ein und versuche es dann erneut.",
+    "mac_settings.opened.files": "Die Systemeinstellungen sind bei Dateien und Ordner geöffnet. Schalte VOOL dort ein und wähle dann „Rescan“.",
+    "mac_settings.opened.other": "Die Systemeinstellungen sind geöffnet. Schalte VOOL dort ein und versuche es dann erneut.",
+    "mac_settings.failed": "Das hat nicht funktioniert.",
+    "mac_settings.no_answer": "VOOL hat nicht geantwortet; nichts wurde geändert."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

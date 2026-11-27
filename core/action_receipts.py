@@ -110,11 +110,22 @@ def _read_back(intent: str, details: dict[str, Any]) -> bool | None:
     return None
 
 
+def _mac_settings_pane(details: dict[str, Any]) -> str:
+    """The Mac System Settings pane the result's next step names (``mac_settings_pane``), if it is a listed one."""
+    from core.mac_settings import PANES
+
+    pane = str(details.get("mac_settings_pane") or "").strip()
+    return pane if pane in PANES else ""
+
+
 def receipt_for(intent: str, *, ok: bool, status: str, response_text: str, details: dict[str, Any] | None) -> dict[str, Any] | None:
     """The receipt of one action result, or None when the action changes nothing."""
     clean_intent = str(intent or "").strip()
     facts = dict(details or {})
-    if not clean_intent or not _consequential(clean_intent, facts):
+    pane = _mac_settings_pane(facts) if not ok else ""
+    # A call that failed on a permission the person turns on in the Mac's System Settings gets a receipt even
+    # when it only reads (listing Apple Notes): the receipt is where the answer shows "Open Mac settings".
+    if not clean_intent or not (_consequential(clean_intent, facts) or pane):
         return None
     status_word = str(status or "").lower()
     if ok and status_word == "unchanged":
@@ -144,6 +155,7 @@ def receipt_for(intent: str, *, ok: bool, status: str, response_text: str, detai
         "action_file": Path(path).name if path else "",
         "action_folder": str(Path(path).parent) if path else "",
         "action_to": str(facts.get("to") or facts.get("recipient") or "")[:160],
+        "action_mac_settings_pane": pane,
     }
 
 
@@ -272,7 +284,7 @@ def note_memory_keep(source_context: dict[str, Any] | None, saved: list[str], re
 
 def _blank_receipt() -> dict[str, Any]:
     return {"action_intent": MEMORY_KEEP_INTENT, "action_state": "", "action_reason": "", "action_note": "",
-            "action_due_utc": "", "action_due_tz": "", "action_file": "", "action_folder": "", "action_to": ""}
+            "action_due_utc": "", "action_due_tz": "", "action_file": "", "action_folder": "", "action_to": "", "action_mac_settings_pane": ""}
 
 
 def receipts_of_events(turn_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -293,6 +305,7 @@ def receipts_of_events(turn_events: list[dict[str, Any]]) -> list[dict[str, Any]
             "file": str(event.get("action_file") or ""),
             "folder": str(event.get("action_folder") or ""),
             "to": str(event.get("action_to") or ""),
+            "mac_settings_pane": str(event.get("action_mac_settings_pane") or ""),
         })
     return rows
 

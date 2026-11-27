@@ -32,6 +32,26 @@ _PERMISSION_GUIDE = (
 )
 
 
+#: bridge reasons whose next step is a switch in the Mac's own System Settings, with the privacy pane that
+#: holds it; the pane travels on the result as ``mac_settings_pane`` so the page shows "Open Mac settings".
+_MAC_SETTINGS_PANE = {"os_permission_denied": "automation"}
+
+
+def mac_settings_pane(reason: str) -> str:
+    """The Mac settings pane for this bridge reason's next step, or "" (none, or not on a Mac)."""
+    from core.mac_settings import settings_pane
+
+    return settings_pane(_MAC_SETTINGS_PANE.get(str(reason or ""), ""))
+
+
+def _bridge_failure(reason: str, detail: str) -> dict[str, Any]:
+    out: dict[str, Any] = {"ok": False, "reason": reason, "detail": detail}
+    pane = mac_settings_pane(reason)
+    if pane:
+        out["mac_settings_pane"] = pane
+    return out
+
+
 def _applescript_quote(text: str) -> str:
     """Escape text for an AppleScript string literal (backslash and double-quote)."""
     return str(text or "").replace("\\", "\\\\").replace('"', '\\"')
@@ -164,7 +184,7 @@ def create_apple_note(
                 "detail": "the Notes bridge reported no exit status; whether the note was created is not established."}
     reason, detail = _classify(str(getattr(completed, "stderr", "") or ""), returncode)
     if reason:
-        return {"ok": False, "reason": reason, "detail": detail}
+        return _bridge_failure(reason, detail)
     reference = str(getattr(completed, "stdout", "") or "").strip()
     if not reference:
         return {"ok": False, "reason": "unverified", "detail": "the bridge completed without a note reference; the creation cannot be claimed either way."}
@@ -647,7 +667,7 @@ def run_notes_bridge(script: str, *, runner: Any = None, purpose: str = "the Not
                 "detail": "the Notes bridge reported no exit status; the outcome is not established."}
     reason, detail = _classify(str(getattr(completed, "stderr", "") or ""), returncode)
     if reason:
-        return {"ok": False, "reason": reason, "detail": detail}
+        return _bridge_failure(reason, detail)
     return {"ok": True, "reason": "", "detail": "", "output": str(getattr(completed, "stdout", "") or "")}
 
 

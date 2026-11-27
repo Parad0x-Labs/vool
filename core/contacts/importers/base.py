@@ -34,6 +34,19 @@ RECOVERY: dict[str, str] = {
     REASON_BINDING_REQUIRED: "Choose the account's stored credential first; VOOL never asks for a password here.",
 }
 
+#: reasons whose next step is a switch in the Mac's own System Settings, with the privacy pane that holds it.
+#: The pane travels beside the recovery words as ``mac_settings_pane``, so the page shows "Open Mac settings".
+MAC_SETTINGS_PANE: dict[str, str] = {
+    REASON_PERMISSION_DENIED: "contacts",
+}
+
+
+def mac_settings_pane(reason: str) -> str:
+    """The Mac settings pane for this reason's next step, or "" (none, or not on a Mac)."""
+    from core.mac_settings import settings_pane
+
+    return settings_pane(MAC_SETTINGS_PANE.get(str(reason or ""), ""))
+
 
 class ImportSourceError(Exception):
     """Why a source could not be read. ``reason`` is one of the REASON_* values."""
@@ -53,6 +66,9 @@ class ImportSourceError(Exception):
         out = {"reason": self.reason, "detail": self.detail[:300], "recovery": self.recovery}
         if self.retry_after is not None:
             out["retry_after"] = int(self.retry_after)
+        pane = mac_settings_pane(self.reason)
+        if pane:
+            out["mac_settings_pane"] = pane
         return out
 
 

@@ -266,8 +266,11 @@ def contacts_write_authority(action: str, body: dict, headers: dict, runtime, cl
                 run = importing.preview(str(payload.get("source_id") or ""))
                 if run.get("state") != "previewed":
                     error = run.get("error") or {}
-                    return answer(409, {"ok": False, "reason": error.get("reason", "read_failed"),
-                                        "message": error.get("recovery") or "The source could not be read; nothing was imported.", "run": run})
+                    refused = {"ok": False, "reason": error.get("reason", "read_failed"),
+                               "message": error.get("recovery") or "The source could not be read; nothing was imported.", "run": run}
+                    if error.get("mac_settings_pane"):
+                        refused["mac_settings_pane"] = error["mac_settings_pane"]
+                    return answer(409, refused)
                 return ok({"run": run})
             if action == "import_apply":
                 selections = payload.get("selections") if isinstance(payload.get("selections"), dict) else {}

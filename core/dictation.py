@@ -26,17 +26,25 @@ class DictationUnavailable(Exception):
     # matching core.artifact_readers._types.ReaderUnavailable's identical convention.
     """A typed answer about THIS machine, not an error to hide behind a generic message."""
 
-    def __init__(self, code: str, message: str, remediation: str = "", *, http_status: int = 503) -> None:
+    def __init__(self, code: str, message: str, remediation: str = "", *, http_status: int = 503,
+                 mac_settings_pane: str = "") -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.remediation = remediation
         self.http_status = http_status
+        self.mac_settings_pane = mac_settings_pane
+
+    @classmethod
+    def from_reader(cls, exc: Any) -> "DictationUnavailable":
+        return cls(exc.code, exc.message, exc.remediation, mac_settings_pane=str(getattr(exc, "mac_settings_pane", "") or ""))
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"ok": False, "error": self.code, "message": self.message}
         if self.remediation:
             payload["remediation"] = self.remediation
+        if self.mac_settings_pane:
+            payload["mac_settings_pane"] = self.mac_settings_pane
         return payload
 
 
@@ -60,12 +68,15 @@ def availability(*, locale: str = speech_tool.DEFAULT_LOCALE) -> dict[str, Any]:
     """Whether dictation can run HERE, and the typed reason when it cannot."""
     unavailable = speech_tool.transcribe_unavailable(locale=locale)
     if unavailable is not None:
-        return {
+        out = {
             "available": False,
             "error": unavailable.code,
             "message": unavailable.message,
             "remediation": unavailable.remediation,
         }
+        if unavailable.mac_settings_pane:
+            out["mac_settings_pane"] = unavailable.mac_settings_pane
+        return out
     return {"available": True, "locale": locale, "engine": "Speech.SFSpeechRecognizer"}
 
 
@@ -83,7 +94,7 @@ def transcribe(data: bytes, *, media_type: str = "", locale: str = speech_tool.D
         )
     unavailable = speech_tool.transcribe_unavailable(locale=locale)
     if unavailable is not None:
-        raise DictationUnavailable(unavailable.code, unavailable.message, unavailable.remediation)
+        raise DictationUnavailable.from_reader(unavailable)
     try:
         with Scratch("vool-dictation-") as scratch, extraction_budget(scratch=scratch.path):
             audio_path = scratch.path / "dictation-input"
@@ -91,12 +102,8 @@ def transcribe(data: bytes, *, media_type: str = "", locale: str = speech_tool.D
             payload = speech_tool.transcribe(
                 audio_path, locale=locale, max_seconds=MAX_DICTATION_S, scratch=scratch.path,
             )
-    except ReaderUnavailable as exc:
-        raise DictationUnavailable(exc.code, exc.message, exc.remediation) from exc
-    except ReaderRefused as exc:
-        raise DictationUnavailable(exc.code, exc.message, exc.remediation) from exc
-    except ReaderFailed as exc:
-        raise DictationUnavailable(exc.code, exc.message, exc.remediation) from exc
+    except (ReaderUnavailable, ReaderRefused, ReaderFailed) as exc:
+        raise DictationUnavailable.from_reader(exc) from exc
     segments = [segment for segment in (payload.get("segments") or []) if isinstance(segment, dict)]
     text = " ".join(str(segment.get("text") or "").strip() for segment in segments).strip()
     complete = payload.get("complete") is True

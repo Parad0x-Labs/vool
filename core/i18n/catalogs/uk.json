@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "Важка для звичайного чату: може гальмувати",
     "header.run_local_lag_picked": "Через {model} цей комп’ютер може гальмувати. Auto вибирає модель, яка працює плавно.",
     "settings.local_models.suggest.bigger_lag": "Ця може сповільнити ваш комп’ютер. VOOL і далі відповідає моделлю {model}, якщо ви не виберете більшу.",
-    "setup.picker.not_suitable": "{model} недостатньо добре працює з інструментами VOOL, тому VOOL не відповідатиме нею. Виберіть іншу модель і натисніть «Завантажити»."
+    "setup.picker.not_suitable": "{model} недостатньо добре працює з інструментами VOOL, тому VOOL не відповідатиме нею. Виберіть іншу модель і натисніть «Завантажити».",
+    "mac_settings.button": "Відкрити налаштування Mac",
+    "mac_settings.opened.contacts": "Системні параметри відкрито на розділі «Контакти». Увімкніть там VOOL і спробуйте ще раз.",
+    "mac_settings.opened.automation": "Системні параметри відкрито на розділі «Автоматизація». Увімкніть там «Нотатки» під VOOL і спробуйте ще раз.",
+    "mac_settings.opened.speech": "Системні параметри відкрито на розділі «Розпізнавання мовлення». Увімкніть там VOOL і спробуйте ще раз.",
+    "mac_settings.opened.files": "Системні параметри відкрито на розділі «Файли й папки». Увімкніть там VOOL, потім виберіть «Rescan».",
+    "mac_settings.opened.other": "Системні параметри відкрито. Увімкніть там VOOL і спробуйте ще раз.",
+    "mac_settings.failed": "Не вийшло.",
+    "mac_settings.no_answer": "VOOL не відповів; нічого не змінено."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

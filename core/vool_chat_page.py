@@ -5943,6 +5943,13 @@ async function mountProofChip(host, chatId, requestId, presentationSelection, fi
     const box = document.createElement('div');
     box.className = 'act-receipts';
     box.innerHTML = receipts.map(actionReceiptHtml).join('');
+    // An action that failed on a permission the person turns on in the Mac's System Settings carries that
+    // pane (mac_settings_pane): its receipt gets the one shared "Open Mac settings" button.
+    box.querySelectorAll('.act-receipt').forEach((line, i) => {
+      const pane = receipts[i] && receipts[i].mac_settings_pane;
+      const control = pane && window.VoolMacSettings ? window.VoolMacSettings.control(pane) : null;
+      if (control) line.appendChild(control);
+    });
     host.appendChild(box);
   }
   // A paid answer that brought today or this month near its limit says so here, before the limit
@@ -11379,6 +11386,12 @@ function dictationIdleTitle() {
   // The idle contract depends on the interaction mode: hold-to-talk while voice mode is on.
   return voiceMode() ? DICTATION_TITLE_PTT : DICTATION_TITLE_IDLE;
 }
+// A dictation refusal whose next step is in the Mac's System Settings (speech recognition not granted) carries
+// that pane (mac_settings_pane): the note under the composer gets the one shared "Open Mac settings" button.
+function offerDictationMacSettings(pane) {
+  const control = pane && dictationNoteEl && !dictationNoteEl.hidden && window.VoolMacSettings ? window.VoolMacSettings.control(pane) : null;
+  if (control) dictationNoteEl.appendChild(control);
+}
 function setDictationError(note) {
   showDictationNote(note);
   if (!dictateBtnEl) return;
@@ -11453,6 +11466,7 @@ async function beginDictationRecording() {
         // them reads one keyed sentence, never a status code.
         const typed = data && data.message ? String(data.message) + (data.remediation ? ' ' + data.remediation : '') : '';
         setDictationError(typed || dictT('failed_http', 'Dictation did not work. Try again.'));
+        if (typed) offerDictationMacSettings(data.mac_settings_pane);
       }
     } catch (e) {
       setDictationError(dictT('did_not_complete', 'Dictation did not complete. Check the connection and try again.'));
@@ -11517,6 +11531,7 @@ async function probeDictationAvailability() {
         // reads one keyed sentence.
         showDictationNote(j.message ? String(j.message) + (j.remediation ? ' ' + j.remediation : '')
           : dictT('unavailable', 'Dictation is not available on this machine. Type instead.'));
+        if (j.message) offerDictationMacSettings(j.mac_settings_pane);
       }
     })
     .catch(() => {});
@@ -14450,6 +14465,9 @@ function _storageNotice(d) {
   // states name a folder and a system error, which stay as the server wrote them.
   txt.textContent = st.state === 'missing' ? pageT('plugins.storage.missing', said) : said;
   wrap.appendChild(txt);
+  // A folder macOS keeps from VOOL carries the Files and Folders pane (mac_settings_pane): the one shared button.
+  const macControl = st.mac_settings_pane && window.VoolMacSettings ? window.VoolMacSettings.control(st.mac_settings_pane) : null;
+  if (macControl) wrap.appendChild(macControl);
   if (st.state !== 'missing') {
     const btn = document.createElement('button'); btn.className = 'p-toggle enable'; btn.textContent = 'Rescan';
     btn.title = 'Check the plugin folder again and load the plugins it holds';
@@ -16327,6 +16345,7 @@ def _page_fragments() -> tuple[str, ...]:
     from core.disclosure_fragment import render_disclosure_fragment
     from core.goal_progress_fragment import render_goal_progress_fragment
     from core.lend_fragment import render_lend_fragment
+    from core.mac_settings_fragment import render_mac_settings_fragment
     from core.model_radar_fragment import render_model_radar_fragment
     from core.my_things_fragment import render_my_things_fragment
     from core.notification_fragment import render_notification_fragment
@@ -16340,6 +16359,7 @@ def _page_fragments() -> tuple[str, ...]:
 
     return (
         render_chip_fragment(),
+        render_mac_settings_fragment(),
         render_addon_store_fragment(),
         render_chat_visuals_fragment(),
         render_palette_fragment(),

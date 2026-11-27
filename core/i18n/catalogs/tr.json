@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "Günlük sohbet için ağır: takılabilir",
     "header.run_local_lag_picked": "{model} bu bilgisayarı yavaşlatabilir. Auto akıcı çalışan bir model seçer.",
     "settings.local_models.suggest.bigger_lag": "Bu, bilgisayarını yavaşlatabilir. Büyük olanı seçmedikçe VOOL {model} ile yanıt vermeye devam eder.",
-    "setup.picker.not_suitable": "{model}, VOOL’un araçlarını yeterince iyi kullanamıyor, bu yüzden VOOL onunla yanıt vermez. Başka bir model seç ve İndir’e bas."
+    "setup.picker.not_suitable": "{model}, VOOL’un araçlarını yeterince iyi kullanamıyor, bu yüzden VOOL onunla yanıt vermez. Başka bir model seç ve İndir’e bas.",
+    "mac_settings.button": "Mac ayarlarını aç",
+    "mac_settings.opened.contacts": "Sistem Ayarları Kişiler bölümünde açık. Orada VOOL'u açın, sonra yeniden deneyin.",
+    "mac_settings.opened.automation": "Sistem Ayarları Otomasyon bölümünde açık. Orada VOOL altındaki Notlar'ı açın, sonra yeniden deneyin.",
+    "mac_settings.opened.speech": "Sistem Ayarları Konuşma Tanıma bölümünde açık. Orada VOOL'u açın, sonra yeniden deneyin.",
+    "mac_settings.opened.files": "Sistem Ayarları Dosyalar ve Klasörler bölümünde açık. Orada VOOL'u açın, sonra Rescan'i seçin.",
+    "mac_settings.opened.other": "Sistem Ayarları açık. Orada VOOL'u açın, sonra yeniden deneyin.",
+    "mac_settings.failed": "Bu işe yaramadı.",
+    "mac_settings.no_answer": "VOOL yanıtlamadı; hiçbir şey değişmedi."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

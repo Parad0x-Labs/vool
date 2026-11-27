@@ -5671,7 +5671,15 @@
     "header.run_local_lag_heavy": "Heavy for everyday chat: it may lag",
     "header.run_local_lag_picked": "{model} may make this computer lag. Auto picks a model that runs smoothly.",
     "settings.local_models.suggest.bigger_lag": "This one may make your computer lag. VOOL keeps answering with {model} unless you pick the bigger one.",
-    "setup.picker.not_suitable": "{model} can’t use VOOL’s tools well enough, so VOOL won’t answer with it. Pick another model and press Download."
+    "setup.picker.not_suitable": "{model} can’t use VOOL’s tools well enough, so VOOL won’t answer with it. Pick another model and press Download.",
+    "mac_settings.button": "Open Mac settings",
+    "mac_settings.opened.contacts": "System Settings is open on Contacts. Turn VOOL on there, then try again.",
+    "mac_settings.opened.automation": "System Settings is open on Automation. Turn on Notes under VOOL there, then try again.",
+    "mac_settings.opened.speech": "System Settings is open on Speech Recognition. Turn VOOL on there, then try again.",
+    "mac_settings.opened.files": "System Settings is open on Files and Folders. Turn VOOL on there, then choose Rescan.",
+    "mac_settings.opened.other": "System Settings is open. Turn VOOL on there, then try again.",
+    "mac_settings.failed": "That did not work.",
+    "mac_settings.no_answer": "VOOL did not answer; nothing was changed."
   },
   "html_keys": [
     "bypass.modal_limits",

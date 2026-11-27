@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "日常聊天用它太重：可能卡顿",
     "header.run_local_lag_picked": "{model} 可能让这台电脑卡顿。Auto 会选择运行流畅的模型。",
     "settings.local_models.suggest.bigger_lag": "这个可能让你的电脑卡顿。除非你选更大的那个，VOOL 会继续用 {model} 回答。",
-    "setup.picker.not_suitable": "{model} 不能很好地使用 VOOL 的工具，所以 VOOL 不会用它回答。请选择其他模型，然后按“下载”。"
+    "setup.picker.not_suitable": "{model} 不能很好地使用 VOOL 的工具，所以 VOOL 不会用它回答。请选择其他模型，然后按“下载”。",
+    "mac_settings.button": "打开 Mac 设置",
+    "mac_settings.opened.contacts": "系统设置已打开到“通讯录”。请在那里打开 VOOL，然后再试一次。",
+    "mac_settings.opened.automation": "系统设置已打开到“自动化”。请在那里打开 VOOL 下方的“备忘录”，然后再试一次。",
+    "mac_settings.opened.speech": "系统设置已打开到“语音识别”。请在那里打开 VOOL，然后再试一次。",
+    "mac_settings.opened.files": "系统设置已打开到“文件与文件夹”。请在那里打开 VOOL，然后选择“Rescan”。",
+    "mac_settings.opened.other": "系统设置已打开。请在那里打开 VOOL，然后再试一次。",
+    "mac_settings.failed": "刚才没有成功。",
+    "mac_settings.no_answer": "VOOL 没有回应；什么都没有改变。"
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

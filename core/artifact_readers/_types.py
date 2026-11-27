@@ -31,22 +31,28 @@ class ReaderError(Exception):
     #: Stable machine code. Callers branch on this, never on the message.
     code = "reader_error"
 
-    def __init__(self, message: str, *, code: str | None = None, remediation: str = "", fmt: str = "") -> None:
+    def __init__(self, message: str, *, code: str | None = None, remediation: str = "", fmt: str = "",
+                 mac_settings_pane: str = "") -> None:
         super().__init__(message)
         self.message = message
         if code:
             self.code = code
         self.remediation = remediation
         self.format = fmt
+        #: the Mac System Settings pane the remediation names (core.mac_settings.settings_pane), or "".
+        self.mac_settings_pane = mac_settings_pane
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "ok": False,
             "error": self.code,
             "message": self.message,
             "remediation": self.remediation,
             "format": self.format,
         }
+        if self.mac_settings_pane:
+            out["mac_settings_pane"] = self.mac_settings_pane
+        return out
 
 
 class ReaderUnavailable(ReaderError):

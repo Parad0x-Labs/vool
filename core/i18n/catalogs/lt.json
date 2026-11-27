@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "Sunkus kasdieniam pokalbiui: gali strigti",
     "header.run_local_lag_picked": "Dėl {model} šis kompiuteris gali strigti. Auto parenka sklandžiai veikiantį modelį.",
     "settings.local_models.suggest.bigger_lag": "Dėl šio kompiuteris gali strigti. VOOL ir toliau atsakys su {model}, nebent pasirinksite didesnį.",
-    "setup.picker.not_suitable": "{model} nepakankamai gerai naudoja VOOL įrankius, todėl VOOL su juo neatsakys. Pasirinkite kitą modelį ir paspauskite Atsisiųsti."
+    "setup.picker.not_suitable": "{model} nepakankamai gerai naudoja VOOL įrankius, todėl VOOL su juo neatsakys. Pasirinkite kitą modelį ir paspauskite Atsisiųsti.",
+    "mac_settings.button": "Atidaryti „Mac“ nustatymus",
+    "mac_settings.opened.contacts": "Sistemos nustatymai atidaryti ties Kontaktais. Įjunkite ten VOOL ir bandykite dar kartą.",
+    "mac_settings.opened.automation": "Sistemos nustatymai atidaryti ties Automatizavimu. Įjunkite ten „Pastabas“ po VOOL ir bandykite dar kartą.",
+    "mac_settings.opened.speech": "Sistemos nustatymai atidaryti ties Kalbos atpažinimu. Įjunkite ten VOOL ir bandykite dar kartą.",
+    "mac_settings.opened.files": "Sistemos nustatymai atidaryti ties Failais ir aplankais. Įjunkite ten VOOL, tada pasirinkite „Rescan“.",
+    "mac_settings.opened.other": "Sistemos nustatymai atidaryti. Įjunkite ten VOOL ir bandykite dar kartą.",
+    "mac_settings.failed": "Tai nesuveikė.",
+    "mac_settings.no_answer": "VOOL neatsakė; niekas nepakeista."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

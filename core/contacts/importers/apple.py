@@ -29,6 +29,7 @@ from core.contacts.importers.base import (
     ImportedPerson,
     ImportSourceError,
     SourceAccount,
+    mac_settings_pane,
 )
 
 STATUS_NOT_DETERMINED = 0
@@ -74,7 +75,11 @@ class AppleContactsAdapter:
         status = self._status(framework)
         state = {STATUS_AUTHORIZED: "authorized", STATUS_DENIED: "denied", STATUS_RESTRICTED: "restricted"}.get(status, "not_determined")
         reason = {"denied": REASON_PERMISSION_DENIED, "restricted": REASON_PERMISSION_RESTRICTED, "not_determined": REASON_PERMISSION_NOT_DETERMINED}.get(state)
-        return {"state": state, "reason": reason or "", "recovery": RECOVERY.get(reason, "") if reason else ""}
+        out = {"state": state, "reason": reason or "", "recovery": RECOVERY.get(reason, "") if reason else ""}
+        pane = mac_settings_pane(reason or "")
+        if pane:
+            out["mac_settings_pane"] = pane
+        return out
 
     def _request_access(self, framework: Any, store: Any) -> bool:
         done = threading.Event()

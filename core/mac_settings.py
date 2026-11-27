@@ -25,6 +25,17 @@ PANES: dict[str, str] = {
 _OPEN = "/usr/bin/open"
 
 
+def on_this_mac() -> bool:
+    return sys.platform == "darwin"
+
+
+def settings_pane(pane: str) -> str:
+    """The pane a permission step carries as ``mac_settings_pane``, so the page shows one "Open Mac settings"
+    button for it: the key when it is listed and VOOL runs on a Mac, otherwise "" (no button)."""
+    key = str(pane or "").strip()
+    return key if key in PANES and on_this_mac() else ""
+
+
 def pane_url(pane: str) -> str:
     anchor = PANES.get(str(pane or "").strip())
     return f"x-apple.systempreferences:com.apple.preference.security?{anchor}" if anchor else ""

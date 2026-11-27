@@ -441,6 +441,7 @@ _STORAGE: dict[str, Any] = {
     "plugins_dir": "",
     "detail": "",
     "reason": "",
+    "mac_settings_pane": "",
     "entries": (),
     "packs": (),
     "loaded": (),
@@ -570,6 +571,13 @@ def _reason_for(state: str, plugins_dir: str, detail: str, budget_s: float | Non
     return "Plugin storage has not been checked yet."
 
 
+def _mac_settings_pane_for(state: str) -> str:
+    """The Mac System Settings pane a denied folder's next step names (Files and Folders), or "" (no button)."""
+    from core.mac_settings import settings_pane
+
+    return settings_pane("files") if state == STORAGE_DENIED else ""
+
+
 def _publish(**fields: Any) -> None:
     with _STORAGE_LOCK:
         _STORAGE.update(fields)
@@ -613,7 +621,7 @@ def _probe_and_publish(*, budget_s: float, register: bool, reason: str) -> dict[
     if root is None:
         _publish(
             state=STORAGE_MISSING, root="", plugins_dir="", detail="no `plugins/` directory at the configured root",
-            reason=_reason_for(STORAGE_MISSING, "", "", budget_s), entries=(), packs=(), loaded=(), errors=(),
+            reason=_reason_for(STORAGE_MISSING, "", "", budget_s), mac_settings_pane="", entries=(), packs=(), loaded=(), errors=(),
             last_attempt_at=now, completed_at=now, elapsed_ms=0, budget_s=float(budget_s), last_reason=reason,
             in_flight=False, probe_pid=None, probe_lingering=False, registered_root="", registered_entries=(),
         )
@@ -656,6 +664,7 @@ def _probe_and_publish(*, budget_s: float, register: bool, reason: str) -> dict[
         _publish(
             state=state, detail=str(result.get("detail") or ""),
             reason=_reason_for(state, str(plugins_dir), str(result.get("detail") or ""), budget_s),
+            mac_settings_pane=_mac_settings_pane_for(state),
             entries=entries, packs=packs, loaded=loaded_ids, errors=errors, completed_at=_utcnow(),
             elapsed_ms=result.get("elapsed_ms"), in_flight=False,
             probe_pid=result.get("probe_pid"), probe_lingering=bool(result.get("lingering")),

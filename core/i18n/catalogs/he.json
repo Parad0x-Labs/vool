@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "כבד לצ׳אט יומיומי: עלול להאט",
     "header.run_local_lag_picked": "{model} עלול להאט את המחשב הזה. Auto בוחר מודל שרץ בצורה חלקה.",
     "settings.local_models.suggest.bigger_lag": "זה עלול להאט את המחשב שלכם. VOOL ממשיך לענות עם {model} אלא אם תבחרו בגדול יותר.",
-    "setup.picker.not_suitable": "{model} לא משתמש בכלים של VOOL מספיק טוב, ולכן VOOL לא יענה איתו. בחרו מודל אחר ולחצו הורדה."
+    "setup.picker.not_suitable": "{model} לא משתמש בכלים של VOOL מספיק טוב, ולכן VOOL לא יענה איתו. בחרו מודל אחר ולחצו הורדה.",
+    "mac_settings.button": "פתיחת הגדרות ה-Mac",
+    "mac_settings.opened.contacts": "הגדרות המערכת פתוחות במדור אנשי קשר. הפעילו שם את VOOL ונסו שוב.",
+    "mac_settings.opened.automation": "הגדרות המערכת פתוחות במדור אוטומציה. הפעילו שם את 'פתקים' תחת VOOL ונסו שוב.",
+    "mac_settings.opened.speech": "הגדרות המערכת פתוחות במדור זיהוי דיבור. הפעילו שם את VOOL ונסו שוב.",
+    "mac_settings.opened.files": "הגדרות המערכת פתוחות במדור קבצים ותיקיות. הפעילו שם את VOOL ואז בחרו Rescan.",
+    "mac_settings.opened.other": "הגדרות המערכת פתוחות. הפעילו שם את VOOL ונסו שוב.",
+    "mac_settings.failed": "זה לא עבד.",
+    "mac_settings.no_answer": "VOOL לא ענה; שום דבר לא השתנה."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

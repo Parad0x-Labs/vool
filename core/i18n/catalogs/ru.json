@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "Тяжёлая для обычного чата: может тормозить",
     "header.run_local_lag_picked": "Из-за {model} этот компьютер может тормозить. Auto выбирает модель, которая работает плавно.",
     "settings.local_models.suggest.bigger_lag": "Эта может замедлить ваш компьютер. VOOL продолжает отвечать моделью {model}, если вы не выберете большую.",
-    "setup.picker.not_suitable": "{model} недостаточно хорошо работает с инструментами VOOL, поэтому VOOL не будет им отвечать. Выберите другую модель и нажмите «Скачать»."
+    "setup.picker.not_suitable": "{model} недостаточно хорошо работает с инструментами VOOL, поэтому VOOL не будет им отвечать. Выберите другую модель и нажмите «Скачать».",
+    "mac_settings.button": "Открыть настройки Mac",
+    "mac_settings.opened.contacts": "Системные настройки открыты на разделе «Контакты». Включите там VOOL и попробуйте снова.",
+    "mac_settings.opened.automation": "Системные настройки открыты на разделе «Автоматизация». Включите там «Заметки» под VOOL и попробуйте снова.",
+    "mac_settings.opened.speech": "Системные настройки открыты на разделе «Распознавание речи». Включите там VOOL и попробуйте снова.",
+    "mac_settings.opened.files": "Системные настройки открыты на разделе «Файлы и папки». Включите там VOOL, затем выберите «Rescan».",
+    "mac_settings.opened.other": "Системные настройки открыты. Включите там VOOL и попробуйте снова.",
+    "mac_settings.failed": "Не получилось.",
+    "mac_settings.no_answer": "VOOL не ответил; ничего не изменилось."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

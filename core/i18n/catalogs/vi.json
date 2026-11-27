@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "Nặng cho trò chuyện hằng ngày: có thể giật",
     "header.run_local_lag_picked": "{model} có thể làm máy tính này bị giật. Auto chọn mô hình chạy mượt.",
     "settings.local_models.suggest.bigger_lag": "Mô hình này có thể làm máy bạn bị giật. VOOL vẫn trả lời bằng {model} trừ khi bạn chọn mô hình lớn hơn.",
-    "setup.picker.not_suitable": "{model} chưa dùng được công cụ của VOOL đủ tốt, nên VOOL sẽ không trả lời bằng nó. Hãy chọn mô hình khác rồi bấm Tải về."
+    "setup.picker.not_suitable": "{model} chưa dùng được công cụ của VOOL đủ tốt, nên VOOL sẽ không trả lời bằng nó. Hãy chọn mô hình khác rồi bấm Tải về.",
+    "mac_settings.button": "Mở cài đặt Mac",
+    "mac_settings.opened.contacts": "Cài đặt hệ thống đang mở ở mục Danh bạ. Hãy bật VOOL ở đó, rồi thử lại.",
+    "mac_settings.opened.automation": "Cài đặt hệ thống đang mở ở mục Tự động hóa. Hãy bật Ghi chú bên dưới VOOL ở đó, rồi thử lại.",
+    "mac_settings.opened.speech": "Cài đặt hệ thống đang mở ở mục Nhận dạng giọng nói. Hãy bật VOOL ở đó, rồi thử lại.",
+    "mac_settings.opened.files": "Cài đặt hệ thống đang mở ở mục Tệp và thư mục. Hãy bật VOOL ở đó, rồi chọn Rescan.",
+    "mac_settings.opened.other": "Cài đặt hệ thống đang mở. Hãy bật VOOL ở đó, rồi thử lại.",
+    "mac_settings.failed": "Việc đó không thành công.",
+    "mac_settings.no_answer": "VOOL không trả lời; không có gì thay đổi."
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

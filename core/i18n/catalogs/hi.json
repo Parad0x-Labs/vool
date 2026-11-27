@@ -5671,9 +5671,17 @@
     "header.run_local_lag_heavy": "रोज़ की चैट के लिए भारी: अटक सकता है",
     "header.run_local_lag_picked": "{model} से यह कंप्यूटर अटक सकता है। Auto ऐसा मॉडल चुनता है जो आराम से चले।",
     "settings.local_models.suggest.bigger_lag": "इससे आपका कंप्यूटर अटक सकता है। जब तक आप बड़ा न चुनें, VOOL {model} से जवाब देता रहेगा।",
-    "setup.picker.not_suitable": "{model} VOOL के टूल ठीक से इस्तेमाल नहीं कर पाता, इसलिए VOOL इससे जवाब नहीं देगा। कोई दूसरा मॉडल चुनें और डाउनलोड दबाएँ।"
+    "setup.picker.not_suitable": "{model} VOOL के टूल ठीक से इस्तेमाल नहीं कर पाता, इसलिए VOOL इससे जवाब नहीं देगा। कोई दूसरा मॉडल चुनें और डाउनलोड दबाएँ।",
+    "mac_settings.button": "Mac सेटिंग्स खोलें",
+    "mac_settings.opened.contacts": "सिस्टम सेटिंग्स संपर्क पर खुली है। वहाँ VOOL चालू करें, फिर दोबारा कोशिश करें।",
+    "mac_settings.opened.automation": "सिस्टम सेटिंग्स ऑटोमेशन पर खुली है। वहाँ VOOL के नीचे नोट्स चालू करें, फिर दोबारा कोशिश करें।",
+    "mac_settings.opened.speech": "सिस्टम सेटिंग्स स्पीच रिकग्निशन पर खुली है। वहाँ VOOL चालू करें, फिर दोबारा कोशिश करें।",
+    "mac_settings.opened.files": "सिस्टम सेटिंग्स फ़ाइलें और फ़ोल्डर पर खुली है। वहाँ VOOL चालू करें, फिर Rescan चुनें।",
+    "mac_settings.opened.other": "सिस्टम सेटिंग्स खुली है। वहाँ VOOL चालू करें, फिर दोबारा कोशिश करें।",
+    "mac_settings.failed": "वह काम नहीं हुआ।",
+    "mac_settings.no_answer": "VOOL ने जवाब नहीं दिया; कुछ नहीं बदला।"
   },
-  "source_catalog_sha256": "fef69ccaaa950b22686c1ab5ad6eef3b8e4eeafb743e4d527d0d632bb74bd0fd",
+  "source_catalog_sha256": "ec8c4da2f30a9b97a23ffd79231a6654f0591d9d45a52a6d49dccbc3d47f944d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
