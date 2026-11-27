@@ -1650,9 +1650,17 @@ _AVAILABILITY_READ_SCOPE = contextvars.ContextVar("availability_read_scope", def
 def availability_read_scope():
     """Reuse a connection only during one synchronous projection operation.
 
-    Verdicts are never cached and no read transaction is held: each check sees
-    current committed governance. The connection closes before the response
-    leaves this scope, preserving storage's no-idle-connection contract.
+    No read transaction is held: each check sees current committed governance. A
+    verdict is reused within the scope only while the store reports no commit
+    from any other connection since it was read (`PRAGMA data_version`), so a
+    revocation committed midway is seen by the very next check. The legacy
+    tombstone rewrite runs once per scope. Nothing outlives the scope: the
+    connection and the verdicts close before the response leaves it, preserving
+    storage's no-idle-connection contract.
+
+    Measured on the owner's iMac (2026-11-27): the activity list checked 68,982
+    strings per call, 5,375 of them distinct, each check rescanning governance
+    for the tombstone rewrite -- 45-60 s of CPU on every chat open.
     """
     from storage.db import active_default_db_path
 
@@ -1663,7 +1671,9 @@ def availability_read_scope():
         # connection and leaves closing it to the scope that opened it.
         yield
         return
-    state = [path, None]
+    # [db path, connection, {hash: verdict}, data_version the verdicts were read at, rewrite done,
+    #  the home token the path was resolved under]
+    state = [path, None, {}, None, False, _home_token()]
     token = _AVAILABILITY_READ_SCOPE.set(state)
     try:
         yield
@@ -1673,12 +1683,31 @@ def availability_read_scope():
             state[1].close()
 
 
-@contextlib.contextmanager
-def _availability_connection():
+def _home_token() -> tuple[int, str]:
+    """A cheap stand-in for "the active store is still the one resolved": the runtime-home
+    generation (advanced by every home switch) and the store override."""
+    import storage.db as _store_db
+    from core.runtime_paths import runtime_home_generation
+
+    return (runtime_home_generation(), str(_store_db._DEFAULT_DB_PATH_OVERRIDE or ""))
+
+
+def _active_store_path() -> str:
+    """The active store's path. Inside a read scope whose home has not switched since it opened,
+    the path the scope resolved: resolving it walks the filesystem (three realpaths), and a chat
+    open checks tens of thousands of strings."""
     from storage.db import active_default_db_path
 
     state = _AVAILABILITY_READ_SCOPE.get()
-    if state is None or state[0] != active_default_db_path():
+    if state is not None and state[5] == _home_token():
+        return state[0]
+    return active_default_db_path()
+
+
+@contextlib.contextmanager
+def _availability_connection():
+    state = _AVAILABILITY_READ_SCOPE.get()
+    if state is None or state[0] != _active_store_path():
         with contextlib.closing(get_connection()) as conn:
             yield conn
     else:
@@ -1701,93 +1730,119 @@ def payload_availability_for_hash(content_hash: str) -> str | None:
     - None means no governed truth is known for these bytes (honest legacy).
 
     Fail-closed on ambiguity is the caller's law; this helper only reports
-    truth. Reads re-verify per call — no read-once-trust.
+    truth. Reads re-verify per call — no read-once-trust — except that inside one
+    `availability_read_scope` a verdict is reused while no other connection has
+    committed since it was read.
     """
     clean = str(content_hash or "").strip()
     if not clean:
         return None
+    scope = _AVAILABILITY_READ_SCOPE.get()
+    if scope is not None and scope[0] != _active_store_path():
+        scope = None
     with _availability_connection() as conn:
+        if scope is not None:
+            # Verdicts read in this scope stand only while no other connection has committed
+            # since: `data_version` moves on any such commit (an erase, a withhold, a new row).
+            version = conn.execute("PRAGMA data_version").fetchone()[0]
+            if scope[3] != version:
+                scope[2].clear()
+                scope[3] = version
+            elif clean in scope[2]:
+                return scope[2][clean]
+            if not scope[4]:
+                _migrate_legacy_digest_tombstones(conn)
+                scope[4] = True
+            verdict = _availability_verdict(conn, clean)
+            # A store error raised above and was never stored: only a read verdict is reused.
+            scope[2][clean] = verdict
+            return verdict
         _migrate_legacy_digest_tombstones(conn)
-        # CONVERGENCE 2026-09-02 (F18 fail-open): `LIMIT 1` picked ONE of the rows carrying
-        # these bytes, and with no ORDER BY that is whichever row the store happens to hand
-        # back -- usually the oldest. Byte-identical payloads DO get admitted more than once
-        # (two turns, two finalizations, the same canonical text), and when one of them was
-        # withheld while a sibling stayed AVAILABLE, the arbitrary pick disclosed the withheld
-        # bytes. Whether it disclosed them depended on row order, which is why it surfaced as
-        # an intermittent leak rather than a stable one.
-        #
-        # The dominance rule this function already applies to bound derivatives is the same
-        # rule these siblings need, and it is the rule the module docstring states: ERASED >
-        # WITHHELD > anything else. Resolve across EVERY row holding this hash, most
-        # restrictive wins. Ambiguous ownership never resolves into disclosure.
-        sibling_verdicts = {
-            str(candidate["availability"] or "")
-            for candidate in conn.execute(
-                "SELECT availability FROM a7_finalizations WHERE content_hash = ?",
-                (clean,),
-            ).fetchall()
-        }
-        row: dict[str, str] | None = None
-        if AVAILABILITY_ERASED in sibling_verdicts:
-            row = {"availability": AVAILABILITY_ERASED}
-        elif AVAILABILITY_WITHHELD in sibling_verdicts:
-            row = {"availability": AVAILABILITY_WITHHELD}
-        elif sibling_verdicts:
-            row = {"availability": sorted(sibling_verdicts)[0]}
-        # A9 RC-8 pass-003 (F1/F8 dominance): a live AVAILABLE row sharing this
-        # key must NOT outvote a governed binding — differently-governed
-        # sources can produce byte-identical canonical derivatives, and the
-        # fail-closed direction is to withhold. Ambiguous ownership never
-        # resolves into disclosure.
-        if (
-            row is not None
-            and str(row["availability"] or "") not in _UNSERVEABLE_AVAILABILITY
-        ):
-            dominated = conn.execute(
-                """
-                SELECT f.availability AS availability
-                FROM a8_governed_derivatives d
-                JOIN a7_finalizations f ON f.finalization_id = d.finalization_id
-                WHERE d.value_key = ?
-                  AND f.availability IN (?, ?)
-                LIMIT 1
-                """,
-                (clean, *_UNSERVEABLE_AVAILABILITY),
-            ).fetchone()
-            if dominated is not None:
-                return str(dominated["availability"] or "")
-        if row is not None:
-            return str(row["availability"] or "") or None
-        tomb = conn.execute(
-            "SELECT 1 FROM a7_governance_events "
-            "WHERE event_kind = ? AND reason IN (?, ?) LIMIT 1",
-            (
-                EVENT_KIND_ERASURE_DIGEST_TOMBSTONE,
-                clean,
-                _keyed_tombstone_value(clean),
-            ),
-        ).fetchone()
-        if tomb is not None:
-            return AVAILABILITY_ERASED
-        # A8 PASS004 (NCE-F1/F2): governed derivative lineage. A bound fragment
-        # resolves to its governing finalization's LIVE availability — ownership
-        # is read from registry identity, never re-derived from text or hash
-        # guesses. A registry hit whose governing row cannot resolve fails
-        # closed (ERASED), never discloses.
-        reg = conn.execute(
-            "SELECT finalization_id FROM a8_governed_derivatives "
-            "WHERE value_key = ? LIMIT 1",
+        return _availability_verdict(conn, clean)
+
+
+def _availability_verdict(conn: sqlite3.Connection, clean: str) -> str | None:
+    """The verdict itself, read from `conn` now (see `payload_availability_for_hash`)."""
+    # CONVERGENCE 2026-09-02 (F18 fail-open): `LIMIT 1` picked ONE of the rows carrying
+    # these bytes, and with no ORDER BY that is whichever row the store happens to hand
+    # back -- usually the oldest. Byte-identical payloads DO get admitted more than once
+    # (two turns, two finalizations, the same canonical text), and when one of them was
+    # withheld while a sibling stayed AVAILABLE, the arbitrary pick disclosed the withheld
+    # bytes. Whether it disclosed them depended on row order, which is why it surfaced as
+    # an intermittent leak rather than a stable one.
+    #
+    # The dominance rule this function already applies to bound derivatives is the same
+    # rule these siblings need, and it is the rule the module docstring states: ERASED >
+    # WITHHELD > anything else. Resolve across EVERY row holding this hash, most
+    # restrictive wins. Ambiguous ownership never resolves into disclosure.
+    sibling_verdicts = {
+        str(candidate["availability"] or "")
+        for candidate in conn.execute(
+            "SELECT availability FROM a7_finalizations WHERE content_hash = ?",
             (clean,),
+        ).fetchall()
+    }
+    row: dict[str, str] | None = None
+    if AVAILABILITY_ERASED in sibling_verdicts:
+        row = {"availability": AVAILABILITY_ERASED}
+    elif AVAILABILITY_WITHHELD in sibling_verdicts:
+        row = {"availability": AVAILABILITY_WITHHELD}
+    elif sibling_verdicts:
+        row = {"availability": sorted(sibling_verdicts)[0]}
+    # A9 RC-8 pass-003 (F1/F8 dominance): a live AVAILABLE row sharing this
+    # key must NOT outvote a governed binding — differently-governed
+    # sources can produce byte-identical canonical derivatives, and the
+    # fail-closed direction is to withhold. Ambiguous ownership never
+    # resolves into disclosure.
+    if (
+        row is not None
+        and str(row["availability"] or "") not in _UNSERVEABLE_AVAILABILITY
+    ):
+        dominated = conn.execute(
+            """
+            SELECT f.availability AS availability
+            FROM a8_governed_derivatives d
+            JOIN a7_finalizations f ON f.finalization_id = d.finalization_id
+            WHERE d.value_key = ?
+              AND f.availability IN (?, ?)
+            LIMIT 1
+            """,
+            (clean, *_UNSERVEABLE_AVAILABILITY),
         ).fetchone()
-        if reg is not None:
-            grow = conn.execute(
-                "SELECT availability FROM a7_finalizations "
-                "WHERE finalization_id = ? LIMIT 1",
-                (str(reg["finalization_id"]),),
-            ).fetchone()
-            resolved = str(grow["availability"] or "").strip() if grow else ""
-            return resolved if resolved in (*_UNSERVEABLE_AVAILABILITY, AVAILABILITY_AVAILABLE, AVAILABILITY_LEGACY_UNKNOWN) else AVAILABILITY_ERASED
-        return None
+        if dominated is not None:
+            return str(dominated["availability"] or "")
+    if row is not None:
+        return str(row["availability"] or "") or None
+    tomb = conn.execute(
+        "SELECT 1 FROM a7_governance_events "
+        "WHERE event_kind = ? AND reason IN (?, ?) LIMIT 1",
+        (
+            EVENT_KIND_ERASURE_DIGEST_TOMBSTONE,
+            clean,
+            _keyed_tombstone_value(clean),
+        ),
+    ).fetchone()
+    if tomb is not None:
+        return AVAILABILITY_ERASED
+    # A8 PASS004 (NCE-F1/F2): governed derivative lineage. A bound fragment
+    # resolves to its governing finalization's LIVE availability — ownership
+    # is read from registry identity, never re-derived from text or hash
+    # guesses. A registry hit whose governing row cannot resolve fails
+    # closed (ERASED), never discloses.
+    reg = conn.execute(
+        "SELECT finalization_id FROM a8_governed_derivatives "
+        "WHERE value_key = ? LIMIT 1",
+        (clean,),
+    ).fetchone()
+    if reg is not None:
+        grow = conn.execute(
+            "SELECT availability FROM a7_finalizations "
+            "WHERE finalization_id = ? LIMIT 1",
+            (str(reg["finalization_id"]),),
+        ).fetchone()
+        resolved = str(grow["availability"] or "").strip() if grow else ""
+        return resolved if resolved in (*_UNSERVEABLE_AVAILABILITY, AVAILABILITY_AVAILABLE, AVAILABILITY_LEGACY_UNKNOWN) else AVAILABILITY_ERASED
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -1827,9 +1882,7 @@ _a8_digest_key_cache: tuple[tuple[int, str, str], bytes] | None = None
 
 def _governance_cache_stale() -> bool:
     """True when the cached verdict/key were proven under a different store."""
-    from storage.db import active_default_db_path
-
-    return _governance_cache_db_path != active_default_db_path()
+    return _governance_cache_db_path != _active_store_path()
 
 GOVERNANCE_STORE_READY = "READY"
 GOVERNANCE_STORE_ABSENT = "ABSENT"

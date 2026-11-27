@@ -2263,6 +2263,12 @@ STORE_VERSION_LEDGER: tuple[tuple[int, str], ...] = (
         "per goal: objective, acceptance, plan revision with stable step ids, lifecycle "
         "state, turn-id references) and its session index.",
     ),
+    (
+        10,
+        "Serve-gate read indexes: a7_finalizations(content_hash) and "
+        "a7_governance_events(event_kind, reason). Every availability check looked both up by "
+        "a full scan; the activity list runs tens of thousands of checks per call.",
+    ),
 )
 
 
@@ -2632,6 +2638,17 @@ def _run_migrations_locked(db_file: Path, *, db_path=None, force: bool = False) 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_a7_governance_fid "
             "ON a7_governance_events(finalization_id, created_at)"
+        )
+        # Store v10: the serve gate (core.finalization.payload_availability_for_hash) reads both
+        # tables by these columns on every check. Unindexed, one check scanned both tables, and
+        # opening a chat's activity ran ~69k checks: 45-60 s of CPU on the owner's iMac.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_a7_finalizations_content_hash "
+            "ON a7_finalizations(content_hash)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_a7_governance_kind_reason "
+            "ON a7_governance_events(event_kind, reason)"
         )
         # A8 pass-001: erasure-traversal ledger extension — per-store sweep
         # outcomes live in the ONE governance event table (no second ledger).

@@ -661,6 +661,17 @@ def _ollama_context_window_for_bundle_role(
     )
 
 
+def _registered_capacity_bucket() -> str:
+    """The capacity bucket provider registration sizes local models with: the one recorded at
+    install for the active runtime home ("" when none is, and sizing then reads the machine)."""
+    try:
+        from core.runtime_paths import active_vool_home
+
+        return installed_capacity_bucket(active_vool_home())
+    except Exception:
+        return ""
+
+
 def ollama_direct_runner_options(
     model_tag: str,
     *,
@@ -681,7 +692,13 @@ def ollama_direct_runner_options(
     from core.compute_mode import ollama_runner_thread_count
 
     options = {
-        "num_ctx": _ollama_context_window_for_bundle_role(bundle_role, model_tag=str(model_tag or ""), env=env_map),
+        # Sized from the SAME capacity bucket registration stamps into the model's manifest (the
+        # one recorded at install), not from this machine's RAM. The two disagreed on the owner's
+        # 24 GB iMac (2026-11-27): the adapter served qwen3:0.6b at 16384 and the judge lanes at
+        # 24576, so every alternation reloaded it -- ten times in a morning, 3.3 GB each, into swap.
+        "num_ctx": _ollama_context_window_for_bundle_role(
+            bundle_role, model_tag=str(model_tag or ""), bucket=_registered_capacity_bucket(), env=env_map
+        ),
         "num_thread": ollama_runner_thread_count(),
     }
     forced_num_gpu = _resolve_ollama_num_gpu(env_map)
