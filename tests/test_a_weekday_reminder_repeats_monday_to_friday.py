@@ -75,7 +75,11 @@ def test_a_typed_weekday_rule_is_kept_and_skips_the_weekend(seed, home) -> None:
     nxt = next_repeat_occurrence(row, now_fn=lambda: after.isoformat())
     wall = datetime.fromisoformat(nxt["due_wall"])
     assert wall.weekday() == 0 and (wall.hour, wall.minute) == (7, 45), nxt
-    assert (wall.date() - friday.date()).days == 3
+    # On a Friday before 7:45 the first one is due this morning ("every weekday at 7:45" said at 04:25 on Friday 27
+    # Nov): a Friday either way, and Monday is the one after it.
+    first = datetime.fromisoformat(str(row["due_wall"]))
+    assert first.weekday() == 4 and first.date() in {friday.date(), (friday - timedelta(days=7)).date()}, row
+    assert (wall.date() - first.date()).days == 3
 
 
 def test_a_first_due_time_on_a_weekend_moves_to_monday(home) -> None:

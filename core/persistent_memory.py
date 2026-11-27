@@ -3651,7 +3651,57 @@ def _judged_recall_reply(
         return f"You told me: {named[0]}"
     if named:
         return "You told me:\n" + "\n".join(f"- {fact}" for fact in named)
-    return None
+    return _judged_reminder_reply(question, session_id=session_id, source_context=source_context)
+
+
+def _pending_reminder_lines(session_id: str | None) -> list[str]:
+    """The person's reminders still to come, one line each in the words they were set with and when each is due on the
+    owner's clock: the ones a reminder listing in this chat shows (this chat's and every chat's that is not private)."""
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from core.local_operator_actions import _visible_owner_reminders
+        from core.user_preferences import owner_timezone
+
+        rows = _visible_owner_reminders(str(session_id or ""))
+        zone = ZoneInfo(owner_timezone())
+    except Exception as exc:
+        LOGGER.warning("judged recall: reminders unreadable (%s)", type(exc).__name__)
+        return []
+    lines: list[str] = []
+    for row in rows[:_REMINDERS_JUDGED]:
+        note = " ".join(str(row.get("note") or "").split())
+        try:
+            due = datetime.fromisoformat(str(row.get("due_at_utc") or "").replace("Z", "+00:00")).astimezone(zone)
+        except (TypeError, ValueError):
+            continue
+        if note:
+            lines.append(f"{note.rstrip('.')}, {due.strftime('%A %d %b %Y at %H:%M')}")
+    return lines
+
+
+#: The most pending reminders a recall question is read against (the soonest first).
+_REMINDERS_JUDGED = 40
+
+
+def _judged_reminder_reply(question: str, *, session_id: str | None,
+                           source_context: Mapping[str, Any] | None) -> str | None:
+    """A recall question that a reminder the person set answers, named by the same recall judge in any language: what
+    they asked to be reminded of is something of their own life they told VOOL. iMac gate47 on 6ce598256: "remind me
+    on Saturday at 6pm to drop off the spare key at Tomas's", then in a new chat "what was I going to bring over to his
+    place, and when?" was refused as a web lookup: the judge read it against the one saved fact and named nothing, and
+    the reminder was never read. None when no reminder is pending or the judge names none."""
+    lines = _pending_reminder_lines(session_id)
+    if not lines:
+        return None
+    named = _judged_items_named(question, lines, session_id=session_id, source_context=source_context)
+    LOGGER.info("judged recall: %d pending reminder(s), %d named", len(lines), len(named))
+    if not named:
+        return None
+    if len(named) == 1:
+        return f"You asked me to remind you: {_said_to_its_end(named[0])}"
+    return "You asked me to remind you:\n" + "\n".join(f"- {_said_to_its_end(line)}" for line in named)
 
 
 def _said_to_its_end(fact: str) -> str:

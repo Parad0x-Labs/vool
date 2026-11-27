@@ -23,14 +23,24 @@ def fixed_clock(monkeypatch):
     from core import time_authority
 
     monkeypatch.setattr(time_authority, "CLOCK", _Clock())
+    monkeypatch.setattr("core.user_preferences.owner_timezone", lambda: "UTC")
 
 
 def test_a_wait_in_minutes_sets_the_due_time_from_the_runtime_clock(fixed_clock):
     intent = operator_tools.build_operator_action_intent("schedule_reminder", {
         "note": "zavolat babičce", "due_iso": "2026-11-26T04:09", "in_minutes": 25,
         "text": "připomeň mi za 25 minut, ať zavolám babičce"})
-    assert intent.due_iso == "2026-11-26T02:34+00:00"
+    assert intent.due_iso == "2026-11-26T02:34"
     assert intent.due_weekday is None
+
+
+def test_the_wait_is_due_on_the_owners_own_wall_clock(fixed_clock, monkeypatch):
+    """Read in the owner's zone like a time they type, so it is stored and shown in it (iMac gate47 on 6ce598256: a
+    fresh profile's "40 minutes from now" was shown due in UTC on a +02:00 Mac)."""
+    monkeypatch.setattr("core.user_preferences.owner_timezone", lambda: "Europe/Vilnius")
+    intent = operator_tools.build_operator_action_intent("schedule_reminder", {
+        "note": "išimti duoną", "in_minutes": 40, "text": "po 40 minučių primink išimti duoną"})
+    assert intent.due_iso == "2026-11-26T04:49"
 
 
 @pytest.mark.parametrize("wait", ["", None, 0, -5, 2.5, "soon", True, 10 ** 9])

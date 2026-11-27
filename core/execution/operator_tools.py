@@ -134,11 +134,18 @@ def _due_after_a_wait(arguments: dict[str, Any]) -> str | None:
         return None
     if minutes != int(minutes) or not 1 <= minutes <= _LONGEST_WAIT_MINUTES:
         return None
+    import contextlib
     from datetime import timedelta, timezone
+    from zoneinfo import ZoneInfo
 
     from core.time_authority import CLOCK
+    from core.user_preferences import owner_timezone
 
     due = (CLOCK.now_utc().astimezone(timezone.utc) + timedelta(minutes=int(minutes))).replace(second=0, microsecond=0)
+    # The owner's own wall clock, read in their zone like any time they type, so the reminder is stored and shown in it:
+    # a UTC instant was kept as zone "UTC+00:00" and shown in UTC to a +02:00 owner (iMac gate47 on 6ce598256).
+    with contextlib.suppress(Exception):
+        return due.astimezone(ZoneInfo(owner_timezone())).strftime("%Y-%m-%dT%H:%M")
     return due.strftime("%Y-%m-%dT%H:%M+00:00")
 
 

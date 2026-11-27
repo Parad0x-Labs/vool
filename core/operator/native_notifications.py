@@ -109,9 +109,9 @@ def _decode(raw: Any) -> dict[str, Any]:
 
 def _user_zone() -> ZoneInfo:
     try:
-        from core.user_preferences import load_user_timezone
+        from core.user_preferences import owner_timezone
 
-        return ZoneInfo(str(load_user_timezone() or "").strip() or "UTC")
+        return ZoneInfo(owner_timezone())
     except Exception:
         return ZoneInfo("UTC")
 

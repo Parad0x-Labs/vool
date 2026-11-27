@@ -57,6 +57,10 @@ def test_a_date_a_day_off_is_moved_to_the_named_day(seed) -> None:
     # A date already on that day stands, even a week later ("next Friday").
     later = (meant + timedelta(days=7)).isoformat() + "T09:30"
     assert align_to_weekday(later, weekday, today) == later
+    # A date on that day that has already gone is moved forward to the coming one.
+    last = today - timedelta(days=(today.weekday() - weekday) % 7 or 7)
+    gone = (last - timedelta(days=7 * rng.randint(0, 2))).isoformat() + "T11:00"
+    assert align_to_weekday(gone, weekday, today) == f"{meant.isoformat()}T11:00", (today, DAYS[weekday], gone)
 
 
 @pytest.mark.parametrize("word,index", [("Friday", 4), ("fri", 4), ("SATURDAY", 5), ("mon.", 0), ("tomorrow", None),

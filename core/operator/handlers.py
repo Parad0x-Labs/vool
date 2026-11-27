@@ -1179,10 +1179,10 @@ def _reminder_when(text: str, parse_when_fn: Any) -> tuple[Any, str]:
 def _owner_today() -> Any:
     """Today's date on the owner's own clock (their saved zone), as the when-reader reads it."""
     from core.time_authority import CLOCK
-    from core.user_preferences import load_user_timezone
+    from core.user_preferences import owner_timezone
 
     try:
-        return CLOCK.now_for_timezone(load_user_timezone() or "UTC").date()
+        return CLOCK.now_for_timezone(owner_timezone()).date()
     except Exception:
         return CLOCK.now_utc().date()
 

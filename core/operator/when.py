@@ -20,7 +20,7 @@ import unicodedata
 from calendar import monthrange
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone, tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
@@ -219,8 +219,18 @@ def format_due_time(due_at_utc: str, tz_name: str = "", due_wall: str = "") -> s
     if tz_name:
         # Preserve the stored offset if a legacy zone cannot be resolved.
         with contextlib.suppress(ZoneInfoNotFoundError, ValueError):
-            instant = instant.astimezone(ZoneInfo(tz_name))
+            instant = instant.astimezone(_named_or_offset_zone(tz_name))
     return instant.strftime("%d %b %Y at %H:%M:%S %Z")
+
+
+def _named_or_offset_zone(tz_name: str) -> tzinfo:
+    """The zone a reminder was stored with: a named zone, or a typed offset kept as "UTC+05:30" (`_zone_from_text`),
+    which no named zone reads and so was shown in UTC (iMac gate47 on 6ce598256)."""
+    offset = re.fullmatch(r"(?:UTC|GMT)([+-])(\d{1,2}):?(\d{2})?", str(tz_name or "").strip(), re.IGNORECASE)
+    if offset:
+        delta = timedelta(hours=int(offset.group(2)), minutes=int(offset.group(3) or 0))
+        return timezone(-delta if offset.group(1) == "-" else delta)
+    return ZoneInfo(tz_name)
 
 
 def when_text_from_iso(value: str) -> str:
@@ -336,8 +346,10 @@ def align_to_weekday(iso: str, weekday: int, today: date) -> str:
 
     A small model counts days wrong even with the coming dates listed beside the clock (Mac gate on f3771b6b7 and the
     audit on 02ff11496, a Monday: "this Friday 4pm" was typed as Thursday 26 Nov, "Saturday" as Friday 27). Naming the
-    day is easy for it in any language; the date is worked out here. A typed date already on that weekday stands (it
-    may be a week later on purpose, "next Friday"); otherwise the first such day after today is taken."""
+    day is easy for it in any language; the date is worked out here. A typed date already on that weekday stands when it
+    is today or later (it may be a week later on purpose, "next Friday"); otherwise the first such day after today is
+    taken. A date on that weekday that has already gone is the model counting backwards: iMac gate47 on 6ce598256, a
+    Friday, "book a haircut in my calendar for Thursday 11am" was typed as Thursday 26 Nov, the day before."""
     raw = _iso_zone_words_as_offset(str(iso or "").strip())
     match = re.match(r"(\d{4})-(\d{2})-(\d{2})", raw)
     if not match:
@@ -346,7 +358,7 @@ def align_to_weekday(iso: str, weekday: int, today: date) -> str:
         typed_day = date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
     except ValueError:
         return iso
-    if typed_day.weekday() == weekday:
+    if typed_day.weekday() == weekday and typed_day >= today:
         return iso
     ahead = (weekday - today.weekday()) % 7 or 7
     meant = today + timedelta(days=ahead)

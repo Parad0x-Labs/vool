@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -800,6 +801,29 @@ def _profile_timezone() -> str:
     if item is None:
         return ""
     return _validate_timezone(str(getattr(item, "value_text", "") or getattr(item, "value", "") or ""))
+
+
+def host_timezone_name() -> str:
+    """This computer's IANA time zone ("Europe/Vilnius"), or "" when it cannot be read.
+
+    A person who never set a time zone means the clock on their computer: "remind me tomorrow at
+    10am" was scheduled for 10:00 UTC on the 0.7.8 sweep (block 3), two hours off on a +02:00 Mac."""
+    configured = str(os.environ.get("TZ") or "").strip().lstrip(":")
+    if "/" in configured and _validate_timezone(configured):
+        return configured
+    try:
+        target = os.path.realpath("/etc/localtime")
+    except OSError:
+        return ""
+    marker = "zoneinfo/"
+    return _validate_timezone(target.split(marker, 1)[1]) if marker in target else ""
+
+
+def owner_timezone() -> str:
+    """The zone the owner's times are read and shown in: the one they set or told VOOL, else this computer's own,
+    else UTC. A fresh profile has no saved zone, and its "in 40 minutes" reminder was shown in UTC on a +02:00 Mac
+    (iMac gate47 on 6ce598256) while "Saturday at 6pm" in the same chat was read on the computer's clock."""
+    return load_user_timezone() or host_timezone_name() or "UTC"
 
 
 def save_user_timezone(tz_name: str) -> bool:

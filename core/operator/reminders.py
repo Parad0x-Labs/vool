@@ -156,6 +156,23 @@ def schedule_reminder(
     reminder_id = str(uuid.uuid4())
     conn = get_connection_fn()
     try:
+        if source_kind == "reminder" and not repeat_every:
+            # One ask is one reminder: iMac gate47 on 6ce598256, one "set a timer-style reminder for 40 minutes from
+            # now to take the bread out" was scheduled by two tool calls in the same turn and fired twice. The same
+            # turn (task), chat, note and due instant, still waiting, is that reminder; the person asking for it again
+            # in a later turn gets another.
+            same_note = " ".join(str(note or "").split()).casefold()
+            for row in conn.execute(
+                """
+                SELECT reminder_id, note FROM reminder_requests
+                WHERE session_id = ? AND task_id = ? AND due_at_utc = ? AND status = 'scheduled'
+                  AND source_kind = 'reminder'
+                """,
+                (session_id, task_id, due_at_utc),
+            ).fetchall():
+                if " ".join(str(row[1] or "").split()).casefold() == same_note:
+                    return {"reminder_id": str(row[0]), "status": "already_scheduled", "due_at_utc": due_at_utc,
+                            "note": note, "repeat_every": ""}
         conn.execute(
             """
             INSERT INTO reminder_requests (
