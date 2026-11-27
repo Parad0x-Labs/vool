@@ -27,7 +27,13 @@ from typing import Any
 from core.contacts import authority, identity, names, store
 from core.contacts.endpoints import VERIFICATION_IMPORTED, EndpointError, normalize_endpoint, secret_material_reason
 from core.contacts.importers import PROVIDERS, adapter_for
-from core.contacts.importers.base import REASON_BINDING_REQUIRED, RECOVERY, ImportSourceError, SourceAccount, mac_settings_pane
+from core.contacts.importers.base import (
+    REASON_BINDING_REQUIRED,
+    RECOVERY,
+    ImportSourceError,
+    SourceAccount,
+    mac_settings_pane,
+)
 
 MAX_IMPORT = 5000
 ACTION_CREATE = "create"

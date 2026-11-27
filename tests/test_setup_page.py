@@ -298,8 +298,9 @@ def test_the_page_carries_no_oauth_and_no_deep_links() -> None:
 
 def test_the_model_picker_calls_a_model_ready_only_after_its_check_said_so() -> None:
     """The picker's "ready" line is gated on the check's own readiness answer, never on the download alone."""
-    from core.local_model_picker_fragment import LOCAL_MODEL_PICKER_JS as js
+    from core.local_model_picker_fragment import LOCAL_MODEL_PICKER_JS
 
+    js = LOCAL_MODEL_PICKER_JS
     assert js.index("/api/model-tool-certification/run") < js.index("st.readiness[tag] = ")
     ready_line = js.index("else if (result.ready)")
     assert "ready: states.includes('ready')" in js and ready_line > js.index("st.readiness[tag] = ")

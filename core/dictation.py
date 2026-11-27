@@ -36,7 +36,7 @@ class DictationUnavailable(Exception):
         self.mac_settings_pane = mac_settings_pane
 
     @classmethod
-    def from_reader(cls, exc: Any) -> "DictationUnavailable":
+    def from_reader(cls, exc: Any) -> DictationUnavailable:
         return cls(exc.code, exc.message, exc.remediation, mac_settings_pane=str(getattr(exc, "mac_settings_pane", "") or ""))
 
     def to_dict(self) -> dict[str, Any]:

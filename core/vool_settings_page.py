@@ -7128,6 +7128,10 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.disclosure.settings_fragment import render_settings_fragment
     from core.drop_settings_fragment import render_drop_settings_fragment
     from core.lend_fragment import render_lend_fragment
+
+    # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
+    # here: each fragment renders itself into the host its group provides
+    from core.local_model_picker_fragment import LOCAL_MODEL_PICKER_CSS, LOCAL_MODEL_PICKER_JS
     from core.my_things_fragment import render_my_things_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
     from core.page_poll_scheduler import POLL_SCHEDULER_JS
@@ -7140,11 +7144,6 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.wallet_fragment import _qr_vendor_js, render_wallet_fragment
     from core.x_settings_fragment import X_FEATURES_JS
     from core.x_social_fragment import render_x_social_fragment
-
-    # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
-    # here: each fragment renders itself into the host its group provides
-
-    from core.local_model_picker_fragment import LOCAL_MODEL_PICKER_CSS, LOCAL_MODEL_PICKER_JS
 
     page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("/*__X_FEATURES__*/", X_FEATURES_JS, 1).replace(
         "/*__PHONE_QR_VENDOR__*/", _qr_vendor_js(), 1
