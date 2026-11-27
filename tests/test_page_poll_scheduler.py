@@ -304,3 +304,47 @@ def test_the_served_chat_page_is_quiet_when_idle_and_hidden_and_fast_in_a_turn()
     assert set(hidden) <= {"/api/connections"} and sum(hidden.values()) <= 1, hidden
     for path in ("/api/disclosure/pending", "/api/notifications", "/api/wallet/status", "/api/update/status"):
         assert shown.get(path) == 1, f"{path} is not read at once when the page is shown: {shown}"
+
+
+def _drive_rail(status: str, *, hidden: bool = False) -> dict:
+    from core.runtime_task_rail_polling import RUNTIME_TASK_RAIL_POLLING_SCRIPT
+
+    return run_node(r"""
+const realImmediate = setImmediate;
+const flush = () => new Promise((r) => realImmediate(r));
+let nowMs = 5000000; Date.now = () => nowMs;
+const intervals = [];
+globalThis.setInterval = (fn, ms) => { intervals.push({ fn, ms, at: nowMs + ms }); return intervals.length; };
+const listeners = {};
+globalThis.document = { hidden: HIDDEN, addEventListener: (t, fn) => { (listeners[t] = listeners[t] || []).push(fn); } };
+const reads = [];
+globalThis.fetch = async (url) => {
+  reads.push(String(url).split('?')[0]);
+  return { ok: true, json: async () => (String(url).indexOf('/api/runtime/sessions') === 0
+    ? { sessions: [{ session_id: 's1', status: 'STATUS', updated_at: '' }] } : { events: [] }) };
+};
+const pollStatusEl = {}; let sessions = []; let selectedSessionId = ''; let lastSeq = 0; let knownEvents = []; let selectedEventSeq = 0;
+const setQuerySession = () => {}; const pickDefaultSession = (s) => s[0].session_id;
+const renderSessions = () => {}, renderSessionDetail = () => {}, renderSummary = () => {}, renderEvents = () => {}, renderSelectedStep = () => {};
+""".replace("HIDDEN", "true" if hidden else "false").replace("STATUS", status) + RUNTIME_TASK_RAIL_POLLING_SCRIPT + r"""
+await flush();
+const boot = reads.length;
+for (let i = 0; i < 50; i++) { nowMs += 1200; for (const t of intervals) t.fn(); await flush(); }   // 60 s
+const minute = reads.filter((u) => u === '/api/runtime/sessions').length;
+document.hidden = false; for (const fn of listeners.visibilitychange || []) fn(); await flush();
+process.stdout.write(JSON.stringify({ boot, minute, shown: reads.filter((u) => u === '/api/runtime/sessions').length, interval: intervals[0].ms }) + '\n');
+""")
+
+
+def test_the_task_rail_reads_every_1_2_s_only_while_a_session_is_live():
+    live = _drive_rail("running")
+    assert live["interval"] == 1200
+    assert live["minute"] == 51, live
+    idle = _drive_rail("completed")
+    assert idle["minute"] == 3, f"an idle rail reads once per 20 s beat: {idle}"
+
+
+def test_the_task_rail_reads_nothing_while_hidden_and_at_once_when_shown():
+    hidden = _drive_rail("running", hidden=True)
+    assert hidden["boot"] == 0 and hidden["minute"] == 0, hidden
+    assert hidden["shown"] == 1

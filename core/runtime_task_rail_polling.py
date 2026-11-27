@@ -67,15 +67,35 @@ async function fetchEvents(reset = false) {
   pollStatusEl.textContent = 'live';
 }
 
-async function tick() {
+// The 1.2 s timer only decides; it reads when something is live. One read at a time (a read that
+// has not answered in 15 s no longer holds the next back), nothing while the tab is hidden (shown
+// again, it reads at once), and with no session running or waiting only once per 20 s idle beat,
+// the same beat the chat page uses (core/page_poll_scheduler.py).
+const RAIL_LIVE_STATES = new Set(['running', 'queued', 'pending', 'waiting', 'waiting_approval', 'planning', 'blocked']);
+const RAIL_IDLE_MS = 20000;
+const RAIL_STALE_MS = 15000;
+let railReadSince = 0;
+let railLastRead = 0;
+function railLive() {
+  return sessions.some((session) => RAIL_LIVE_STATES.has(String(session.status || '').toLowerCase()));
+}
+async function tick(force = false) {
+  const now = Date.now();
+  if (railReadSince && now - railReadSince < RAIL_STALE_MS) return;
+  if (document.hidden) return;
+  if (!force && railLastRead && !railLive() && now - railLastRead < RAIL_IDLE_MS) return;
+  const mine = railReadSince = railLastRead = now;
   try {
     await fetchSessions();
     await fetchEvents();
   } catch (err) {
     pollStatusEl.textContent = 'error';
+  } finally {
+    if (railReadSince === mine) railReadSince = 0;
   }
 }
 
+document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(true); });
 tick();
 setInterval(tick, 1200);
 """
