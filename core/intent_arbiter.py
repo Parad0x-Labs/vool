@@ -2273,29 +2273,49 @@ def arbitrate_self_contained_ask(
 
 
 def _find_ask_prompt(message: str, previous: str = "") -> str:
-    """Whether a message asks to find something the person keeps on this computer, asked of a Find pick only.
+    """Which of two a message is: an ask to find a file or folder the person keeps on this computer, or something to
+    be told or worked out. Asked of a Find pick only.
 
     The shared yes/no (`_choice_ask_prompt`) reads "asking about the person's own life" as no, which a find of their
     own bill or report is, so a Find pick was never confirmed. Unconfirmed, a follow-up about the world that points
     back ("per kokias šalis ji teka?" after a question about the Volga) was picked Find, the files loop listed a
-    folder and the reply was "Local directory ~/Desktop does not exist" (iMac gate32 on 71cadd43f, qwen3:8b)."""
+    folder and the reply was "Local directory ~/Desktop does not exist" (iMac gate32 on 71cadd43f, qwen3:8b). A sum
+    that follows one ("and if it's delayed by 25 minutes?" after a ferry's departure and crossing time) was read yes
+    and a file was read in its place (iMac gate56 on 3382964ea).
+
+    Asked as a yes/no, qwen3:8b said yes to 8 of 10 follow-ups on a sum or a fact, all 4 outside English among them,
+    whatever the wording added; as two named kinds it read 10 of 10 as "answer" and 9 of 9 file asks as "file"
+    (iMac judge probes g56 and g56b on 3382964ea, fresh wordings in EN, LT and DE)."""
     flat = " ".join(str(message or "").split())[:400].replace('"', "'")
     before = " ".join(str(previous or "").split())[:300].replace('"', "'")
     return "\n".join([
-        "A person wrote to their assistant. Does the message ask to find, show or open something the person keeps on",
-        "this computer: a file or a folder of theirs (a document, bill, report, photo, spreadsheet or download)?",
-        "A question about the world (a place, a river, a person, a book, history, science) is no, also when it",
-        "points back with 'it', 'he' or 'there' at what the earlier message asked. Answer yes or no. Any language.",
+        "A person wrote to their assistant. Which one is the message? Any language, any words.",
+        "file = it asks to find, show or open a file or a folder the person keeps on this computer (a document, bill, "
+        "report, photo, spreadsheet or download of theirs).",
+        "answer = it asks for something to be told or worked out: a fact about the world, a sum, a time or a date, an "
+        "explanation, also a follow-up that asks again about what the earlier message asked ('and if ...?', 'what "
+        "about ...?', 'how long is it?').",
         "",
-        'Message: "where is the scan of my lease?" -> {"answer": "yes"}',
-        'Message: "surask mano nuotraukas iš Paryžiaus" -> {"answer": "yes"}',
-        'Earlier: "what is the tallest mountain in Asia?" Message: "how high is it?" -> {"answer": "no"}',
-        'Earlier: "wer hat den Faust geschrieben?" Message: "wann ist er gestorben?" -> {"answer": "no"}',
+        'Message: "where is the scan of my lease?" -> {"answer": "file"}',
+        'Message: "surask mano nuotraukas iš Paryžiaus" -> {"answer": "file"}',
+        'Earlier: "what is the tallest mountain in Asia?" Message: "how high is it?" -> {"answer": "answer"}',
+        'Earlier: "wer hat den Faust geschrieben?" Message: "wann ist er gestorben?" -> {"answer": "answer"}',
+        'Earlier: "the bus leaves at 9:10 and takes 40 minutes, when do I arrive?" Message: "and if it leaves 15 '
+        'minutes late?" -> {"answer": "answer"}',
+        'Earlier: "kiek bus 12 kartų 7?" Message: "o 14 kartų?" -> {"answer": "answer"}',
+        'Earlier: "what is 3 times 8?" Message: "and where did I put my tax return pdf?" -> {"answer": "file"}',
         "",
         *([f'Earlier: "{before}"'] if before else []),
         f'Message: "{flat}" ->',
-        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+        'Reply with ONLY the JSON object: {"answer": "file"} or {"answer": "answer"}',
     ])
+
+
+_FIND_KINDS = {"file": "yes", "answer": "no"}
+
+
+def _find_kind_reader(content: str) -> str | None:
+    return _named_answer(content, _FIND_KINDS)
 
 
 def arbitrate_find_ask(
@@ -2305,17 +2325,18 @@ def arbitrate_find_ask(
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
 ) -> str | None:
-    """``"yes"`` / ``"no"``: whether the message asks to find something of the person's on this computer; None when
-    nothing judged it (core.plugin_ask keeps the pick then)."""
+    """``"yes"`` (a file) / ``"no"`` (something to answer): whether the message asks to find something of the
+    person's on this computer; None when nothing judged it (core.plugin_ask keeps the pick then)."""
     if not str(message or "").strip():
         return None
     prompt = _find_ask_prompt(message, previous)
     model = _judge_model_for(source_context)
     if not model:
-        return _judged_for_the_turn(prompt, source_context)
+        return _judged_for_the_turn(prompt, source_context, _find_kind_reader)
     return arbitrate_followup(
         "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
         operation="find_ask_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+        parse=_find_kind_reader,
     )
 
 
@@ -2625,32 +2646,44 @@ def arbitrate_told_as_fact(
 
 
 def _worth_recalling_prompt(message: str) -> str:
-    """A balanced yes/no: would the person want the assistant to recall this later? Asked when only one reading named
-    a keep, after the told-as-fact question: small talk tells how something is too. Speed probes on ace1c42cc
-    (qwen3:8b, EN and LT): three remarks about how the person's day or weekend went were each kept with "Locked in.
-    I'll remember that." A date or a time in a fact is no reason to drop it: plans and arrivals are what people ask
-    about later."""
+    """Which of two a message is: a detail of the person's life to look up later, or chat. Asked of a keep only one
+    reading named and of a sentence the keep step would write in passing (core.plugin_ask, core.persistent_memory):
+    small talk tells how something is too. Speed probes on ace1c42cc and 3382964ea (qwen3:8b, EN, LT, DE): remarks
+    about how the person's evening or weekend went were kept ("Locked in. I'll remember that.").
+
+    Asked as a yes/no ("would they want this told back later?"), qwen3:8b said yes to 5 of 14 such remarks that named
+    what the person did (a film watched, a room tidied, soup cooked); as two named kinds, with "even when it names what
+    they did", it read 14 of 14 as chat and 12 of 12 details as details (iMac judge probe g56 on 3382964ea, fresh
+    wordings). A date or a time in a detail is no reason to drop it: plans and arrivals are what people ask about."""
     flat = " ".join(str(message or "").split())[:400].replace('"', "'")
     return "\n".join([
-        "A person wrote to their assistant. Would they want the assistant to be able to tell them this again later?",
-        'yes = it tells something about their life to look up later: a person, pet or thing and its name or details, '
-        "where something is kept, a plan, an appointment, a trip, an arrival or departure with its day or time, a "
-        "preference, a health matter or a routine. Any language.",
-        "no = small talk: how their day, evening, weekend or mood is or was, a greeting, a passing reaction, or a "
-        "comment on the conversation or the world.",
+        "A person wrote to their assistant. Which one is the message? Any language, any words.",
+        "detail = it gives a detail of their life the person may ask the assistant about later: a name, where something "
+        "is kept, something coming up with its day or time, a number or code, a preference, a health matter, a routine, "
+        "who someone is to them.",
+        "chat = it tells what they did or how something went (today, yesterday, this weekend) or how they feel about it, "
+        "even when it names what they did: a film they watched, a room they tidied, a walk, a visit, a meal. Also a "
+        "greeting, a reaction or a comment on the world.",
         "",
-        'Message: "fyi my cousin Ugne starts her new job on the 2nd" -> {"answer": "yes"}',
-        'Message: "had a pretty chill sunday, mostly read on the balcony" -> {"answer": "no"}',
-        'Message: "mano šuns veterinaras yra Žirmūnuose" -> {"answer": "yes"}',
-        'Message: "šiandien buvo ilga diena, pavargau" -> {"answer": "no"}',
-        'Message: "unser Klempner kommt am Montag um 9" -> {"answer": "yes"}',
-        'Message: "war ein schöner Abend gestern" -> {"answer": "no"}',
-        'Message: "the spare keys are in the blue jar by the door" -> {"answer": "yes"}',
-        'Message: "feeling pretty good today, not gonna lie" -> {"answer": "no"}',
+        'Message: "my cousin Ugne starts her new job on the 2nd" -> {"answer": "detail"}',
+        'Message: "spent the morning baking bread, smells amazing in here" -> {"answer": "chat"}',
+        'Message: "mano šuns veterinaras yra Žirmūnuose" -> {"answer": "detail"}',
+        'Message: "vakar su draugais žaidėm stalo žaidimus, buvo smagu" -> {"answer": "chat"}',
+        'Message: "unser Klempner kommt am Montag um 9" -> {"answer": "detail"}',
+        'Message: "hab gestern einen langen Spaziergang gemacht, tat gut" -> {"answer": "chat"}',
+        'Message: "the spare keys are in the blue jar by the door" -> {"answer": "detail"}',
+        'Message: "finally finished that book I was reading, what an ending" -> {"answer": "chat"}',
         "",
         f'Message: "{flat}" ->',
-        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+        'Reply with ONLY the JSON object: {"answer": "detail"} or {"answer": "chat"}',
     ])
+
+
+_WORTH_RECALLING_KINDS = {"detail": "yes", "chat": "no"}
+
+
+def _worth_recalling_reader(content: str) -> str | None:
+    return _named_answer(content, _WORTH_RECALLING_KINDS)
 
 
 def arbitrate_worth_recalling(
@@ -2659,17 +2692,19 @@ def arbitrate_worth_recalling(
     chat_id: str = "",
     source_context: dict[str, object] | None = None,
 ) -> str | None:
-    """Whether the person would want this recalled later: ``"yes"`` / ``"no"``, or None when nothing judged it.
-    Asked of a keep only one reading named (core.plugin_ask)."""
+    """Whether the person would want this recalled later: ``"yes"`` (a detail) / ``"no"`` (chat), or None when nothing
+    judged it. Asked of a keep only one reading named (core.plugin_ask) and of the keep step's sentences
+    (core.persistent_memory._judged_lasting_facts)."""
     if not str(message or "").strip():
         return None
     prompt = _worth_recalling_prompt(message)
     model = _judge_model_for(source_context)
     if not model:
-        return _judged_for_the_turn(prompt, source_context)
+        return _judged_for_the_turn(prompt, source_context, _worth_recalling_reader)
     return arbitrate_followup(
         "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
         operation="worth_recalling_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+        parse=_worth_recalling_reader,
     )
 
 

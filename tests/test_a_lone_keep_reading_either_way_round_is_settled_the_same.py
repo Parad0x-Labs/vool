@@ -73,5 +73,22 @@ def test_small_talk_one_reading_calls_a_keep_is_not_kept(text, kind, keys, monke
 
 def test_the_worth_recalling_question_keeps_dated_plans_and_drops_moods():
     prompt = intent_arbiter._worth_recalling_prompt("x")
-    assert "an arrival or departure with its day or time" in prompt
-    assert "how their day, evening, weekend or mood is or was" in prompt
+    assert "something coming up with its day or time" in prompt
+    assert "even when it names what they did" in prompt
+
+
+@pytest.mark.parametrize(("raw", "verdict"), [('{"answer": "detail"}', "yes"), ('{"answer": "chat"}', "no"),
+                                              ('{"answer": "yes"}', None), ("no idea", None)])
+def test_the_worth_recalling_answer_is_read_as_its_two_named_kinds(raw, verdict, monkeypatch):
+    """iMac judge probe g56 on 3382964ea (qwen3:8b): as a yes/no it kept 5 of 14 remarks about how an evening went;
+    as two named kinds 14 of 14 were chat and 12 of 12 details details. A kind not asked for judges nothing."""
+    seen: dict = {}
+
+    def followup(*_a, parse=None, **kw):
+        seen.update(kw)
+        return parse(raw) if parse else raw
+
+    monkeypatch.setattr(intent_arbiter, "_judge_model_for", lambda _c: "qwen3:8b")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_followup", followup)
+    assert intent_arbiter.arbitrate_worth_recalling("Vakar žiūrėjau filmą apie kalnus") == verdict
+    assert seen["operation"] == "worth_recalling_arbitration"
