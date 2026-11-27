@@ -460,7 +460,10 @@ def test_the_memory_question_is_asked_beside_any_tool_pick(monkeypatch, case):
     monkeypatch.setattr(intent_arbiter, "arbitrate_plugin_ask", arbitrate)
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: second)
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "yes")
-    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "no" if second == "forget" else "yes")
+    # A reminder asked for tells no fact; a dated fact said in passing that the reminder question also took is kept
+    # (tests/test_a_fact_to_remember_is_never_made_a_reminder.py).
+    told = "no" if second == "forget" or tool == "Reminders" else "yes"
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: told)
     monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     # The tool's own question confirms the pick here: what a pick its own question turns down leaves behind is
     # tests/test_a_tool_pick_beside_a_told_fact_must_be_confirmed_or_the_fact_is_kept.py.
