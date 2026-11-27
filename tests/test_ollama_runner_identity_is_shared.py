@@ -173,3 +173,24 @@ def test_direct_lanes_name_the_runner_the_adapter_serves(forced_num_gpu: str, mo
     assert _summarizer_runner_options("qwen3:30b-instruct") == chat
     assert builder_runner_options("qwen3:30b-instruct") == chat
     assert ("num_gpu" in helper) is bool(forced_num_gpu)
+
+
+@pytest.mark.parametrize("serving_keep_alive", ["30m", ""])
+def test_certification_holds_the_serving_residency(monkeypatch: pytest.MonkeyPatch, serving_keep_alive: str) -> None:
+    """The boot check loads the model a person is about to chat with. Measured on the iMac
+    (a6a5f29b7, 2026-11-27, fresh profile): the check posted no keep_alive, Ollama held the model
+    for its 5-minute default and the chat model was evicted and reloaded twice. The check keeps the
+    serving call's residency, and sends none when serving sends none (memory pressure)."""
+    monkeypatch.setattr("core.resource_governor.serving_keep_alive", lambda: serving_keep_alive)
+    adapter = OpenAICompatibleAdapter(_manifest())
+    request = ModelRequest(
+        task_kind="normalization_assist", prompt="split this", system_prompt="s",
+        temperature=0.0, max_output_tokens=32, output_mode="plain_text",
+    )
+    serving = adapter._build_ollama_payload(request, force_json=False, stream=False)
+    certification = _certification_payload(adapter, monkeypatch)
+    assert certification.get("keep_alive") == serving.get("keep_alive")
+    if serving_keep_alive:
+        assert certification["keep_alive"] == serving_keep_alive
+    else:
+        assert "keep_alive" not in certification

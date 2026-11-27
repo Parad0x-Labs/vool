@@ -1454,19 +1454,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         think_flag = self._ollama_think_flag(request)
         if think_flag is not None:
             payload["think"] = think_flag
-        keep_alive = str(self.manifest.runtime_config.get("keep_alive") or "").strip()
-        if not keep_alive:
-            # One residency policy per local model. A serving call that omits keep_alive drops
-            # Ollama to its 5-minute default, so a chat left idle for twenty minutes pays a full
-            # reload (the manifest prewarm holds 15 m at boot; this never goes below it). The
-            # governor stands the extension down under active memory pressure -- its release path
-            # unloads with keep_alive 0 and nothing here re-warms until the pressure clears. An
-            # absent or failing signal keeps BASE behaviour (no keep_alive on the wire).
-            # The same rule every lane that posts straight to Ollama follows
-            # (core.resource_governor.serving_keep_alive).
-            from core.resource_governor import serving_keep_alive
-
-            keep_alive = serving_keep_alive() or ""
+        keep_alive = self._ollama_serving_keep_alive()
         if keep_alive:
             payload["keep_alive"] = keep_alive
         # Ollama's /api/chat speaks the OpenAI `tools` shape. Without this the local lane can
@@ -2161,6 +2149,23 @@ class OpenAICompatibleAdapter(ModelAdapter):
             pass
         return identity
 
+    def _ollama_serving_keep_alive(self) -> str:
+        """The keep_alive every native Ollama call of this model sends, or "" for none."""
+        keep_alive = str(self.manifest.runtime_config.get("keep_alive") or "").strip()
+        if not keep_alive:
+            # One residency policy per local model. A serving call that omits keep_alive drops
+            # Ollama to its 5-minute default, so a chat left idle for twenty minutes pays a full
+            # reload (the manifest prewarm holds 15 m at boot; this never goes below it). The
+            # governor stands the extension down under active memory pressure -- its release path
+            # unloads with keep_alive 0 and nothing here re-warms until the pressure clears. An
+            # absent or failing signal keeps BASE behaviour (no keep_alive on the wire).
+            # The same rule every lane that posts straight to Ollama follows
+            # (core.resource_governor.serving_keep_alive).
+            from core.resource_governor import serving_keep_alive
+
+            keep_alive = serving_keep_alive() or ""
+        return keep_alive
+
     def tool_certification_exchange(
         self,
         *,
@@ -2220,6 +2225,13 @@ class OpenAICompatibleAdapter(ModelAdapter):
             }
             if think_flag is not None:
                 payload["think"] = think_flag
+            # The probe loads the model the person is about to chat with: it holds the same
+            # residency as every serving call, or Ollama drops it to its 5-minute default and the
+            # first turns after boot pay a full reload (iMac a6a5f29b7, 2026-11-27: the boot check
+            # loaded qwen3.5:9b with no keep_alive and the chat model was evicted twice).
+            keep_alive = self._ollama_serving_keep_alive()
+            if keep_alive:
+                payload["keep_alive"] = keep_alive
             if tools:
                 payload["tools"] = [openai_tool_payload(replace(tool, strict=False)) for tool in tools]
                 if tool_choice:
