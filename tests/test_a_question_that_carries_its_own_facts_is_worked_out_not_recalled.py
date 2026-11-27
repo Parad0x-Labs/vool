@@ -69,6 +69,7 @@ def test_the_recall_judge_says_whether_a_recall_is_about_a_reminder(monkeypatch,
     monkeypatch.setattr(persistent_memory, "_held_for_judgement", lambda **_k: list(held))
     monkeypatch.setattr(persistent_memory, "_pending_reminder_lines", lambda *_a, **_k: list(reminders))
     monkeypatch.setattr(persistent_memory.memory_entries, "resolve_memory_access_policy", lambda **_k: None)
+    monkeypatch.setattr(persistent_memory, "_judged_forgotten_named", lambda *_a, **_k: [])
     asked: list[str] = []
 
     def judge(question, shown, **_k):
@@ -84,3 +85,17 @@ def test_the_recall_judge_says_whether_a_recall_is_about_a_reminder(monkeypatch,
     # The recall lane asks the same question of the same list in the same turn without a second judgement.
     persistent_memory._judged_items_named("when is the sweep coming?", items, session_id="c", source_context=context)
     assert asked == ["when is the sweep coming?"]
+
+
+def test_a_recall_of_something_forgotten_is_the_memory_lanes(monkeypatch):
+    """iMac gate57 on 21d4d4046: right after "forget the chimney sweep", "when is the chimney sweep coming?" went to
+    the reminder tools and ended at an agenda approval card; the memory lane answers it "no record"."""
+    monkeypatch.setattr(persistent_memory, "_turn_may_read_memory", lambda *_a, **_k: True)
+    monkeypatch.setattr(persistent_memory.memory_entries, "resolve_memory_access_policy", lambda **_k: None)
+    monkeypatch.setattr(persistent_memory, "_held_for_judgement", lambda **_k: [])
+    monkeypatch.setattr(persistent_memory, "_judged_forgotten_named", lambda *_a, **_k: ["the sweep comes on the 4th"])
+    monkeypatch.setattr(persistent_memory, "_pending_reminder_lines", lambda *_a, **_k: ["call the bank (Thu 8:30)"])
+    from core import intent_arbiter
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", lambda *_a, **_k: pytest.fail("no judge needed"))
+    assert persistent_memory.recall_names("when is the sweep coming?", session_id="c", source_context={}) == "fact"

@@ -3492,8 +3492,8 @@ _NAMED_KEY = "_judged_items_named"
 
 def recall_names(question: str, *, session_id: str | None, source_context: Mapping[str, Any] | None) -> str:
     """What the recall judge names for this question among what the person told VOOL and their pending reminders:
-    "reminder" when it names a reminder, "fact" when it names only told facts, "" when it names nothing, the turn may
-    not read memory, or nothing judged it.
+    "reminder" when it names a reminder, "fact" when it names only told facts or the question asks about something
+    forgotten, "" when it names nothing, the turn may not read memory, or nothing judged it.
 
     iMac gate56 on 3382964ea (qwen3:8b): with a vet reminder pending, "when is the boiler service?" (a saved fact) and
     "what did I do this evening?" (nothing saved) were read recall, then put to the reminder question, which read both
@@ -3505,6 +3505,11 @@ def recall_names(question: str, *, session_id: str | None, source_context: Mappi
             return ""
         policy = memory_entries.resolve_memory_access_policy(access_policy=None, chat_id=session_id)
         held = _held_for_judgement(session_id=session_id, policy=policy, source_context=source_context, served=True)
+        if _judged_forgotten_named(question, held, session_id=session_id, source_context=source_context):
+            # It asks about something the person had VOOL forget: the memory lane answers "no record" (NO RECORD =
+            # REFUSE). iMac gate57 on 21d4d4046: right after "forget the chimney sweep", "when is the chimney sweep
+            # coming?" went to the reminder tools and ended at an agenda approval card.
+            return "fact"
         reminders = [line for line in _pending_reminder_lines(session_id) if line not in held]
         if not held and not reminders:
             return ""
