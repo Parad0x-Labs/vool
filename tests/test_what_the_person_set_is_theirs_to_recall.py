@@ -179,16 +179,17 @@ def test_a_question_a_reminder_answers_is_answered_before_a_lookup(question, hom
     answer = pm.held_fact_answer_before_a_lookup(question, session_id="chat-b", source_context={})
     assert answer and "drop off the spare key at Tomas's" in answer, answer
     assert saturday.strftime("%A %d %b %Y at 18:00") in answer, answer
-    # The saved facts were read first, then the reminders, each line with its own due day.
-    assert seen[0] == ["my neighbour Tomas is allergic to peanuts"]
-    assert any("spare key" in line and "18:00" in line for line in seen[1]), seen
+    # One reading of the saved facts and the reminders together, each reminder line with its own due day.
+    assert len(seen) == 1 and seen[0][0] == "my neighbour Tomas is allergic to peanuts"
+    assert any("spare key" in line and "18:00" in line for line in seen[0][1:]), seen
+    assert not answer.startswith("You told me"), answer
 
 
 def test_a_reminder_the_judge_does_not_name_leaves_the_question_unanswered(home, monkeypatch) -> None:
     _set_the_key_reminder()
     seen = _judge(monkeypatch, lambda items: [])
     assert pm.held_fact_answer_before_a_lookup(QUESTIONS[0], session_id="chat-b", source_context={}) is None
-    assert len(seen) == 2
+    assert len(seen) == 1 and len(seen[0]) == 2
 
 
 def test_a_private_chats_reminder_is_not_read_from_another_chat(home, monkeypatch) -> None:
@@ -198,7 +199,7 @@ def test_a_private_chats_reminder_is_not_read_from_another_chat(home, monkeypatc
     monkeypatch.setattr(actions, "_is_private_chat", lambda session_id: session_id == "chat-a")
     seen = _judge(monkeypatch, lambda items: [n for n, item in enumerate(items, 1) if "spare key" in item])
     assert pm.held_fact_answer_before_a_lookup(QUESTIONS[0], session_id="chat-b", source_context={}) is None
-    assert seen == [["my neighbour Tomas is allergic to peanuts"]]
+    assert seen[0] == ["my neighbour Tomas is allergic to peanuts"]
     # In its own chat it is read.
     assert "spare key" in str(pm.held_fact_answer_before_a_lookup(QUESTIONS[0], session_id="chat-a",
                                                                   source_context={}))
@@ -242,3 +243,14 @@ def test_a_clock_time_in_an_order_is_no_value_handed_over(hour, minute) -> None:
     # The colon that hands a value over still does, digits after it or not.
     assert stated_facts(f"my locker number at the pool: {hour}{minute:02d}")
     assert stated_facts("the gym gave me a new table tennis rating this season: 1276.")
+
+
+def test_a_fact_and_a_reminder_both_named_are_both_said(home, monkeypatch) -> None:
+    """iMac gate49 on ab3fcc19e: read apart, the facts first, "what did I say I'd do on Sunday morning?" was answered
+    with a fact about the cat, the Sunday reminder never shown to the judge. Both are in one reading now."""
+    _set_the_key_reminder()
+    _judge(monkeypatch, lambda items: list(range(1, len(items) + 1)))
+    answer = str(pm.held_fact_answer_before_a_lookup(QUESTIONS[0], session_id="chat-b", source_context={}))
+    told, reminded = answer.split("\n")
+    assert told == "You told me: my neighbour Tomas is allergic to peanuts."
+    assert reminded.startswith("You asked me to remind you: drop off the spare key at Tomas's"), answer

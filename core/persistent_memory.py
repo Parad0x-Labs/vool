@@ -3635,23 +3635,33 @@ def _judged_recall_reply(
         LOGGER.info("judged recall: %d forgotten item(s) asked about", len(forgotten))
         if forgotten:
             return JUDGED_RECALL_FORGOTTEN
-    named = _one_line_per_fact(_judged_items_named(question, held, session_id=session_id,
-                                                   source_context=source_context))
-    LOGGER.info("judged recall: %d held, %d named", len(held), len(named))
+    # The reminders still to come are read in the same list: what the person asked to be reminded of is something of
+    # their own life they told VOOL. Read apart, after the facts, the judge named a fact about the cat for "what did I
+    # say I'd do on Sunday morning?" beside a Sunday reminder it was never shown (iMac gate49 on ab3fcc19e).
+    reminders = [line for line in _pending_reminder_lines(session_id) if line not in held]
+    picked = _judged_items_named(question, [*held, *reminders], session_id=session_id, source_context=source_context)
+    named = _one_line_per_fact([item for item in picked if item in held])
+    named_reminders = [item for item in picked if item in reminders]
+    LOGGER.info("judged recall: %d held, %d pending reminder(s), %d named", len(held), len(reminders), len(picked))
     whole = False
-    if not named and held and whole_too and _asks_for_the_whole_memory(question, session_id=session_id,
-                                                         source_context=source_context):
+    if not picked and held and whole_too and _asks_for_the_whole_memory(question, session_id=session_id,
+                                                          source_context=source_context):
         named = _one_line_per_fact(held)[:_WHOLE_MEMORY_SHOWN]
         whole = True
-    if named and not _recall_beside_a_file_pick(question, [] if whole else named, session_id=session_id,
-                                                source_context=source_context):
+    if (named or named_reminders) and not _recall_beside_a_file_pick(
+            question, [] if whole else [*named, *named_reminders], session_id=session_id,
+            source_context=source_context):
         return None
-    named = [_said_to_its_end(fact) for fact in named]
-    if len(named) == 1:
-        return f"You told me: {named[0]}"
-    if named:
-        return "You told me:\n" + "\n".join(f"- {fact}" for fact in named)
-    return _judged_reminder_reply(question, session_id=session_id, source_context=source_context)
+    parts = [_told([_said_to_its_end(fact) for fact in named], "You told me:"),
+             _told([_said_to_its_end(line) for line in named_reminders], "You asked me to remind you:")]
+    return "\n".join(part for part in parts if part) or None
+
+
+def _told(said: list[str], lead: str) -> str:
+    """One answer line, or a list under its lead; "" for none."""
+    if len(said) == 1:
+        return f"{lead} {said[0]}"
+    return (lead + "\n" + "\n".join(f"- {line}" for line in said)) if said else ""
 
 
 def _pending_reminder_lines(session_id: str | None) -> list[str]:
@@ -3683,25 +3693,6 @@ def _pending_reminder_lines(session_id: str | None) -> list[str]:
 
 #: The most pending reminders a recall question is read against (the soonest first).
 _REMINDERS_JUDGED = 40
-
-
-def _judged_reminder_reply(question: str, *, session_id: str | None,
-                           source_context: Mapping[str, Any] | None) -> str | None:
-    """A recall question that a reminder the person set answers, named by the same recall judge in any language: what
-    they asked to be reminded of is something of their own life they told VOOL. iMac gate47 on 6ce598256: "remind me
-    on Saturday at 6pm to drop off the spare key at Tomas's", then in a new chat "what was I going to bring over to his
-    place, and when?" was refused as a web lookup: the judge read it against the one saved fact and named nothing, and
-    the reminder was never read. None when no reminder is pending or the judge names none."""
-    lines = _pending_reminder_lines(session_id)
-    if not lines:
-        return None
-    named = _judged_items_named(question, lines, session_id=session_id, source_context=source_context)
-    LOGGER.info("judged recall: %d pending reminder(s), %d named", len(lines), len(named))
-    if not named:
-        return None
-    if len(named) == 1:
-        return f"You asked me to remind you: {_said_to_its_end(named[0])}"
-    return "You asked me to remind you:\n" + "\n".join(f"- {_said_to_its_end(line)}" for line in named)
 
 
 def _said_to_its_end(fact: str) -> str:
