@@ -86,12 +86,14 @@ def test_a_keep_read_by_the_memory_question_alone_is_kept_when_the_message_tells
     text = random.Random(f"keep-{seed}").choice(KEEPS)
     readings("keep", None)
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     assert plugin_ask._memory_kind_confirmed(text, (), {}, "chat-1") == ("memory_keep",)
 
 
 def test_a_keep_read_alone_is_not_kept_when_the_message_tells_no_fact(readings, monkeypatch) -> None:
     readings("keep", None)
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "no")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     assert plugin_ask._memory_kind_confirmed("pamirsk ka pasakojau apie valti", (), {}, "chat-1") == ()
 
 

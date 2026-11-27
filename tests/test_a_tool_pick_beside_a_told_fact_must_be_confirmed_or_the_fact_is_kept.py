@@ -18,6 +18,7 @@ _FACT = ("btw the plumber said our boiler is from 2014", "beje, mano sesers šuo
 def _judges(monkeypatch, *, told, choice):
     asked: list[str] = []
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: asked.append("told") or told)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_choice_ask",
                         lambda _t, description, **_k: asked.append(description.split(":")[0]) or choice)
     return asked
@@ -56,6 +57,7 @@ def test_the_told_as_fact_question_is_not_asked_for_picks_with_a_question_of_the
 def _readings(monkeypatch, *, kind, told, forget="no"):
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: kind)
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: told)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: forget)
     monkeypatch.setattr(plugin_ask, "_has_pending_reminders", lambda: False)
 
@@ -83,6 +85,7 @@ def _tool_readings(monkeypatch, *, kind, told, reminder=None, calendar=None):
     asked: list[str] = []
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: kind)
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: asked.append("told") or told)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "no")
     monkeypatch.setattr(intent_arbiter, "arbitrate_reminder_ask", lambda *_a, **_k: asked.append("reminder") or reminder)
     monkeypatch.setattr(intent_arbiter, "arbitrate_calendar_ask", lambda *_a, **_k: asked.append("calendar") or calendar)

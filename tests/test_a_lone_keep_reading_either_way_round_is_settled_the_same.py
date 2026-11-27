@@ -20,6 +20,7 @@ def _readings(monkeypatch, *, kind, told, forget):
     asked: list[str] = []
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: kind)
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: asked.append("told") or told)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: asked.append("forget") or forget)
     monkeypatch.setattr(plugin_ask, "_has_pending_reminders", lambda: False)
     return asked
@@ -52,3 +53,25 @@ def test_two_readings_that_agree_on_a_keep_are_not_asked_again(monkeypatch):
     asked = _readings(monkeypatch, kind="keep", told="no", forget="no")
     assert plugin_ask._memory_kind_confirmed(_TOLD[0], (_keep_key(),), {}, "chat-1") == ("memory_keep",)
     assert asked == []
+
+
+_SMALL_TALK = ("had such a lazy saturday, barely left the sofa", "šiandien buvo gera diena darbe",
+               "ach, der Abend war echt entspannt")
+
+
+@pytest.mark.parametrize("text", _SMALL_TALK)
+@pytest.mark.parametrize(("kind", "keys"), [("none", ("keep",)), ("keep", ())])
+def test_small_talk_one_reading_calls_a_keep_is_not_kept(text, kind, keys, monkeypatch):
+    """Speed probes on ace1c42cc (qwen3:8b, EN and LT): remarks about how the person's day or weekend went were each
+    kept with "Locked in. I'll remember that." They tell how something is, so the told-as-fact question reads yes;
+    whether it is something to recall later is a question of its own."""
+    _readings(monkeypatch, kind=kind, told="yes", forget="no")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "no")
+    picks = tuple(_keep_key() for _ in keys)
+    assert plugin_ask._memory_kind_confirmed(text, picks, {}, "chat-1") == ()
+
+
+def test_the_worth_recalling_question_keeps_dated_plans_and_drops_moods():
+    prompt = intent_arbiter._worth_recalling_prompt("x")
+    assert "an arrival or departure with its day or time" in prompt
+    assert "how their day, evening, weekend or mood is or was" in prompt

@@ -1869,7 +1869,9 @@ def _web_ask_prompt(message: str, previous: str = "") -> str:
         "page, or ask for something that changes and only the internet knows now (today's news, weather, prices, "
         "opening hours, timetables, scores)?",
         'Answer {"answer": "no"} when an encyclopedia, a textbook or general knowledge answers it (what something is, '
-        "who wrote or made something, how something works, a capital, a definition, maths, counting days or dates "
+        "who wrote or made something, how something works, a capital, a definition, facts and figures a reference "
+        "book gives (the calories or vitamins in a food, how tall a mountain is, how far apart two cities are), "
+        "maths, counting days or dates "
         "from today's date, the time or date now here or in any city or country: the computer's clock gives it), or "
         "when it asks to write, translate or explain something.",
         'Answer {"answer": "no"} as well when the message only TELLS the assistant something (the person\'s own news, '
@@ -1885,6 +1887,7 @@ def _web_ask_prompt(message: str, previous: str = "") -> str:
         'Message: "who painted the Mona Lisa?" -> {"answer": "no"}',
         'Message: "kokie šiandien orai Klaipėdoje?" -> {"answer": "yes"}',
         'Message: "kas yra gravitacija?" -> {"answer": "no"}',
+        'Message: "kiek kalorijų turi vidutinis bananas?" -> {"answer": "no"}',
         'Message: "wie steht das Spiel Bayern gegen Dortmund gerade?" -> {"answer": "yes"}',
         'Message: "wie funktioniert ein Kühlschrank?" -> {"answer": "no"}',
         'Message: "how many days till christmas then" -> {"answer": "no"}',
@@ -2618,6 +2621,55 @@ def arbitrate_told_as_fact(
         "", "", "", request_id=request_id, chat_id=chat_id, source_context=source_context,
         prompt=_told_as_fact_prompt(sentence), operation="told_as_fact_arbitration", model=model,
         runner_role="general", call_role=_judgement_role(),
+    )
+
+
+def _worth_recalling_prompt(message: str) -> str:
+    """A balanced yes/no: would the person want the assistant to recall this later? Asked when only one reading named
+    a keep, after the told-as-fact question: small talk tells how something is too. Speed probes on ace1c42cc
+    (qwen3:8b, EN and LT): three remarks about how the person's day or weekend went were each kept with "Locked in.
+    I'll remember that." A date or a time in a fact is no reason to drop it: plans and arrivals are what people ask
+    about later."""
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
+    return "\n".join([
+        "A person wrote to their assistant. Would they want the assistant to be able to tell them this again later?",
+        'yes = it tells something about their life to look up later: a person, pet or thing and its name or details, '
+        "where something is kept, a plan, an appointment, a trip, an arrival or departure with its day or time, a "
+        "preference, a health matter or a routine. Any language.",
+        "no = small talk: how their day, evening, weekend or mood is or was, a greeting, a passing reaction, or a "
+        "comment on the conversation or the world.",
+        "",
+        'Message: "fyi my cousin Ugne starts her new job on the 2nd" -> {"answer": "yes"}',
+        'Message: "had a pretty chill sunday, mostly read on the balcony" -> {"answer": "no"}',
+        'Message: "mano šuns veterinaras yra Žirmūnuose" -> {"answer": "yes"}',
+        'Message: "šiandien buvo ilga diena, pavargau" -> {"answer": "no"}',
+        'Message: "unser Klempner kommt am Montag um 9" -> {"answer": "yes"}',
+        'Message: "war ein schöner Abend gestern" -> {"answer": "no"}',
+        'Message: "the spare keys are in the blue jar by the door" -> {"answer": "yes"}',
+        'Message: "feeling pretty good today, not gonna lie" -> {"answer": "no"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_worth_recalling(
+    message: str,
+    *,
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether the person would want this recalled later: ``"yes"`` / ``"no"``, or None when nothing judged it.
+    Asked of a keep only one reading named (core.plugin_ask)."""
+    if not str(message or "").strip():
+        return None
+    prompt = _worth_recalling_prompt(message)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
+        operation="worth_recalling_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
     )
 
 

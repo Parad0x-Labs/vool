@@ -19,6 +19,7 @@ def _readings(monkeypatch, *, calendar, told="yes", kind=None):
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: kind)
     monkeypatch.setattr(intent_arbiter, "arbitrate_calendar_ask", lambda *_a, **_k: asked.append("calendar") or calendar)
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: asked.append("told") or told)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "no")
     monkeypatch.setattr(plugin_ask, "_has_pending_reminders", lambda: False)
     return asked

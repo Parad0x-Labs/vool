@@ -63,6 +63,7 @@ def home(isolated_home, monkeypatch):
     initialize_memory_home(isolated_home)
     # The keep step's told-as-fact question, scripted: every kept sentence here tells a fact unless a test says not.
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     _policy(CHAT)
     _policy(OTHER_CHAT)
     plugin_ask.forget()
@@ -248,6 +249,7 @@ def test_the_keep_step_keeps_no_order_the_judge_read_as_a_tool_ask(home, monkeyp
     monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     rng = random.Random("orders")
     text = rng.choice(["just pay for it, dont ask me again, buy the cheapest hosting plan with my credits now",
                        "Išsaugok kontaktą: Zalias Pavyzdys, el. paštas zalias@pavyzdys.lt, telefonas +37060000000"])
@@ -367,6 +369,7 @@ def test_the_keep_step_keeps_no_recall_or_forget_the_judge_read(home, monkeypatc
     monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     rng = random.Random(f"keep-step-{seed}")
     kind, text = rng.choice([
         ("recall", "primink, kokios spalvos mano kuprinė ir kur ji laikoma"),
@@ -428,6 +431,7 @@ def test_the_memory_kind_is_decided_by_both_readings(monkeypatch, case):
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: kind)
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: forget_yes)
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: told_yes)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     text = _vary(rng, rng.choice(["Atsimink šitą: mano dviratis žalias, stovi rūsyje.", "merk dir: mein Rad ist grün",
                                   "nebeatsimink nieko apie dviratį", "kur stovi mano dviratis?"])) + f" ({case})"
     plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
@@ -457,6 +461,7 @@ def test_the_memory_question_is_asked_beside_any_tool_pick(monkeypatch, case):
     monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: second)
     monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "no" if second == "forget" else "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     # The tool's own question confirms the pick here: what a pick its own question turns down leaves behind is
     # tests/test_a_tool_pick_beside_a_told_fact_must_be_confirmed_or_the_fact_is_kept.py.
     for confirm in ("arbitrate_contact_ask", "arbitrate_reminder_ask", "arbitrate_choice_ask"):
@@ -566,6 +571,7 @@ def test_a_question_both_readings_call_a_keep_is_never_kept(home, monkeypatch, s
                                   "pasakyk man kur stovi mano valtis", "erinnere mich wo mein Fahrrad steht"]))
     _judged(text, "keep")
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "no")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_recall_facts", lambda *_a, **_k: ())
     handled, reply = maybe_handle_memory_command(text, session_id=CHAT, access_policy=_policy(CHAT),
                                                  source_context=dict(OWNER))
@@ -721,6 +727,7 @@ def test_a_forget_settled_by_one_reading_stands_unless_the_message_tells_a_fact(
     # it read plain forget orders as telling a fact (Mac run21, 91e89867).
     for told, expected in (("no", "forget"), (None, "forget"), ("yes", "forget" if tool_pick == "Memory, recall" else "")):
         monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, _t=told, **_k: _t)
+        monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
         text = f"pamiršk viską apie mano lempą ({tool_pick} {told})"
         plugin_ask.judge_turn(text, source_context=dict(OWNER), session_id=CHAT)
         assert plugin_ask.judged_memory_ask(text) == expected, told
@@ -738,6 +745,7 @@ def test_a_fact_whose_lead_went_at_a_dash_loses_no_more_words(home, monkeypatch,
                        f"Įsimink: mano valtis {colour}, stovi garaže."])
     _judged(text, "keep")
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_kept_fact", lambda _m, versions, **_k: len(versions))
     handled, reply = maybe_handle_memory_command(text, session_id=CHAT, access_policy=_policy(CHAT),

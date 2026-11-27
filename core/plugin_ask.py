@@ -486,8 +486,11 @@ def _memory_kind_confirmed(
         # is no forget order. Tool judgement keep, memory question none: "fyi my neighbour Rasa is training for a half
         # marathon in March" (iMac gate52 on a6a5f29b7, qwen3.5:9b) was answered as chat, nothing kept, and a new chat
         # said "I don't have that saved".
+        # Small talk tells how something is too: a third question asks whether it is something to recall later
+        # (speed probes on ace1c42cc: "my weekend was lovely" kept, 3 of 3). No answer keeps nothing.
         if (asked("told as fact", intent_arbiter.arbitrate_told_as_fact) == "yes"
-                and asked("forget", intent_arbiter.arbitrate_forget_order) != "yes"):
+                and asked("forget", intent_arbiter.arbitrate_forget_order) != "yes"
+                and asked("worth recalling", intent_arbiter.arbitrate_worth_recalling) == "yes"):
             picked.add("keep")
             kind = "keep"
         else:
