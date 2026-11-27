@@ -25,7 +25,7 @@ SETTINGS_KIT_CSS = """
 /* ---- one short line, and the rest behind Learn more ---- */
 .vs-line { color:var(--muted); font-size:12.5px; line-height:1.45; margin-top:3px; }
 .vs-learn { margin-top:4px; font-size:12.5px; color:var(--muted); }
-.vs-learn > summary { display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:var(--accent); font-size:12px; font-weight:600;
+.vs-learn > summary { display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:var(--accent); font-size:12px; font-weight:600; white-space:nowrap;
   list-style:none; border-radius:6px; padding:1px 2px; margin-inline-start:-2px; user-select:none; }
 .vs-learn > summary::-webkit-details-marker { display:none; }
 .vs-learn > summary::after { content:''; width:6px; height:6px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor;
@@ -52,6 +52,9 @@ SETTINGS_KIT_CSS = """
 #paneBody .row-ctl h2, #paneBody .row-ctl h3, #paneBody .row-ctl h4 { font-size:13.5px; margin:10px 0 4px; }
 #paneBody .row.wide .row-ctl { padding-top:10px; }
 #paneBody input[type=checkbox], #paneBody input[type=radio] { accent-color:var(--accent); }
+/* A field is never wider than the box it sits in; a select too long for it ends in an ellipsis, not mid-word. */
+#paneBody select, #paneBody input:not([type=checkbox]):not([type=radio]), #paneBody textarea { max-width:100%; }
+#paneBody select { text-overflow:ellipsis; }
 /* A checkbox that is really an on/off setting looks like the other switches. */
 #paneBody input.vs-switch { appearance:none; -webkit-appearance:none; position:relative; width:44px; height:25px; margin:0; flex:0 0 auto;
   background:var(--field); border:1px solid var(--border); border-radius:999px; cursor:pointer; transition:background .14s,border-color .14s; vertical-align:middle; }

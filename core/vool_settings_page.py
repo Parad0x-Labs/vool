@@ -1301,7 +1301,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .phone-hero-steps {display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.5fr); gap:14px; margin-top:4px;}
 .phone-hero-step {border:1px solid var(--border); border-radius:12px; padding:14px; min-width:0;}
 .phone-hero-step h4 {margin:0 0 8px; font-size:15px;}
-.phone-hero-step .phone-bot-qr {width:150px; height:150px;}
+.phone-hero-step .phone-bot-qr {width:150px; max-width:100%; height:auto; aspect-ratio:1;}
 .phone-hero-step a {overflow-wrap:anywhere;}
 @media(max-width:760px) {.phone-hero-steps{grid-template-columns:1fr}}
 .chat-app-cards {display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); align-items:stretch; gap:14px; margin:12px 0 4px;}
@@ -1433,13 +1433,28 @@ h1 { margin:0 0 4px; font-size:26px; font-weight:700; letter-spacing:-.2px; }
 .row { display:flex; align-items:flex-start; gap:18px; padding:14px 16px; border-bottom:1px solid var(--border); }
 .row:last-child { border-bottom:none; }
 .row.hit { background:var(--accent-soft); box-shadow:inset 3px 0 0 var(--accent); }
-.row-main { flex:1 1 auto; min-width:0; }
+/* A row is the setting's words beside its control. The control column takes what it needs, up to half the row
+   (or 240px on a narrow row, so a field keeps its usual width), and wraps inside that; the words keep the rest.
+   Sized only by its content, a control holding a sentence (the Browser switch's note, a select with a long
+   option) claimed the whole row and squeezed the words beside it to one word per line, drawn over the control. */
+.row-main { flex:1 1 0; min-width:min(9rem,100%); }
 .row-label { font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .row-help { color:var(--muted); font-size:12.5px; line-height:1.5; margin-top:4px; }
 .pane-meta { margin:4px 0 12px; font-size:12px; color:var(--muted); }
 .row-meta { display:flex; gap:10px; flex-wrap:wrap; margin-top:7px; font-size:11.5px; color:var(--muted); }
 .row-meta .m { display:inline-flex; align-items:center; gap:4px; }
-.row-ctl { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-width:0; padding-top:1px; }
+.row-ctl { flex:0 1 auto; display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-width:0; max-width:max(50%, 240px); padding-top:1px; }
+.row-ctl > *, .row-ctl .inp { max-width:100%; }
+.row-ctl .rangewrap input[type=range] { min-width:0; }
+/* Words and control share a line only while the card is wide enough for both; that is the card's width, not the
+   window's, since the section list beside the pane takes part of the window. A narrower card stacks them. */
+.card { container-type:inline-size; }
+@container (max-width: 440px) {
+  .row { flex-direction:column; gap:10px; }
+  .row > .row-main { flex:0 0 auto; }
+  .row-ctl { align-items:stretch; width:100%; max-width:none; }
+  .rangewrap input[type=range] { width:100%; }
+}
 .badge { font-size:10.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; padding:2px 7px; border-radius:999px; border:1px solid var(--border); color:var(--muted); }
 .badge.enforced { color:var(--accent); border-color:var(--accent); }
 .badge.guidance { color:var(--warn); border-color:var(--warn); }
@@ -1518,7 +1533,8 @@ dl.kv dd { margin:0; }
 .spend-limits .btn { align-self:flex-start; }
 .inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .row.wide { flex-direction:column; align-items:stretch; }
-.row.wide .row-ctl { align-items:stretch; width:100%; padding-top:12px; }
+.row.wide .row-ctl { align-items:stretch; width:100%; max-width:none; padding-top:12px; }
+.row.wide > .row-main { flex:0 0 auto; }
 .pill { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); border:1px solid var(--border); border-radius:999px; padding:3px 9px; }
 .pill .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); }
 .pill.on .dot { background:var(--ok); }
@@ -1559,7 +1575,8 @@ label.inline { cursor:pointer; }
   #pane { flex:1 1 auto; overflow-y:auto; padding:16px 16px 60px; }
   #sideToggle { display:inline-flex; }
   .row { flex-direction:column; gap:10px; }
-  .row-ctl { align-items:stretch; width:100%; }
+  .row > .row-main { flex:0 0 auto; }
+  .row-ctl { align-items:stretch; width:100%; max-width:none; }
   .rangewrap input[type=range] { width:100%; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
@@ -5017,7 +5034,9 @@ function widgetLiveBrowser(stack) {
   const inWindowLabel = T('settings.row.live_browser.in_window', 'VOOL works in my browser window');
   const inWindowBox = el('div', ''); const inWindow = el('button', 'sw'); inWindow.type = 'button'; inWindow.setAttribute('role', 'switch');
   inWindow.setAttribute('aria-label', inWindowLabel);
-  inWindowBox.appendChild(el('div', '', inWindowLabel)); inWindowBox.appendChild(inWindow);
+  /* The words and their switch on one line, like every other switch on the page. */
+  const inWindowLine = el('div', 'inline'); inWindowLine.appendChild(el('span', '', inWindowLabel)); inWindowLine.appendChild(inWindow);
+  inWindowBox.appendChild(inWindowLine);
   inWindowBox.appendChild(el('div', 'subtle', T('settings.row.live_browser.in_window_help', 'VOOL uses a tab of your VOOL browser window, with the sites you are signed in to, and still asks before it acts. When this is off, VOOL uses a separate view: page scripts stay off and nothing is kept.')));
   let current = data, busy = false;
   const paint = back => {
