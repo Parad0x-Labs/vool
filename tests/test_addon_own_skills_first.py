@@ -106,7 +106,7 @@ def test_browse_shows_the_vool_collection_and_its_cards_first(rig, monkeypatch, 
         page.locator("#homeToggle").click()
         page.get_by_role("button", name="Skills & Plugins", exact=True).click()
         page.locator("#addonNav").get_by_role("button", name="Browse", exact=True).click()
-        page.get_by_role("button", name="View add-on").first.wait_for()
+        page.locator('.addon-card-open').first.wait_for()
         assert page.locator(".addon-collections strong").all_inner_texts()[0] == "VOOL"
         titles = page.locator("#pluginsBody .addon-card h3").all_inner_texts()
         assert titles[0] == "Zz own skill" and "Aa lookalike" in titles[1:]

@@ -370,7 +370,7 @@ def test_the_page_adds_a_vool_skill_without_a_key_and_offers_other_makers_the_ch
         # Another maker's skill: its installation checks in place, no key asked for, no Eyebrow
         # button, no one-step add and no jump to the Security tab.
         page.locator("#pluginsSearch").fill(other["name"])
-        page.locator(".addon-card").filter(has_text=other["name"]).get_by_role("button", name="View add-on").click()
+        page.locator(".addon-card").filter(has_text=other["name"]).click()
         detail = page.locator(".addon-detail")
         detail.get_by_role("button", name="Run installation checks", exact=True).wait_for()
         assert detail.get_by_role("button", name="Add this skill", exact=True).count() == 0
@@ -384,7 +384,7 @@ def test_the_page_adds_a_vool_skill_without_a_key_and_offers_other_makers_the_ch
         page.locator("#pluginsSearch").fill(title)
 
         # VOOL's own skill: no key needed, checked here, then added.
-        page.locator(".addon-card").filter(has_text=title).first.get_by_role("button", name="View add-on").click()
+        page.locator(".addon-card").filter(has_text=title).first.click()
         assert "No key is needed and nothing is sent anywhere" in page.locator(".addon-detail").inner_text()
         page.get_by_role("button", name="Add this skill", exact=True).click()
         page.get_by_text("No problems found in this skill's text.").wait_for()

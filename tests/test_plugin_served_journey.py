@@ -326,7 +326,7 @@ def github_skill_review(page):
     assert lookup.value.status == 200 and result.get("ok"), result
     assert any(row.get("skill_path") == "skills/verification-before-completion/SKILL.md" for row in result["entries"]), result
     card = page.locator(".addon-card").filter(has_text="skills/verification-before-completion/SKILL.md")
-    card.get_by_role("button", name="View add-on", exact=True).click(timeout=60000)
+    card.click(timeout=60000)
     with page.expect_response(lambda response: response.request.method == "POST" and
                               response.request.post_data_json.get("action") == "github_inspect") as inspected:
         page.get_by_role("button", name="Check compatibility", exact=True).click()
