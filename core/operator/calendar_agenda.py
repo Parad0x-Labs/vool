@@ -209,10 +209,10 @@ def parse_agenda_window(
     The zone is the user's stored zone; an unreadable request is a typed question, never a default range.
     `zone_name` stands in for the stored zone when a caller reads the request apart from this machine's settings.
     """
-    from core.user_preferences import load_user_timezone
+    from core.user_preferences import owner_timezone
 
     lowered = str(text or "").lower()
-    zone_name = zone_name or load_user_timezone() or "UTC"
+    zone_name = zone_name or owner_timezone()
     zone = ZoneInfo(zone_name)
     now = now_fn().astimezone(timezone.utc).astimezone(zone)
     today = now.date()

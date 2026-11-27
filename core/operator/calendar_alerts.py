@@ -97,9 +97,9 @@ def _iso_utc(value: Any) -> str:
 
 def _user_zone_name() -> str:
     try:
-        from core.user_preferences import load_user_timezone
+        from core.user_preferences import owner_timezone
 
-        name = str(load_user_timezone() or "").strip()
+        name = str(owner_timezone() or "").strip()
     except Exception:
         name = ""
     try:

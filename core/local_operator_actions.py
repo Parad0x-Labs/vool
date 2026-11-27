@@ -1348,7 +1348,7 @@ def _handle_show_agenda(
                                     details={"reason": "selections_unavailable"})
     if not window.get("ok") and not window.get("entries"):
         return OperatorActionResult(ok=False, status="unavailable", response_text=window.get("detail") or "No calendars are available to read.", details={"reason": window.get("reason")})
-    zone_name = (load_user_timezone_name() or "UTC")
+    zone_name = owner_zone_name()
     lines = [f"Agenda for {understood} ({zone_name}), from the calendars chosen in Settings:"]
     for row in window["entries"]:
         lines.append(_agenda_line(row, zone_name))
@@ -1390,7 +1390,7 @@ def _handle_search_calendar(
                                     details={"reason": "selections_unavailable"})
     if not found.get("ok") and not found.get("entries"):
         return OperatorActionResult(ok=False, status="unavailable", response_text=found.get("detail") or "No calendars are available to read.", details={"reason": found.get("reason")})
-    zone_name = (load_user_timezone_name() or "UTC")
+    zone_name = owner_zone_name()
     lines = [f"Events matching \"{term}\" on the chosen calendars (searched {found['window_days_back']} days back to {found['window_days_ahead']} days ahead):"]
     for row in found["entries"]:
         lines.append(_agenda_line(row, zone_name))
@@ -1429,13 +1429,16 @@ def _agenda_line(row: dict, zone_name: str) -> str:
     return " ".join(bits)
 
 
-def load_user_timezone_name() -> str:
+def owner_zone_name() -> str:
+    """The zone the owner's times are shown in (`core.user_preferences.owner_timezone`): the one they set, else this
+    computer's own, else UTC. The agenda and search lines fell back to UTC when no zone was saved, while reminders
+    were shown on the computer's clock (CUT-LIST 39): one owner, one zone."""
     try:
-        from core.user_preferences import load_user_timezone
+        from core.user_preferences import owner_timezone
 
-        return str(load_user_timezone() or "")
+        return str(owner_timezone() or "UTC")
     except Exception:
-        return ""
+        return "UTC"
 
 
 def _handle_list_calendars(

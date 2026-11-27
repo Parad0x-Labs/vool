@@ -180,13 +180,13 @@ def parse_availability_window(
     an unreadable phrase is a typed clarification, not a default window. `zone_name` stands in
     for the stored zone when a caller reads the request apart from this machine's settings.
     """
-    from core.user_preferences import load_user_timezone
+    from core.user_preferences import owner_timezone
 
     lowered = str(text or "").lower()
     day_match = re.search(r"\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", lowered)
     if not day_match:
         return None, None, "Which day should I check? Tell me the date or weekday (for example 'Tuesday afternoon')."
-    zone_name = zone_name or load_user_timezone() or "UTC"
+    zone_name = zone_name or owner_timezone()
     zone_match = re.search(r"\b([A-Za-z][A-Za-z_]*(?:/[A-Za-z0-9_+\-]+){1,2})\b", str(text or ""))
     if zone_match:
         try:
