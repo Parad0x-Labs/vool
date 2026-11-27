@@ -189,9 +189,14 @@ def turn_notes(platform, result, locale="en", *, reply=""):
     summary = str(route.get("summary") or "")
     if summary == "local" and route.get("own_network"):
         summary = "own_network"
+    # An answer no model was asked for (a greeting, a listing) was still made on the desktop: that is the
+    # place, and "No AI model" is the app's chip detail, not where it ran (Telegram 2026-11-27, list item 49).
+    no_model = summary == "none"
+    if no_model:
+        summary = "local"
     place = ""
     if summary in ROUTE_WORDS:
-        model = str(((proof.get("expanded") or {}).get("model")) or "") if summary != "none" else ""
+        model = "" if no_model else str(((proof.get("expanded") or {}).get("model")) or "")
         place = _catalog_text(ROUTE_KEYS[summary], ROUTE_WORDS[summary], locale) + (" \u00b7 " + model if model else "")
     last = " \u00b7 ".join(part for part in (", ".join(went), place) if part)
     if last:

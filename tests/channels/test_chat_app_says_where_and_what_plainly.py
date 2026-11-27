@@ -45,6 +45,11 @@ def test_the_place_is_your_desktop_away_from_it(proof):
     assert _notes(proof, [], {"summary": "local", "own_network": True}, "Hi") == ["On your own network \u00b7 qwen3:8b"]
 
 
+def test_an_answer_no_model_was_asked_for_still_says_your_desktop(proof):
+    # Telegram 2026-11-27 (list item 49): a greeting showed "No AI model" as where it ran.
+    assert _notes(proof, [], {"summary": "none"}, "Hi") == ["On your desktop"]
+
+
 def test_a_receipt_the_reply_already_says_is_its_state_alone(proof):
     receipt = {"intent": "schedule_reminder", "action_key": "approval.action.schedule_reminder", "state": "checked",
                "note": "water the ferns", "due_utc": "2026-11-28T08:00:00Z", "due_tz": "UTC"}
