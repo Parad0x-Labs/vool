@@ -190,6 +190,48 @@ def turn_may_hold_several_requests(text: str) -> bool:
     return any(token in lowered for token in _JOINING_TOKENS)
 
 
+#: One or two words, letters only, set off at the head of the message by a mark ("yo,", "labas,", "na,", "¡hola!",
+#: "hey Ana,"): how the person opens, or whom they address, in any language. A number or a symbol is content, so a
+#: word that holds one is never read as an opener.
+_SET_OFF_LEAD_RE = re.compile(
+    r"^\s*[¡¿]?(?P<lead>[^\W\d_]+(?:['’-][^\W\d_]+)*(?:\s+[^\W\d_]+(?:['’-][^\W\d_]+)*)?)"
+    r"\s*[,!.…:;–—]+\s*(?P<rest>\S.*)$",
+    re.DOTALL,
+)
+
+
+def set_off_lead(text: str) -> str:
+    """The one or two words set off at the head of *text* by a mark ("yo" of "yo, what's up?"), or "".
+
+    A shape, not a vocabulary: a part this short, with no number and nothing after it but the mark, names nothing to
+    look up or do. Whether it is an opener or a terse ask ("weather, and what time is it?") is for its neighbour to
+    say: see `without_the_mark_after_a_lead`."""
+    match = _SET_OFF_LEAD_RE.match(str(text or ""))
+    return " ".join(match.group("lead").split()) if match is not None else ""
+
+
+def without_the_mark_after_a_lead(text: str) -> str:
+    """*text* with the mark after its set-off lead read as a space, when what follows is one question.
+
+    "yo, what's up?", "labas, kaip tau sekasi?", "na, alles klar bei dir?", "hola, ¿qué tal hoy?": the comma sets off
+    how the person opens, it does not join two requests. Packaged on qwen3:8b (iMac, 8b4eaa84f), "yo, what's up?" was
+    admitted to the planner by that comma alone, split into "yo" and "what's up?", and the reply ended in "Could not
+    be answered: - yo". Only when the rest is ONE question (one question mark, at its end, no other sentence): an
+    order after the mark ("weather, remind me at 6") may be a second ask and keeps the turn as it is. The lead stays
+    in the text, so a joining word after the mark still joins: "weather, and what time is it?" reads "weather and
+    what time is it?", which the planner is still shown. Only decides whether a planner call is worth spending; the
+    turn itself is never rewritten."""
+    raw = str(text or "")
+    match = _SET_OFF_LEAD_RE.match(raw)
+    if match is None:
+        return raw
+    rest = " ".join(match.group("rest").split())
+    body = rest.rstrip(" \t\r\n\"'’”)»…!.")
+    if not body.endswith("?") or body.count("?") != 1 or _SENTENCE_BOUNDARY_RE.search(body):
+        return raw
+    return f"{' '.join(match.group('lead').split())} {rest}"
+
+
 _REMIND_ME_LEAD_PUNCT_RE = re.compile(
     r"^(\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?remind\s+me)\s*[,:\u2013\u2014-]\s*",
     re.IGNORECASE,

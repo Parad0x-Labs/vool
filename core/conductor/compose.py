@@ -24,7 +24,7 @@ from typing import Any
 
 from core.agent_runtime.answer_coverage import unit_is_disclosed_in
 from core.conductor.node import ConductorNode, NodeFailureCode, NodeLifecycle, NodeOutcome
-from core.conductor.planner import ConductorPlan
+from core.conductor.planner import ConductorPlan, is_the_set_off_opener
 from core.conductor.product_decision import ProductDecision
 from core.conductor.registry import UNRESOLVED_OPERATION, NodeContext, operation_spec
 
@@ -445,6 +445,11 @@ def compose_answer(
             if not _is_a_demand(subject):
                 # "thanks, what's 7 plus 8?": the courtesy is how the person asked, not a clause to
                 # answer. Listed as "Could not be answered: thanks" on database runs 8-12.
+                continue
+            if is_the_set_off_opener(subject, plan):
+                # "yo, what's 17*23 and remind me at 6": the planner made a part of the word set off
+                # at the head, and no operation reads it. It is how the person opened, in any
+                # language, never a part that failed (iMac, 8b4eaa84f: "Could not be answered: yo").
                 continue
             segment = _unserved_line(outcome)
             if bool(dict(node.arguments or {}).get("stated_refusal")):

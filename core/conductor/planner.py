@@ -406,7 +406,13 @@ def without_sentences_that_ask_nothing(original: str) -> str:
     courtesy ("ok and", "sorry,", "thanks,": `core.finalization`'s reading of what is not a demand).
     Fails toward the turn: a reading that cannot be had, that holds no request, or whose spans are
     not the message's own characters keeps the whole message.
+
+    The mark that sets off how the person opens ("yo, what's up?", "labas, kaip tau sekasi?") is
+    not a joiner either (`turn_planner.without_the_mark_after_a_lead`, a reading of shape).
     """
+    from core.agent_runtime.turn_planner import without_the_mark_after_a_lead
+
+    original = without_the_mark_after_a_lead(original)
     read = _spans_that_ask_nothing(original)
     if read is None:
         return original
@@ -484,6 +490,22 @@ def _without_clauses_that_ask_nothing(
         out.append(replace(clause, index=renumbered[clause.index],
                            depends_on=tuple(renumbered[dep] for dep in clause.depends_on)))
     return out
+
+
+def is_the_set_off_opener(subject: str, plan: Any) -> bool:
+    """Whether an unresolved node's whole text is the lead the message sets off at its head.
+
+    Shape only (`turn_planner.set_off_lead`: one or two letter words before a mark). Asked only of a
+    node no operation reads, so a lead the catalog serves ("weather, and ...") is never touched.
+    """
+    try:
+        from core.agent_runtime.turn_planner import set_off_lead
+
+        lead = set_off_lead(str(getattr(plan, "original_request", "") or ""))
+    except Exception:
+        return False
+    words = " ".join(str(subject or "").split()).strip(" ,;:.!?¡¿…–—-")
+    return bool(lead) and words.casefold() == lead.casefold()
 
 
 def _clause_span(original: str, clause_text: str) -> tuple[int, int]:
@@ -2895,6 +2917,13 @@ def plan_conductor_turn(
         # A grouped proposal cannot absorb a different capability projected from the source.
         return None
     if len(plan.nodes) < 2 and not single_computation:
+        return None
+    # A part that is only the lead the message sets off at its head ("yo" of "yo, what's up?") and
+    # that no operation reads asks nothing: a plan needs two parts that each ask for something, so
+    # such a plan is the one request beside it and the ordinary path answers the whole message.
+    asking = [node for node in plan.nodes if not (
+        node.operation == UNRESOLVED_OPERATION and is_the_set_off_opener(str(node.request_text or ""), plan))]
+    if len(asking) < 2 and not single_computation:
         return None
     # The plain lane keeps pure prose turns: a plain-SHAPED message whose plan carries no
     # live-effect node (no observation, no workspace evidence, no side effect, no action status)
