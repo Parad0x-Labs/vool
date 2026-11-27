@@ -2826,6 +2826,7 @@ class ResearchToolLoopFacadeMixin:
         # turn never inherits a stale fingerprint from a previous turn on
         # the same agent instance.
         self._toolloop_candidate_fp: tuple[str, ...] | None = None
+        reminder_order_token = ""
 
         while pending_tool_payload or model_rounds < max_rounds:
             # A step boundary: notes the user attached to this task while it worked join the
@@ -3583,7 +3584,47 @@ class ResearchToolLoopFacadeMixin:
                 from core.wallet.money_answers import ASK_TEXT_KEY
 
                 gating_source_context = {**gating_source_context, ASK_TEXT_KEY: str(effective_input or "")}
-            execution = _drive_stats_privacy_refusal(tool_name, effective_input) or _database_query_contradicts_the_ask(
+            # A reminder call is read against the message it came from (core.operator.reminder_order): the person's own
+            # order runs as the chat lane runs "remind me ...", a question about reminders is answered from the list,
+            # and a time the message never gave is not set.
+            reminder_order_token = ""
+            reminder_refusal = None
+            if tool_name == "operator.schedule_reminder" and not resuming_approval and not executed_steps:
+                from core.operator.reminder_order import (
+                    NO_TIME,
+                    RECALL,
+                    no_time_refusal,
+                    order_runs_as_the_person_said_it,
+                    reminder_call_shape,
+                )
+
+                _reminder_shape = reminder_call_shape(effective_input, dict(tool_payload.get("arguments") or {}))
+                if _reminder_shape == RECALL:
+                    tool_payload = {"intent": "operator.list_reminders", "arguments": {}}
+                    tool_name = "operator.list_reminders"
+                    seen_tool_payloads.add(_semantic_payload_signature(tool_payload))
+                    self._emit_runtime_event(
+                        loop_source_context,
+                        event_type="tool_selected",
+                        message="The message asks about reminders already set; reading the reminder list instead.",
+                        tool_name=tool_name,
+                    )
+                elif _reminder_shape == NO_TIME:
+                    reminder_refusal = no_time_refusal(tool_name)
+                else:
+                    reminder_order_token = order_runs_as_the_person_said_it(
+                        tool_name,
+                        dict(tool_payload.get("arguments") or {}),
+                        text=effective_input,
+                        task_id=task.task_id,
+                        source_context=gating_source_context,
+                        more_calls_in_the_reply=bool(pending_batch_calls),
+                    )
+                    if reminder_order_token:
+                        gating_source_context = {
+                            **gating_source_context, "internal_authority_token": reminder_order_token,
+                        }
+            execution = reminder_refusal or _drive_stats_privacy_refusal(tool_name, effective_input) or _database_query_contradicts_the_ask(
                 tool_name, tool_payload, effective_input, executed_steps, loop_source_context
             ) or _change_call_carries_an_earlier_message(
                 tool_name, tool_payload, effective_input, executed_steps, loop_source_context,
@@ -3599,6 +3640,10 @@ class ResearchToolLoopFacadeMixin:
                 step_index=len(executed_steps),
                 tool_call_id=str(tool_payload.get("_native_tool_call_id") or "") or None,
             )
+            if reminder_order_token:
+                from core.mode_permission_policy import revoke_internal_authority
+
+                revoke_internal_authority(reminder_order_token)
             _followup_action_ended(loop_source_context)
             if str((getattr(execution, "details", None) or {}).get("reason") or "") == _EARLIER_MESSAGE_REASON:
                 # Said once: the same call sent again after the correction runs (the person may want it again).
@@ -3726,6 +3771,9 @@ class ResearchToolLoopFacadeMixin:
                 "decision_source": decision_source,
                 "round_index": current_round,
             }
+            if reminder_order_token and execution.mode == "tool_executed" and execution.ok:
+                # The person's own reminder order ran as the chat lane runs it: its confirmation is the answer.
+                head_step["person_order_completed_turn"] = True
             executed_steps.append(head_step)
             step_summary = str(head_step["summary"] or "").strip()
             action_receipt = self._emit_runtime_event(
@@ -4018,7 +4066,10 @@ class ResearchToolLoopFacadeMixin:
                 execution.mode == "tool_executed"
                 and execution.ok
                 and not (executed_steps and executed_steps[-1].get("deferred_calls"))
-                and _completes_turn(str(execution.tool_name or tool_name))
+                and (
+                    _completes_turn(str(execution.tool_name or tool_name))
+                    or bool(executed_steps and executed_steps[-1].get("person_order_completed_turn"))
+                )
                 and not _pending_delivery_formats(loop_source_context, executed_steps)
             ):
                 loop_stop_reason = "tool_completed_turn"
@@ -4549,7 +4600,9 @@ class ResearchToolLoopFacadeMixin:
             from core.runtime_tool_contracts import runtime_tool_contract_map
 
             _last_contract = runtime_tool_contract_map().get(str(executed_steps[-1].get("tool_name") or ""))
-            renders_final = bool(getattr(_last_contract, "renders_final_answer", False))
+            renders_final = bool(getattr(_last_contract, "renders_final_answer", False)) or bool(
+                executed_steps[-1].get("person_order_completed_turn")
+            )
         except Exception:
             renders_final = False
         if renders_final:
