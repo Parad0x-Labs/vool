@@ -409,6 +409,16 @@ def _memory_kind_confirmed(
         # leaves the pick as it was.
         reminder_verdict = asked("reminder", intent_arbiter.arbitrate_reminder_ask)
         _log.info("tool ask: reminders pick, its own question read %s", reminder_verdict or "nothing")
+        if reminder_verdict == "yes" and kind == "keep":
+            # The memory question read a keep where the reminder question read a reminder ask: the two disagree, and
+            # the told-as-fact question settles it (it reads an order, "remind me at 5 to ...", as no). iMac gate57 on
+            # 21d4d4046 (qwen3:8b): "just so you know, my nephew <name> has his driving test on 15 january at 13:20"
+            # was confirmed a reminder, one was set with no ask and no card, and nothing was kept.
+            if not told:
+                told.append(asked("told as fact", intent_arbiter.arbitrate_told_as_fact))
+            if told[0] == "yes":
+                _log.info("tool ask: reminders pick read as a fact told beside a keep reading")
+                reminder_verdict = "no"
         if unconfirmed(reminder_verdict):
             _log.info("tool ask: reminders pick not confirmed")
             tools = tuple(key for key in tools if key != "reminders")

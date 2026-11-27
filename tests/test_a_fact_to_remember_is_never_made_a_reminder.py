@@ -48,11 +48,34 @@ def test_a_reminders_pick_beside_a_keep_reading_is_dropped_when_no_reminder_was_
     assert asked == [text]
 
 
-def test_a_reminder_asked_for_keeps_its_tool(readings) -> None:
+def test_a_reminder_asked_for_keeps_its_tool(readings, monkeypatch) -> None:
     asked = readings("keep", "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "no")
     text = "remember to remind me tomorrow at 9 to feed Burek"
     assert plugin_ask._memory_kind_confirmed(text, ("reminders",), {}, "chat-1") == ("reminders",)
     assert asked == [text]
+
+
+DATED_FACTS = (
+    "just so you know, my goddaughter Ieva has her ballet exam on 21 february at 10:40",
+    "beje, mano kaimyno sūnaus krikštynos kovo 7 d. 12 val.",
+    "nur zur Info: die Hochzeit meiner Cousine ist am 4. Juli um 15 Uhr",
+)
+
+
+@pytest.mark.parametrize("text", DATED_FACTS)
+def test_a_dated_fact_the_reminder_question_reads_yes_beside_a_keep_is_kept_when_it_is_told(text, readings,
+                                                                                            monkeypatch) -> None:
+    """iMac gate57 on 21d4d4046 (qwen3:8b): a dated fact told with no ask was read keep by the memory question and
+    remind by the reminder question; a reminder was set with no card and nothing was kept. The told-as-fact question
+    settles the two readings: told, it is a keep; an order (told no, or no answer) keeps the reminder."""
+    readings("keep", "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
+    assert plugin_ask._memory_kind_confirmed(text, ("reminders",), {}, "chat-1") == ("memory_keep",)
+    for told in ("no", None):
+        monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, _t=told, **_k: _t)
+        assert plugin_ask._memory_kind_confirmed(text, ("reminders",), {}, "chat-1") == ("reminders",)
 
 
 def test_no_answer_leaves_the_pick_as_it_was(readings) -> None:
