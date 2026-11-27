@@ -1817,6 +1817,8 @@ async function commit(row, rawValue) {
   const ok = await readSource(row.read ? row.read.url : row.write.url);
   /* "Hide my name on screen" changes what every open VOOL window draws: tell them now. */
   if (row.write.field === 'hide_name_on_screen' && window.VoolScreenPrivacy) window.VoolScreenPrivacy.announce();
+  /* A surface that follows this setting (the Crypto section follows Crypto on/off) reads now, not on the idle beat. */
+  document.dispatchEvent(new CustomEvent('vool:setting-saved', {detail: {field: row.write.field}}));
   if (superseded()) return;
   if (!ok) {
     setState(row.id, 'stale', 'Sent, but VOOL could not confirm it. Reopen Settings to check.');

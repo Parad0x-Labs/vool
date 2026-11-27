@@ -3142,6 +3142,8 @@ function walletLive(){
   return !!(((st.pending || []).length) || ((st.in_flight || []).length) || ((st.accounts || []).length));
 }
 setTimeout(poll, 400);
+// Crypto turned on or off in Settings: the section below the switch follows at once, not on the idle beat.
+document.addEventListener('vool:setting-saved', function(e){ if (e && e.detail && e.detail.field === 'wallet_enabled') poll(); });
 if (window.VoolPoll) window.VoolPoll.every('wallet-status', poll, { fast: 2500, hot: walletLive, immediate: false });
 else setInterval(poll, 2500);
 
