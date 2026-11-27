@@ -70,16 +70,31 @@ def test_a_typed_weekday_rule_is_kept_and_skips_the_weekend(seed, home) -> None:
     [row] = _pending(session)
     assert json.loads(row["payload_json"])["repeat_every"] == "weekdays"
     assert "Monday to Friday" in stored.response_text
-    # The occurrence after Friday's is Monday's, at the same wall time: never Saturday or Sunday.
-    after = datetime.fromisoformat(str(row["due_at_utc"]).replace("Z", "+00:00")) + timedelta(minutes=1)
-    nxt = next_repeat_occurrence(row, now_fn=lambda: after.isoformat())
-    wall = datetime.fromisoformat(nxt["due_wall"])
-    assert wall.weekday() == 0 and (wall.hour, wall.minute) == (7, 45), nxt
-    # On a Friday before 7:45 the first one is due this morning ("every weekday at 7:45" said at 04:25 on Friday 27
-    # Nov): a Friday either way, and Monday is the one after it.
+    # The first one is the Friday the model named (or, on a Friday before 7:45, this morning's), or the person's
+    # own "every weekday at 7:45" read on their clock: the next weekday 7:45 from now. CI 085958e9a, Friday
+    # 27 Nov after 07:45: some asks started Monday 30 Nov, which is right, and the old pin wanted a Friday.
+    now = _now_in_saved_zone()
+    soonest = now.replace(hour=7, minute=45, second=0, microsecond=0)
+    if soonest <= now:
+        soonest += timedelta(days=1)
+    while soonest.weekday() >= 5:
+        soonest += timedelta(days=1)
     first = datetime.fromisoformat(str(row["due_wall"]))
-    assert first.weekday() == 4 and first.date() in {friday.date(), (friday - timedelta(days=7)).date()}, row
-    assert (wall.date() - first.date()).days == 3
+    assert first.weekday() < 5 and (first.hour, first.minute) == (7, 45), row
+    assert first.date() in {friday.date(), (friday - timedelta(days=7)).date(), soonest.date()}, row
+    # Each occurrence after it is the next weekday at the same wall time: Friday's is followed by Monday's,
+    # never Saturday or Sunday. Six steps from any weekday always cross one weekend.
+    current, crossed = dict(row), False
+    for _ in range(6):
+        after = datetime.fromisoformat(str(current["due_at_utc"]).replace("Z", "+00:00")) + timedelta(minutes=1)
+        nxt = next_repeat_occurrence(current, now_fn=lambda after=after: after.isoformat())
+        was = datetime.fromisoformat(str(current["due_wall"]))
+        wall = datetime.fromisoformat(nxt["due_wall"])
+        assert wall.weekday() < 5 and (wall.hour, wall.minute) == (7, 45), nxt
+        assert (wall.date() - was.date()).days == (3 if was.weekday() == 4 else 1), (was, nxt)
+        crossed = crossed or was.weekday() == 4
+        current = {**current, "due_at_utc": nxt["due_at_utc"], "due_wall": nxt["due_wall"]}
+    assert crossed, "the walk never reached a Friday"
 
 
 def test_a_first_due_time_on_a_weekend_moves_to_monday(home) -> None:
