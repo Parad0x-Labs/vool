@@ -13838,8 +13838,23 @@ function openSettings(section) {
   openSettingsInFrame(section);
 }
 function openSettingsInFrame(section) { openSurfaceInFrame('/settings' + (section ? ('#' + section) : ''), 'VOOL Settings'); }
-document.getElementById('browserBtn').addEventListener('click', () => {
-  openSurfaceInFrame('/browser?chat=' + encodeURIComponent(displayedChat), pageT('live.browser', 'Browser'));
+// One browser, one window. When VOOL works in the person's VOOL browser window (Settings > Privacy & Permissions >
+// Browser), that window is the browser: the button opens it, or brings it to the front, and nothing else. The panel
+// showed a picture of a tab of that same window, so opening both put two browsers on screen. With that setting off,
+// the browser is the panel's separate view and the button opens the panel as before. If the window cannot be opened
+// (switched off, no engine, Private web down), the panel opens and says why.
+document.getElementById('browserBtn').addEventListener('click', async () => {
+  const openPanel = () => openSurfaceInFrame('/browser?chat=' + encodeURIComponent(displayedChat), pageT('live.browser', 'Browser'));
+  try {
+    const res = await fetch('/api/browser/settings', { cache: 'no-store' });
+    const s = await res.json();
+    if (res.ok && s && s.enabled === true && s.agent_in_window === true) {
+      const win = await fetch('/api/browser/window', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open', url: '' }) });
+      const w = await win.json().catch(() => ({}));
+      if (win.ok && w && w.ok !== false) return;
+    }
+  } catch (e) { /* no answer: the panel below shows the browser's own state and words */ }
+  openPanel();
 });
 // Private web in the header. It reads and writes the one setting Settings > Privacy & Permissions > Going online >
 // Private web uses (/api/private-web), so the two always agree. One click turns Tor on or off; when a VPN is in use

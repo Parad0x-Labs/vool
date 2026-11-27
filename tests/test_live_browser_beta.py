@@ -406,6 +406,9 @@ def test_live_pane_in_chat_approves_the_original_tool_call(world, tmp_path):
 
     rig, old, origin, requests = world
     old.stop()
+    # This pane drives a separate-view session. With VOOL working in the person's own browser window, the
+    # Browser button opens that window instead of the pane, so the separate view is the setting in force here.
+    rig.post('/api/browser/settings', {'agent_in_window': False})
     chat_id = rig.canonical_session()
     rig.post('/api/chat/session', {'session_id': chat_id, 'operation': 'create'})
     item = live.LiveSession(chat_id, fixture_origin=origin)
