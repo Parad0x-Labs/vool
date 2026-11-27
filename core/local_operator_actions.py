@@ -772,6 +772,31 @@ def reminder_shown_as(reminder_id: str) -> str:
     return f"“{row.get('note')}”, {wall}"
 
 
+def calendar_event_shown_as(intent: str, arguments: dict[str, Any]) -> str:
+    """A calendar event a model's call would add, as a person knows it: its title and the day and time the call's
+    own handler reads from these arguments (“Parents' evening”, Thu 03 Dec 2026 at 17:45); the title alone when no
+    time can be read yet, "" when neither."""
+    from core.execution.operator_tools import build_operator_action_intent
+    from core.operator.calendar_provider import parse_event_proposal
+    from core.user_preferences import owner_timezone
+
+    kind = str(intent or "").partition(".")[2]
+    asked = build_operator_action_intent(kind, dict(arguments or {}))
+    title, start = "", ""
+    if kind == "schedule_calendar_event":
+        parsed = _parse_calendar_request(asked.raw_text) or {}
+        title, start = str(parsed.get("title") or ""), str(parsed.get("start_iso") or "")
+    elif kind == "propose_calendar_event":
+        title = str(parse_event_proposal(asked.raw_text).get("title") or "")
+        when = _parse_when(asked.raw_text)
+        start = str(when.due_at_utc or "") if when.ok else ""
+    title = title.strip()
+    wall = operator_when.format_due_time(start, owner_timezone()) if start else ""
+    if title and wall:
+        return f"“{title}”, {wall}"
+    return f"“{title}”" if title else wall
+
+
 def _handle_complete_reminder(
     intent: OperatorActionIntent,
     *,

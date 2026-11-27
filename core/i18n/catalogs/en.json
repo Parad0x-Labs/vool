@@ -5684,7 +5684,9 @@
     "setup.picker.ready_any": "Your private model is ready. VOOL answers with it on this computer.",
     "settings.local_models.find": "Find local models",
     "header.find_local_models": "Find local models",
-    "header.find_local_models_hint": "free models that fit this computer"
+    "header.find_local_models_hint": "free models that fit this computer",
+    "approval.target.event": "for {name}",
+    "vcs.detail.calendar_read": "Read {when}"
   },
   "html_keys": [
     "bypass.modal_limits",

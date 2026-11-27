@@ -102,6 +102,29 @@ def online_access_allowed(account: dict[str, Any]) -> bool:
     return _reached_on_this_computer(account) or outbound_switch_on()
 
 
+def reached_on_this_computer(account: dict[str, Any]) -> bool:
+    """Whether reading this account stays on this computer (Apple Calendar, or a server on this machine)."""
+    return _reached_on_this_computer(account)
+
+
+def record_read_ok(account_id: str, *, at: str, get_connection_fn: Callable[[], Any] | None = None) -> None:
+    """Every chosen calendar of this account was just read (an agenda or free/busy read in chat): the account is
+    Connected as of ``at``. The next background sync stays when it was due; only a sync reconciles alerts."""
+    conn = (get_connection_fn or _default_connection)()
+    try:
+        conn.execute(
+            """
+            UPDATE calendar_accounts
+            SET status = 'connected', status_detail = '', status_at = ?, last_sync_ok_at = ?, sync_failures = 0, updated_at = ?
+            WHERE account_id = ? AND status != 'disconnected' AND sync_enabled = 1 AND last_sync_ok_at < ?
+            """,
+            (at, at, at, str(account_id or ""), at),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 #: What to do next for each state an attempt can prove. Each step names what is on the account's own card in Settings
 #: (Refresh calendar list, Reconnect, Remove account), never "Settings" itself. The Calendars panel shows these through
 #: the ``vcs.recovery.<state>`` catalog keys, whose English text is this text.
@@ -758,7 +781,9 @@ __all__ = [
     "outbound_switch_on",
     "present_account",
     "presented",
+    "reached_on_this_computer",
     "reconnect_account",
+    "record_read_ok",
     "record_sync_result",
     "remove_account",
     "select_calendar",

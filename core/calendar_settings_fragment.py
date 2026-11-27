@@ -254,7 +254,7 @@ function mountInto(host){
     }));
     actions.appendChild(removeButton(account, title));
     card.appendChild(actions);
-    if (account.last_sync_ok_at && !unconfirmed && readCals.some(function(c){ return c.selected; })) card.appendChild(h('div', 'vcs-detail', CTF('vcs.detail.last_sync', 'Last good sync: {when}', {when: new Date(account.last_sync_ok_at).toLocaleString()})));
+    if (account.last_sync_ok_at && !unconfirmed && readCals.some(function(c){ return c.selected; })) card.appendChild(h('div', 'vcs-detail', CTF('vcs.detail.last_sync', 'Last good sync: {when}', {when: readWhen(account.last_sync_ok_at)})));
     return card;
   }
   /* Remove account: VOOL forgets its own copy (the account, its calendar choices, the events it copied and its
@@ -276,6 +276,17 @@ function mountInto(host){
     });
     return b;
   }
+  /* When a read happened, the way a person says it: the time alone today, the day and time before that; no seconds. */
+  function readWhen(iso){
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var today = new Date();
+    var sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+    try {
+      return sameDay ? d.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'})
+                     : d.toLocaleString(undefined, {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+    } catch (e) { return d.toLocaleString(); }
+  }
   function calendarRow(account, calendar){
     var row = h('div', 'vcs-cal' + (calendar.present ? '' : ' vcs-gone'));
     row.appendChild(toggle(calendar.display_name, calendar.selected, function(on){
@@ -285,6 +296,13 @@ function mountInto(host){
     }));
     var access = calendar.can_write === true ? CT('vcs.access.write', 'can write') : calendar.can_write === false ? CT('vcs.access.read_only', 'read-only') : CT('vcs.access.unknown', 'write access not stated');
     row.appendChild(h('span', 'vcs-detail', access + (calendar.provider_default ? ' · ' + CT('vcs.detail.provider_default', 'provider default') : '') + (calendar.present ? '' : ' · ' + CT('vcs.detail.gone', 'no longer on the account'))));
+    /* Each chosen calendar says when VOOL last read it: every chosen calendar is read together, and a read that
+       fails on one of them leaves the account in that failure's state instead of Connected. */
+    if (calendar.selected && calendar.present && account.status === 'connected' && account.last_sync_ok_at) {
+      var read = h('span', 'vcs-detail vcs-read', CTF('vcs.detail.calendar_read', 'Read {when}', {when: readWhen(account.last_sync_ok_at)}));
+      read.setAttribute('data-testid', 'vcs-calendar-read');
+      row.appendChild(read);
+    }
     if (calendar.is_default_write) row.appendChild(h('span', 'vcs-chip vcs-connected', CT('vcs.chip.default_write', 'New events go here')));
     else if (calendar.can_write !== false && calendar.present) {
       row.appendChild(button(CT('vcs.btn.default_write', 'Use for new events'), function(){

@@ -5684,9 +5684,11 @@
     "setup.picker.ready_any": "आपका निजी मॉडल तैयार है। VOOL इस कंप्यूटर पर इसी से जवाब देता है।",
     "settings.local_models.find": "लोकल मॉडल खोजें",
     "header.find_local_models": "लोकल मॉडल खोजें",
-    "header.find_local_models_hint": "इस कंप्यूटर पर फ़िट होने वाले मुफ़्त मॉडल"
+    "header.find_local_models_hint": "इस कंप्यूटर पर फ़िट होने वाले मुफ़्त मॉडल",
+    "approval.target.event": "— {name}",
+    "vcs.detail.calendar_read": "पढ़ा गया {when}"
   },
-  "source_catalog_sha256": "7d2c7189db11e90545163fe607665a79051ca98726a73b1b9306a3843771288c",
+  "source_catalog_sha256": "ee7808a7b3aa8307a1950b15bd41b28e47cf746d604772ac059eb20301801700",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -5684,9 +5684,11 @@
     "setup.picker.ready_any": "Ваша приватная модель готова. VOOL отвечает ею на этом компьютере.",
     "settings.local_models.find": "Найти локальные модели",
     "header.find_local_models": "Найти локальные модели",
-    "header.find_local_models_hint": "бесплатные модели, подходящие этому компьютеру"
+    "header.find_local_models_hint": "бесплатные модели, подходящие этому компьютеру",
+    "approval.target.event": "— {name}",
+    "vcs.detail.calendar_read": "Прочитано {when}"
   },
-  "source_catalog_sha256": "7d2c7189db11e90545163fe607665a79051ca98726a73b1b9306a3843771288c",
+  "source_catalog_sha256": "ee7808a7b3aa8307a1950b15bd41b28e47cf746d604772ac059eb20301801700",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

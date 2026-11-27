@@ -5684,9 +5684,11 @@
     "setup.picker.ready_any": "你的私密模型已就绪。VOOL 会在这台电脑上用它回答。",
     "settings.local_models.find": "查找本地模型",
     "header.find_local_models": "查找本地模型",
-    "header.find_local_models_hint": "适合这台电脑的免费模型"
+    "header.find_local_models_hint": "适合这台电脑的免费模型",
+    "approval.target.event": "：{name}",
+    "vcs.detail.calendar_read": "读取于 {when}"
   },
-  "source_catalog_sha256": "7d2c7189db11e90545163fe607665a79051ca98726a73b1b9306a3843771288c",
+  "source_catalog_sha256": "ee7808a7b3aa8307a1950b15bd41b28e47cf746d604772ac059eb20301801700",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

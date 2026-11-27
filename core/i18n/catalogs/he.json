@@ -5684,9 +5684,11 @@
     "setup.picker.ready_any": "המודל הפרטי שלכם מוכן. VOOL עונה איתו במחשב הזה.",
     "settings.local_models.find": "מציאת מודלים מקומיים",
     "header.find_local_models": "מציאת מודלים מקומיים",
-    "header.find_local_models_hint": "מודלים חינמיים שמתאימים למחשב הזה"
+    "header.find_local_models_hint": "מודלים חינמיים שמתאימים למחשב הזה",
+    "approval.target.event": "— {name}",
+    "vcs.detail.calendar_read": "נקרא {when}"
   },
-  "source_catalog_sha256": "7d2c7189db11e90545163fe607665a79051ca98726a73b1b9306a3843771288c",
+  "source_catalog_sha256": "ee7808a7b3aa8307a1950b15bd41b28e47cf746d604772ac059eb20301801700",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -12,6 +12,7 @@ text, and a join address is shown only when it is https.
 """
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -19,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+LOGGER = logging.getLogger(__name__)
 AGENDA_READ_SCOPE_NAME = "calendar.agenda_read"
 
 #: Bounded by design: one agenda answers from at most this many events per source, and a
@@ -170,11 +172,14 @@ def agenda(*, start_utc: datetime, end_utc: datetime, limit: int = MAX_EVENTS_PE
                 "detail": "No calendars are chosen for sync in Settings yet, so there is no agenda to read."}
     entries: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
+    failed: set[str] = set()
     for source in sources:
         rows, failure = _read_source(source, start_utc=start_utc.isoformat(), end_utc=end_utc.isoformat(), limit=limit)
         entries.extend(rows)
         if failure is not None:
             failures.append(failure)
+            failed.add(source.account_id)
+    _note_reads(sources, failed, get_connection_fn=get_connection_fn)
     entries.sort(key=lambda row: (row["start_date"] or row["start_utc"] or "", row["start_utc"]))
     return {"ok": bool(entries) or not failures, "entries": entries, "sources": [s.label for s in sources],
             "failures": failures}
@@ -325,6 +330,7 @@ def busy_cal_events(*, start_utc: datetime, end_utc: datetime,
                != (exclude.provider, exclude.base_url.rstrip("/"), exclude.calendar_id)]
     events: list[Any] = []
     failures: list[dict[str, Any]] = []
+    failed: set[str] = set()
     for source in sources:
         try:
             from core.effect_gateway import named_background_effect_scope
@@ -335,7 +341,25 @@ def busy_cal_events(*, start_utc: datetime, end_utc: datetime,
         except Exception as exc:
             status, detail = classify_calendar_error(exc)
             failures.append({"source": source.label, "status": status, "detail": detail})
+            failed.add(source.account_id)
+    if exclude is None:
+        _note_reads(sources, failed, get_connection_fn=get_connection_fn)
     return events, failures, sources
+
+
+def _note_reads(sources: list[AgendaSource], failed: set[str], *, get_connection_fn: Callable[[], Any] | None) -> None:
+    """An account whose chosen calendars were all just read is Connected as of now on its Settings card. Best
+    effort: the answer never waits on, or fails over, this bookkeeping."""
+    from core.operator import calendar_accounts
+    from core.time_authority import CLOCK
+
+    kwargs = {} if get_connection_fn is None else {"get_connection_fn": get_connection_fn}
+    at = CLOCK.now_utc().isoformat()
+    for account_id in {source.account_id for source in sources if source.account_id} - failed:
+        try:
+            calendar_accounts.record_read_ok(account_id, at=at, **kwargs)
+        except Exception as exc:
+            LOGGER.warning("calendar read time not recorded (%s)", type(exc).__name__)
 
 
 __all__ = [

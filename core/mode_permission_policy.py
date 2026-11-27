@@ -4096,7 +4096,7 @@ def _new_approval_request(
         **({"command": command_line} if command_line else {}),
         "affected_resources": _x_request_resources(display_intent, display_arguments)
         or ([target_plain] if (target_plain := approval_target_name(display_intent, display_arguments))
-            and approval_target_kind(display_intent) == "reminder" else [])
+            and approval_target_kind(display_intent) in {"reminder", "event"} else [])
         or _affected_resources_display(display_arguments, display_context),
         "expected_side_effects": approval_effect_words(display_intent) or _approval_effect_summary(actions),
         "reversible": bool(edit_batch or PermissionAction.GIT_COMMIT in actions),

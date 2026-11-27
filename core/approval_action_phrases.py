@@ -170,6 +170,8 @@ APPROVAL_TARGET_KINDS: dict[str, str] = {
     "operator.move_path": "name",
     "operator.cancel_reminder": "reminder",
     "operator.move_reminder": "reminder",
+    "operator.propose_calendar_event": "event",
+    "operator.schedule_calendar_event": "event",
     "set.save": "name",
     "skill.create": "name",
     "web0.create_project": "name",
@@ -179,7 +181,8 @@ APPROVAL_TARGET_KINDS: dict[str, str] = {
     "workspace.write_file": "name",
 }
 
-_TARGET_CONNECTOR_KEYS = {"name": "approval.target.called", "to": "approval.target.to", "reminder": "approval.target.called"}
+_TARGET_CONNECTOR_KEYS = {"name": "approval.target.called", "to": "approval.target.to", "reminder": "approval.target.called",
+                          "event": "approval.target.event"}
 
 #: intent -> what the approved call does, in plain words, where the permission classes it crosses would name
 #: something else: a reminder is a row in VOOL's own store, not a file the person keeps ("delete files" on the
@@ -246,6 +249,15 @@ def approval_target_name(intent: str, arguments: Mapping[str, Any] | None) -> st
             return reminder_shown_as(str(args.get("reminder_id") or ""))
         except Exception:
             return ""
+    if kind == "event":
+        # The event as the approved call will write it: its title and the day and time the tool works out from the
+        # same arguments (gate 49: the card said only "add an event to your calendar", CUT 42).
+        try:
+            from core.local_operator_actions import calendar_event_shown_as
+
+            return calendar_event_shown_as(intent, dict(args))
+        except Exception:
+            return ""
     if kind == "name":
         for key in ("path", "target", "destination"):
             raw = args.get(key)
@@ -292,7 +304,7 @@ def localized_target_words(
     if not kind or not name:
         return ""
     key = _TARGET_CONNECTOR_KEYS[kind]
-    english = {"name": "called {name}", "to": "to {name}", "reminder": "called {name}"}[kind]
+    english = {"name": "called {name}", "to": "to {name}", "reminder": "called {name}", "event": "for {name}"}[kind]
     return _catalog_text(locale, key, english, name=name)
 
 

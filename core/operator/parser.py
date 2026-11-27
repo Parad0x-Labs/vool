@@ -663,7 +663,9 @@ EVERYDAY_MOVE_RE = re.compile(
     r"\s+(?:to|into|onto)\s+(?:the\s+|my\s+)?(?P<dst>desktop|downloads|documents|pictures|movies|music)(?:\s+folder)?\b",
     re.IGNORECASE,
 )
-_QUOTED_PATH_RE = re.compile(r"""["']([^"']+)["']""")
+# A quoted value closes on the SAME mark it opened with, so an apostrophe inside double quotes belongs to the value:
+# 'schedule a meeting "Parents' evening"' was read as "Parents" (gate 49 case 3, seen on the approval card, CUT 42).
+_QUOTED_PATH_RE = re.compile(r""""([^"]+)"|'([^']+)'""")
 # "set up a folder called Invoices on my desktop", "make a Taxes 2026 folder in Documents": one new
 # folder on one of the owner's own home roots, named in everyday words. Two name shapes (after a
 # "called/named" connector, or between the verb and the folder noun); the PLACE is required —
@@ -1049,7 +1051,7 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
 def _extract_path(text: str) -> str | None:
     match = _QUOTED_PATH_RE.search(text)
     if match:
-        return match.group(1).strip()
+        return (match.group(1) or match.group(2)).strip()
     match = _WINDOWS_PATH_RE.search(text)
     if match:
         return match.group(1).strip().rstrip(".,")
@@ -1060,7 +1062,8 @@ def _extract_path(text: str) -> str | None:
 
 
 def _extract_quoted_values(text: str) -> list[str]:
-    return [match.group(1).strip() for match in _QUOTED_PATH_RE.finditer(text or "") if match.group(1).strip()]
+    values = ((match.group(1) or match.group(2)).strip() for match in _QUOTED_PATH_RE.finditer(text or ""))
+    return [value for value in values if value]
 
 
 def _extract_action_id(text: str) -> str | None:

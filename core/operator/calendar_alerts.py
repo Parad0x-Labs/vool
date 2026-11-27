@@ -389,34 +389,16 @@ def sync_account(
         late_grace = int(preferences.get("late_grace_minutes") or 0)
         zone_name = _user_zone_name()
         failures: list[tuple[str, str]] = []
-        from core.effect_gateway import named_background_effect_scope
-
-        with named_background_effect_scope(SYNC_SCOPE_NAME):
-            adapter = None
-            try:
-                adapter = (adapter_factory or accounts.build_adapter)(account)
-            except Exception as exc:
-                failures.append(accounts.classify_calendar_error(exc))
-            for selection in selections if adapter is not None else []:
-                calendar_report: dict[str, Any] = {
-                    "calendar_id": selection["calendar_id"], "display_name": selection["display_name"], "ok": False,
-                    "events": 0, "scan_limit_hit": False,
-                }
-                report["calendars"].append(calendar_report)
-                try:
-                    events = list(adapter.events_in_range(
-                        selection["calendar_id"], start_utc=window_start.isoformat(), end_utc=window_end.isoformat(),
-                    ))
-                except Exception as exc:
-                    status, detail = accounts.classify_calendar_error(exc)
-                    failures.append((status, detail))
-                    calendar_report.update(status=status, detail=detail)
-                    continue
-                _process_calendar(
-                    account=account, selection=selection, events=events, window_start=window_start, window_end=window_end,
-                    now=now, late_grace=late_grace, zone_name=zone_name, report=report, calendar_report=calendar_report,
-                    now_fn=now_fn, get_connection_fn=get_connection_fn,
-                )
+        # Anything that goes wrong while reading is recorded as this attempt's state. An error that escaped used to
+        # leave the account as its last real attempt proved, so Settings said "Not refreshed recently" for days while
+        # every tick failed the same way unseen (CUT 61).
+        try:
+            _read_selected(account=account, selections=selections, adapter_factory=adapter_factory, failures=failures,
+                           window_start=window_start, window_end=window_end, now=now, late_grace=late_grace,
+                           zone_name=zone_name, report=report, now_fn=now_fn, get_connection_fn=get_connection_fn)
+        except Exception as exc:
+            logger.exception("calendar sync of %s failed", account_id)
+            failures.append(accounts.classify_calendar_error(exc))
         ok = not failures
         status, detail = ("connected", "") if ok else failures[0]
         accounts.record_sync_result(
@@ -430,6 +412,44 @@ def sync_account(
         return report
     finally:
         lock.release()
+
+
+def _read_selected(
+    *, account: dict[str, Any], selections: list[dict[str, Any]], adapter_factory: Callable[[dict[str, Any]], Any] | None,
+    failures: list[tuple[str, str]], window_start: datetime, window_end: datetime, now: datetime, late_grace: int,
+    zone_name: str, report: dict[str, Any], now_fn: Callable[[], str], get_connection_fn: Callable[[], Any],
+) -> None:
+    """Read each chosen calendar for the window and reconcile its alerts; a calendar's own failure is added to
+    ``failures`` and the others are still read."""
+    from core.effect_gateway import named_background_effect_scope
+    from core.operator import calendar_accounts as accounts
+
+    with named_background_effect_scope(SYNC_SCOPE_NAME):
+        adapter = None
+        try:
+            adapter = (adapter_factory or accounts.build_adapter)(account)
+        except Exception as exc:
+            failures.append(accounts.classify_calendar_error(exc))
+        for selection in selections if adapter is not None else []:
+            calendar_report: dict[str, Any] = {
+                "calendar_id": selection["calendar_id"], "display_name": selection["display_name"], "ok": False,
+                "events": 0, "scan_limit_hit": False,
+            }
+            report["calendars"].append(calendar_report)
+            try:
+                events = list(adapter.events_in_range(
+                    selection["calendar_id"], start_utc=window_start.isoformat(), end_utc=window_end.isoformat(),
+                ))
+            except Exception as exc:
+                status, detail = accounts.classify_calendar_error(exc)
+                failures.append((status, detail))
+                calendar_report.update(status=status, detail=detail)
+                continue
+            _process_calendar(
+                account=account, selection=selection, events=events, window_start=window_start, window_end=window_end,
+                now=now, late_grace=late_grace, zone_name=zone_name, report=report, calendar_report=calendar_report,
+                now_fn=now_fn, get_connection_fn=get_connection_fn,
+            )
 
 
 def _process_calendar(
@@ -768,6 +788,31 @@ def sync_now(
     return {"ok": all(report["ok"] for report in reports), "reports": reports}
 
 
+def refresh_on_this_computer(
+    *,
+    now_fn: Callable[[], str] = _utcnow,
+    get_connection_fn: Callable[[], Any] = _default_connection,
+) -> list[dict[str, Any]]:
+    """Read the calendars that live on this computer (Apple Calendar, a CalDAV server on this machine) before
+    Settings shows them, when their state is not a fresh good read: access granted in System Settings a moment ago
+    shows as Connected with the time it was read, not as the old state until the next background tick. Nothing goes
+    online (an online account waits for its own tick or Sync now), and a fresh good read is not read again."""
+    from core.operator import calendar_accounts as accounts
+
+    now = _parse(now_fn()) or datetime.now(timezone.utc)
+    due: list[str] = []
+    for account in accounts.list_accounts(get_connection_fn=get_connection_fn):
+        if not account.get("sync_enabled") or account.get("status") == "disconnected":
+            continue
+        if not accounts.reached_on_this_computer(account):
+            continue
+        last_ok = _parse(account.get("last_sync_ok_at"))
+        if account.get("status") == "connected" and last_ok is not None and now - last_ok < timedelta(minutes=REFRESH_MINUTES):
+            continue
+        due.append(str(account["account_id"]))
+    return [sync_account(value, now_fn=now_fn, get_connection_fn=get_connection_fn) for value in due[:WORKER_ACCOUNTS_PER_TICK]]
+
+
 class CalendarAlertSync:
     """The background worker: syncs accounts whose refresh is due, a few per tick."""
 
@@ -862,6 +907,6 @@ def stop_default_sync() -> None:
 __all__ = [
     "COVERAGE_NOTE", "DEFAULT_LEAD_MINUTES", "HORIZON_HOURS", "REFRESH_MINUTES", "CalendarAlertSync", "alerts_view",
     "cancel_calendar_alerts", "effective_lead_minutes", "event_key_for", "https_link", "next_sync_due", "normalize_lead_minutes",
-    "reschedule_from_projections", "set_lead_minutes", "start_default_sync", "stop_default_sync", "sync_account", "sync_now",
+    "refresh_on_this_computer", "reschedule_from_projections", "set_lead_minutes", "start_default_sync", "stop_default_sync", "sync_account", "sync_now",
     "upcoming_alerts", "upcoming_events",
 ]

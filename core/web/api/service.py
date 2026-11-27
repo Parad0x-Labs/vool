@@ -1191,7 +1191,14 @@ def _dispatch_get(
         try:
             if normalized_path == "/api/calendar/accounts":
                 from core.operator import calendar_accounts
+                from core.operator.calendar_alerts import refresh_on_this_computer
 
+                # A calendar on this computer is read before its card is shown when its state is not a fresh good
+                # read, so access granted a moment ago shows as Connected now. The panel still opens if it fails.
+                try:
+                    refresh_on_this_computer()
+                except Exception as exc:
+                    logging.getLogger(__name__).warning("calendar refresh before Settings failed (%s)", type(exc).__name__)
                 view = calendar_accounts.settings_view()
             else:
                 from core.operator import notification_center
