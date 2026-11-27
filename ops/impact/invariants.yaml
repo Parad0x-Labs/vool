@@ -79,6 +79,11 @@ exemptions:
     reason: >
       Package marker holding a docstring and nothing else. There is no behavior here to hold an
       invariant over, and claiming one would be a claim with nothing behind it.
+  - unit: core/page_poll_scheduler.py
+    reason: >
+      The page's read cadence (one shared idle beat, fast reads while a turn runs, paused while
+      hidden), shipped as browser script. It holds no answer, policy or money path; its timing is
+      held by tests/test_page_poll_scheduler.py, which drives the real script on a fake clock.
 
 invariants:
   - id: INV-RAW-OUTPUT-ONLY
