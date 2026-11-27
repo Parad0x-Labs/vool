@@ -55,6 +55,8 @@ _STEM_WEIGHT = 0.7
 _TRIGRAM_WEIGHT = 0.3
 
 POLICY_FLAG = "tools.card_routing"
+#: The plain answer with no tool (the first seat of every offer, core.capability_graph._ALWAYS_VISIBLE_ORDER).
+ANSWER_WITHOUT_A_TOOL = "respond.direct"
 
 
 @dataclass(frozen=True)
@@ -435,6 +437,16 @@ def match_cards(
     if not scored:
         return ()
     scored.sort(key=lambda m: (-m.score, m.intent))
+    # The card of the plain answer is choice 0: it says when a person needs no tool. When it fits the words best, the
+    # cards' reading is "no tool", and no other card is matched for them; it is never a match of its own either (a
+    # plain answer is seated on every round already). Read as a tool's card, it released the tool lane for a greeting
+    # or a thank-you ("thanks!" and "hi, how are you?" are its own examples), the round then demanded a tool call, and
+    # qwen3:8b called operator.list_tools: an 86 s tool round on the iMac to say hello back.
+    if scored[0].intent == ANSWER_WITHOUT_A_TOOL:
+        return ()
+    scored = [m for m in scored if m.intent != ANSWER_WITHOUT_A_TOOL]
+    if not scored:
+        return ()
     top = scored[0].score
     kept = [m for m in scored if m.score >= top * _NEAR_TOP]
     return tuple(kept[: max(1, int(limit))])
@@ -541,6 +553,7 @@ def releases_lane(text: str, *, owner_local: bool, surface: str = "") -> tuple[C
 
 
 __all__ = [
+    "ANSWER_WITHOUT_A_TOOL",
     "MAX_CARD_SEATS",
     "POLICY_FLAG",
     "RELEASE_SCORE",
