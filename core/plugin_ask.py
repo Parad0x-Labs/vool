@@ -655,13 +655,19 @@ def judged_builtin_seats(text: str) -> tuple[str, ...]:
 
 
 def judged_not_asked(text: str) -> frozenset[str]:
-    """The tools of the built-in choices the turn's judge read this text against and did not pick (nor seated beside a
-    pick); empty when nothing judged it. A tool no choice names is not in it: the judge was never asked about that
-    one. Read only."""
+    """Every tool of the built-in choices when the turn's judge read this text and answered "no tool"; empty when
+    nothing judged it or when the judge picked a tool (its pick never takes another tool's card away). A tool no
+    choice names is not in it: the judge was never asked about that one. Read only."""
     if not judged_at_all(text):
         return frozenset()
+    if judged_builtin_seats(text):
+        # The judge said the person needs a tool and picked one. Which one is the small model's weakest reading
+        # (iMac ace1c42cc, 2026-11-27: "Ka turiu suplanuota ateinanti penktadieni?" and "Was habe ich am Montag
+        # vor?" were both judged "find", and the turn listed a Desktop folder instead of the agenda). Its pick
+        # never takes another tool's card away; only its "no tool" does.
+        return frozenset()
     shown = {intent for _key_, _description, seats in BUILTIN_CHOICES for intent in seats}
-    return frozenset(shown - set(judged_builtin_seats(text)))
+    return frozenset(shown)
 
 
 def _previous_request(text: str, source_context: dict[str, Any]) -> str:

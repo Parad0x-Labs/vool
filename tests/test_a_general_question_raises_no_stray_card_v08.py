@@ -176,10 +176,12 @@ def test_a_real_ask_the_judge_picked_keeps_its_card(lang, text, example, intent,
     assert requirements_for(text, task_class="chat_conversation", source_context=dict(OWNER)).tools_required
 
 
-def test_a_pick_of_another_tool_does_not_carry_a_card_the_judge_left_out(stray_space) -> None:
+def test_a_pick_of_another_tool_keeps_the_card_beside_it(stray_space) -> None:
+    # The judge's pick among tools is not a verdict on the others: on the iMac it picked "find" for two agenda
+    # questions (LT, DE), and a card the pick took away left the turn listing a folder. Only "no tool" drops cards.
     text = STRAY[1][1]
     plugin_ask._record_builtins(text, ("notes",))
-    assert "operator.show_agenda" not in [m.intent for m in tool_card_router.routed_intents(text, owner_local=True)]
+    assert "operator.show_agenda" in [m.intent for m in tool_card_router.routed_intents(text, owner_local=True)]
 
 
 def test_a_tool_no_judge_choice_names_keeps_its_card(stray_space) -> None:
