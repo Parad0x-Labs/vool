@@ -125,6 +125,10 @@ def _start_task(provider, daemon, page, session_id) -> None:
     _wait_for(lambda: _calls_for(provider, TASK) >= 1, 30, "the task never reached the provider")
 
 
+def _queued_texts(daemon, session_id: str) -> list[str]:
+    return [str((item.get("payload") or {}).get("text") or "") for item in _queue_state(daemon, session_id).get("queue") or []]
+
+
 def _history(daemon, session_id: str) -> list[str]:
     with urlopen(daemon.base_url + "/api/chat/history?session=" + session_id, timeout=5) as response:
         return [str(m.get("content") or "").strip() for m in json.load(response).get("messages") or []]
@@ -144,7 +148,9 @@ def test_status_change_and_side_question_are_handled_while_the_task_keeps_workin
     _wait_for(lambda: any("Still working on" in text for text in _texts(page)), 10, "no status reply")
     assert len(provider.generation_calls()) == calls_before, "a status question cost a model call"
     assert _task_is_live(page), "the status question ended the task"
-    assert _queue_state(daemon, session_id).get("queue") == [], "the status question was queued"
+    # The task's own message may sit in the queue as in flight while it runs: on a slow runner the page sent it
+    # through the queue (full CI shard 5 on ab3fcc19e). The status question is what must not be there.
+    assert "wat r u doin" not in _queued_texts(daemon, session_id), "the status question was queued"
 
     # 2. A change to the task. Taken in, never a second task of its own while this one runs.
     _send(page, NOTE)
