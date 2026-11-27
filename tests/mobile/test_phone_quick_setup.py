@@ -62,7 +62,9 @@ def test_chosen_folders_open_file_tools_only(phone, home):
     for refused in ("sandbox.run_command", "operator.list_processes", "email.send", "machine.find_file",
                     "machine.move_path", "workspace.apply_unified_diff"):
         assert rt.remote_turn_tool_refusal(refused, _turn()) == rt.PHONE_FOLDERS_ONLY, refused
-        assert str(home / "Documents") in rt.remote_turn_refusal_text(refused, _turn())
+        said = rt.remote_turn_refusal_text(refused, _turn())
+        # Named, never the full path on the computer (sls 2026-11-27: a refusal listed /Users/<name>/...).
+        assert "folders you chose: Documents." in said and str(home) not in said, said
     # Money and owner-only tools keep their own refusals.
     assert rt.remote_turn_tool_refusal("pay.x402", _turn()) == "owner_local_required"
 

@@ -80,13 +80,28 @@ TURN_WAIT_SECONDS = 900
 HELD_TURNS_MAX = 8
 #: The app's own English words for where an answer ran and how an action went (core/i18n en catalog
 #: keys proof.route.* and receipt.state.*), so a chat app reads what the app shows under an answer.
+#: The person reading a chat app is away from the computer, so "this computer" would name their phone:
+#: the computer is "your desktop" there (sls, 2026-11-27); the desktop app keeps "On this computer".
 ROUTE_WORDS = {
-    "local": "On this computer",
+    "local": "On your desktop",
     "own_network": "On your own network",
     "cloud": "Online",
-    "mixed": "This computer + online",
+    "mixed": "Your desktop + online",
     "none": "No AI model",
 }
+#: The catalog key for each place, as read away from the computer.
+ROUTE_KEYS = {
+    "local": "proof.route.local_away",
+    "own_network": "proof.route.own_network",
+    "cloud": "proof.route.cloud",
+    "mixed": "proof.route.mixed_away",
+    "none": "proof.route.none",
+}
+#: Action states that mean it went through. When the reply already holds what the action recorded (its note),
+#: such a receipt is said as its state alone (the app's answer chip, closed); otherwise, or when it did not go
+#: through, the whole line stays, since that is news the reply does not carry (sls, 2026-11-27: "Reminder
+#: scheduled: named it test 123 ...", then "Set a reminder · named it test 123 · Sat 28 Nov 10:00 — Done, checked").
+_WENT_THROUGH = ("checked", "done", "sent")
 RECEIPT_STATE_WORDS = {
     "checked": "Done, checked",
     "done": "Done",
@@ -122,7 +137,7 @@ def _locale_of(message):
         return "en"
 
 
-def turn_notes(platform, result, locale="en"):
+def turn_notes(platform, result, locale="en", *, reply=""):
     """Plain lines for a chat app under a finished answer: where it ran and each action's receipt.
 
     Read from the turn's own proof (core.proof_projection.build_turn_proof), which the app's answer
@@ -142,10 +157,17 @@ def turn_notes(platform, result, locale="en"):
         return []
     compact = proof.get("compact") or {} if isinstance(proof, dict) else {}
     lines = []
+    went = []
     for receipt in compact.get("action_receipts") or []:
         if not isinstance(receipt, dict):
             continue
         state = receipt.get("state") if receipt.get("state") in RECEIPT_STATE_WORDS else "done"
+        word = _catalog_text("receipt.state." + state, RECEIPT_STATE_WORDS[state], locale)
+        note = " ".join(str(receipt.get("note") or "").split()).casefold()
+        if state in _WENT_THROUGH and note and note in " ".join(str(reply or "").split()).casefold():
+            if word not in went:
+                went.append(word)
+            continue
         action = _catalog_text(str(receipt.get("action_key") or ""), "", locale) or _catalog_text(
             "receipt.action_generic", "An action", locale
         )
@@ -156,10 +178,10 @@ def turn_notes(platform, result, locale="en"):
         if when:
             bits.append(when)
         if receipt.get("file"):
-            bits.append(str(receipt["file"]) + (" in " + str(receipt["folder"]) if receipt.get("folder") else ""))
+            bits.append(str(receipt["file"]) + (" in " + _folder_name(receipt["folder"]) if receipt.get("folder") else ""))
         if receipt.get("to"):
             bits.append("to " + str(receipt["to"]))
-        line = " \u00b7 ".join(bits) + " \u2014 " + _catalog_text("receipt.state." + state, RECEIPT_STATE_WORDS[state], locale)
+        line = " \u00b7 ".join(bits) + " \u2014 " + word
         if receipt.get("reason") and state in {"failed", "waiting"}:
             line += ": " + str(receipt["reason"])
         lines.append(line)
@@ -167,11 +189,20 @@ def turn_notes(platform, result, locale="en"):
     summary = str(route.get("summary") or "")
     if summary == "local" and route.get("own_network"):
         summary = "own_network"
+    place = ""
     if summary in ROUTE_WORDS:
-        key = "proof.route." + summary
         model = str(((proof.get("expanded") or {}).get("model")) or "") if summary != "none" else ""
-        lines.append(_catalog_text(key, ROUTE_WORDS[summary], locale) + (" \u00b7 " + model if model else ""))
+        place = _catalog_text(ROUTE_KEYS[summary], ROUTE_WORDS[summary], locale) + (" \u00b7 " + model if model else "")
+    last = " \u00b7 ".join(part for part in (", ".join(went), place) if part)
+    if last:
+        lines.append(last)
     return lines
+
+
+def _folder_name(path):
+    from core.request_trust import folder_name
+
+    return folder_name(path)
 
 
 def _receipt_time(due_utc, tz_name):
@@ -993,7 +1024,7 @@ class ManagedBot:
         waiting = self._approval_waiting(result)
         reply = str(result.get("reply") or "")
         locale = _locale_of(params.get("message"))
-        notes = turn_notes(self.platform, result, locale)
+        notes = turn_notes(self.platform, result, locale, reply=reply)
         if waiting:
             self._hold_for_approval(channel, waiting, result, params)
             notes.append(approval_words(waiting, locale))
