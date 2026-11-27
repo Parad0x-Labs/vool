@@ -810,6 +810,43 @@ def turn_execution_summary(turn_key: str, *, session_id: str = "") -> dict[str, 
     }
 
 
+def served_events_page(session_id: str, *, after_seq: int = 0, limit: int = 120) -> dict[str, Any]:
+    """One page of a session's runtime events with each listed turn's execution truth.
+
+    The body of GET /api/runtime/events. The page and every turn's witness read run under ONE
+    governance read scope: each turn's witness re-reads a window that overlaps the page, so the
+    same strings were gated again for every turn listed (measured 2026-11-27 on the owner's
+    iMac: 1.8 s -> 4.9 s per call, growing with each turn). Inside the scope a verdict is reused
+    only until another connection commits; a store error is never kept and fails closed.
+
+    Execution truth is keyed by the `turn_key` the emit path already stamped -- deliberately NOT
+    re-derived from each row (a reader re-deriving files the same event under a different key).
+    A row with no stamped key has no canonical identity and is skipped.
+    """
+    from core.finalization import availability_read_scope
+    from core.runtime_continuity import list_runtime_session_events
+
+    with availability_read_scope():
+        events = list_runtime_session_events(session_id, after_seq=after_seq, limit=limit)
+        next_after = after_seq
+        if events:
+            next_after = max(int(item.get("seq") or 0) for item in events)
+        execution_truth: dict[str, object] = {}
+        try:
+            for item in events:
+                turn_key = str(item.get("turn_key") or "").strip()
+                if turn_key and turn_key not in execution_truth:
+                    execution_truth[turn_key] = turn_execution_summary(turn_key, session_id=session_id)
+        except Exception:
+            execution_truth = {}
+    return {
+        "session_id": session_id,
+        "events": events,
+        "next_after": next_after,
+        "execution_truth": execution_truth,
+    }
+
+
 # --------------------------------------------------------------------------------------------
 # The truth gate.
 # --------------------------------------------------------------------------------------------
@@ -829,9 +866,11 @@ def witnessed_executions(turn_key: str, session_id: str) -> list[tuple[str, str]
     if not turn or not session:
         return []
     try:
-        from core.runtime_continuity import list_runtime_session_events
+        from core.runtime_continuity import list_runtime_session_events_of_types
 
-        events = list_runtime_session_events(session, limit=400)
+        # The same window as before, with only the execution event types parsed and gated: every
+        # other row was read, gated string by string and then skipped, once per turn asked about.
+        events = list_runtime_session_events_of_types(session, _EXECUTION_EVENT_RULES, limit=400)
     except Exception:
         return []
     seen: list[tuple[str, str]] = []

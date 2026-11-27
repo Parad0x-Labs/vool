@@ -36,7 +36,6 @@ from core.runtime_operator_snapshot import (
 from core.runtime_task_events import (
     emit_runtime_event,
     list_recent_runtime_session_events,
-    list_runtime_session_events,
     list_runtime_sessions,
 )
 from core.runtime_task_rail import render_runtime_task_rail_html
@@ -3067,43 +3066,23 @@ def _dispatch_get(
         return apply_runtime_headers(json_response(200, usage_payload), runtime)
 
     if normalized_path == "/api/runtime/events":
-        session_id = str((query.get("session") or [""])[0] or "").strip()
-        after_seq = _qint(query, "after", 0)
-        limit = _qint(query, "limit", 120)
-        events = list_runtime_session_events(session_id, after_seq=after_seq, limit=limit)
-        next_after = after_seq
-        if events:
-            next_after = max(int(item.get("seq") or 0) for item in events)
-        # The authoritative answer to "did this turn execute anything", served alongside the raw
-        # events instead of left for the panel to infer. Activity used to decide by scanning the
-        # ledger for `tool_executed`/`tool_selected`, which is a fifth independent reconstruction of
-        # execution truth and got it wrong on 80 turns whose retrieval was recorded under a
-        # different event type -- rendering "No tool ran -- answered directly" over turns that had
-        # really gone out to the network. Derived from the same facts the signed receipts use.
-        # Keyed by the `turn_key` the emit path already stamped -- deliberately NOT re-derived from
-        # each row. A reader re-deriving has no source context, falls to different fallbacks than the
-        # writer did, and files the same event under a different key; that produced twenty turn keys
-        # (checkpoint ids, request ids) for a session with three real turns. A row with no stamped
-        # key has no canonical identity and is skipped rather than given an invented one.
-        execution_truth: dict[str, object] = {}
-        try:
-            from core.execution_truth import turn_execution_summary
+        # The authoritative answer to "did this turn execute anything" is served alongside the raw
+        # events instead of left for the panel to infer: Activity used to decide by scanning the
+        # ledger for `tool_executed`/`tool_selected`, a fifth independent reconstruction of
+        # execution truth that got it wrong on 80 turns whose retrieval was recorded under a
+        # different event type. Derived from the same facts the signed receipts use, keyed by the
+        # stamped `turn_key`, all under one governance read scope (core.execution_truth).
+        from core.execution_truth import served_events_page
 
-            for item in events:
-                turn_key = str(item.get("turn_key") or "").strip()
-                if turn_key and turn_key not in execution_truth:
-                    execution_truth[turn_key] = turn_execution_summary(turn_key, session_id=session_id)
-        except Exception:
-            execution_truth = {}
+        session_id = str((query.get("session") or [""])[0] or "").strip()
         return apply_runtime_headers(
             json_response(
                 200,
-                {
-                    "session_id": session_id,
-                    "events": events,
-                    "next_after": next_after,
-                    "execution_truth": execution_truth,
-                },
+                served_events_page(
+                    session_id,
+                    after_seq=_qint(query, "after", 0),
+                    limit=_qint(query, "limit", 120),
+                ),
             ),
             runtime,
         )

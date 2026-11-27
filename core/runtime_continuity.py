@@ -574,6 +574,48 @@ def list_runtime_session_events(
     return _serve_event_rows(rows)
 
 
+def list_runtime_session_events_of_types(
+    session_id: str,
+    event_types,
+    *,
+    after_seq: int = 0,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """The events of `event_types` inside the window `list_runtime_session_events` reads.
+
+    Same window (the same `after_seq`/`limit` page, ordered by seq), same serve gate: only the
+    rows of other types are left out before they are parsed and gated, instead of after.
+    """
+    clean_session_id = str(session_id or "").strip()
+    types = sorted({str(item) for item in event_types or () if str(item or "").strip()})
+    if not clean_session_id or not types:
+        return []
+    bounded_limit = max(1, min(int(limit), 200))
+    clean_after = max(0, int(after_seq))
+    marks = ", ".join("?" for _ in types)
+    with _LOCK:
+        conn = _conn()
+        try:
+            rows = conn.execute(
+                f"""
+                SELECT session_id, seq, event_type, message, details_json, created_at
+                FROM (
+                    SELECT session_id, seq, event_type, message, details_json, created_at
+                    FROM runtime_session_events
+                    WHERE session_id = ? AND seq > ?
+                    ORDER BY seq ASC
+                    LIMIT ?
+                )
+                WHERE event_type IN ({marks})
+                ORDER BY seq ASC
+                """,
+                (clean_session_id, clean_after, bounded_limit, *types),
+            ).fetchall()
+        finally:
+            conn.close()
+    return _serve_event_rows(rows)
+
+
 def _serve_event_rows(rows) -> list[dict[str, Any]]:
     """Map stored rows to servable events under ONE governance read scope.
 

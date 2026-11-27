@@ -122,18 +122,19 @@ def _find_binding_row(session_id: str, request_id: str) -> dict[str, Any] | None
     This is the join that makes every other read bound: without it there is no served turn
     here, and the projection refuses rather than falling back to any other row.
     """
-    from core.memory.files import conversation_log_path, load_jsonl
+    from core.memory.files import conversation_log_path, newest_served_jsonl_row
+
+    def binds(row: Any) -> bool:
+        return (
+            isinstance(row, dict)
+            and _clean(row.get("session_id")) == session_id
+            and _clean(row.get("request_id")) == request_id
+        )
 
     try:
-        rows = load_jsonl(conversation_log_path())
+        return newest_served_jsonl_row(conversation_log_path(), binds)
     except Exception:
         return None
-    for row in reversed(rows):
-        if not isinstance(row, dict):
-            continue
-        if _clean(row.get("session_id")) == session_id and _clean(row.get("request_id")) == request_id:
-            return row
-    return None
 
 
 def _read_finalization(request_id: str, principal: str) -> dict[str, Any]:
@@ -729,7 +730,28 @@ def build_turn_proof(
     principal: str = "owner_local",
     turn_key: str = "",
 ) -> dict[str, Any]:
-    """Project one bound turn's proof. Raises ProofNotBound when the pair binds to nothing."""
+    """Project one bound turn's proof. Raises ProofNotBound when the pair binds to nothing.
+
+    Runs under ONE governance read scope: the session's event window and the witness's window
+    overlap, and every string of both passes the serve gate. Inside the scope a verdict is read
+    once and reused only until any other connection commits (an erase or withhold midway is
+    seen by the next check); a store error is never kept and fails that string closed.
+    """
+    from core.finalization import availability_read_scope
+
+    with availability_read_scope():
+        return _build_turn_proof(
+            session_id=session_id, request_id=request_id, principal=principal, turn_key=turn_key
+        )
+
+
+def _build_turn_proof(
+    *,
+    session_id: str,
+    request_id: str,
+    principal: str,
+    turn_key: str,
+) -> dict[str, Any]:
     session = _clean(session_id)
     request = _clean(request_id)
     if not session or not request:

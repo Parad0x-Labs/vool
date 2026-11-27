@@ -189,6 +189,26 @@ def load_jsonl(path: Path) -> list[dict[str, object]]:
                                  _store_home(path))]
 
 
+def newest_served_jsonl_row(path: Path, matches) -> dict[str, object] | None:
+    """The newest row `load_jsonl` would serve for which `matches(row)` is true.
+
+    Same authority as `load_jsonl`, asked only of the rows that match: a lookup of one row used
+    to authorize every row of the whole file first, so its cost grew with every turn of every
+    chat (the conversation log, read once per answer the page shows).
+    """
+    from core.memory.revocation import authorize_payload
+
+    home = None
+    for row in reversed(_load_jsonl(path)):
+        if not matches(row):
+            continue
+        if home is None:
+            home = _store_home(path)
+        if authorize_payload(row, row.get("session_id") or row.get("chat_id") or row.get("chat_scope"), home):
+            return row
+    return None
+
+
 def write_text_atomic(path: Path, text: str) -> None:
     """Durable atomic text replace: temp + fsync + os.replace + directory fsync.
 
