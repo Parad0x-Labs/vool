@@ -554,7 +554,10 @@ def _gives_only_a_value(clause: str) -> bool:
 
 
 #: "<something about me or mine>: <one value>": "the gym gave me a new table tennis rating this season: 1276".
-_COLON_VALUE_RE = re.compile(r"^(?P<said>[^:?]{8,200}?)\s*:\s*(?P<value>\S+(?:\s+\S+)?)[.!]*$")
+#: A colon between two digits is a clock time ("9:30am"), never the colon that hands a value over: iMac gate48 on
+#: 6a50cd6e5, "put a dentist check-up in my calendar for Tuesday at 9:30am" was read as "<said>: 30am" and saved as a
+#: memory fact, and no calendar card came.
+_COLON_VALUE_RE = re.compile(r"^(?P<said>[^:?]{8,200}?)(?:\s+:|:(?!\d)|(?<!\d):)\s*(?P<value>\S+(?:\s+\S+)?)[.!]*$")
 
 
 _OWN_OR_GIVEN_RE = re.compile(r"\b(?:my|our|mine|ours|me|us)\b", re.IGNORECASE)

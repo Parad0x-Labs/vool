@@ -2377,9 +2377,9 @@ def _judged_claim_kind(
     elif answer == "done":
         # Only on a turn whose ask was not read as an order for a tool: a reply that echoes an order ("Sent Jonas a
         # message: ...") was read as already written in the person's text (probe on 3dd1243b9).
-        kind = "" if not asked_for_a_tool and _reply_relays_what_was_given(
+        kind = "" if (not asked_for_a_tool and _reply_relays_what_was_given(
             response, user_input, effective_input, session_id, source_context,
-        ) else "judged"
+        )) or _a_pending_reminder_holds_the_reply(response, session_id) else "judged"
     elif answer == "kept" and not _keep_step_wrote(source_context) and not _a_saved_fact_holds_the_reply(
         response, session_id, source_context
     ):
@@ -2426,6 +2426,28 @@ def _reply_relays_what_was_given(
         ) == "yes"
     except Exception:
         return False
+
+
+def _a_pending_reminder_holds_the_reply(response: str, session_id: str | None) -> bool:
+    """Whether the reply names a reminder that is already set and still to come, in the words it was set with: it
+    tells what the person set earlier, it reports nothing done on this turn (a reminder set on this turn has its own
+    receipt and never reaches the done question). iMac gate48 on 6a50cd6e5: "ką turiu padaryti trečiadienį?" was
+    answered "You asked me to remind you: return Ruta's ladder, Wednesday 02 Dec 2026 at 10:00." from the reminder set
+    two turns before, read as done, and replaced with "I have not done that: no step ran on this turn"."""
+    said = " ".join(str(response or "").split()).casefold()
+    if not said:
+        return False
+    try:
+        from core.local_operator_actions import _visible_owner_reminders
+
+        rows = _visible_owner_reminders(str(session_id or ""))
+    except Exception:
+        return False
+    for row in rows:
+        note = " ".join(str(row.get("note") or "").split()).casefold().rstrip(".")
+        if len(note) >= 3 and note in said:
+            return True
+    return False
 
 
 def _a_saved_fact_holds_the_reply(response: str, session_id: str | None, source_context: dict[str, object] | None) -> bool:

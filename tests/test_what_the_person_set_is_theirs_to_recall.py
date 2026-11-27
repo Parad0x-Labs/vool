@@ -202,3 +202,43 @@ def test_a_private_chats_reminder_is_not_read_from_another_chat(home, monkeypatc
     # In its own chat it is read.
     assert "spare key" in str(pm.held_fact_answer_before_a_lookup(QUESTIONS[0], session_id="chat-a",
                                                                   source_context={}))
+
+
+@pytest.mark.parametrize("ask", ["ką turiu padaryti šeštadienį?", "what's on for Saturday evening?"])
+def test_a_reply_naming_a_reminder_set_earlier_is_no_claim_of_this_turn(ask, home, monkeypatch) -> None:
+    """iMac gate48 on 6a50cd6e5: the right recall answer, from a reminder set two turns before, was read as done and
+    replaced with "I have not done that: no step ran on this turn". The judge here answers "done" to anything."""
+    from core import intent_arbiter
+    from core.agent_runtime.action_honesty_validator import enforce_final_action_honesty
+
+    saturday = _set_the_key_reminder()
+    monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "")
+    intent_arbiter.bind_turn_judge({}, lambda prompt: '{"answer": "done"}')
+    try:
+        answer = (f"You asked me to remind you: drop off the spare key at Tomas's, "
+                  f"{saturday.strftime('%A %d %b %Y at 18:00')}.")
+        kept = enforce_final_action_honesty({"response": answer}, user_input=ask, session_id="chat-b",
+                                            source_context={})
+        assert kept["response"] == answer, kept
+        # A reminder that was never set is still no answer: the claim is corrected.
+        made_up = "Done: I set a reminder to water Tomas's plants on Saturday."
+        corrected = enforce_final_action_honesty({"response": made_up}, user_input=ask, session_id="chat-b",
+                                                 source_context={})
+        assert corrected["response"] != made_up
+    finally:
+        intent_arbiter.bind_turn_judge({}, None)
+
+
+@pytest.mark.parametrize("hour,minute", [(9, 30), (14, 5), (7, 45), (18, 15)])
+def test_a_clock_time_in_an_order_is_no_value_handed_over(hour, minute) -> None:
+    """iMac gate48 on 6a50cd6e5: "put a dentist check-up in my calendar for Tuesday at 9:30am" was read as
+    "<said>: 30am", saved as a memory fact, and no calendar card came. A colon between two digits is a clock time."""
+    from core.memory.everyday_remember import stated_facts
+
+    for said in (f"put a dentist check-up in my calendar for Tuesday at {hour}:{minute:02d}",
+                 f"pop the vet visit into my diary on Monday at {hour}:{minute:02d}am",
+                 f"stick my piano lesson on the calendar for Friday {hour}:{minute:02d}"):
+        assert stated_facts(said) == [], said
+    # The colon that hands a value over still does, digits after it or not.
+    assert stated_facts(f"my locker number at the pool: {hour}{minute:02d}")
+    assert stated_facts("the gym gave me a new table tennis rating this season: 1276.")
