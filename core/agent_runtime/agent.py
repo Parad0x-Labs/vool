@@ -343,6 +343,39 @@ def _skill_keeps_turn_whole(text: str, source_context: Any) -> bool:
     return _plugin_keeps_turn_whole(text, source_context)
 
 
+def _one_tool_ask_keeps_turn_whole(text: str, source_context: Any) -> bool:
+    """Whether the message is one ask for one of VOOL's own tools, written as the errand plus how to hand it on.
+
+    iMac 3382964ea (qwen3:8b): "Saturday 10:30 I need to grab the dry cleaning, give me a nudge" went to the
+    conductor, which has no operation for VOOL's tools: it was planned as two asks, no tool ran, no reminder was set,
+    and the reply explained "give me a nudge". The turn's judge had read the whole message as a Reminders ask.
+    The request reader's units must have the shape (`turn_planner.parts_that_may_only_handle_a_tool_ask`), and the
+    judge is then asked whether the message asks for anything besides that tool's job; only a yes keeps it whole,
+    so "tell me a joke, and remind me at 6 to call Ana" stays two asks. Asked only of a turn that may hold several
+    requests. Fails toward the turn's lanes: any error, or no answer, is no."""
+    try:
+        from core.agent_runtime.answer_coverage import demand_units
+        from core.agent_runtime.turn_planner import (
+            parts_that_may_only_handle_a_tool_ask,
+            turn_may_hold_several_requests,
+        )
+
+        if not turn_may_hold_several_requests(str(text or "")):
+            return False
+        units = [str(unit.text or "") for unit in demand_units(str(text or ""))]
+        if not parts_that_may_only_handle_a_tool_ask(str(text or ""), units):
+            return False
+        from core import intent_arbiter, plugin_ask
+
+        picked = plugin_ask.judged_builtins(str(text or ""))
+        tool = next((description for key, description, _seats in plugin_ask.BUILTIN_CHOICES if key in picked), "")
+        context = source_context if isinstance(source_context, dict) else None
+        return intent_arbiter.arbitrate_only_the_tool_ask(str(text or ""), tool, source_context=context) == "yes"
+    except Exception:
+        _log.debug("one-tool-ask reading failed", exc_info=True)
+        return False
+
+
 def _plugin_keeps_turn_whole(text: str, source_context: Any) -> bool:
     """Whether the turn's requirement decision sends it to an added plugin's tools."""
     try:
@@ -3298,6 +3331,10 @@ class VoolAgent(
                     # language) is the memory lane's whole: split into steps, "kur mano palapinė dabar? Ir kokios jos
                     # spalvos?" and "what colour is my tent, were does it live?" were each answered with every
                     # step's internal failure reason (blind audit of 58f60bbf3).
+                    parts_single_request = True
+                elif _one_tool_ask_keeps_turn_whole(raw_turn_text, runtime_source_context):
+                    # One ask for one of VOOL's tools, written as the errand plus how to hand it on ("..., give me
+                    # a nudge"): the tool lane's whole, never parts the conductor has no operation for.
                     parts_single_request = True
 
         # Closed whole-turn contracts do not need semantic decomposition.  Running the conductor

@@ -2708,6 +2708,51 @@ def arbitrate_worth_recalling(
     )
 
 
+def _only_the_tool_ask_prompt(message: str, tool: str) -> str:
+    """A balanced yes/no: does the message ask for the one tool's job and nothing else? Asked when its words are cut
+    into an errand with a time and a clause with none (core.agent_runtime.agent._one_tool_ask_keeps_turn_whole).
+    iMac 3382964ea (qwen3:8b): "Saturday 10:30 I need to grab the dry cleaning, give me a nudge" was planned as two
+    asks and no reminder was set; "tell me a joke, and remind me at 6 to call Ana" is two asks and must stay two."""
+    flat = " ".join(str(message or "").split())[:400].replace('"', "'")
+    return "\n".join([
+        f"A person wrote to their assistant. The assistant can do this for them: {tool}",
+        "Does the message ask ONLY for that, with every other part just saying what, when or how (the errand, the "
+        "time, 'let me know', 'ping me')? Any language.",
+        'yes = one job for that tool and nothing else. no = it ALSO asks for something else: a joke, a sum, a '
+        "question answered, a text written, a lookup.",
+        "",
+        'Message: "Thursday 14:00 the boiler man comes, give me a heads-up" -> {"answer": "yes"}',
+        'Message: "write me a short poem and remind me at 8 to stretch" -> {"answer": "no"}',
+        'Message: "rytoj 9:00 pas odontologą, perspėk mane" -> {"answer": "yes"}',
+        'Message: "kiek bus 12 kart 7, ir primink 20 val. išnešti šiukšles" -> {"answer": "no"}',
+        'Message: "Freitag 16:30 Paket abholen, sag Bescheid" -> {"answer": "yes"}',
+        'Message: "wie wird das Wetter morgen, und erinnere mich um 7 an den Schirm" -> {"answer": "no"}',
+        "",
+        f'Message: "{flat}" ->',
+        'Reply with ONLY the JSON object: {"answer": "yes"} or {"answer": "no"}',
+    ])
+
+
+def arbitrate_only_the_tool_ask(
+    message: str,
+    tool: str,
+    *,
+    chat_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> str | None:
+    """Whether the message asks only for `tool`'s job: ``"yes"`` / ``"no"``, or None when nothing judged it."""
+    if not str(message or "").strip() or not str(tool or "").strip():
+        return None
+    prompt = _only_the_tool_ask_prompt(message, tool)
+    model = _judge_model_for(source_context)
+    if not model:
+        return _judged_for_the_turn(prompt, source_context)
+    return arbitrate_followup(
+        "", "", "", chat_id=chat_id, source_context=source_context, prompt=prompt,
+        operation="only_the_tool_ask_arbitration", model=model, runner_role="general", call_role=_judgement_role(),
+    )
+
+
 def _memory_kind_prompt(message: str) -> str:
     """One question with four answers: does the message ask the assistant to KEEP something about the person, to TELL
     them something they told it, to FORGET something they told it, or none of these?

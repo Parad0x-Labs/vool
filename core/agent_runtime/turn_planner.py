@@ -232,6 +232,39 @@ def without_the_mark_after_a_lead(text: str) -> str:
     return f"{' '.join(match.group('lead').split())} {rest}"
 
 
+def parts_that_may_only_handle_a_tool_ask(text: str, parts: list[str] | tuple[str, ...]) -> frozenset[int]:
+    """The indexes of *parts* that may only say how to handle the tool ask in the part before them, or empty.
+
+    iMac, 3382964ea, qwen3:8b: "Saturday 10:30 I need to grab the dry cleaning, give me a nudge" was split into the
+    errand and "give me a nudge"; no tool ran, no reminder was set, and the reply explained what a nudge is. The
+    turn's judge (core.plugin_ask) had read the WHOLE message as asking for one of VOOL's own tools, and the conductor
+    has no operation for those.
+
+    Shape and the judge's own reading only, never words. Non-empty only when the judge picked exactly one of VOOL's
+    tools for the message, exactly one part holds a digit (the ask's facts), and the parts AFTER it hold no digit and
+    no question mark: a clause that hands on the errand before it ("give me a nudge", "priminsi man", "gib mir
+    Bescheid"). A part in front of the facts is an ask of its own ("tell me a joke, and remind me at 6 to call Ana"),
+    and two parts with a number each stay two. A candidate only: whether the message asks for anything else is the
+    judge's question (`core.intent_arbiter.arbitrate_only_the_tool_ask`). Read only; any error is empty."""
+    parts = [str(part or "") for part in parts]
+    if len(parts) < 2:
+        return frozenset()
+    try:
+        from core import plugin_ask
+
+        if not plugin_ask.judged_tool_ask(text) or len(set(plugin_ask.judged_builtins(text))) != 1:
+            return frozenset()
+    except Exception:
+        return frozenset()
+    with_facts = [index for index, part in enumerate(parts) if any(ch.isdigit() for ch in part)]
+    if len(with_facts) != 1 or with_facts[0] != 0:
+        return frozenset()
+    rest = range(1, len(parts))
+    if any("?" in parts[index] for index in rest):
+        return frozenset()
+    return frozenset(rest)
+
+
 _REMIND_ME_LEAD_PUNCT_RE = re.compile(
     r"^(\s*(?:(?:can|could|would)\s+(?:you|u)\s+)?(?:please\s+)?remind\s+me)\s*[,:\u2013\u2014-]\s*",
     re.IGNORECASE,
