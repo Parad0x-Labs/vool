@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core import local_ollama_inventory, memory_first_router, memory_judge_record, system_resources
+from core import judgement_model_record, local_ollama_inventory, memory_first_router, system_resources
 from core.local_ollama_inventory import InstalledOllamaModel
 
 _GB = 1_000_000_000
@@ -28,12 +28,12 @@ def _machine(monkeypatch, *, installed: dict[str, float], resident: tuple[str, .
 
 def test_a_proven_turn_model_judges_its_own_turn(monkeypatch):
     _machine(monkeypatch, installed={"qwen3:8b": 5.2, "qwen3.5:9b": 6.6})
-    assert memory_judge_record.judge_model_for("qwen3:8b") == "qwen3:8b"
+    assert judgement_model_record.judge_model_for("qwen3:8b") == "qwen3:8b"
 
 
 def test_a_loaded_proven_model_judges_a_turn_another_model_answers(monkeypatch):
     _machine(monkeypatch, installed={"qwen3:8b": 5.2, "qwen3.5:9b": 6.6}, resident=("qwen3.5:9b", "qwen3:8b"), free=1.0)
-    assert memory_judge_record.judge_model_for("qwen3.5:9b") == "qwen3:8b"
+    assert judgement_model_record.judge_model_for("qwen3.5:9b") == "qwen3:8b"
 
 
 @pytest.mark.parametrize(("resident", "free", "expected"), [
@@ -44,19 +44,19 @@ def test_a_loaded_proven_model_judges_a_turn_another_model_answers(monkeypatch):
 ])
 def test_a_proven_model_not_loaded_judges_only_when_it_fits_beside_the_turns_model(monkeypatch, resident, free, expected):
     _machine(monkeypatch, installed={"qwen3:8b": 5.2, "qwen2.5:7b": 4.7}, resident=resident, free=free)
-    assert memory_judge_record.judge_model_for("qwen2.5:7b") == expected
+    assert judgement_model_record.judge_model_for("qwen2.5:7b") == expected
 
 
 def test_without_a_proven_model_installed_the_turns_own_model_judges(monkeypatch):
     _machine(monkeypatch, installed={"qwen3.5:9b": 6.6}, free=20.0)
-    assert memory_judge_record.judge_model_for("qwen3.5:9b") == "qwen3.5:9b"
+    assert judgement_model_record.judge_model_for("qwen3.5:9b") == "qwen3.5:9b"
 
 
 def test_a_machine_with_no_gpu_reading_is_measured_by_its_free_ram(monkeypatch):
     _machine(monkeypatch, installed={"qwen3:8b": 5.2, "qwen3.5:9b": 6.6}, resident=("qwen3.5:9b",), free=None, ram=10.0)
-    assert memory_judge_record.judge_model_for("qwen3.5:9b") == "qwen3:8b"
+    assert judgement_model_record.judge_model_for("qwen3.5:9b") == "qwen3:8b"
     _machine(monkeypatch, installed={"qwen3:8b": 5.2, "qwen3.5:9b": 6.6}, resident=("qwen3.5:9b",), free=None, ram=3.0)
-    assert memory_judge_record.judge_model_for("qwen3.5:9b") == "qwen3.5:9b"
+    assert judgement_model_record.judge_model_for("qwen3.5:9b") == "qwen3.5:9b"
 
 
 def test_an_unreadable_machine_keeps_the_turns_own_model(monkeypatch):
@@ -64,13 +64,13 @@ def test_an_unreadable_machine_keeps_the_turns_own_model(monkeypatch):
         raise OSError("ollama down")
 
     monkeypatch.setattr(local_ollama_inventory, "installed_ollama_model_inventory", broken)
-    assert memory_judge_record.judge_model_for("qwen3.5:9b") == "qwen3.5:9b"
-    assert memory_judge_record.judge_model_for("") == ""
+    assert judgement_model_record.judge_model_for("qwen3.5:9b") == "qwen3.5:9b"
+    assert judgement_model_record.judge_model_for("") == ""
 
 
 def test_every_proven_model_names_the_evidence_it_passed_on():
-    assert memory_judge_record.PROVEN_JUDGE_MODELS
-    for tag, evidence in memory_judge_record.PROVEN_JUDGE_MODELS.items():
+    assert judgement_model_record.PROVEN_JUDGE_MODELS
+    for tag, evidence in judgement_model_record.PROVEN_JUDGE_MODELS.items():
         assert tag == tag.strip().lower() and ":" in tag
         assert "probe" in evidence and "gate" in evidence
 
