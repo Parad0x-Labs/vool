@@ -3620,6 +3620,33 @@ def _recall_beside_a_file_pick(
     return verdict != "yes"
 
 
+def _named_facts_are_the_message_itself(question: str, named: list[str]) -> bool:
+    """Whether every content word and every number of every named fact is already in the question (any language:
+    words compared as folded forms of four letters or more)."""
+    try:
+        from core.fact_extractor import _folded_words, _same_word
+
+        asked = [word for word in _folded_words(question) if len(word) >= 4]
+        if not asked:
+            return False
+        numbers = set(re.findall(r"\d+", str(question or "")))
+        for fact in named:
+            words = [word for word in _folded_words(fact) if len(word) >= 4]
+            digits = set(re.findall(r"\d+", str(fact or "")))
+            # A short fact asked back ("is my bike green?", "is my locker 41?") is a recall to confirm; a message that
+            # restates a longer one as its premise is not. Words and numbers both count as what a fact says.
+            if len(set(words)) + len(digits) < 3:
+                return False
+            if not all(any(_same_word(word, other) for other in asked) for word in words):
+                return False
+            # The answer a recall gives is usually a number or a name the question lacks.
+            if not digits <= numbers:
+                return False
+        return True
+    except Exception:
+        return False
+
+
 def _judged_recall_reply(
     question: str, *, session_id: str | None, policy: Any, source_context: Mapping[str, Any] | None,
     forgotten_too: bool = True, whole_too: bool = True,
@@ -3648,6 +3675,12 @@ def _judged_recall_reply(
                                                           source_context=source_context):
         named = _one_line_per_fact(held)[:_WHOLE_MEMORY_SHOWN]
         whole = True
+    if named and not named_reminders and not whole and _named_facts_are_the_message_itself(question, named):
+        # The message already says every fact the judge named: it carries its own answer material and is worked out
+        # by the model. Gate55 on ace1c42cc: "my bus leaves at 6:40 and the ride is 3 hours 25 minutes, when do I get
+        # in?" asked a second time was answered "You told me: my bus leaves at 6:40 ...", with no arrival time.
+        LOGGER.info("judged recall: the facts named are the message's own words, handed to the model")
+        return None
     if (named or named_reminders) and not _recall_beside_a_file_pick(
             question, [] if whole else [*named, *named_reminders], session_id=session_id,
             source_context=source_context):
@@ -3961,7 +3994,7 @@ def _judged_lasting_facts(
     """Of the sentences no shape lists as a personal fact, those the loaded local model judges to be a lasting fact
     about the person's private life AND to say how things are rather than what happened once
     (`core.intent_arbiter.arbitrate_lasting_fact`, then `arbitrate_standing_state`): two questions, a keep only on a
-    yes to both. Asked alone, the first kept single past events on the real app ("I lost one stirrup leather last
+    yes to both (and to the two asked after them, below). Asked alone, the first kept single past events on the real app ("I lost one stirrup leather last
     week"), and the second kept work remarks in the probe; the second is asked only after a yes to the first.
     A third (`arbitrate_told_as_fact`), asked only after a yes to both, is whether the sentence tells how something
     is at all: the two read a request to the assistant ("rename the soccer video so we know its nadia's") and a
@@ -3996,6 +4029,19 @@ def _judged_lasting_facts(
         if verdict == "yes":
             try:
                 verdict = arbitrate_told_as_fact(
+                    said, chat_id=str(session_id or ""), source_context=dict(source_context or {})
+                )
+            except Exception:
+                verdict = None
+        if verdict == "yes":
+            # A fourth, asked only after a yes to all three: whether the person would want it told back later. Small
+            # talk passes the three (turn-speed probe on 8b4eaa84f, qwen3:8b): "spent the afternoon fixing my bike,
+            # feeling pretty pleased with myself" and a Lithuanian weekend at grandma's were each written as a fact,
+            # while the memory lane's own reading, which asks this question, kept neither.
+            try:
+                from core.intent_arbiter import arbitrate_worth_recalling
+
+                verdict = arbitrate_worth_recalling(
                     said, chat_id=str(session_id or ""), source_context=dict(source_context or {})
                 )
             except Exception:

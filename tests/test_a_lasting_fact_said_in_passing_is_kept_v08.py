@@ -49,6 +49,7 @@ def judge(monkeypatch):
     monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lasting)
     monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda sentence, **_: verdict.get("standing", "yes"))
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda sentence, **_: verdict.get("told", "yes"))
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda sentence, **_: verdict.get("worth", "yes"))
     asked_and_verdict = (asked, verdict)
     return asked_and_verdict
 
@@ -227,6 +228,7 @@ def test_the_third_question_is_asked_only_after_a_yes_to_the_first_two(isolated_
     monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda sentence, **_: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda sentence, **_: "no")
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda sentence, **_: third.append(sentence) or "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda sentence, **_: "yes")
     assert _keep(CASE) == 0 and third == []
     monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda sentence, **_: "yes")
     assert _keep(CASE) == 1 and third == [CASE]
@@ -242,3 +244,30 @@ def test_the_told_as_fact_question_is_a_judgement_on_the_chat_models_runner(monk
     assert CASE in calls[0]["prompt"]
     monkeypatch.setattr(intent_arbiter, "_keep_judge_model", lambda: "")
     assert intent_arbiter.arbitrate_told_as_fact(CASE) is None
+
+
+@pytest.mark.parametrize("said", ["spent the evening repotting the fern, feeling rather smug about it",
+                                  "Vakar buvau pas tetą sodyboje, kepėm šašlykus",
+                                  "hab den ganzen Samstag am Rad geschraubt, war echt befriedigend"])
+def test_small_talk_that_passes_three_questions_is_not_kept_without_the_fourth(isolated_home, judge, said):
+    # Turn-speed probe on 8b4eaa84f (qwen3:8b): how an afternoon or a weekend went read yes to the three questions and
+    # was written as a fact. The fourth asks whether the person would want it told back later; its no, or nobody
+    # answering it, keeps nothing, and a yes keeps it as before.
+    _asked, verdict = judge
+    verdict["worth"] = "no"
+    assert _keep(said) == 0 and _rows() == []
+    verdict["worth"] = None
+    assert _keep(said) == 0 and _rows() == []
+    verdict["worth"] = "yes"
+    assert _keep(CASE) == 1
+
+
+def test_the_fourth_question_is_asked_only_after_a_yes_to_the_first_three(isolated_home, monkeypatch):
+    fourth: list[str] = []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_lasting_fact", lambda sentence, **_: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_standing_state", lambda sentence, **_: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda sentence, **_: "no")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda sentence, **_: fourth.append(sentence) or "yes")
+    assert _keep(CASE) == 0 and fourth == []
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda sentence, **_: "yes")
+    assert _keep(CASE) == 1 and fourth == [CASE]

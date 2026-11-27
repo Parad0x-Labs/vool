@@ -691,7 +691,8 @@ def test_a_fact_said_in_passing_with_dont_keep_it_is_not_kept_by_the_keep_step(h
     text = _vary(rng, rng.choice([f"mein Hamster heißt {name}, aber speicher das nicht",
                                   f"mano žiurkėnas vardu {name}, tik nesaugok šito"]))
     _judged_none(text)
-    for judge in ("arbitrate_lasting_fact", "arbitrate_standing_state", "arbitrate_told_as_fact"):
+    for judge in ("arbitrate_lasting_fact", "arbitrate_standing_state", "arbitrate_told_as_fact",
+                  "arbitrate_worth_recalling"):
         monkeypatch.setattr(intent_arbiter, judge, lambda *_a, **_k: "yes")
     monkeypatch.setattr(intent_arbiter, "arbitrate_kept_fact", lambda *_a, **_k: None)
     monkeypatch.setattr(intent_arbiter, "arbitrate_keep_wanted", lambda *_a, **_k: "no")
