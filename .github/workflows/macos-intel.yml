@@ -704,6 +704,12 @@ jobs:
       # therefore runs under a dedicated builder home that nothing upstream can contain, with the
       # embedded CPython, uv's cache and the output all inside it, so the gate and its scrubs
       # still cover everything this build stages. The checkout path is checked separately below.
+      # One publisher certificate signs every Mac build, so macOS keeps VOOL's permissions across updates.
+      - name: Import the publisher signing certificate
+        env:
+          VOOL_CODESIGN_P12: ${{ secrets.VOOL_CODESIGN_P12 }}
+          VOOL_CODESIGN_P12_PASSWORD: ${{ secrets.VOOL_CODESIGN_P12_PASSWORD }}
+        run: bash installer/bundle/import_codesign_identity.sh
       - name: Build the x86_64 app and DMG on Intel
         env:
           VOOL_BUNDLE_WHEELHOUSE: ${{ runner.temp }}/wheelhouse

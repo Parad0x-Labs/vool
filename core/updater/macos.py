@@ -58,20 +58,46 @@ class MacOSBundleInstaller:
         self._run = run or _run
         self.expected_authority = str(expected_authority or "")
         self.default_require_notarization = bool(default_require_notarization)
+        self._publisher_requirement = ""
 
     # -- verification ------------------------------------------------------- #
 
     def running_requires_notarization(self, app_path: Path) -> bool:
-        """Only a valid, explicitly ad-hoc running bundle may keep that trust tier.
+        """Only a valid ad-hoc or publisher-certificate running bundle keeps the publisher-verified tier.
 
-        Unknown, unsigned, damaged, certificate-signed and Developer ID bundles
-        all require Gatekeeper acceptance of the replacement (fail closed).
+        A running bundle signed by VOOL's own publisher certificate (one self-signed certificate,
+        the same for every build, so macOS keeps the app's privacy permissions across updates)
+        keeps the tier only for a replacement that satisfies the running bundle's own designated
+        requirement: the same publisher, checked by codesign the way macOS checks it. Unknown,
+        unsigned, damaged and Developer ID bundles, and a certificate-signed bundle whose
+        requirement cannot be read, all require Gatekeeper acceptance (fail closed).
         """
+        self._publisher_requirement = ""
         verification = self._run(["codesign", "--verify", "--deep", "--strict", str(app_path)])
         info = self._run(["codesign", "-dv", "--verbose=4", str(app_path)])
         detail = (info.stdout or "") + (info.stderr or "")
-        return not (verification.returncode == 0 and info.returncode == 0
-                    and "Signature=adhoc" in detail and "Authority=" not in detail)
+        if verification.returncode != 0 or info.returncode != 0:
+            return True
+        authorities = [line.split("=", 1)[1].strip() for line in detail.splitlines() if line.startswith("Authority=")]
+        if "Signature=adhoc" in detail and not authorities:
+            return False
+        if len(authorities) == 1 and not authorities[0].startswith("Apple"):
+            requirement = self._designated_requirement(app_path)
+            if requirement:
+                self._publisher_requirement = requirement
+                return False
+        return True
+
+    def _designated_requirement(self, app_path: Path) -> str:
+        """The running bundle's designated requirement when it names a certificate, else ""."""
+        shown = self._run(["codesign", "-d", "-r-", str(app_path)])
+        if shown.returncode != 0:
+            return ""
+        for line in ((shown.stdout or "") + "\n" + (shown.stderr or "")).splitlines():
+            if line.startswith("designated => "):
+                requirement = line[len("designated => "):].strip()
+                return requirement if "certificate" in requirement and "cdhash" not in requirement else ""
+        return ""
 
     def clear_verified_quarantine(self, bundle: Path) -> None:
         """Called only after publisher/hash/artifact/codesign verification.
@@ -98,6 +124,18 @@ class MacOSBundleInstaller:
                 codesigned=False,
                 detail=f"codesign rejected the bundle: {(codesign.stderr or codesign.stdout).strip()}",
             )
+
+        publisher = getattr(self, "_publisher_requirement", "")
+        if publisher and require_notarization is False:
+            same = self._run(["codesign", "--verify", "--deep", "--strict", "-R", "=" + publisher, str(bundle)])
+            if same.returncode != 0:
+                return BundleVerification(
+                    False,
+                    codesigned=True,
+                    notarized=False,
+                    detail="the new app is not signed by this app's publisher certificate",
+                )
+            return BundleVerification(True, codesigned=True, notarized=False, detail="signed by this app's publisher")
 
         if self.expected_authority:
             info = self._run(["codesign", "-dv", str(bundle)])

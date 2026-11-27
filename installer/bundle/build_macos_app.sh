@@ -284,6 +284,21 @@ if [[ -n "${RELEASE_SIGN_DIR}" ]]; then
     || die "release signing preflight failed (see above); no release build was started."
   DISTRIBUTION_SIGNING="developer-id"
 fi
+# One fixed signing identity -- VOOL's publisher certificate, imported by the build workflow
+# (import_codesign_identity.sh) -- keeps the bundle's designated requirement the same from build
+# to build, so macOS keeps VOOL's privacy permissions (Calendar, Contacts, Files, microphone)
+# across updates. Without it the bundle is signed ad hoc and every build is a new app to macOS.
+CODESIGN_ID="-"
+CODESIGN_KEYCHAIN=""
+if [[ -z "${RELEASE_SIGN_DIR}" && -n "${VOOL_CODESIGN_IDENTITY:-}" ]]; then
+  # The keychain is named outright: the build runs under its own HOME, whose search list is not the runner's.
+  CODESIGN_KEYCHAIN="${VOOL_CODESIGN_KEYCHAIN:-}"
+  [[ -x /usr/bin/security ]] && /usr/bin/security find-identity -p codesigning ${VOOL_CODESIGN_KEYCHAIN:+"${VOOL_CODESIGN_KEYCHAIN}"} 2>/dev/null \
+      | grep -q "${VOOL_CODESIGN_IDENTITY}" \
+    || die "VOOL_CODESIGN_IDENTITY is set but no such signing identity is in the keychain."
+  CODESIGN_ID="${VOOL_CODESIGN_IDENTITY}"
+  DISTRIBUTION_SIGNING="publisher"
+fi
 say "Build id: ${VOOL_BUILD_ID}"
 
 # macOS TCC: processes spawned by Finder/LaunchServices (and launchd agents) cannot read
@@ -1359,10 +1374,10 @@ verify_bundle
 if [[ -n "${RELEASE_SIGN_DIR}" ]]; then
   say "  ad-hoc signature skipped: Developer ID signing follows the manifest checks"
 elif [[ -x /usr/bin/codesign ]]; then
-  if codesign --force --deep --sign - "${APP}" >/dev/null 2>&1; then
-    say "  ad-hoc code signature applied to the bundle"
+  if codesign --force --deep --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${APP}" >/dev/null 2>&1; then
+    say "  code signature applied to the bundle ($([[ "${CODESIGN_ID}" == "-" ]] && echo ad-hoc || echo publisher certificate))"
     codesign --verify --deep --strict "${APP}" >/dev/null 2>&1 \
-      || die "ad-hoc signature did not verify after signing"
+      || die "the bundle signature did not verify after signing"
     # `--deep` seals the bundle but does not sign Mach-O files under Contents/Resources (the
     # embedded interpreter, libpython, extension modules, ollama). Each must still carry a valid
     # signature of its own -- the footprint scrub rewrote some of them with install_name_tool --
@@ -1393,16 +1408,23 @@ MACHO
       while IFS= read -r -d '' macho; do
         seen_macho=$((seen_macho + 1))
         codesign --verify --strict "${macho}" >/dev/null 2>&1 && continue
-        codesign --force --sign - "${macho}" >/dev/null 2>&1 \
+        codesign --force --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${macho}" >/dev/null 2>&1 \
           && codesign --verify --strict "${macho}" >/dev/null 2>&1 \
           || { say "  invalid signature: ${macho#"${APP}/"}" >&2; bad_macho=$((bad_macho + 1)); }
       done < <("${SYS_PY:-python3}" -c "${macho_lister}" "${APP}/Contents/Resources")
       [[ "${seen_macho}" -gt 0 ]] || die "found no Mach-O files under Contents/Resources; the signature check enumerated nothing"
       [[ "${bad_macho}" -eq 0 ]] || die "${bad_macho} Mach-O file(s) in the bundle carry no valid signature; Apple Silicon would refuse to load them"
-      codesign --force --sign - "${APP}" >/dev/null 2>&1 \
+      codesign --force --sign "${CODESIGN_ID}" ${CODESIGN_KEYCHAIN:+--keychain "${CODESIGN_KEYCHAIN}"} "${APP}" >/dev/null 2>&1 \
         && codesign --verify --deep --strict "${APP}" >/dev/null 2>&1 \
         || die "the bundle seal did not verify after per-file signature repair"
       say "  all ${seen_macho} Mach-O files in Contents/Resources carry a valid signature"
+    fi
+    if [[ "${CODESIGN_ID}" != "-" ]]; then
+      # macOS keeps a permission only while the app meets the same requirement: it must name the
+      # certificate, never this build's own hash.
+      codesign -d -r- "${APP}" 2>&1 | grep '^designated => ' | grep -q 'certificate' \
+        || die "the publisher-signed bundle does not carry a certificate requirement"
+      say "  designated requirement names the publisher certificate"
     fi
   else
     # Apple Silicon refuses to execute arm64 code without a valid signature, so an unsigned

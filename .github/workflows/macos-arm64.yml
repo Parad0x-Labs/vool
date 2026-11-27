@@ -85,6 +85,12 @@ jobs:
       # The build script's footprint gate refuses any bundle byte that carries the builder's $HOME;
       # on a hosted runner that is /Users/runner, the home of the runners that built many upstream
       # wheels. The build runs under a dedicated builder home, as the Intel package job does.
+      # One publisher certificate signs every Mac build, so macOS keeps VOOL's permissions across updates.
+      - name: Import the publisher signing certificate
+        env:
+          VOOL_CODESIGN_P12: ${{ secrets.VOOL_CODESIGN_P12 }}
+          VOOL_CODESIGN_P12_PASSWORD: ${{ secrets.VOOL_CODESIGN_P12_PASSWORD }}
+        run: bash installer/bundle/import_codesign_identity.sh
       - name: Build the arm64 app and DMG on Apple Silicon
         env:
           SYS_PY: ${{ runner.temp }}/sys-venv/bin/python
