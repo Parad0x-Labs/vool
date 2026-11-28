@@ -451,11 +451,18 @@ def _memory_kind_confirmed(
         calendar_verdict = asked("calendar", intent_arbiter.arbitrate_calendar_ask)
         _log.info("tool ask: calendar pick, its own question read %s", calendar_verdict or "nothing")
         calendar_verdict = told_beside_a_keep(calendar_verdict, "calendar")
+        if calendar_verdict == "yes" and kind == "recall" and _recall_names_beside_the_last_ask(
+                text, source_context, session_id) == "fact":
+            # The same recall of a told fact as for Reminders above. iMac gate60 on a7b1b9e5e (qwen3:8b): "and what time
+            # again?" after a told dentist check-up was recalled was confirmed a calendar ask and answered "No calendar
+            # is configured".
+            _log.info("tool ask: calendar pick read as a recall of a told fact")
+            calendar_verdict = "no"
         if unconfirmed(calendar_verdict):
             _log.info("tool ask: calendar pick not confirmed")
             tools = tuple(key for key in tools if key != "calendar")
             keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)
-            if not tools:
+            if not tools and kind not in {"recall", "forget"}:
                 # The pick was the tool judgement's reading of news about an appointment: it stands as one keep
                 # reading, which the told-as-fact and forget questions below settle.
                 picked.add("keep")

@@ -50,3 +50,13 @@ def test_a_follow_up_about_a_reminder_or_nothing_held_keeps_the_reminders(names,
     judged(names_with_earlier=names)
     got = plugin_ask._memory_kind_confirmed("and at what time again?", ("reminders",), dict(CONTEXT), "chat")
     assert got[0] == "reminders"
+
+
+@pytest.mark.parametrize("names", ["fact", ""])
+def test_a_calendar_pick_on_such_a_follow_up_is_settled_the_same_way(names, judged, monkeypatch):
+    """iMac gate60 on a7b1b9e5e (qwen3:8b): "and what time again?" after a recalled dentist check-up was picked Calendar
+    and answered "No calendar is configured"."""
+    judged(names_with_earlier=names)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_calendar_ask", lambda *_a, **_k: "yes")
+    got = plugin_ask._memory_kind_confirmed("and what time again?", ("calendar",), dict(CONTEXT), "chat")
+    assert got == (("memory_recall",) if names == "fact" else ("calendar", "memory_recall"))
