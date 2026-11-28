@@ -3388,6 +3388,8 @@ def _told_as_fact(sentence: str, *, session_id: str | None, source_context: Mapp
 
 #: At most this many of a kept sentence's first words are offered to be left off (a request to keep is a few words).
 _KEPT_FACT_LEAD_WORDS = 6
+#: At most this many first words make a lead set off by a comma (`_kept_fact_words`).
+_COMMA_LEAD_WORDS = 2
 
 
 def _kept_fact_words(sentence: str, *, session_id: str | None, source_context: Mapping[str, Any] | None) -> str:
@@ -3400,8 +3402,14 @@ def _kept_fact_words(sentence: str, *, session_id: str | None, source_context: M
     # Only a lead the person set off with a mark (a comma, a colon, a semicolon or a dash) can be left off, and at
     # most one word after it ("prisimink, kad ..."): offered every first word, qwen3:8b picked versions that cut the
     # fact itself ("mano kuprinė žalia ir ji laikoma balkone" was saved as "ji laikoma balkone", Mac run15).
+    # A comma also ends a told clause, where a colon, a semicolon or a dash seldom does: a lead set off by a comma is at
+    # most two words ("prisimink, kad ...", "please remember, ..."). Mac gate 66 on f76f9648b (qwen3:8b): "our family
+    # doctor is Dr. Haddad, the surgery is on Orchard Lane above the chemist" was offered without its first six words
+    # and saved as "the surgery is on Orchard Lane above the chemist"; the doctor was lost. A longer lead kept with
+    # its fact costs a few words; a fact cut off costs the fact.
     marked = next((index for index, word in enumerate(words[:_KEPT_FACT_LEAD_WORDS])
-                   if word[-1:] in ",;:" or word in {"-", "\u2013", "\u2014"}), None)
+                   if word[-1:] in ";:" or word in {"-", "\u2013", "\u2014"}
+                   or (word[-1:] == "," and index < _COMMA_LEAD_WORDS)), None)
     if marked is None:
         return str(sentence or "")
     versions = [" ".join(words[start:]).lstrip(" ,;:\u2013\u2014-").strip()

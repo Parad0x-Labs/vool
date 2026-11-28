@@ -72,3 +72,23 @@ def test_a_sentence_that_ends_still_ends(text, parts):
     from core.memory.sentences import SentenceSplitter
 
     assert len([part for part in SentenceSplitter(marks=".!?").split(text) if part.strip()]) == parts
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_a_kept_fact_whose_first_clause_ends_at_a_comma_keeps_that_clause(seed, monkeypatch):
+    """Mac gate 66 on f76f9648b (qwen3:8b): "our family doctor is Dr. Haddad, the surgery is on Orchard Lane above the
+    chemist", judged a keep, was offered without its first six words as if they were a request to keep, and saved as
+    "the surgery is on Orchard Lane above the chemist". A comma lead is at most two words; whatever the judge picks,
+    the told first clause stays."""
+    from core import intent_arbiter
+    from core import persistent_memory as pm
+
+    rng = random.Random(f"comma-clause-{seed}")
+    text, titled = _told(rng)
+    if "," not in text:
+        text = text.replace(f"{titled} ", f"{titled}, ", 1)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_kept_fact", lambda _m, versions, **_k: len(versions))
+    kept = pm._kept_fact_words(text, session_id="chat", source_context={})
+    assert titled in kept, kept
+    led = f"{rng.choice(['prisimink,', 'please remember,', 'merk dir,'])} {text}"
+    assert titled in pm._kept_fact_words(led, session_id="chat", source_context={})
