@@ -60,3 +60,34 @@ def test_a_calendar_pick_on_such_a_follow_up_is_settled_the_same_way(names, judg
     monkeypatch.setattr(intent_arbiter, "arbitrate_calendar_ask", lambda *_a, **_k: "yes")
     got = plugin_ask._memory_kind_confirmed("and what time again?", ("calendar",), dict(CONTEXT), "chat")
     assert got == (("memory_recall",) if names == "fact" else ("calendar", "memory_recall"))
+
+
+@pytest.fixture
+def find_follow_up(monkeypatch):
+    def setup(*, previous_recall: bool, names: str, kind: str = "none"):
+        plugin_ask.forget()
+        if previous_recall:
+            plugin_ask._record_builtins(EARLIER, ("memory_recall",))
+        monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: kind)
+        monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: "no")
+        monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "no")
+        monkeypatch.setattr(plugin_ask, "_has_pending_reminders", lambda: False)
+        monkeypatch.setattr(plugin_ask, "_judged_a_clock_ask", lambda _t: False)
+        monkeypatch.setattr(plugin_ask, "_recall_names", lambda text, *_a: names if EARLIER in text else "")
+
+    yield setup
+    plugin_ask.forget()
+
+
+@pytest.mark.parametrize("text", ["o kur?", "and where?", "und wo genau?"])
+def test_a_find_pick_on_a_follow_up_to_a_recall_of_a_told_fact_is_that_recall(text, find_follow_up):
+    """iMac gate61 on 50edac5e3 (qwen3:8b): "o kur?" right after a friend's wedding date was recalled was confirmed a
+    Find and answered "Local directory ~/Desktop does not exist"."""
+    find_follow_up(previous_recall=True, names="fact")
+    assert plugin_ask._memory_kind_confirmed(text, ("find",), dict(CONTEXT), "chat") == ("memory_recall",)
+
+
+@pytest.mark.parametrize(("previous_recall", "names"), [(False, "fact"), (True, ""), (True, "reminder")])
+def test_a_find_after_anything_else_keeps_its_find(previous_recall, names, find_follow_up):
+    find_follow_up(previous_recall=previous_recall, names=names)
+    assert plugin_ask._memory_kind_confirmed("and where?", ("find",), dict(CONTEXT), "chat") == ("find",)

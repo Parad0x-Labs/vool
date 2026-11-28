@@ -477,6 +477,17 @@ def _memory_kind_confirmed(
         keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)
         if not tools:
             picked.add("keep")
+    if "find" in tools and kind not in {"keep", "forget"} and _follows_a_recall(text, source_context) and (
+            _recall_names_beside_the_last_ask(text, source_context, session_id) == "fact"):
+        # A bare follow-up on a recall of a told fact asks more about that fact, not for a file: the message before it
+        # was judged a recall, and read beside it this one names a fact the person told. iMac gate61 on 50edac5e3
+        # (qwen3:8b): "o kur?" ("and where?") right after a friend's wedding date was recalled was confirmed a Find,
+        # read beside the question before it, and answered "Local directory ~/Desktop does not exist".
+        _log.info("tool ask: find pick read as a follow-up on a recall of a told fact")
+        tools = tuple(key for key in tools if key != "find")
+        keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)
+        if not tools:
+            picked.add("recall")
     if dropped_a_pick and not tools and kind not in {"recall", "forget"}:
         # A tool pick its own question turned down was the tool judgement's misreading: of a message that tells a fact
         # it is one keep reading, which the told-as-fact and forget questions below settle (memory wiring audit B2).
@@ -596,6 +607,12 @@ def _recall_names_beside_the_last_ask(text: str, source_context: dict[str, Any],
         return named
     previous = _previous_request(text, source_context if isinstance(source_context, dict) else {})
     return _recall_names(f"{previous}\n{text}", source_context, session_id) if previous else ""
+
+
+def _follows_a_recall(text: str, source_context: dict[str, Any]) -> bool:
+    """Whether the person's message before this one was judged a memory recall (read only; nothing is asked)."""
+    previous = _previous_request(text, source_context if isinstance(source_context, dict) else {})
+    return bool(previous) and "memory_recall" in judged_builtins(previous)
 
 
 def _has_pending_reminders() -> bool:
