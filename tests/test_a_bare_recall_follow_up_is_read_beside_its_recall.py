@@ -1,0 +1,62 @@
+"""A bare follow-up on a recall is read by the recall judge beside the recall it follows.
+
+iMac gate62 on e8503d939 (qwen3:8b): right after "wann ist das Klassentreffen?" was answered from memory, "und wo?"
+was read alone and the recall judge named a sister's wedding instead; on 50edac5e3 "o kur?" named nothing and went to
+a file look-up. A follow-up that names something held, or a message after anything but a recall, is read alone.
+Wordings invented for this contract.
+"""
+from __future__ import annotations
+
+import pytest
+
+from core import persistent_memory as pm
+from core import plugin_ask
+
+HELD = ["my aunt Daiva retires on 30 june in Klaipeda", "das Sommerfest ist am 12. Juli im Gasthaus Krone"]
+EARLIER = "wann ist das Sommerfest?"
+
+
+def _context(previous: str = EARLIER) -> dict:
+    return {"conversation_history": [{"role": "user", "content": previous}, {"role": "assistant", "content": "12. Juli."}]}
+
+
+@pytest.fixture(autouse=True)
+def judged():
+    plugin_ask.forget()
+    plugin_ask._record_builtins(EARLIER, ("memory_recall",))
+    yield
+    plugin_ask.forget()
+
+
+@pytest.mark.parametrize("text", ["und wo?", "o kur?", "and at what hour?"])
+def test_a_bare_follow_up_is_read_beside_the_recall_before_it(text):
+    assert pm._recall_question_with_its_subject(text, HELD, _context()) == f"{EARLIER}\n{text}"
+
+
+def test_a_follow_up_that_names_something_held_is_read_alone():
+    text = "and when does Daiva retire?"
+    assert pm._recall_question_with_its_subject(text, HELD, _context()) == text
+
+
+def test_a_message_after_anything_but_a_recall_is_read_alone():
+    plugin_ask.forget()
+    plugin_ask._record_builtins(EARLIER, ("find",))
+    assert pm._recall_question_with_its_subject("und wo?", HELD, _context()) == "und wo?"
+    assert pm._recall_question_with_its_subject("und wo?", HELD, {}) == "und wo?"
+
+
+def test_the_recall_judge_is_asked_the_joined_question(monkeypatch):
+    asked: list[str] = []
+    monkeypatch.setattr(pm, "_turn_may_read_memory", lambda *_a: True)
+    monkeypatch.setattr(pm, "_held_for_judgement", lambda **_k: list(HELD))
+    monkeypatch.setattr(pm, "_judged_forgotten_named", lambda *_a, **_k: [])
+    monkeypatch.setattr(pm, "_pending_reminder_lines", lambda _s: [])
+    monkeypatch.setattr(pm.memory_entries, "resolve_memory_access_policy", lambda **_k: None)
+
+    def named(question, items, **_k):
+        asked.append(question)
+        return [HELD[1]] if "Sommerfest" in question else [HELD[0]]
+
+    monkeypatch.setattr(pm, "_judged_items_named", named)
+    assert pm.recall_names("und wo?", session_id="chat", source_context=_context()) == "fact"
+    assert asked == [f"{EARLIER}\nund wo?"]
