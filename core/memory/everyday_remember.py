@@ -19,6 +19,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from core.memory.sentences import SentenceSplitter
+
 #: An everyday lead that asks VOOL to remember what follows. "Remember to ..." and "don't forget to ..." are
 #: reminders (another lane), so the forms here never take "to" after them.
 _LEAD_RE = re.compile(
@@ -538,7 +540,8 @@ _ASIDE_TAIL_RE = re.compile(
     r"[\s,;]*\b(?:by\s+the\s+way|btw|fyi|just\s+so\s+you\s+know|for\s+what\s+it'?s\s+worth|in\s+case\s+it\s+matters)[\s.!]*$",
     re.IGNORECASE,
 )
-_SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
+#: Cut at ". ", "! " and "? ", never at the dot of a title or an initial before a name (`core.memory.sentences`).
+_SENTENCE_END_RE = SentenceSplitter(marks=".!?")
 
 
 #: "<my thing> is <one value>" and nothing after it: "my scout hut door code is 5308", "our rent day is 4 March".

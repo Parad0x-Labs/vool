@@ -102,3 +102,26 @@ def test_a_follow_up_on_a_follow_up_is_about_the_same_facts(monkeypatch):
     assert pm._judged_recall_items("und wo?", list(HELD), session_id="chat", source_context=_context()) == [HELD[1]]
     later = {"conversation_history": [{"role": "user", "content": "und wo?"}, {"role": "assistant", "content": "Krone."}]}
     assert pm._judged_recall_items("und wann?", list(HELD), session_id="chat", source_context=later) == [HELD[1]]
+
+
+@pytest.mark.parametrize("text", [
+    "¿quién tiene la llave de repuesto del garaje?",
+    "kas turi atsarginį buto raktą?",
+    "kto ma zapasowy klucz do mieszkania?",
+    "who keeps the spare garage key these days?",
+])
+def test_a_whole_question_in_another_language_than_the_facts_is_read_alone(text, monkeypatch):
+    """Mac gate 65 on b259d3e55 (qwen3:8b): "¿quién tiene la llave de repuesto del piso?" right after a recall, with the
+    spare-key fact told in English, shared no word with anything held and was answered with the fact the recall before
+    it had named. A question that names its own subject in more than two words of four letters is judged alone."""
+    assert pm._recall_question_with_its_subject(text, HELD, _context()) == text
+    asked: list[str] = []
+    pm._note_recalled("chat", EARLIER, [HELD[1]])
+
+    def named(question, items, **_k):
+        asked.append(question)
+        return [HELD[0]]
+
+    monkeypatch.setattr(pm, "_judged_items_named", named)
+    assert pm._judged_recall_items(text, list(HELD), session_id="chat", source_context=_context()) == [HELD[0]]
+    assert asked == [text]

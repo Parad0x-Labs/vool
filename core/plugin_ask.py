@@ -466,13 +466,16 @@ def _memory_kind_confirmed(
                 # The pick was the tool judgement's reading of news about an appointment: it stands as one keep
                 # reading, which the told-as-fact and forget questions below settle.
                 picked.add("keep")
-    looked_up = tuple(key for key in tools if key in {"find", "read"})
+    looked_up = tuple(key for key in tools if key in {"find", "read", "contacts"})
     if looked_up and told_beside_a_keep("yes", "+".join(looked_up)) == "no":
         # A file find or read its own question confirmed, beside a keep reading of a message that tells a fact: the
         # same disagreement as Reminders and Calendar above, settled by the same told-as-fact question. iMac gate59
         # on 033c90daa (qwen3:8b): "the garage moved my MOT to the 19th at quarter past eight" was confirmed a Find
         # and answered with the machine's specs, and a neighbour's birthday told in Lithuanian listed a Desktop that
-        # was not there. Neither was kept.
+        # was not there. Neither was kept. A Contacts pick is the same disagreement: Mac gate 65 on b259d3e55 told
+        # "my dentist is Dr. Okafor, her clinic is on Linden Street next to the bakery", the memory question read a
+        # keep, and the reply was a Manual-mode "save a contact" card. An order ("add Okafor to my contacts") reads
+        # no to the told-as-fact question and keeps its Contacts pick.
         tools = tuple(key for key in tools if key not in looked_up)
         keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)
         if not tools:

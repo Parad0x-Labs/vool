@@ -47,3 +47,22 @@ def test_a_find_without_a_keep_reading_is_never_asked_the_told_question(judged, 
     monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: asked.append("told") or "yes")
     assert plugin_ask._memory_kind_confirmed("where is my kettle warranty pdf", ("find",), {}, "c") == ("find",)
     assert asked == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["my dentist is Dr. Okafor, her clinic is on Linden Street next to the bakery",
+     "mano kirpėja yra Rasa, jos salonas Pilies gatvėje", "unser Klempner heißt Herr Vogt, er wohnt am Markt"],
+)
+def test_a_told_fact_picked_as_a_contact_save_is_kept(text, judged):
+    """Mac gate 65 on b259d3e55 (qwen3:8b): a told dentist and clinic, read a keep by the memory question, was picked
+    Contacts and answered with a Manual-mode "save a contact" card."""
+    judged(kind="keep", told="yes")
+    assert plugin_ask._memory_kind_confirmed(text, ("contacts",), {}, "chat-1") == ("memory_keep",)
+
+
+@pytest.mark.parametrize("told", ["no", None])
+def test_a_contact_order_keeps_its_contacts(told, judged):
+    judged(kind="keep", told=told)
+    text = "add Okafor to my contacts, her number is 0612 555 019"
+    assert plugin_ask._memory_kind_confirmed(text, ("contacts",), {}, "c") == ("contacts",)

@@ -280,6 +280,9 @@
     "goal_words_redacted": "transform",
     "resweep_forgotten_run_history": "writer"
   },
+  "core/memory/sentences.py": {
+    "SentenceSplitter.split": "transform"
+  },
   "core/memory/withdrawals.py": {
     "payload_is_withdrawn": "transform"
   },

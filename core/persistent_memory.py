@@ -13,6 +13,7 @@ from typing import Any
 
 from core.context_scope import ContextAccessPolicy
 from core.memory.revocation import RevokedContentWrite, fenced_writer
+from core.memory.sentences import SentenceSplitter
 
 # Serializes the per-turn memory write sequence (conversation-log append + trim, and every
 # downstream load-modify-rewrite: facts, heuristics, session summary, dialogue). The daemon
@@ -861,43 +862,7 @@ _FORGET_ORDER_LEAD_IN_RE = re.compile(
     r"|(?:i\s+want|i'?d\s+like)\s+you\s+to\s+)*",
     re.IGNORECASE,
 )
-class _SentenceSplitter:
-    """Sentences of what the person typed, cut at ". ", "! ", "? ", "; " and line breaks, but never at the dot of a
-    word of one or two characters or a short capitalised word: that is a title, an abbreviation, an initial or a day
-    number ("Dr. Albrecht", "Hr. Brandt", "ul. Długa", "J. Smith", "am 5. Mai"), in any language that writes them so.
-
-    Measured on 02ff11496 (fresh audit, German): "Mein Zahnarzt heißt Dr. Albrecht und die Praxis ist in der
-    Lindenstraße" was saved cut at "Dr.", and the recall answered "Albrecht und die Praxis ...". A sentence that ends
-    in a short capitalised word ("... ist Tom. Er ...") stays joined to the next one: one fact kept whole is read back
-    right, one cut in two is not."""
-
-    _CUT_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
-    _LAST_WORD_RE = re.compile(r"(\w+)\.$")
-
-    def _before_an_abbreviation_dot(self, head: str) -> bool:
-        """A word of one or two characters ("J.", "Dr.", "ul.", "5." as in "5. Mai"), or of three or four letters
-        starting with a capital ("Hrn.", "Prof."), right before the dot."""
-        match = self._LAST_WORD_RE.search(head)
-        if not match:
-            return False
-        word = match.group(1)
-        return len(word) <= 2 or (len(word) <= 4 and word.isalpha() and word[0].isupper())
-
-    def split(self, text: str) -> list[str]:
-        raw = str(text or "")
-        parts: list[str] = []
-        start = 0
-        for cut in self._CUT_RE.finditer(raw):
-            head = raw[start:cut.start()]
-            if "\n" not in cut.group(0) and head.endswith(".") and self._before_an_abbreviation_dot(head):
-                continue
-            parts.append(head)
-            start = cut.end()
-        parts.append(raw[start:])
-        return parts
-
-
-_SENTENCE_SPLIT_RE = _SentenceSplitter()
+_SENTENCE_SPLIT_RE = SentenceSplitter()
 
 
 def memory_command_owns_turn(user_text: str) -> bool:
@@ -3521,10 +3486,21 @@ def _note_recalled(session_id: str | None, question: str, named: list[str]) -> N
             _RECALLED.popitem(last=False)
 
 
+#: The most words of four letters or more a bare follow-up on a recall holds (`_bare_follow_up_of`).
+_BARE_FOLLOW_UP_WORDS = 2
+
+
 def _bare_follow_up_of(question: str, items: list[str], source_context: Mapping[str, Any] | None) -> str:
     """The recall question this message follows up, or "". A message is a bare follow-up on a recall when the person's
-    message before it was judged a memory recall and it shares no word with anything held (words of four letters or
-    more, accents off, one form of a word for another): it names its subject only through the question before."""
+    message before it was judged a memory recall, it shares no word with anything held (words of four letters or
+    more, accents off, one form of a word for another) and it holds at most two such words: it names its subject only
+    through the question before ("and where is it?", "und wo feiert sie?", "o kur?").
+
+    A whole new question shares no word with what is held when it is asked in another language than the facts were
+    told in. Mac gate 65 on b259d3e55 (qwen3:8b): "¿quién tiene la llave de repuesto del piso?", asked right after the
+    dentist was recalled, with "the spare flat key is with my brother Tomas in Kaunas" held, was read as a follow-up
+    on the dentist and answered with the dentist. It names its own subject in five words; a bare follow-up does not
+    have that many."""
     try:
         from core import plugin_ask
         from core.fact_extractor import _folded_words, _same_word
@@ -3534,6 +3510,8 @@ def _bare_follow_up_of(question: str, items: list[str], source_context: Mapping[
         if not previous or "memory_recall" not in plugin_ask.judged_builtins(previous):
             return ""
         asked = [word for word in _folded_words(question) if len(word) >= 4]
+        if len(asked) > _BARE_FOLLOW_UP_WORDS:
+            return ""
         held_words = [word for item in items for word in _folded_words(item) if len(word) >= 4]
         if any(_same_word(word, other) for word in asked for other in held_words):
             return ""
