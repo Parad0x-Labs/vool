@@ -28,7 +28,7 @@ Brain = Callable[[list[dict[str, str]]], str]
 DEFAULT_MAX_STEPS = 10
 _TOOL_RESULT_CHARS = 3000
 _THINK_RE = re.compile(r"<think>.*?</think>", re.S | re.I)
-_DECODER = json.JSONDecoder()
+_DECODER = json.JSONDecoder(strict=False)  # a raw line break inside the answer string is still that string
 
 LOOK_FIRST_NUDGE = (
     "You have not looked yet. If the answer depends on the owner's files or computer, call a tool now; "
@@ -86,9 +86,47 @@ class BoundaryStop(RuntimeError):
         self.model_calls = 0
 
 
+_TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
+_ANSWER_KEY_RE = re.compile(r'\{\s*"answer"\s*:\s*(?=")')
+
+
 def parse_action(text: str) -> dict[str, Any]:
-    """The first JSON object carrying "tool" or "answer"; else the prose as the answer."""
+    """The first JSON object carrying "tool" or "answer"; else the prose as the answer.
+
+    An object the model wrote slightly wrong is still that object, never prose: a trailing comma before the
+    closing brace, or an answer object cut off before it closed. Benchmark on d9a520dca: the reply
+    `{"answer": "...", }` failed to decode and was published whole, braces and key included.
+    """
     raw = _THINK_RE.sub("", str(text or "")).strip()
+    action = _first_action(raw)
+    if action is None and _TRAILING_COMMA_RE.search(raw):
+        action = _first_action(_TRAILING_COMMA_RE.sub(r"\1", raw))
+    if action is None:
+        action = _answer_object_cut_short(raw)
+    if action is not None:
+        return action
+    prose = re.sub(r"```\w*", "", raw).strip()
+    return {"answer": prose}
+
+
+def _answer_object_cut_short(raw: str) -> dict[str, Any] | None:
+    """The answer string of an `{"answer": "...` object that never closed (or closed badly after its string)."""
+    match = _ANSWER_KEY_RE.search(raw)
+    if match is None:
+        return None
+    try:
+        value, _end = _DECODER.raw_decode(raw, match.end())
+    except ValueError:
+        # The string itself never closed: what follows the opening quote is the answer, minus closing marks.
+        tail = re.sub(r'"?\s*\}?\s*(?:```)?\s*$', "", raw[match.end() + 1:])
+        try:
+            value = json.loads('"' + tail.replace("\n", "\\n") + '"')
+        except ValueError:
+            value = tail
+    return {"answer": str(value or "").strip()} if isinstance(value, str) else None
+
+
+def _first_action(raw: str) -> dict[str, Any] | None:
     for match in re.finditer(r"\{", raw):
         try:
             value, _end = _DECODER.raw_decode(raw, match.start())
@@ -102,8 +140,7 @@ def parse_action(text: str) -> dict[str, Any]:
             return {**value, "tool": value["tool"].strip()}
         if "answer" in value:
             return {"answer": str(value.get("answer") or "").strip()}
-    prose = re.sub(r"```\w*", "", raw).strip()
-    return {"answer": prose}
+    return None
 
 
 def is_bare_question(text: str) -> bool:
