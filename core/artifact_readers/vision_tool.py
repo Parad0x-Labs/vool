@@ -33,6 +33,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from core import apple_developer_tools
+
 from ._limits import OCR_MAX_EDGE, SUBPROCESS_TIMEOUT_S
 from ._sandbox import Scratch, run_confined
 from ._types import ReaderFailed, ReaderRefused, ReaderUnavailable
@@ -196,7 +198,7 @@ def toolchain_available() -> bool:
     """Buildable AND confinable. A helper this runtime could not sandbox is not available to it."""
     from . import _sandbox
 
-    return platform.system() == "Darwin" and os.access(SWIFTC, os.X_OK) and _sandbox.confinement_available()
+    return platform.system() == "Darwin" and apple_developer_tools.installed(SWIFTC) and _sandbox.confinement_available()
 
 
 def toolchain_unavailable_words() -> tuple[str, str]:
@@ -211,7 +213,7 @@ def toolchain_unavailable_words() -> tuple[str, str]:
             "Reading scanned pages and text in images isn't available on this computer yet.",
             "Paste the text into your message instead.",
         )
-    if not os.access(SWIFTC, os.X_OK):
+    if not apple_developer_tools.installed(SWIFTC):
         return (
             "Reading scanned pages needs Apple's free Command Line Tools, which aren't installed on this Mac.",
             "Install them from Apple, then restart VOOL.",

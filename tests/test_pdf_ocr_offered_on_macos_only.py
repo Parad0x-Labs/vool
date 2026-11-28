@@ -144,8 +144,9 @@ def _model_reads_a_scan(tmp_path, monkeypatch, *, recogniser: bool):
     target = home / "Documents" / "scanned-receipt.pdf"
     target.write_bytes(b"%PDF-1.4\n")
     monkeypatch.setattr(pdf_tools, "ocr_available", lambda: recogniser)
+    # The page reply the PDF's text-layer reader gives for a scan (the shipped reader reads first).
     monkeypatch.setattr(
-        pdf_tools, "_run_helper",
+        pdf_tools, "_extract_portable",
         lambda *_a, **_k: {"status": "ok", "pages_total": 1, "pages_read": 1, "page_text": [""]},
     )
     monkeypatch.setattr(pdf_tools, "_pypdf_text_layer", lambda *_a, **_k: None, raising=False)

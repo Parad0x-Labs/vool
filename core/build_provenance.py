@@ -23,8 +23,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from core.apple_developer_tools import installed as _tool_installed
+
 
 def _git(root: Path, *args: str) -> str:
+    if not _tool_installed("git"):  # on a Mac without developer tools /usr/bin/git opens their install dialog
+        return ""
     try:
         completed = subprocess.run(
             ["git", "-C", str(root), *args],
@@ -52,6 +56,8 @@ def worktree_diff_sha256(project_root: Path) -> str:
     edited tree it means. This hashes the binary diff of tracked files against HEAD plus the name and
     content of every untracked, non-ignored file. Returns "" for a clean tree or a non-git folder."""
     root = Path(project_root)
+    if not _tool_installed("git"):
+        return ""
     try:
         diff = subprocess.run(
             ["git", "-C", str(root), "diff", "HEAD", "--binary", "--no-ext-diff", "--no-color", "--no-renames"],

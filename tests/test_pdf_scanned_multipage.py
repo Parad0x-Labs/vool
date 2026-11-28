@@ -2,9 +2,9 @@
 
 `pdf.extract_text` assembles its text with a "[page N]" marker per page. The scanned-PDF check
 used to strip only "[page 1]", so a two-page scan came back "ok" with nothing but markers and
-the model was never told to recognise it. These tests feed `extract_text` the exact reply the
-PDFKit helper gives for blank pages (that helper only runs on macOS), and, where PDFKit exists,
-a real two-page scan.
+the model was never told to recognise it. These tests feed `extract_text` the exact page reply its
+reader gives for blank pages (the shipped pypdf reader, which every platform reads with first), and,
+where PDFKit exists, a real two-page scan.
 """
 
 from __future__ import annotations
@@ -33,9 +33,8 @@ def _helper_reply(pages: list[str]) -> dict:
 
 @pytest.fixture(autouse=True)
 def _macos_route(monkeypatch):
-    # These drive the macOS route: the PDFKit helper's replies (off macOS pdf_tools reads with
-    # pypdf instead), and Vision, which can read a scan, so pdf.ocr is offered. The off-macOS
-    # answer has its own test below.
+    # These drive the macOS route, where Vision can read a scan, so pdf.ocr is offered. The
+    # off-macOS answer has its own test below.
     monkeypatch.setattr(pdf_tools, "_uses_pdfkit", lambda: True)
     monkeypatch.setattr(pdf_tools, "ocr_available", lambda: True)
 
@@ -50,7 +49,7 @@ def scan(tmp_path):
 @pytest.mark.parametrize("page_count", [1, 2, 3, 12])
 def test_a_scan_of_any_length_is_reported_as_scanned(scan, page_count: int) -> None:
     pages = ["", " \n", "\n\n\t"][:page_count] + [""] * max(0, page_count - 3)
-    with mock.patch.object(pdf_tools, "_run_helper", return_value=_helper_reply(pages)):
+    with mock.patch.object(pdf_tools, "_extract_portable", return_value=_helper_reply(pages)):
         result = pdf_tools.extract_text(str(scan))
 
     assert result["status"] == "no_text_layer"
@@ -62,7 +61,7 @@ def test_a_scan_with_one_text_page_is_still_read(scan) -> None:
     """Only a PDF with no text on any page is called scanned; one real line keeps it "ok"."""
 
     with mock.patch.object(
-        pdf_tools, "_run_helper", return_value=_helper_reply(["", "Invoice 7731 total 42.00", ""])
+        pdf_tools, "_extract_portable", return_value=_helper_reply(["", "Invoice 7731 total 42.00", ""])
     ):
         result = pdf_tools.extract_text(str(scan))
 
@@ -73,7 +72,7 @@ def test_a_scan_with_one_text_page_is_still_read(scan) -> None:
 def test_a_page_that_only_reads_like_a_marker_is_text(scan) -> None:
     """Text that happens to say "[page 1]" is still text on the page, not an empty scan."""
 
-    with mock.patch.object(pdf_tools, "_run_helper", return_value=_helper_reply(["[page 1]", ""])):
+    with mock.patch.object(pdf_tools, "_extract_portable", return_value=_helper_reply(["[page 1]", ""])):
         result = pdf_tools.extract_text(str(scan))
 
     assert result["status"] == "ok"
@@ -82,7 +81,7 @@ def test_a_page_that_only_reads_like_a_marker_is_text(scan) -> None:
 def test_the_model_is_told_to_run_ocr_on_a_two_page_scan(scan) -> None:
     """The tool result the model reads: not ok, and it names pdf.ocr as the next step."""
 
-    with mock.patch.object(pdf_tools, "_run_helper", return_value=_helper_reply(["", ""])):
+    with mock.patch.object(pdf_tools, "_extract_portable", return_value=_helper_reply(["", ""])):
         result = execute_runtime_tool(
             "pdf.extract_text", {"path": str(scan)}, source_context={"surface": "api"}
         )
@@ -98,7 +97,7 @@ def test_off_macos_a_scan_never_names_the_tool_this_computer_lacks(scan, monkeyp
     there. It still says the PDF is scanned, not blank, and why its text cannot be read."""
 
     monkeypatch.setattr(pdf_tools, "ocr_available", lambda: False)
-    with mock.patch.object(pdf_tools, "_run_helper", return_value=_helper_reply(["", ""])):
+    with mock.patch.object(pdf_tools, "_extract_portable", return_value=_helper_reply(["", ""])):
         result = execute_runtime_tool(
             "pdf.extract_text", {"path": str(scan)}, source_context={"surface": "api"}
         )

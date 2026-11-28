@@ -171,7 +171,8 @@ def test_a_missing_framework_says_so_rather_than_returning_nothing(tmp_path) -> 
 
     pdf = tmp_path / "x.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
-    # The macOS route with neither PDFKit nor the shipped pypdf fallback: the reason names what is missing.
+    # The macOS route with neither the shipped pypdf reader nor PDFKit: the shipped reader's reason,
+    # which names what is missing, is what the owner reads.
     no_decoder = {"status": "missing_dependency", "reason": "no decoder"}
     with mock.patch.object(pdf_tools, "_SYSTEM_PYTHON", "/nonexistent/python3"), \
             mock.patch.object(pdf_tools, "_uses_pdfkit", return_value=True), \
@@ -179,7 +180,7 @@ def test_a_missing_framework_says_so_rather_than_returning_nothing(tmp_path) -> 
         result = pdf_tools.extract_text(str(pdf))
 
     assert result["status"] == "missing_dependency"
-    assert "system Python" in result["reason"]
+    assert result["reason"] == "no decoder"
     # With the fallback present, a broken file is reported broken, never "ok" with no text.
     with mock.patch.object(pdf_tools, "_SYSTEM_PYTHON", "/nonexistent/python3"), \
             mock.patch.object(pdf_tools, "_uses_pdfkit", return_value=True):

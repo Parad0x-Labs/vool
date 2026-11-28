@@ -77,6 +77,7 @@ from core.tool_memo import policy_epoch as memo_policy_epoch
 # the version rides in every memo key, so bumping it invalidates prior entries.
 register_pure_tool("workspace.identity", ttl_seconds=300, version="v1")
 register_pure_tool("machine.inspect_specs", ttl_seconds=60, version="v1")
+from core.apple_developer_tools import installed as _tool_installed
 from core.web0_tools import (
     web0_add_block,
     web0_add_gated_section,
@@ -563,6 +564,8 @@ def _daemon_commit_sha() -> str:
     if "sha" not in _DAEMON_COMMIT_SHA_CACHE:
         sha = ""
         try:
+            if not _tool_installed("git"):  # on a Mac without developer tools /usr/bin/git opens their install dialog
+                raise FileNotFoundError("git")
             result = subprocess.run(
                 ["git", "-C", str(PROJECT_ROOT), "rev-parse", "HEAD"],
                 capture_output=True,

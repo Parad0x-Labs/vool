@@ -25,6 +25,7 @@ from core import policy_engine
 from core.agent_runtime.agent import VoolAgent
 from core.agent_runtime.daemon import VoolDaemon
 from core.app_version import VOOL_VERSION
+from core.apple_developer_tools import installed as _tool_installed
 from core.build_provenance import worktree_diff_sha256
 from core.chat_session_identity import fold_chat_session_id, is_canonical_chat_session_id
 from core.compute_mode import ComputeModeDaemon
@@ -179,6 +180,8 @@ def default_agent_source_context() -> dict[str, Any]:
 
 
 def git_output(project_root: Path, *args: str) -> str:
+    if not _tool_installed("git"):  # on a Mac without developer tools /usr/bin/git opens their install dialog
+        return ""
     try:
         completed = subprocess.run(
             ["git", "-C", str(project_root), *args],

@@ -33,6 +33,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Protocol
 
+from core import apple_developer_tools
+
 SERVICE = "com.vool.wallet.unlock"
 SWIFTC = "/usr/bin/swiftc"
 TOOL_NAME = "vool-devauth"
@@ -147,7 +149,7 @@ def shipped_helper() -> Path | None:
 
 
 def toolchain_available() -> bool:
-    return platform.system() == "Darwin" and (shipped_helper() is not None or os.access(SWIFTC, os.X_OK))
+    return platform.system() == "Darwin" and (shipped_helper() is not None or apple_developer_tools.installed(SWIFTC))
 
 
 # Default deployment floor for the compiled helper. Without an explicit -target, swiftc stamps

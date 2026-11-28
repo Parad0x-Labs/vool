@@ -34,6 +34,8 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.apple_developer_tools import installed as _tool_installed
+
 # --- rejection reason codes -------------------------------------------------------------------
 OFF_TARGET = "off_target"
 BACKWARDS_ORACLE = "backwards_oracle"
@@ -203,7 +205,7 @@ def git_head_sha(repo_dir: str, *, short: bool = True) -> str:
     production regression tests need — never a gate a turn's outcome depends on, so a machine
     without git on PATH degrades to an empty string rather than failing the turn.
     """
-    if not repo_dir or not os.path.isdir(repo_dir):
+    if not repo_dir or not os.path.isdir(repo_dir) or not _tool_installed("git"):
         return ""
     try:
         args = ["git", "rev-parse", "--short=10", "HEAD"] if short else ["git", "rev-parse", "HEAD"]

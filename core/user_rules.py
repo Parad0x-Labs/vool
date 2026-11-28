@@ -35,6 +35,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from core.apple_developer_tools import installed as _tool_installed
 from storage.db import get_connection
 
 __all__ = [
@@ -1316,6 +1317,8 @@ class _ScanIncomplete(RuntimeError):
 
 
 def _git_text(root: Path, *argv: str) -> str:
+    if not _tool_installed("git"):  # on a Mac without developer tools /usr/bin/git opens their install dialog
+        raise _ScanIncomplete("git is not installed")
     try:
         completed = subprocess.run(
             ["git", "-C", str(root), *argv],
@@ -1759,6 +1762,8 @@ def _commit_all(rest: list[str]) -> bool:
 
 
 def _is_inside_repo(path: Path) -> bool:
+    if not _tool_installed("git"):
+        return False
     try:
         completed = subprocess.run(["git", "-C", str(path), "rev-parse", "--git-dir"], capture_output=True,
                                    timeout=GIT_SCAN_TIMEOUT_SECONDS)

@@ -5,21 +5,25 @@ returns bytes or lines, so a PDF reached the model as binary noise and the turn 
 invented a summary — measured on the owner's own workspace, where "the website displays most of its
 data in PDF format so the agent needs to read it" was the request that started this.
 
-No dependency is installed to fix that, and none needs to be. macOS ships PDFKit and Vision, and the
-system interpreter at ``/usr/bin/python3`` ships the PyObjC bindings for both. This module runs a
-small self-contained helper under THAT interpreter and reads JSON back, so the project's own
-virtualenv gains nothing and no package is added on a machine that holds live keys.
-
 Two different jobs, deliberately two tools:
 
 ``extract_text``  the text layer a PDF already carries. Exact, instant, and what almost every
-                  generated or exported PDF has.
+                  generated or exported PDF has. Read on EVERY platform by the pypdf decoder VOOL
+                  ships, under VOOL's own Python, inside the reader sandbox (core/artifact_readers).
 ``ocr``           on-device text recognition for a SCANNED page, which has no text layer at all.
                   Slower and approximate, so it is never used when ``extract_text`` finds text.
 
-Both degrade honestly. On a machine without the frameworks they return ``missing_dependency`` with
-the reason, exactly like ``web.fetch`` returns ``disabled_by_policy`` — never an empty string that
-reads as "this PDF is blank".
+The macOS PDFKit helper is a second reader only. It runs under ``/usr/bin/python3``, which on a Mac
+is a launcher for Apple's developer tools, not a Python: on a Mac without them, starting it opens
+Apple's "install the developer tools" dialog. And PDFKit's Python bindings (PyObjC's Quartz) are not
+part of macOS at all, so even with the tools a stock Mac answers "No module named 'Foundation'".
+PDF reading only ever worked where the owner had installed PyObjC in their own user folder. So the
+helper is started only when the shipped reader has no answer AND the developer tools are really
+installed (core.apple_developer_tools, read from disk), and never by default.
+
+Both say why they read nothing. Without a reader they return ``missing_dependency`` with the reason, exactly
+like ``web.fetch`` returns ``disabled_by_policy`` — never an empty string that reads as "this PDF is
+blank".
 """
 from __future__ import annotations
 
@@ -30,7 +34,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-# The system interpreter, not the venv one: this is where PyObjC lives on macOS.
+# Apple's launcher for the developer tools' Python: the PDFKit/Vision helpers' interpreter, used only
+# where those tools are installed (see the module docstring), never VOOL's own Python.
 _SYSTEM_PYTHON = "/usr/bin/python3"
 _DEFAULT_TIMEOUT = 60.0
 _MAX_TEXT_CHARS = 200_000
@@ -140,7 +145,7 @@ def _run_helper(helper: str, args: list[str], *, timeout: float) -> dict[str, An
     except FileNotFoundError:
         return {
             "status": "missing_dependency",
-            "reason": f"{_SYSTEM_PYTHON} is not present; PDF reading needs the macOS system Python",
+            "reason": f"{_SYSTEM_PYTHON} is not present on this computer",
         }
     except subprocess.TimeoutExpired:
         return {"status": "timeout", "reason": f"PDF read exceeded {timeout:.0f}s"}
@@ -163,9 +168,7 @@ def ocr_available() -> bool:
     this, a Linux chat offered it, the model or the PDF fast path called it, and the reply quoted
     the macOS helper's Python import error.
     """
-    import platform
-
-    return platform.system() == "Darwin"
+    return _uses_pdfkit() and _system_python_runs()
 
 
 NO_OCR_REASON = "reading text from scanned pages is not available on this computer yet"
@@ -206,6 +209,14 @@ def _assemble(result: dict[str, Any], *, path: Path, source: str) -> dict[str, A
 
 def _uses_pdfkit() -> bool:
     return platform.system() == "Darwin"
+
+
+def _system_python_runs() -> bool:
+    """Whether ``_SYSTEM_PYTHON`` starts a real Python here, read from disk: on a Mac without Apple's
+    developer tools it is only a launcher, and starting it opens their install dialog."""
+    from core.apple_developer_tools import installed
+
+    return installed(_SYSTEM_PYTHON)
 
 
 def _too_large(size: int, limit: int) -> dict[str, Any]:
@@ -340,23 +351,21 @@ def extract_text(
 
     resolved, problem = _resolve(path)
     if problem is not None:
-        return {**problem, "path": str(path), "source": "pdfkit", "text": "", "characters": 0}
+        return {**problem, "path": str(path), "source": "pypdf", "text": "", "characters": 0}
     bounded = max(0, min(int(max_pages or 0), _MAX_PAGES))
     first = max(1, int(start_page or 1))
-    if _uses_pdfkit():
-        result = _run_helper(_EXTRACT_HELPER, [str(resolved), str(first), str(bounded)], timeout=timeout)
-        source = "pdfkit"
-        if str(result.get("status")) == "missing_dependency":
-            # PDFKit's Python bindings are not part of macOS: they were found only where the owner had
-            # installed them in their own user folder, so on another Mac (or a home without them) every
-            # PDF read failed with "No module named 'Foundation'" (red team R1-07, 2026-11-12). The
-            # shipped pypdf decoder, run confined like the route off macOS, reads the same text layer.
-            # When that route has no answer either, the PDFKit reason stays: it names what is missing.
-            fallback = _extract_portable(resolved, bounded, first, timeout=timeout)
-            if str(fallback.get("status")) not in {"missing_dependency", "error"}:
-                result, source = fallback, "pypdf"
-    else:
-        result, source = _extract_portable(resolved, bounded, first, timeout=timeout), "pypdf"
+    # The shipped pypdf decoder first, everywhere: VOOL's own Python, confined. On macOS the PDFKit
+    # helper used to come first and worked only where the owner had installed PyObjC in their own user
+    # folder; every other Mac got "No module named 'Foundation'", and a Mac without Apple's developer
+    # tools got their install dialog (red team R1-07, 2026-11-12; benchmark, 2026-11-28).
+    result, source = _extract_portable(resolved, bounded, first, timeout=timeout), "pypdf"
+    if (_uses_pdfkit() and str(result.get("status")) in {"missing_dependency", "error"}
+            and _system_python_runs()):
+        # Only when the shipped reader has no answer, and only where the helper's interpreter is a
+        # real Python. If PDFKit has no answer either, the shipped reader's reason stays.
+        second = _run_helper(_EXTRACT_HELPER, [str(resolved), str(first), str(bounded)], timeout=timeout)
+        if str(second.get("status")) not in {"missing_dependency", "error"}:
+            result, source = second, "pdfkit"
     assembled = _assemble(result, path=resolved, source=source)
     # Judge the pages themselves, not the assembled text: that text carries a "[page N]" marker
     # for every page, so a scanned PDF of two or more pages would otherwise never look empty.
@@ -379,10 +388,11 @@ def ocr(path: str, *, max_pages: int = 0, scale: float = 2.0, timeout: float = 1
     resolved, problem = _resolve(path)
     if problem is not None:
         return {**problem, "path": str(path), "source": "vision", "text": "", "characters": 0}
-    if not _uses_pdfkit():
+    if not _uses_pdfkit() or not _system_python_runs():
         # Recognition runs on Apple's Vision. Off macOS there is no on-device recogniser yet, and
         # the macOS helper started here only reports a missing Python module (real chat on Linux,
-        # 2026-11-12: "ModuleNotFoundError: No module named 'objc'").
+        # 2026-11-12: "ModuleNotFoundError: No module named 'objc'"). On a Mac without Apple's
+        # developer tools its interpreter is only their launcher, which opens their install dialog.
         return {
             "status": "missing_dependency",
             "cause": "ocr_not_available",

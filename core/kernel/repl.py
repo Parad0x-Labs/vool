@@ -45,6 +45,7 @@ import time
 import urllib.error
 import urllib.request
 
+from core.apple_developer_tools import installed as _tool_installed
 from core.kernel.capabilities import CapabilitySet, ForkContext, check_tool_call
 from core.kernel.effects import EffectJournal, EffectRunner
 from core.kernel.evidence_types import (
@@ -5141,6 +5142,8 @@ def _build_sha() -> str:
         import subprocess
         here = pathlib.Path(__file__).resolve().parent.parent.parent
         try:
+            if not _tool_installed("git"):  # on a Mac without developer tools /usr/bin/git opens their install dialog
+                raise FileNotFoundError("git")
             _BUILD_SHA = subprocess.run(
                 ["git", "-C", str(here), "rev-parse", "--short", "HEAD"],
                 capture_output=True, text=True, timeout=5,

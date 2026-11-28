@@ -32,6 +32,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from core import apple_developer_tools
+
 HELPER_APP_NAME = "VOOL Notifications.app"
 HELPER_DISPLAY_NAME = "VOOL Notifications"
 HELPER_EXECUTABLE = "vool-notify"
@@ -320,7 +322,7 @@ def helper_executable(app: Path) -> Path:
 
 
 def toolchain_available() -> bool:
-    return platform.system() == "Darwin" and os.access(SWIFTC, os.X_OK) and os.access(CODESIGN, os.X_OK)
+    return platform.system() == "Darwin" and apple_developer_tools.installed(SWIFTC) and os.access(CODESIGN, os.X_OK)
 
 
 def _target(arch: str | None, min_macos: str) -> str:

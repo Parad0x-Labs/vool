@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.apple_developer_tools import installed as _tool_installed
+
 
 def repo_source_snapshot(repo_root: str | Path) -> dict[str, Any]:
     root = Path(repo_root).expanduser().resolve()
@@ -183,6 +185,8 @@ def _coerce_optional_bool(value: Any) -> bool | None:
 
 
 def _git_output(repo_root: Path, command: list[str], *, default: str | None = "") -> str | None:
+    if not _tool_installed(command[0]):  # on a Mac without developer tools /usr/bin/git opens their install dialog
+        return default
     try:
         return subprocess.check_output(command, cwd=str(repo_root), text=True, stderr=subprocess.DEVNULL).strip()
     except Exception:

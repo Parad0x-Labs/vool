@@ -33,6 +33,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from core import apple_developer_tools
+
 from ._limits import SUBPROCESS_TIMEOUT_S
 from ._sandbox import run_confined
 from ._types import ReaderFailed, ReaderUnavailable
@@ -206,7 +208,7 @@ def toolchain_available() -> bool:
     """Buildable AND confinable. A helper this runtime could not sandbox is not available to it."""
     from . import _sandbox
 
-    return platform.system() == "Darwin" and os.access(SWIFTC, os.X_OK) and _sandbox.confinement_available()
+    return platform.system() == "Darwin" and apple_developer_tools.installed(SWIFTC) and _sandbox.confinement_available()
 
 
 def _toolchain_unavailable_words() -> tuple[str, str]:
@@ -218,7 +220,7 @@ def _toolchain_unavailable_words() -> tuple[str, str]:
     """
     if platform.system() != "Darwin":
         return "Voice typing isn't available on this computer yet.", ""
-    if not os.access(SWIFTC, os.X_OK):
+    if not apple_developer_tools.installed(SWIFTC):
         return (
             "Voice typing needs Apple's free Command Line Tools, which aren't installed on this Mac.",
             "Install them from Apple, then restart VOOL to turn on voice typing.",
