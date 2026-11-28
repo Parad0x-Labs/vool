@@ -426,6 +426,14 @@ def _memory_kind_confirmed(
         reminder_verdict = asked("reminder", intent_arbiter.arbitrate_reminder_ask)
         _log.info("tool ask: reminders pick, its own question read %s", reminder_verdict or "nothing")
         reminder_verdict = told_beside_a_keep(reminder_verdict, "reminders")
+        if reminder_verdict == "yes" and kind == "recall" and _recall_names_beside_the_last_ask(
+                text, source_context, session_id) == "fact":
+            # The memory question read a recall, and the recall judge names a fact the person told (read beside their
+            # message before it, for a follow-up that names nothing on its own): it is asked of memory, not of the
+            # reminders. iMac gate59 on 033c90daa (qwen3:8b): "and at what time again?" right after the date of a told
+            # thesis defence was answered was confirmed a reminder ask and ended at an agenda approval card.
+            _log.info("tool ask: reminders pick read as a recall of a told fact")
+            reminder_verdict = "no"
         if unconfirmed(reminder_verdict):
             _log.info("tool ask: reminders pick not confirmed")
             tools = tuple(key for key in tools if key != "reminders")
@@ -451,6 +459,17 @@ def _memory_kind_confirmed(
                 # The pick was the tool judgement's reading of news about an appointment: it stands as one keep
                 # reading, which the told-as-fact and forget questions below settle.
                 picked.add("keep")
+    looked_up = tuple(key for key in tools if key in {"find", "read"})
+    if looked_up and told_beside_a_keep("yes", "+".join(looked_up)) == "no":
+        # A file find or read its own question confirmed, beside a keep reading of a message that tells a fact: the
+        # same disagreement as Reminders and Calendar above, settled by the same told-as-fact question. iMac gate59
+        # on 033c90daa (qwen3:8b): "the garage moved my MOT to the 19th at quarter past eight" was confirmed a Find
+        # and answered with the machine's specs, and a neighbour's birthday told in Lithuanian listed a Desktop that
+        # was not there. Neither was kept.
+        tools = tuple(key for key in tools if key not in looked_up)
+        keys = tools + tuple(key for key in keys if key in _MEMORY_KINDS)
+        if not tools:
+            picked.add("keep")
     if dropped_a_pick and not tools and kind not in {"recall", "forget"}:
         # A tool pick its own question turned down was the tool judgement's misreading: of a message that tells a fact
         # it is one keep reading, which the told-as-fact and forget questions below settle (memory wiring audit B2).
@@ -496,7 +515,7 @@ def _memory_kind_confirmed(
         # neither is the reminder question asked ("zeig mir meine Erinnerungen"), as for a forget reading ("lösche
         # meine Erinnerung"). iMac gate56 on 3382964ea: with a vet reminder pending, "when is the boiler service?"
         # (saved) was read as a reminder ask by the reminder question and ended at an agenda approval card.
-        named_kind = "" if "forget" in named else _recall_names(text, source_context, session_id)
+        named_kind = "" if "forget" in named else _recall_names_beside_the_last_ask(text, source_context, session_id)
         if named_kind:
             _log.info("memory kind judged: the recall judge named a %s", named_kind)
             about_a_reminder = named_kind == "reminder"
@@ -562,6 +581,16 @@ def _recall_names(text: str, source_context: dict[str, Any], session_id: str) ->
         return ""
 
 
+def _recall_names_beside_the_last_ask(text: str, source_context: dict[str, Any], session_id: str) -> str:
+    """`_recall_names` of the message, and when it names nothing, of the person's message before it and this one
+    together: a follow-up ("and at what time again?") names its subject only through the ask it follows."""
+    named = _recall_names(text, source_context, session_id)
+    if named:
+        return named
+    previous = _previous_request(text, source_context if isinstance(source_context, dict) else {})
+    return _recall_names(f"{previous}\n{text}", source_context, session_id) if previous else ""
+
+
 def _has_pending_reminders() -> bool:
     """Whether the owner has any reminder still to come, in any chat. A store fault reads as none."""
     try:
@@ -584,6 +613,17 @@ def judged_builtins(text: str) -> tuple[str, ...]:
     if entry is None or time.monotonic() - entry[0] > _LIFETIME_S:
         return ()
     return entry[1]
+
+
+def judged_no_tool_or_memory_ask(text: str) -> bool:
+    """Whether the turn's judge read this text and decided it asks for no tool and no memory keep, recall or forget:
+    plain chat. False when nothing judged it. Read only; nothing here asks a model."""
+    key = _key(text)
+    if not key:
+        return False
+    with _LOCK:
+        entry = _BUILTINS.get(key)
+    return entry is not None and time.monotonic() - entry[0] <= _LIFETIME_S and not entry[1]
 
 
 def judged_builtins_of_message_holding(part: str) -> tuple[str, ...]:
