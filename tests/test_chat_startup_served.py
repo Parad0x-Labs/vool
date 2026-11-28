@@ -854,3 +854,76 @@ def test_controls_past_the_probe_budget_keep_their_clicks_under_the_pet(tmp_path
                 manager.stop()
         finally:
             daemon.stop()
+
+
+# One synchronous step on the real served page: a composer control (a turn's Stop) appears on the
+# docked pet, the pet re-homes above it, and -- before the browser draws another frame -- both a
+# control the pet now covers and the pet's own body are hit-tested at the pet's NEW place.
+_REHOME_HIT = """async () => {
+    const pet = document.querySelector('#companionLayer .vool-ninja');
+    const hitAt = (x, y) => { const el = document.elementFromPoint(x, y); return el ? (el.id || el.className) : null; };
+    const old = pet.getBoundingClientRect();
+    const stop = document.createElement('button');
+    stop.type = 'button'; stop.className = 'tc-stop'; stop.textContent = 'Stop';
+    stop.style.cssText = `position:fixed;z-index:5;left:${old.left}px;top:${old.top + 40}px;width:60px;height:30px`;
+    document.body.appendChild(stop);
+    await null;  // the page's own mutation callback runs; no frame is drawn in between
+    const now = pet.getBoundingClientRect();
+    const late = document.getElementById('rehomeLate').getBoundingClientRect();
+    return {old: [old.left, old.top], now: [now.left, now.top], late: [late.left, late.top, late.right, late.bottom],
+            control: hitAt(late.left + late.width / 2, late.top + late.height / 2),
+            body: hitAt(now.left + now.width - 30, now.top + now.height - 30)};
+}"""
+_REHOME_LATE = """() => {
+    // Where the pet will sit once it re-homes 170px above a Stop placed 40px into its box: a plain
+    // control there, outside the pet's box until it moves.
+    const r = document.querySelector('#companionLayer .vool-ninja').getBoundingClientRect();
+    const b = document.createElement('button');
+    b.type = 'button'; b.id = 'rehomeLate'; b.textContent = 'Late';
+    b.style.cssText = `position:fixed;z-index:5;left:${r.left + 20}px;top:${r.top + 40 - 170 + 20}px;width:44px;height:24px`;
+    document.body.appendChild(b);
+}"""
+
+
+def test_a_pet_that_re_homes_is_re_clipped_before_the_next_click(tmp_path):
+    """CI shard 9 on d8da327bc: the docked pet re-homed above a composer control that appeared late,
+    and its hit area kept the clip of its old place until the next frame. A press measured on the
+    pet's body in that frame went to the page under it, and a control the pet had just moved onto
+    went to the pet. Both are read in the same task as the move, at phone and desktop width."""
+    with rig.CapturingProvider(default=PROVIDER_REPLY) as provider:
+        daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
+                                  env_extra={"HOME": _owner_home(tmp_path), "VOOL_INSTALL_PROFILE": "hybrid-fallback"})
+        _re_home_on_the_served_page(daemon)
+
+
+def _re_home_on_the_served_page(daemon):
+    try:
+        daemon.start(timeout=60)
+        manager, browser = served_browser.launch_chromium()
+        try:
+            for width in (390, 1280):
+                page = browser.new_page(viewport={"width": width, "height": 844})
+                try:
+                    errors = []
+                    page.on("pageerror", lambda error, errors=errors: errors.append(str(error)))
+                    page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(daemon.base_url)
+                               else route.abort())
+                    page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+                    page.wait_for_selector("#input", timeout=5000)
+                    page.wait_for_selector("#companionLayer .vool-ninja", timeout=5000)
+                    assert page.evaluate("window.VoolCompanion.pos().mode") == "docked"
+                    page.evaluate(_PET_SETTLED)
+                    page.evaluate(_REHOME_LATE)
+                    page.evaluate("() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))")
+                    seen = page.evaluate(_REHOME_HIT)
+                    assert seen["now"][1] < seen["old"][1] - 100, (width, "the pet did not re-home above the Stop", seen)
+                    assert seen["control"] == "rehomeLate", (width, "the control the pet moved onto went to the pet", seen)
+                    assert seen["body"] == "vn-hit", (width, "the pet's own body passed the press through", seen)
+                    assert not errors, errors
+                finally:
+                    page.close()
+        finally:
+            browser.close()
+            manager.stop()
+    finally:
+        daemon.stop()

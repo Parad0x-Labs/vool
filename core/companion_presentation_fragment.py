@@ -1059,8 +1059,8 @@ function vnResolveDrop(x, y) {
 // Hit area. Chat controls always outrank the pet: the pet's hit layer is the pet box minus the
 // visible part of every control under it, so an ordinary click on Send / Stop / Approve reaches
 // the control even with the pet parked on it, and the pet is still dragged by everything else.
-// Recomputed (rAF-coalesced) when the pet moves, the DOM outside the layer changes, anything
-// scrolls or resizes, and on the re-assert tick; never while a drag owns the pointer.
+// Recomputed at once when the pet moves, rAF-coalesced when the DOM outside the layer changes,
+// anything scrolls or resizes, and on the re-assert tick; never while a drag owns the pointer.
 const VN_CONTROL_SELECTOR = 'button, input:not([type="hidden"]), textarea, select, a[href], summary, '
   + '[role="button"], [role="link"], [role="menuitem"], [role="checkbox"], [role="switch"], [role="tab"], '
   + '[contenteditable=""], [contenteditable="true"]';
@@ -1308,9 +1308,14 @@ function vnApplyPos() {
   if (!vnDrag) vnSprite.classList.toggle("over-critical", covering);
   const onDesktop = (vnPos.mode === "desktop" && vnDesktopActive) || vnDetachPending;
   vnSprite.style.display = (vnPos.hidden || onDesktop) ? "none" : "flex";
-  // A moved or re-shown pet covers different controls: re-clip its hit area.
+  // A moved or re-shown pet covers different controls: re-clip its hit area NOW, in the same task
+  // that moved it. The clip is drawn relative to the pet box, so until it is redrawn the old holes
+  // sit at the new place: a control the pet just moved onto went to the pet for a frame, and the
+  // pet's own body passed clicks through where a control had been (CI shard 9 on d8da327bc: a
+  // docked pet re-homed above a late composer control, and the press measured on it in that frame
+  // went to the page under it).
   const place = vnSprite.style.left + "," + vnSprite.style.top + "," + vnSprite.style.display;
-  if (place !== vnHitPlace) { vnHitPlace = place; vnScheduleHitMask(true); }
+  if (place !== vnHitPlace) { vnHitPlace = place; if (vnHit) { vnHitForce = true; vnUpdateHitMask(); } else vnScheduleHitMask(true); }
 }
 /* Live worker counts, per chat — fed ONLY from the monolith's ledger-derived agent rows
    (agent_node_started/completed). A scene is drawn when the DISPLAYED chat truly has that many

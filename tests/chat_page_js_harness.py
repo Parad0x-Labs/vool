@@ -156,6 +156,9 @@ class El {
     this._html = this.__text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
   get firstChild() { return this.children[0] || null; }
+  // Node.contains: the node itself or any node under it. The pet's hit mask asks it of the companion
+  // layer each time the pet moves (it sets its own controls aside).
+  contains(other) { for (let n = other; n; n = n.parentNode) if (n === this) return true; return false; }
   appendChild(c) { this.children.push(c); c.parentNode = this; return c; }
   insertBefore(node, ref) {
     const i = this.children.indexOf(ref);
