@@ -23,9 +23,9 @@ from urllib.request import Request, urlopen
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from core.page_poll_scheduler import IDLE_HEARTBEAT_MS
 from tests import _reader_served_rig as rig
 from tests import served_browser
-from core.page_poll_scheduler import IDLE_HEARTBEAT_MS
 from tests.wallet._rig import ScriptedRpc
 
 #: The Home entry follows the wallet status the page reads on its shared idle heartbeat (core/page_poll_scheduler,
