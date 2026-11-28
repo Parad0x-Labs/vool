@@ -33,7 +33,7 @@ def test_a_folder_that_only_shares_letters_with_a_root_is_not_it(tmp_path):
         assert rt._root_spelled_otherwise(home.resolve() / "receipts", (root,)) is None
 
 
-@pytest.mark.parametrize("name", ["receipts", "RECEIPTS"])
+@pytest.mark.parametrize("name", ["~/receipts", "~/RECEIPTS", "receipts"])
 def test_a_listing_of_a_home_folder_in_other_case_is_not_refused(name, tmp_path, monkeypatch):
     home = tmp_path / "home"
     (home / "Receipts").mkdir(parents=True)
@@ -44,4 +44,4 @@ def test_a_listing_of_a_home_folder_in_other_case_is_not_refused(name, tmp_path,
                         or real_samefile(a, b))
     real_exists = Path.exists
     monkeypatch.setattr(Path, "exists", lambda self: real_exists(self) or real_exists(self.parent / "Receipts"))
-    assert rt._resolve_safe_machine_directory(f"~/{name}") == (home / "Receipts").resolve()
+    assert rt._resolve_safe_machine_directory(name) == (home / "Receipts").resolve()
