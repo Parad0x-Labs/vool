@@ -69,6 +69,11 @@ def maybe_handle_action_receipt_location_request(
     if kind is None:
         return None
 
+    if receipt is None and _judged_a_recall(user_input):
+        # No write of this chat to point at, and the turn's judge read a question about what the person told it:
+        # "and from where?" after "when does <name> land?" asks where she flies from. iMac gate58 on 9a267b88d: it was
+        # answered "I have no file-write receipt in this session ..." and the saved trip was never read.
+        return None
     if receipt is None and _judged_a_find_on_disk(user_input):
         # No write of this chat to point at, and the turn's judge read the whole message as a find on this
         # computer: "I need the electric bill, where is it?" asks for the bill, not for a file this chat
@@ -99,6 +104,16 @@ def maybe_handle_action_receipt_location_request(
         reason="action_receipt_location",
         classification_details=details,
     )
+
+
+def _judged_a_recall(user_input: str) -> bool:
+    """Whether this turn's judge read the message as asking what the person told VOOL (read only)."""
+    try:
+        from core.plugin_ask import judged_memory_ask
+
+        return judged_memory_ask(user_input) == "recall"
+    except Exception:
+        return False
 
 
 def _judged_a_find_on_disk(user_input: str) -> bool:
