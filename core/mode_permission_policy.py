@@ -3376,6 +3376,29 @@ def _affected_resources_display(
     by asking (measured live 2026-09-18). Only the filesystem fields (path/paths/cwd) are
     resolved; url/recipient/channel are not paths and pass through untouched.
     """
+    return [_home_relative(item) for item in _affected_resources_resolved(arguments, source_context)]
+
+
+def _home_relative(value: str) -> str:
+    """A location under the person's home as "~/..." (the place stays plain, the account name and disk layout are not
+    shown). Benchmark on d9a520dca: an approval card showed the full absolute path. Anything else passes unchanged."""
+    text = str(value or "")
+    if not text.startswith("/"):
+        return text
+    try:
+        from pathlib import Path
+
+        home = str(Path.home()).rstrip("/")
+    except Exception:
+        return text
+    if home and home != "/" and (text == home or text.startswith(home + "/")):
+        return "~" + text[len(home):]
+    return text
+
+
+def _affected_resources_resolved(
+    arguments: dict[str, Any], source_context: dict[str, Any]
+) -> list[str]:
     root = _trusted_write_root(source_context).rstrip("/")
     raw = _affected_resources(arguments)
     if not root:
