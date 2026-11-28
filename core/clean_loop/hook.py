@@ -272,10 +272,9 @@ def _force_ordered_answer(loop_result: Any, *, text: str, ctx: ToolContext, cont
     return loop_result
 
 
-def front_door_needs_web(text: str, context: dict[str, Any]) -> bool:
-    """Whether the front door would class this ask as needing fresh or online information (weather, news,
-    a lookup, a live value): the same three reads core.agent_runtime.turn_frontdoor makes before it sends an
-    ask to the web switch. Used so such an ask meets the switch instead of this loop's file reads."""
+def front_door_needs_live_reading(text: str, context: dict[str, Any]) -> bool:
+    """Whether the front door would class this ask as a live reading (a live value, the weather, the news): no
+    document the owner keeps is one, so it meets the web switch, or its refusal, whatever the files hold."""
     try:
         from core.execution_requirements import requirements_for
 
@@ -286,7 +285,21 @@ def front_door_needs_web(text: str, context: dict[str, Any]) -> bool:
     try:
         from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
 
-        if live_info_mode(None, text, interpretation=None) in ("weather", "news", "fresh_lookup"):
+        return live_info_mode(None, text, interpretation=None) in ("weather", "news")
+    except Exception:
+        return False
+
+
+def front_door_needs_web(text: str, context: dict[str, Any]) -> bool:
+    """Whether the front door would class this ask as needing fresh or online information (weather, news,
+    a lookup, a live value): the same three reads core.agent_runtime.turn_frontdoor makes before it sends an
+    ask to the web switch. Used so such an ask meets the switch instead of this loop's file reads."""
+    if front_door_needs_live_reading(text, context):
+        return True
+    try:
+        from core.agent_runtime.fast_live_info_mode_classifier import live_info_mode
+
+        if live_info_mode(None, text, interpretation=None) == "fresh_lookup":
             return True
     except Exception:
         pass
@@ -372,7 +385,7 @@ def productive_steps(loop_result: Any) -> list[int]:
 
 def loop_should_decline(
     text: str, loop_result: Any, receipts: list[dict[str, Any]] | None = None, *, follow_up: bool = False,
-    judged: Any = None,
+    judged: Any = None, words_needed: bool = True,
 ) -> str:
     """A reason when the loop's tools did not produce evidence for this ask, "" when it may answer.
 
@@ -397,7 +410,9 @@ def loop_should_decline(
     seen = [str(x) for x in getattr(loop_result, "seen", None) or []]
     observed = [str(r.get("response_preview") or "") for r in (receipts or []) if (r.get("execution") or {}).get("ok", True)]
     blob = " ".join([*seen, *observed]).lower()
-    if words and not any(w in blob for w in words):
+    if words_needed and words and not any(w in blob for w in words):
+        # (A turn a judge's reading brought here is weighed by whether the reply answers it, below: the file it is
+        # about may share no word with it, "how much did we get back from the taxman" and "Refund 980.20 EUR".)
         return "irrelevant_matches_fell_through"
     if not follow_up and found_nothing(text, loop_result.answer, judged):
         return "found_nothing_fell_through"
@@ -465,9 +480,14 @@ def maybe_answer(
             # Whatever the route could not index within its short slice is finished off the turn.
             warm_index(route_ctx)
 
+    def _documents_kept() -> bool:
+        from core.clean_loop.tools import kept_documents
+
+        return bool(kept_documents(route_ctx))
+
     decision = route.decide(
         text, source_context=context, session_id=session_id, resolve_brain=_resolve, browser_turn=browser_turn,
-        file_words=_file_words, document_match=_document_match,
+        file_words=_file_words, document_match=_document_match, documents_kept=_documents_kept,
     )
     context["clean_local_loop_route"] = decision.reason
     _LOG.info("clean loop route: %s", decision.reason)
@@ -495,9 +515,14 @@ def maybe_answer(
     )
     own_ask = route.asks_explicitly_about_own_things(text) or redirected
     explicit_own = own_ask or follow_up
-    if not explicit_own and needs_web:
-        # Order: an ask the front door classes as fresh/online meets the web switch (or its refusal)
-        # before this loop; only an ask that says it is the owner's own keeps the loop's first turn.
+    if not explicit_own and needs_web and (
+        route._web_runs(context) or front_door_needs_live_reading(effective_input or text, context)
+    ):
+        # Order: an ask the front door classes as fresh/online meets the web switch before this loop; only an ask
+        # that says it is the owner's own keeps the loop's first turn. A lookup that cannot run this turn is only a
+        # refusal there, so the owner's files are searched first and a search that finds nothing falls through to
+        # it (benchmark on d8da327bc, web off: "how much is the road tax on the car" with the bill in Documents/Car
+        # was answered "Web lookups are off").
         context["clean_local_loop_route"] = "fresh_ask_to_front_door"
         _LOG.info("clean loop fell through: %s", "fresh_ask_to_front_door")
         return None
@@ -508,6 +533,10 @@ def maybe_answer(
         return exact
     from core.clean_loop.brain import make_brain, model_label
     ctx = route_ctx
+    if decision.by_judgement:
+        from core.clean_loop.tools import DOCUMENT_MAP_FLAG
+
+        ctx.source_context[DOCUMENT_MAP_FLAG] = True
     provider_id, model_id = model_label(decision.brain)
     loop_brain = make_brain(router, decision.brain, context)
     loop_ask = text
@@ -535,6 +564,8 @@ def maybe_answer(
             agent, stop, context=context, session_id=session_id, effective_input=effective_input, ctx=ctx,
             provider_id=provider_id, model_id=model_id,
         )
+    finally:
+        ctx.source_context.pop("_clean_loop_document_map", None)  # this loop's own staging, never a later lane's
     if loop_result.stopped == "answered" and not loop_result.proposals:
         loop_result = _guard_file_claims(
             loop_result, text=text, brain=loop_brain, ctx=ctx, context=context, prior_evidence=prior_evidence
@@ -607,7 +638,8 @@ def maybe_answer(
         route.forget_clean_turn(session_id)
         return None
     if not explicit_own and not loop_result.proposals:
-        declined = loop_should_decline(carried or text, loop_result, ctx.receipts, follow_up=follow_up, judged=judged)
+        declined = loop_should_decline(carried or text, loop_result, ctx.receipts, follow_up=follow_up, judged=judged,
+                                       words_needed=not decision.by_judgement)
         if declined:
             # Admitted on a word, not on the owner's own things, and the reads found nothing for it: not this
             # loop's turn. Only reads ran; none of them is recorded as this turn's observation.

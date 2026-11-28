@@ -617,10 +617,16 @@ def find(args: dict[str, Any], ctx: ToolContext) -> ToolOutcome:
     if inside:
         lines = [f"no file name has {', '.join(words)}; these files mention it inside:", *inside]
         return _merge([*outcomes, ToolOutcome(text="", ok=True)], "\n".join(lines), status=status)
+    # A word search finds only the words a file uses: "tax back" is not "Refund 980.20 EUR", "holidays" is not
+    # "Winter break" (benchmark on d8da327bc: admitted file-fact asks fell through "not found" after one empty find).
+    # The model is shown where the documents are kept, so it can open the one the question is about by its meaning.
+    kept = _document_map_lines(ctx)
+    where = ("\nThe documents kept here, by where they are (names only; open the one the question is about, or say "
+             "it is not there):\n" + "\n".join(kept)) if kept else ""
     return _merge(
         outcomes,
         f"I didn't find it in your files. Search result: nothing found for: {', '.join(words)} in file "
-        f"names or inside documents.{_unopened_note(ctx)} Try another word you used or a folder name.",
+        f"names or inside documents.{_unopened_note(ctx)} Try another word you used or a folder name.{where}",
         status=status,
         empty=True,
     )
@@ -1131,6 +1137,59 @@ def document_matches(ask: str, ctx: ToolContext) -> bool:
         if needles and any(needle in doc.pairs for doc in documents for needle in needles):
             return True
     return False
+
+
+def kept_documents(ctx: ToolContext) -> list[str]:
+    """Where the owner's indexed documents are kept, as paths under home ("Documents/Car/service-log.txt"), newest
+    first, from the same bounded, in-memory index as `document_matches` (no model call, nothing written to disk)."""
+
+    def read() -> list[tuple[float, str]]:
+        with _INDEX_LOCK:
+            candidates, _complete = _scan_document_index(ctx, budget_s=_TEXT_SCAN_S, fresh=False)
+            paths = {str(path) for path in candidates}
+            return [(float(key[2]), key[0]) for key in _TEXT_CACHE if key[0] in paths]
+
+    held = run_bounded("document-paths:" + str(ctx.home.resolve()), read, wait_s=_TEXT_SCAN_S + _INDEX_WAIT_S,
+                       fallback=[])
+    home = ctx.home.resolve()
+    shown: list[str] = []
+    for _mtime, path in sorted(held, reverse=True):
+        try:
+            relative = str(Path(path).relative_to(home))
+        except ValueError:
+            continue
+        if relative not in shown:
+            shown.append(relative)
+    return shown
+
+
+#: The most document paths a map shows the loop's model: enough for a household's papers, bounded for a small model.
+_DOCUMENT_MAP_MAX = 80
+#: The turn context flag the hook sets when a judge's reading, not a shared word, brought the turn here.
+DOCUMENT_MAP_FLAG = "_clean_loop_document_map"
+
+
+def document_map_pre_step(ask: str, ctx: ToolContext) -> str | None:
+    """For a turn the judges sent here (a recall of the owner's own life nothing saved answers, or a lookup about it
+    that cannot run), where the owner's documents are kept, so the model can open the one the question is about
+    whatever words it shares with the ask: "what tyre size does our car take" and Documents/Car/service-log.txt.
+    Names only; the model reads the file before it answers. Nothing for any other turn."""
+    if not (ctx.source_context or {}).get(DOCUMENT_MAP_FLAG):
+        return None
+    lines = _document_map_lines(ctx)
+    if not lines:
+        return None
+    return ("The owner's documents, by where they are kept under the home folder (names only: read the one the "
+            "question is about before answering):\n" + "\n".join(lines))
+
+
+def _document_map_lines(ctx: ToolContext) -> list[str]:
+    """The owner's documents as list lines, by where they are kept (inside the turn's scope), bounded."""
+    paths = [path for path in kept_documents(ctx) if not ctx.scope or _in_scope(ctx.home / path, ctx)]
+    lines = [f"- {path}" for path in paths[:_DOCUMENT_MAP_MAX]]
+    if len(paths) > _DOCUMENT_MAP_MAX:
+        lines.append(f"- ... and {len(paths) - _DOCUMENT_MAP_MAX} more")
+    return lines
 
 
 def _in_scope(path: Path, ctx: ToolContext) -> bool:
@@ -1908,6 +1967,7 @@ def install_builtin_tools(registry: Registry) -> None:
     # Names first, then the card: the card's own lines are never rewritten.
     registry.register_pre_step("privacy", privacy_pre_step)
     registry.register_pre_step("look_first", look_first_pre_step)
+    registry.register_pre_step("document_map", document_map_pre_step)
     registry.register_answer_gate("exact_names", exact_names)
     registry.register_answer_gate("content_absence", content_absence_gate)
     registry.register_answer_gate("pending_proposal_notice", pending_proposal_notice)
@@ -1916,13 +1976,16 @@ def install_builtin_tools(registry: Registry) -> None:
 __all__ = [
     "BUILTIN_TOOLS",
     "CARD_NOTICE",
+    "DOCUMENT_MAP_FLAG",
     "PENDING_NOTICE",
     "OutsideHome",
     "content_absence_claim",
     "content_absence_gate",
+    "document_map_pre_step",
     "document_matches",
     "home_dir",
     "install_builtin_tools",
+    "kept_documents",
     "pending_proposal_notice",
     "scope_path",
     "warm_index",

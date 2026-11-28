@@ -222,6 +222,10 @@ class RouteDecision:
     #: Admitted only because the owner's documents hold its words (no topic, ownership or file-name
     #: word). Such a turn may be one VOOL's memory answers; finding nothing, it falls through.
     by_documents: bool = False
+    #: Admitted on a judge's reading (a recall of the owner's own life, or a lookup about it that cannot run), not on
+    #: a word it shares with a file: the loop is shown where the owner's documents are kept, and what it read is
+    #: weighed by whether it answers, never by the words it shares with the ask.
+    by_judgement: bool = False
 
 
 CHANGES_ENV = "VOOL_CLEAN_LOOP_CHANGES"
@@ -913,6 +917,79 @@ def _names_owners_person(text: str, session_id: str, source_context: Mapping[str
         return False
 
 
+def _web_runs(source_context: Mapping[str, Any] | None) -> bool:
+    """Whether a web lookup can run for this turn (Web lookups on, not Local Only, not an offline chat). Unreadable,
+    it can: the turn keeps the web lane, as before."""
+    try:
+        from core.remote_fetch_policy import effective_web_available, offline_turn_active
+
+        return not offline_turn_active() and bool(effective_web_available(dict(source_context or {})))
+    except Exception:
+        return True
+
+
+def _pick_can_run(pick: str, web_runs: bool) -> bool:
+    """Whether the tool behind a judged pick can run this turn. Only the web and the mail search can be known not to
+    (Web lookups off, no mail account connected); every other pick is taken as runnable, as before."""
+    if pick == "web":
+        return web_runs
+    if pick == "mail":
+        try:
+            from core.runtime_tool_contracts import _email_lane_available
+
+            return bool(_email_lane_available("read"))
+        except Exception:
+            return True
+    return True
+
+
+def _a_recall_the_documents_may_hold(
+    text: str, session_id: str, source_context: Mapping[str, Any] | None,
+    documents_kept: Callable[[], bool] | None,
+) -> bool:
+    """A question the turn's judge read as a recall of the owner's own facts (core.plugin_ask, any language), that
+    nothing saved answers, while the owner keeps documents. Read in that order: the judge's reading and memory first,
+    the bounded document index last. No word of the ask has to be in a document: the loop reads them. (The judge's
+    reading says it asks for a fact, in whatever form: "how strong are my glasses" is no question by its words.)"""
+    if documents_kept is None:
+        return False
+    try:
+        from core.plugin_ask import judged_memory_ask
+
+        if judged_memory_ask(text) != "recall":
+            return False
+    except Exception:
+        return False
+    if asks_what_owner_told(text) or _saved_memory_answers(text, session_id, source_context):
+        return False
+    try:
+        return bool(documents_kept())
+    except Exception:
+        return False
+
+
+def _a_lookup_about_the_owners_life(
+    text: str, session_id: str, source_context: Mapping[str, Any] | None,
+    documents_kept: Callable[[], bool] | None,
+) -> bool:
+    """A lookup that cannot run, read by the judge as a question about the owner's own life, not the world
+    (core.intent_arbiter.arbitrate_world_follow_up, any language), while the owner keeps documents: "when do the
+    kids' holidays start and end" beside the school dates in Documents/Kids, with Web lookups off. Asked only when
+    nothing in the ask's words points at a file, and only after the cheap reads."""
+    if documents_kept is None:
+        return False
+    try:
+        if not documents_kept():
+            return False
+        from core.intent_arbiter import arbitrate_world_follow_up
+
+        return arbitrate_world_follow_up(
+            text, [], chat_id=str(session_id or ""), source_context=dict(source_context or {}) or None
+        ) == "no"
+    except Exception:
+        return False
+
+
 def _saved_memory_answers(text: str, session_id: str, source_context: Mapping[str, Any] | None) -> bool:
     """A question a fact the owner saved answers ("what's the booking code for the boat?" after it was saved), when
     the ask does not itself point at files. On the Mac (cbc915ec) such questions were admitted because their words
@@ -997,6 +1074,7 @@ def decide(
     env: Mapping[str, str] | None = None,
     file_words: Callable[[], set[str]] | None = None,
     document_match: Callable[[str], bool] | None = None,
+    documents_kept: Callable[[], bool] | None = None,
 ) -> RouteDecision:
     if not flag_on(env):
         return RouteDecision(False, "flag_off")
@@ -1036,7 +1114,19 @@ def decide(
         return RouteDecision(False, "write_turn")
     if is_run_order(text) or "run" in judged:
         return RouteDecision(False, "run_turn")
-    if judged - _JUDGED_CHOICES_THIS_LOOP_SERVES:
+    # A lookup that cannot run this turn (Web lookups off, Local Only, an offline chat) seats nothing: the web lane
+    # could only refuse. A question the owner's own documents hold is then theirs to answer, never "Web lookups are
+    # off" (benchmark on d8da327bc, web off: "when do the kids' holidays start and end" with the school dates in
+    # Documents/Kids was refused as a lookup; the files were never searched). With no such evidence the turn keeps
+    # the reason it had.
+    web_runs = _web_runs(source_context)
+    unrunnable_lookup = ""
+    other = judged - _JUDGED_CHOICES_THIS_LOOP_SERVES
+    if other and all(not _pick_can_run(pick, web_runs) for pick in other):
+        # Every tool the judge picked cannot run here: the web while it is off, a mail search with no mail account
+        # connected ("how much was the tax refund" judged a mail search, benchmark on d8da327bc).
+        unrunnable_lookup = "judged_tool_turn"
+    elif other:
         # The turn's judge read an order for one of VOOL's own tools (a reminder, mail, git, the web ...) that this
         # loop does not hold; the normal lane seats it.
         return RouteDecision(False, "judged_tool_turn")
@@ -1051,7 +1141,9 @@ def decide(
         # Nothing is bound (a bound file is `attachment_turn` above), yet the ask points at one.
         return RouteDecision(False, "attachment_ask_nothing_bound")
     if is_online_ask(text):
-        return RouteDecision(False, "online_ask")
+        if web_runs:
+            return RouteDecision(False, "online_ask")
+        unrunnable_lookup = unrunnable_lookup or "online_ask"
     if is_notes_ask(text) and not _moved_to_a_folder(source_context):
         return RouteDecision(False, "notes_ask")
     if _database_work_owns(text, dict(source_context or {})):
@@ -1063,8 +1155,20 @@ def decide(
         return RouteDecision(False, "operator_turn")
     if skill_owns_turn(text):
         return RouteDecision(False, "skill_owns_turn")
-    by_documents = False
-    if not (
+    by_documents = by_judgement = False
+    if unrunnable_lookup:
+        # Only the owner's own files admit a lookup that cannot run: a word of a file's name or text, or the judges'
+        # reading that it is about the owner's own life. Finding nothing, the turn falls through to its refusal.
+        by_documents = names_owner_file(text, file_words) or (
+            document_match is not None and bool(document_match(text))
+        )
+        if not by_documents:
+            by_judgement = by_documents = _a_recall_the_documents_may_hold(
+                text, session_id, source_context, documents_kept
+            ) or _a_lookup_about_the_owners_life(text, session_id, source_context, documents_kept)
+        if not by_documents:
+            return RouteDecision(False, unrunnable_lookup)
+    elif not (
         asks_about_own_files_or_computer(text)
         or is_privacy_ask(text)
         or _is_follow_up(text, session_id)
@@ -1073,6 +1177,15 @@ def decide(
         # Last, and only for the owner's own turn: words the owner's documents hold (bounded,
         # in-memory index; no model call).
         by_documents = document_match is not None and bool(document_match(text))
+        if not by_documents:
+            # A question about the owner's own life that nothing saved answers may be in a document they keep, worded
+            # otherwise than the ask ("what tyre size does our car take" beside "Tyres: 205/55 R16" in
+            # Documents/Car): benchmark on d8da327bc answered it "I don't have that saved". The turn's judge read it
+            # as a recall of the owner's own facts, so the documents are searched, whatever words they share with
+            # it, before memory's "not saved", which still answers when the search finds nothing.
+            by_judgement = by_documents = _a_recall_the_documents_may_hold(
+                text, session_id, source_context, documents_kept
+            )
         if not by_documents:
             return RouteDecision(False, "not_about_own_files")
     if not _NAMES_FILES_RE.search(str(text or "")) and _saved_list_answers(text, session_id, source_context):
@@ -1110,7 +1223,7 @@ def decide(
     brain = resolve_brain() if resolve_brain is not None else None
     if brain is None:
         return RouteDecision(False, "brain_not_local")
-    return RouteDecision(True, "admitted", brain, by_documents=by_documents)
+    return RouteDecision(True, "admitted", brain, by_documents=by_documents, by_judgement=by_judgement)
 
 
 __all__ = [
