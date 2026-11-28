@@ -318,6 +318,24 @@ def unpatched_subprocess_popen() -> None:
 
 
 @pytest.fixture(autouse=True)
+def secret_registry_reset() -> None:
+    """Drop the exact secrets, public identifiers and minted digests `core.secret_redaction` holds between tests.
+
+    The registry is process-global on purpose: a value typed as a secret is masked for the rest of the run. In one
+    pytest process that means for every later test. CI shard 8 on d8da327bc: the Ledger wallet test hands
+    `recover_with_backup` the backup value "x" * 70, which is registered as a secret; much later in the shard the
+    workspace-change projection test's 200-character mutation ids ("mutation-" + "x" * 192 + "A") held that run of
+    x's, read as secret material, and came back as sha256 identities. Run alone, both pass. Only three test modules
+    cleared the registry by hand.
+    """
+    from core.secret_redaction import clear_exact_secrets_for_tests
+
+    clear_exact_secrets_for_tests()
+    yield
+    clear_exact_secrets_for_tests()
+
+
+@pytest.fixture(autouse=True)
 def summarizer_cache_reset() -> None:
     """Drop the summary cache and the memoized model pick between tests.
 
