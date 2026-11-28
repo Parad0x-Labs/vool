@@ -54,7 +54,13 @@ def judge(monkeypatch):
     return asked_and_verdict
 
 
-@pytest.mark.parametrize("text", [RYE, CASE, "my cousin Odile breeds border terriers."])
+@pytest.mark.parametrize("text", [
+    RYE, CASE, "my cousin Odile breeds border terriers.",
+    # Told as a change: one that changes a saved fact is the memory lane's turn and never reaches the keep step; one
+    # that changes nothing saved is news like any other (iMac gate58 on 9a267b88d: "the dentist moved my cleaning to
+    # the 22nd at half past ten" was taken by neither, and nothing was kept).
+    "the suitcase moved to the hall cupboard.",
+])
 def test_a_sentence_no_shape_lists_is_one_the_judge_may_be_asked_about(text):
     assert everyday.stated_facts(text) == []
     assert everyday.unlisted_statements(text) == [text]
@@ -69,7 +75,6 @@ def test_a_sentence_no_shape_lists_is_one_the_judge_may_be_asked_about(text):
         "the repair quote is in the downloads folder.",  # about files
         "never mind, scratch that about the suitcase.",  # a take-back
         "ok thanks",  # too short to state anything
-        "the suitcase moved to the hall cupboard.",  # a change: the update lane's
         "I lost one stirrup leather last week.",  # one past occasion
         "the vet rang about the dog an hour ago.",  # one past occasion
         "if we won the lottery we'd move to the coast.",  # a supposition

@@ -689,9 +689,9 @@ def unlisted_statements(text: str) -> list[str]:
     was written; the later questions about them had nothing to find. No list of shapes covers how people mention
     such things, so whether one of these sentences is a lasting fact about the person is a judgement, made by the
     caller (`core.persistent_memory.keep_stated_facts`). This only reads: it returns the sentences that could be
-    one, under the exclusions `stated_facts` already applies (a question, a request, a take-back, a change, pasted
-    material, a made-up frame, a remark about this moment or about files) and two of its own (a sentence about one
-    past occasion or a supposition; a sentence that opens with a lead), at most two of them."""
+    one, under the exclusions `stated_facts` already applies (a question, a request, a take-back, pasted material,
+    a made-up frame, a remark about this moment or about files) and two of its own (a sentence about one past
+    occasion or a supposition; a sentence that opens with a lead), at most two of them."""
     whole = str(text or "")
     if not whole.strip() or len(whole) > 600 or "\n" in whole.strip():
         return []
@@ -708,7 +708,10 @@ def unlisted_statements(text: str) -> list[str]:
         clean = _ASIDE_TAIL_RE.sub("", strip_continuation(sentence)).strip()
         if not clean or clean in listed or "?" in clean or is_question(clean):
             continue
-        if _REQUEST_HEAD_RE.match(clean) or _RETRACTION_RE.search(clean) or update_shaped(clean):
+        # A sentence told as a change ("the dentist moved my cleaning to the 22nd") stays: one that changes a saved fact
+        # is the memory lane's turn and never reaches the keep step, and one that changes nothing saved is news like
+        # any other. iMac gate58 on 9a267b88d: that sentence was taken by neither, and nothing was kept.
+        if _REQUEST_HEAD_RE.match(clean) or _RETRACTION_RE.search(clean):
             continue
         if not 4 <= len(clean.split()) <= 40 or _MOMENT_RE.search(clean) or _FILE_PLACE_RE.search(clean):
             continue
