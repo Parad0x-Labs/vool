@@ -5875,8 +5875,29 @@ def _resolve_safe_machine_directory(raw_path: str | None, *, write: bool = False
     for root in roots:
         if candidate == root or root in candidate.parents:
             return candidate
+    # A Mac's disk ignores letter case, and the model writes a folder the way the person said it: "~/receipts" for
+    # ~/Receipts is that folder, and comparing the spelling refused it. The match is the folder itself on disk.
+    spelled = _root_spelled_otherwise(candidate, roots)
+    if spelled is not None:
+        return spelled
     allowed = ", ".join(_home_relative_label(r) for r in _safe_machine_roots()) if write else ", ".join(_readable_root_labels())
     raise ValueError(f"I can only inspect safe local directories in this lane: {allowed}.")
+
+
+def _root_spelled_otherwise(candidate: Path, roots: tuple[Path, ...]) -> Path | None:
+    """``candidate`` under its root's own spelling when the disk says one of its folders IS that root (a disk that
+    ignores letter case), or None."""
+    for ancestor in (candidate, *candidate.parents):
+        for root in roots:
+            if ancestor.name.casefold() != root.name.casefold() or ancestor.parent != root.parent:
+                continue
+            try:
+                same = ancestor.exists() and os.path.samefile(ancestor, root)
+            except OSError:
+                same = False
+            if same:
+                return root / candidate.relative_to(ancestor)
+    return None
 
 
 def _is_windows_platform() -> bool:
