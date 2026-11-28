@@ -92,3 +92,13 @@ def test_another_chat_has_its_own_recalls(monkeypatch):
     pm._judged_recall_items(EARLIER, list(HELD), session_id="chat-a", source_context={})
     monkeypatch.setattr(pm, "_judged_items_named", lambda *_a, **_k: [HELD[0]])
     assert pm._judged_recall_items("und wo?", list(HELD), session_id="chat-b", source_context=_context()) == [HELD[0]]
+
+
+def test_a_follow_up_on_a_follow_up_is_about_the_same_facts(monkeypatch):
+    monkeypatch.setattr(pm, "_judged_items_named", lambda *_a, **_k: [HELD[1]])
+    pm._judged_recall_items(EARLIER, list(HELD), session_id="chat", source_context={})
+    plugin_ask._record_builtins("und wo?", ("memory_recall",))
+    monkeypatch.setattr(pm, "_judged_items_named", lambda *_a, **_k: list(HELD))
+    assert pm._judged_recall_items("und wo?", list(HELD), session_id="chat", source_context=_context()) == [HELD[1]]
+    later = {"conversation_history": [{"role": "user", "content": "und wo?"}, {"role": "assistant", "content": "Krone."}]}
+    assert pm._judged_recall_items("und wann?", list(HELD), session_id="chat", source_context=later) == [HELD[1]]

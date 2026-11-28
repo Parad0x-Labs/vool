@@ -3564,6 +3564,7 @@ def _judged_recall_items(
     earlier = _recalled_for(session_id, previous) if previous else None
     if earlier is not None and all(item in items for item in earlier):
         LOGGER.info("judged recall: a bare follow-up on the recall before it, %d fact(s) named there", len(earlier))
+        _note_recalled(session_id, question, list(earlier))  # a follow-up on this follow-up is about them too
         return list(earlier)
     picked = _judged_items_named(f"{previous}\n{question}" if previous else question, items,
                                  session_id=session_id, source_context=source_context)
