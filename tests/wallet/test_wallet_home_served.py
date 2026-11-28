@@ -25,7 +25,12 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from tests import _reader_served_rig as rig
 from tests import served_browser
+from core.page_poll_scheduler import IDLE_HEARTBEAT_MS
 from tests.wallet._rig import ScriptedRpc
+
+#: The Home entry follows the wallet status the page reads on its shared idle heartbeat (core/page_poll_scheduler,
+#: 20 s since 061629b78; it was a 2.5 s interval of its own): a switch flipped elsewhere shows within one beat.
+_ONE_BEAT_MS = IDLE_HEARTBEAT_MS + 10_000
 
 pytestmark = [pytest.mark.safety]
 
@@ -109,7 +114,7 @@ def test_served_wallet_home_journey(browser, served):
     # 2. enable through the door the Settings switch uses: the entry appears exactly once
     status, _ = _door(daemon, "/api/settings/prefs", {"wallet_enabled": True})
     assert status == 200
-    page.wait_for_selector("#vwHomeBtn", state="attached", timeout=10_000)
+    page.wait_for_selector("#vwHomeBtn", state="attached", timeout=_ONE_BEAT_MS)
     assert page.locator("#vwHomeBtn").count() == 1
     if page.locator("#homeMenu").get_attribute("open") is None:
         page.click("#homeToggle")
@@ -196,13 +201,14 @@ def test_served_wallet_home_journey(browser, served):
     # 10. disable: the entry disappears, the open panel closes; re-enable restores the stored wallets
     status, _ = _door(daemon, "/api/settings/prefs", {"wallet_enabled": False})
     assert status == 200
-    page.wait_for_timeout(2800)  # the poll the page already runs
+    page.wait_for_selector("#vwHomeBtn", state="detached", timeout=_ONE_BEAT_MS)  # the poll the page already runs
+    page.wait_for_selector("#vwHomeOverlay", state="detached", timeout=5_000)
     assert page.locator("#vwHomeBtn").count() == 0
     assert page.locator("#vwHomeOverlay").count() == 0
     assert page.locator("#vwHomeSend").count() == 0, "no executable Send control remains"
     status, _ = _door(daemon, "/api/settings/prefs", {"wallet_enabled": True})
     assert status == 200
-    page.wait_for_selector("#vwHomeBtn", state="attached", timeout=10_000)
+    page.wait_for_selector("#vwHomeBtn", state="attached", timeout=_ONE_BEAT_MS)
     if page.locator("#homeMenu").get_attribute("open") is None:
         page.click("#homeToggle")
     page.locator("#vwHomeBtn").click()
