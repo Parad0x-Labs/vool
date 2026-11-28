@@ -1860,7 +1860,11 @@ def _web_ask_prompt(message: str, previous: str = "") -> str:
 
     Its own question because the tool judgement over a list reads almost any question as one for the web: on the app
     from source (qwen3:8b, 2026-11-22) "Kas yra fotosintezė?", "Was ist ein schwarzes Loch?" and "¿Quién escribió Don
-    Quijote?" were each picked for the web there, and with Web lookups off such a pick refuses an ordinary question."""
+    Quijote?" were each picked for the web there, and with Web lookups off such a pick refuses an ordinary question.
+
+    The person's own files are no web page's either. Benchmark on 21d4d4046 (qwen3:8b): a question about a scanned PDF
+    in the home folder was answered "Web lookups are off". Probe g58 on the Mac: the files line read 10 of 10 file
+    questions no (8 of 10 before) and 10 of 10 web questions still yes."""
     flat = " ".join(str(message or "").split())[:400]
     before = " ".join(str(previous or "").split())[:300].replace('"', "'")
     return "\n".join([
@@ -1877,13 +1881,16 @@ def _web_ask_prompt(message: str, previous: str = "") -> str:
         'Answer {"answer": "no"} as well when the message only TELLS the assistant something (the person\'s own news, '
         "what happened to them or their people, how they feel) and asks nothing to be found out, and when it asks "
         "about the person's own life, people or things (what they own, where they keep something, what they told "
-        "the assistant): no web page knows that.",
+        "the assistant), or about their own files, folders, documents, notes, photos or scans on this computer: no web "
+        "page knows that.",
         "",
         'Message: "search online for the opening hours of the Louvre" -> {"answer": "yes"}',
         'Message: "big news, my brother finally sold his old car!" -> {"answer": "no"}',
         'Message: "what is in the news about the strike today?" -> {"answer": "yes"}',
         'Message: "puikios žinios, egzaminą išlaikiau" -> {"answer": "no"}',
         'Message: "sag mir nochmal, wie mein Hund heißt" -> {"answer": "no"}',
+        'Message: "what does the scanned lease in my Downloads say about pets?" -> {"answer": "no"}',
+        'Message: "kiek kainavo pagal sąskaitą, kuri yra mano Dokumentuose?" -> {"answer": "no"}',
         'Message: "who painted the Mona Lisa?" -> {"answer": "no"}',
         'Message: "kokie šiandien orai Klaipėdoje?" -> {"answer": "yes"}',
         'Message: "kas yra gravitacija?" -> {"answer": "no"}',

@@ -43,3 +43,10 @@ def test_a_first_message_is_asked_alone(monkeypatch) -> None:
     assert online_asks.web_ask_verdict("search online for ferry times to Bornholm", source_context={},
                                        session_id="chat-ferry") == "yes"
     assert seen == [""]
+
+
+def test_the_web_question_reads_the_persons_own_files_as_no_web_page_s():
+    """Benchmark on 21d4d4046 (qwen3:8b): a question about a scanned PDF in the home folder was answered "Web lookups
+    are off". Probe g58 on the Mac: with this line 10 of 10 file questions read no, and 10 of 10 web questions yes."""
+    prompt = intent_arbiter._web_ask_prompt("x")
+    assert "their own files, folders, documents, notes, photos or scans on this computer" in prompt
