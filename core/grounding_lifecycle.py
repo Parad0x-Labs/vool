@@ -1110,6 +1110,14 @@ def seal_turn_grounding(
         if _withdraw(source_context, reason="answered_from_this_computer", keep_web_evidence=True):
             return ""
 
+    if _answered_from_saved_memory(source_context, result):
+        # The answer quotes what the owner told VOOL to keep, read from their own memory, and nothing was read from
+        # the web: no current-information check is about it. Gate 68 on a35e0e475 (qwen3:8b): "how much is the
+        # plumber's call-out?", with "our plumber is Mrs. Halvorsen, she charges a 45 euro call-out fee" saved, was
+        # judged a web ask, and the recall lane's answer from that row was withheld as "I didn't look anything up".
+        if _withdraw(source_context, reason="answered_from_saved_memory", keep_web_evidence=True):
+            return ""
+
     receipts = source_context.get("web_retrieval_receipts")
     if isinstance(receipts, list) and receipts:
         last = receipts[-1] if isinstance(receipts[-1], dict) else {}
@@ -1321,6 +1329,33 @@ def harvest_execution_records(source_context: dict[str, Any] | None) -> int:
         if not record.retrieval_outcome:
             record.retrieval_outcome = "tool_receipt"
     return record_typed_observations(source_context, entries=rows)
+
+
+def _answered_from_saved_memory(source_context: dict[str, Any], result: Any) -> bool:
+    """Whether the served answer is the cross-chat recall lane's, found in the owner's own records, on a turn that read
+    nothing from the web. Read from what the turn did (the lane that answered, its own found flag, the retrieval
+    receipts and the tool ledger), never from the ask's words."""
+    if not isinstance(result, dict) or not result.get("recall_found"):
+        return False
+    try:
+        from core.agent_runtime.cross_chat_recall import LANE_ID
+    except Exception:
+        return False
+    if LANE_ID not in {str(result.get("route") or ""), str(result.get("reason") or "")}:
+        return False
+    if source_context.get("web_retrieval_receipts"):
+        return False
+    identity = _identity_from(source_context)
+    if identity.session_id and identity.turn_id:
+        try:
+            from core import execution_records
+
+            records = execution_records.records_for_turn(identity.session_id, identity.turn_id)
+        except Exception:
+            return False
+        if any(str(entry.intent or "").startswith("web") for entry in records):
+            return False
+    return True
 
 
 def _answered_from_this_computer_alone(source_context: dict[str, Any]) -> bool:

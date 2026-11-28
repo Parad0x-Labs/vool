@@ -58,14 +58,27 @@ def developer_folder() -> Path | None:
     return None
 
 
+def _which(name: str) -> str | None:
+    """``shutil.which``, or a plain PATH walk where it cannot run (it reads the platform's own
+    lookup rules, which fail when the interpreter's platform and its loaded modules disagree)."""
+    try:
+        return shutil.which(name)
+    except (AttributeError, OSError, ValueError):
+        for folder in os.environ.get("PATH", "").split(os.pathsep):
+            candidate = Path(folder or ".") / name
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return str(candidate)
+        return None
+
+
 def installed(name: str) -> bool:
     """Whether running ``name`` (a bare name or a /usr/bin path) starts the real tool, not a dialog."""
     program = Path(str(name or "").strip())
     if not program.name:
         return False
     if not _on_macos():
-        return bool(shutil.which(str(program))) if not program.is_absolute() else os.access(program, os.X_OK)
-    resolved = Path(shutil.which(str(program)) or program) if not program.is_absolute() else program
+        return bool(_which(str(program))) if not program.is_absolute() else os.access(program, os.X_OK)
+    resolved = Path(_which(str(program)) or program) if not program.is_absolute() else program
     if resolved.parent != Path("/usr/bin") or resolved.name not in _LAUNCHERS:
         return resolved.is_absolute() and os.access(resolved, os.X_OK)
     folder = developer_folder()

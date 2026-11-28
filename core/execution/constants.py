@@ -4654,7 +4654,11 @@ _LISTING_KIND_WORDS = {
     "pdf": "pdf", "pdfs": "pdf", "song": "audio", "songs": "audio", "mp3": "ext:mp3", "mp3s": "ext:mp3",
     "spreadsheet": "spreadsheet", "spreadsheets": "spreadsheet", "csv": "ext:csv", "csvs": "ext:csv",
 }
-_KIND_WORD_RE = re.compile(r"\b(" + "|".join(sorted(_LISTING_KIND_WORDS, key=len, reverse=True)) + r")\b", re.IGNORECASE)
+# A kind named as a word, never as a file's own extension: "dog-vaccination-card.pdf" names one file,
+# not "the pdfs" (gate 68 on a35e0e475 listed Downloads for it).
+_KIND_WORD_RE = re.compile(
+    r"(?<![\w\-]\.)\b(" + "|".join(sorted(_LISTING_KIND_WORDS, key=len, reverse=True)) + r")\b", re.IGNORECASE
+)
 _KNOWN_FOLDER_RE = re.compile(
     r"\b(?:my\s+|the\s+|in\s+|from\s+|on\s+(?:the\s+|my\s+)?)?(" + "|".join(_KNOWN_USER_FOLDERS) + r")\b(?:\s+folder)?",
     re.IGNORECASE,

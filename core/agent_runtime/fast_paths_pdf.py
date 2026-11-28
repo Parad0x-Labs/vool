@@ -249,11 +249,91 @@ def _resolve_named_pdf(text: str) -> dict[str, Any] | None:
     return {"path": _expand(named), "named": named, "found": False}
 
 
+# The word "pdf" on its own (not a file's ".pdf"): "the boiler service pdf", "that pdf".
+_PDF_WORD_RE = re.compile(r"(?<![\w.\-])pdf(?![\w.\-])", re.IGNORECASE)
+_NAME_WORD_RE = re.compile(r"[^\W_]+", re.UNICODE)
+
+
+def _name_words(name: str) -> set[str]:
+    """The words of a file name, split wherever its letters and digits stop: boiler-service-2026 ->
+    boiler, service, 2026."""
+    return {word.casefold() for word in _NAME_WORD_RE.findall(Path(name).stem)}
+
+
+def _pdfs_under_roots() -> list[Path]:
+    """Every PDF under the readable roots, breadth-first within the same budget as a bare name."""
+    found: list[Path] = []
+    seen = 0
+    frontier = [root for root in _search_roots() if root.is_dir()]
+    for _ in range(_SEARCH_MAX_DEPTH + 1):
+        if not frontier:
+            break
+        next_frontier: list[Path] = []
+        for directory in frontier:
+            try:
+                entries = list(directory.iterdir())
+            except OSError:
+                continue
+            for entry in entries:
+                seen += 1
+                if seen > _SEARCH_MAX_ENTRIES:
+                    return found
+                try:
+                    if entry.is_dir():
+                        if entry.name.lower() not in _SEARCH_SKIP_DIRS and not entry.name.startswith("."):
+                            next_frontier.append(entry)
+                    elif entry.suffix.lower() == ".pdf" and _inside_search_roots(entry):
+                        found.append(entry)
+                except OSError:
+                    continue
+        frontier = next_frontier
+    return found
+
+
+def _described_pdf(text: str) -> dict[str, Any] | None:
+    """The one PDF on disk that "the <words> pdf" describes by words of its own name, else None.
+
+    Gate 68 on a35e0e475: "what does the boiler service pdf in my Documents say?" named no file, so
+    a listing of every PDF in Documents answered it and the PDF was never read. The words right
+    before the word "pdf" are walked back for as long as each is a word of some PDF's name on this
+    disk (any language, any order); the file whose name holds all of them, and is the only one that
+    does, is the one meant. A word that names no file ("the", "what", "my") ends the description, so
+    "what pdfs are in my Documents" and "is there a pdf about tax" describe nothing.
+    """
+    for match in _PDF_WORD_RE.finditer(str(text or "")):
+        before = [word.casefold() for word in _NAME_WORD_RE.findall(text[: match.start()])]
+        if not before:
+            continue
+        pdfs = [(path, _name_words(path.name)) for path in _pdfs_under_roots()]
+        named_somewhere = set().union(*(words for _path, words in pdfs)) if pdfs else set()
+        described: list[str] = []
+        for word in reversed(before):
+            if word not in named_somewhere:
+                break
+            described.append(word)
+        if not described:
+            continue
+        holding = [path for path, words in pdfs if words.issuperset(described)]
+        if len(holding) == 1:
+            return {"path": holding[0], "named": holding[0].name, "found": True}
+    return None
+
+
 def pdf_read_request(text: str) -> dict[str, Any] | None:
     """`{"path", "named", "found", "wants_ocr"}` when the message names a PDF to read, else None."""
     raw = str(text or "").strip()
-    if not raw or not _PDF_TOKEN_RE.search(raw):
+    if not raw:
         return None
+    if not _PDF_TOKEN_RE.search(raw):
+        # No file named: one described by the words of its name, read like a named one.
+        if not _PDF_WORD_RE.search(raw) or any(marker in _padded(raw) for marker in _CREATE_MARKERS):
+            return None
+        described = _described_pdf(raw)
+        if described is None:
+            return None
+        without_name = _padded(raw)
+        described["wants_ocr"] = any(marker in without_name for marker in _OCR_MARKERS)
+        return described
     padded = _padded(raw)
     if any(marker in padded for marker in _CREATE_MARKERS):
         return None

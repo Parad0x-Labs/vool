@@ -3703,6 +3703,14 @@ def maybe_handle_direct_machine_read_request(
 
     if (source_context or {}).get("unresolved_referent"):
         return None  # "that folder" with no folder recorded for this chat: the model asks, no handler guesses
+    from core.agent_runtime.fast_paths_pdf import maybe_handle_pdf_read, pdf_read_request
+
+    described = pdf_read_request(user_input)
+    if described is not None and described.get("found"):
+        # One PDF on this disk, named or described by its name's words: read it, never list its folder.
+        answered = maybe_handle_pdf_read(agent, user_input, session_id=session_id, source_context=source_context)
+        if answered is not None:
+            return answered
     kind_listing = machine_kind_listing_intent(
         user_input,
         earlier_turns=_earlier_user_turns(session_id),
@@ -4114,7 +4122,12 @@ def maybe_answer_exact_read_first(
         or machine_diagnostics_intent(text) == "machine.disk_usage"
     )
     picked = list(slots.get("picked") or [])
-    if picked and pdf_read_request(text) is not None:
+    # A PDF the ask names or describes, found on this disk, is read by the PDF lane before any
+    # listing lane can claim the sentence: gate 68 on a35e0e475, "open dog-vaccination-card.pdf in
+    # Downloads and tell me when Biscuit needs the next booster" was answered with a listing of the
+    # PDFs in Downloads.
+    request = pdf_read_request(text)
+    if request is not None and (picked or request.get("found")):
         answered = maybe_handle_pdf_read(agent, text, session_id=session_id, source_context=source_context)
         if answered is not None:
             return answered

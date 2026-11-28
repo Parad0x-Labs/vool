@@ -394,7 +394,50 @@ def has_passed(resolution: WhenResolution) -> bool:
     return due < read_at
 
 
+_CLOCK_HOUR_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+    "ten": 10, "eleven": 11, "twelve": 12,
+}
+_CLOCK_MINUTE_WORDS = {"five": 5, "ten": 10, "twenty": 20, "twenty-five": 25, "twenty five": 25}
+_CLOCK_HOUR = r"(\d{1,2}|" + "|".join(sorted(_CLOCK_HOUR_WORDS, key=len, reverse=True)) + r")"
+_CLOCK_MINUTES = (
+    r"(half|(?:a\s+)?quarter|\d{1,2}|" + "|".join(sorted((re.escape(w) for w in _CLOCK_MINUTE_WORDS), key=len, reverse=True))
+    + r")(?:\s+minutes?)?"
+)
+#: A clock said in words ("half past seven", "quarter to nine", "ten past six", "seven o'clock"). Gate 68 on
+#: a35e0e475: "set a reminder for 9 january at half past seven in the morning" was set for 09:00, the words read
+#: as nothing and kept in the reminder's text.
+# Read as a clock only where a time is meant: after "at", "by", "around", "from", "until" or "before", or
+# with a part of the day after it. "we lost ten to nine" in a reminder's text is a score, not 8:50.
+_CLOCK_LEAD = r"\b(at|by|around|about|from|until|till|before)\s+"
+_CLOCK_PART_OF_DAY = r"(?=\s+(?:in\s+the\s+(?:morning|afternoon|evening)|at\s+night|tonight|am\b|pm\b|a\.m\.|p\.m\.))"
+_CLOCK_BODY = _CLOCK_MINUTES + r"\s+(past|after|to)\s+" + _CLOCK_HOUR + r"\b(?!\s*(?::|\.\d|minutes?|hours?|days?))"
+_WORDED_CLOCK_RE = re.compile(r"(?:" + _CLOCK_LEAD + r"|\b(?=\S))" + _CLOCK_BODY, re.IGNORECASE)
+_OCLOCK_RE = re.compile(r"\b" + _CLOCK_HOUR + r"\s*o['’]?\s*clock\b", re.IGNORECASE)
+
+
+def _clock_hour(word: str) -> int:
+    word = word.lower()
+    return int(word) if word.isdigit() else _CLOCK_HOUR_WORDS[word]
+
+
+def _worded_clock(match: re.Match) -> str:
+    lead = match.group(1)
+    if not lead and not re.match(_CLOCK_PART_OF_DAY, match.string[match.end():], re.IGNORECASE):
+        return match.group(0)
+    said, direction, hour = " ".join(match.group(2).lower().split()), match.group(3).lower(), _clock_hour(match.group(4))
+    minutes = 30 if said == "half" else 15 if said.endswith("quarter") else (
+        int(said) if said.isdigit() else _CLOCK_MINUTE_WORDS[said])
+    if not 1 <= hour <= 23 or not 0 < minutes < 60 or (said == "half" and direction == "to"):
+        return match.group(0)
+    if direction == "to":
+        hour, minutes = (hour - 1) or 12, 60 - minutes
+    return f"{lead + ' ' if lead else ''}{hour}:{minutes:02d}"
+
+
 _TIME_SHORTHAND = (
+    (_WORDED_CLOCK_RE, _worded_clock),
+    (_OCLOCK_RE, lambda m: f"{_clock_hour(m.group(1))}:00" if 0 <= _clock_hour(m.group(1)) <= 23 else m.group(0)),
     (re.compile(r"\b(?:tmrw|tmr|tmw|tomoz|2moro|2morrow)\b", re.IGNORECASE), "tomorrow"),
     (re.compile(r"\b(?:tonite|2nite)\b", re.IGNORECASE), "tonight"),
     (re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s+in\s+the\s+morning\b", re.IGNORECASE), lambda m: f"{m.group(1)}{':' + m.group(2) if m.group(2) else ''}am"),
