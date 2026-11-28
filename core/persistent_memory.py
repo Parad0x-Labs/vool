@@ -3490,14 +3490,41 @@ def _judged_items_named(
 _NAMED_KEY = "_judged_items_named"
 
 
-def _recall_question_with_its_subject(question: str, items: list[str], source_context: Mapping[str, Any] | None) -> str:
-    """The recall question as the recall judge reads it: a bare follow-up on a recall is read beside the recall it
-    follows. A message is such a follow-up when the person's message before it was judged a memory recall and it
-    shares no word with anything held (words of four letters or more, accents off, one form of a word for another):
-    it names its subject only through the question before. Anything else is read alone, as before.
+#: What the recall judge named for each recent recall question, per chat, so that a bare follow-up on that recall ("and
+#: where?") is about the same facts. Kept in this process only, for half an hour.
+_RECALLED: OrderedDict[tuple[str, str], tuple[float, tuple[str, ...]]] = OrderedDict()
+_RECALLED_LOCK = threading.Lock()
+_RECALLED_KEPT = 64
+_RECALLED_SECONDS = 1800.0
 
-    iMac gate62 on e8503d939 (qwen3:8b): right after "wann ist das Klassentreffen?" was answered, "und wo?" was read
-    alone and the judge named a sister's wedding instead; on 50edac5e3 "o kur?" named nothing and went to a file look-up."""
+
+def _recall_key(session_id: str | None, question: str) -> tuple[str, str]:
+    return str(session_id or ""), " ".join(str(question or "").split()).casefold()
+
+
+def _recalled_for(session_id: str | None, question: str) -> tuple[str, ...] | None:
+    with _RECALLED_LOCK:
+        entry = _RECALLED.get(_recall_key(session_id, question))
+    if entry is None or time.monotonic() - entry[0] > _RECALLED_SECONDS:
+        return None
+    return entry[1]
+
+
+def _note_recalled(session_id: str | None, question: str, named: list[str]) -> None:
+    if not named:
+        return
+    key = _recall_key(session_id, question)
+    with _RECALLED_LOCK:
+        _RECALLED[key] = (time.monotonic(), tuple(named))
+        _RECALLED.move_to_end(key)
+        while len(_RECALLED) > _RECALLED_KEPT:
+            _RECALLED.popitem(last=False)
+
+
+def _bare_follow_up_of(question: str, items: list[str], source_context: Mapping[str, Any] | None) -> str:
+    """The recall question this message follows up, or "". A message is a bare follow-up on a recall when the person's
+    message before it was judged a memory recall and it shares no word with anything held (words of four letters or
+    more, accents off, one form of a word for another): it names its subject only through the question before."""
     try:
         from core import plugin_ask
         from core.fact_extractor import _folded_words, _same_word
@@ -3505,14 +3532,43 @@ def _recall_question_with_its_subject(question: str, items: list[str], source_co
         context = source_context if isinstance(source_context, dict) else dict(source_context or {})
         previous = plugin_ask._previous_request(question, context)
         if not previous or "memory_recall" not in plugin_ask.judged_builtins(previous):
-            return question
+            return ""
         asked = [word for word in _folded_words(question) if len(word) >= 4]
         held_words = [word for item in items for word in _folded_words(item) if len(word) >= 4]
         if any(_same_word(word, other) for word in asked for other in held_words):
-            return question
-        return f"{previous}\n{question}"
+            return ""
+        return previous
     except Exception:
-        return question
+        return ""
+
+
+def _recall_question_with_its_subject(question: str, items: list[str], source_context: Mapping[str, Any] | None) -> str:
+    """The recall question as the recall judge reads it: a bare follow-up on a recall beside the recall it follows;
+    anything else alone, as before."""
+    previous = _bare_follow_up_of(question, items, source_context)
+    return f"{previous}\n{question}" if previous else question
+
+
+def _judged_recall_items(
+    question: str, items: list[str], *, session_id: str | None, source_context: Mapping[str, Any] | None,
+) -> list[str]:
+    """The held items a recall question asks about. A bare follow-up on a recall is about what that recall named, when
+    those are still held: no judge is asked, so it cannot pick another fact. Otherwise the judge names them, reading a
+    bare follow-up beside the recall it follows.
+
+    iMac gate62 on e8503d939 (qwen3:8b): right after "wann ist das Klassentreffen?" was answered, "und wo?" was read
+    alone and the judge named a sister's wedding instead; on 50edac5e3 "o kur?" named nothing and went to a file look-up;
+    gate63 on 816dcf780: "and where is it?" after the school concert was recalled, read beside that question, named all
+    three held facts."""
+    previous = _bare_follow_up_of(question, items, source_context)
+    earlier = _recalled_for(session_id, previous) if previous else None
+    if earlier is not None and all(item in items for item in earlier):
+        LOGGER.info("judged recall: a bare follow-up on the recall before it, %d fact(s) named there", len(earlier))
+        return list(earlier)
+    picked = _judged_items_named(f"{previous}\n{question}" if previous else question, items,
+                                 session_id=session_id, source_context=source_context)
+    _note_recalled(session_id, question, picked)
+    return picked
 
 
 def recall_names(question: str, *, session_id: str | None, source_context: Mapping[str, Any] | None) -> str:
@@ -3540,8 +3596,8 @@ def recall_names(question: str, *, session_id: str | None, source_context: Mappi
             return ""
         if isinstance(source_context, dict):
             source_context.setdefault(_NAMED_KEY, {})
-        picked = _judged_items_named(_recall_question_with_its_subject(question, [*held, *reminders], source_context),
-                                     [*held, *reminders], session_id=session_id, source_context=source_context)
+        picked = _judged_recall_items(question, [*held, *reminders], session_id=session_id,
+                                      source_context=source_context)
     except Exception:
         return ""
     if any(item in reminders for item in picked):
@@ -3739,8 +3795,7 @@ def _judged_recall_reply(
     # their own life they told VOOL. Read apart, after the facts, the judge named a fact about the cat for "what did I
     # say I'd do on Sunday morning?" beside a Sunday reminder it was never shown (iMac gate49 on ab3fcc19e).
     reminders = [line for line in _pending_reminder_lines(session_id) if line not in held]
-    picked = _judged_items_named(_recall_question_with_its_subject(question, [*held, *reminders], source_context),
-                                 [*held, *reminders], session_id=session_id, source_context=source_context)
+    picked = _judged_recall_items(question, [*held, *reminders], session_id=session_id, source_context=source_context)
     named = _one_line_per_fact([item for item in picked if item in held])
     named_reminders = [item for item in picked if item in reminders]
     LOGGER.info("judged recall: %d held, %d pending reminder(s), %d named", len(held), len(reminders), len(picked))

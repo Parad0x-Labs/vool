@@ -23,6 +23,7 @@ def _context(previous: str = EARLIER) -> dict:
 @pytest.fixture(autouse=True)
 def judged():
     plugin_ask.forget()
+    pm._RECALLED.clear()
     plugin_ask._record_builtins(EARLIER, ("memory_recall",))
     yield
     plugin_ask.forget()
@@ -60,3 +61,34 @@ def test_the_recall_judge_is_asked_the_joined_question(monkeypatch):
     monkeypatch.setattr(pm, "_judged_items_named", named)
     assert pm.recall_names("und wo?", session_id="chat", source_context=_context()) == "fact"
     assert asked == [f"{EARLIER}\nund wo?"]
+
+
+def test_a_bare_follow_up_is_about_what_the_recall_before_it_named(monkeypatch):
+    """iMac gate63 on 816dcf780 (qwen3:8b): "and where is it?" after the school concert was recalled, read beside that
+    question, named all three held facts. The facts the recall named answer its follow-up; no judge is asked."""
+    asked: list[str] = []
+
+    def named(question, items, **_k):
+        asked.append(question)
+        return [HELD[1]]
+
+    monkeypatch.setattr(pm, "_judged_items_named", named)
+    assert pm._judged_recall_items(EARLIER, list(HELD), session_id="chat", source_context={}) == [HELD[1]]
+    monkeypatch.setattr(pm, "_judged_items_named", lambda *_a, **_k: list(HELD))
+    for text in ("und wo?", "o kur?", "and where is it?"):
+        assert pm._judged_recall_items(text, list(HELD), session_id="chat", source_context=_context()) == [HELD[1]]
+    assert asked == [EARLIER]
+
+
+def test_a_follow_up_whose_fact_was_forgotten_is_judged_again(monkeypatch):
+    monkeypatch.setattr(pm, "_judged_items_named", lambda *_a, **_k: [HELD[1]])
+    pm._judged_recall_items(EARLIER, list(HELD), session_id="chat", source_context={})
+    monkeypatch.setattr(pm, "_judged_items_named", lambda *_a, **_k: [])
+    assert pm._judged_recall_items("und wo?", [HELD[0]], session_id="chat", source_context=_context()) == []
+
+
+def test_another_chat_has_its_own_recalls(monkeypatch):
+    monkeypatch.setattr(pm, "_judged_items_named", lambda *_a, **_k: [HELD[1]])
+    pm._judged_recall_items(EARLIER, list(HELD), session_id="chat-a", source_context={})
+    monkeypatch.setattr(pm, "_judged_items_named", lambda *_a, **_k: [HELD[0]])
+    assert pm._judged_recall_items("und wo?", list(HELD), session_id="chat-b", source_context=_context()) == [HELD[0]]
