@@ -401,6 +401,22 @@ def _memory_kind_confirmed(
             told.append(asked("told as fact", intent_arbiter.arbitrate_told_as_fact))
         return told[0] == "yes"
 
+    def told_beside_a_keep(verdict: str | None, label: str) -> str | None:
+        """A Reminders or Calendar pick its own question confirmed, where the memory question read a keep: the two
+        disagree, and the told-as-fact question settles it (it reads an order, "remind me at 5 to ...", "put lunch on
+        my calendar", as no). iMac gate57 on 21d4d4046 (qwen3:8b): "just so you know, my nephew <name> has his driving
+        test on 15 january at 13:20" was confirmed a reminder and one was set; gate58 on 9a267b88d: a friend's wedding
+        date told in Lithuanian was confirmed for the calendar and got a Manual-mode card for a wrong day. Neither was
+        kept. Mac probe g58: 12 of 12 dated facts kept, 11 of 12 reminder asks still reminders."""
+        if verdict != "yes" or kind != "keep":
+            return verdict
+        if not told:
+            told.append(asked("told as fact", intent_arbiter.arbitrate_told_as_fact))
+        if told[0] == "yes":
+            _log.info("tool ask: %s pick read as a fact told beside a keep reading", label)
+            return "no"
+        return verdict
+
     if "reminders" in tools:
         # A Reminders pick is confirmed by a yes/no of its own. On the gate iMac (3c92e8df3, qwen3:8b) "zapamiętaj: mój
         # szwagier ma psa o imieniu Burek" and a plainly told fact were picked Reminders beside a keep reading, and the
@@ -409,16 +425,7 @@ def _memory_kind_confirmed(
         # leaves the pick as it was.
         reminder_verdict = asked("reminder", intent_arbiter.arbitrate_reminder_ask)
         _log.info("tool ask: reminders pick, its own question read %s", reminder_verdict or "nothing")
-        if reminder_verdict == "yes" and kind == "keep":
-            # The memory question read a keep where the reminder question read a reminder ask: the two disagree, and
-            # the told-as-fact question settles it (it reads an order, "remind me at 5 to ...", as no). iMac gate57 on
-            # 21d4d4046 (qwen3:8b): "just so you know, my nephew <name> has his driving test on 15 january at 13:20"
-            # was confirmed a reminder, one was set with no ask and no card, and nothing was kept.
-            if not told:
-                told.append(asked("told as fact", intent_arbiter.arbitrate_told_as_fact))
-            if told[0] == "yes":
-                _log.info("tool ask: reminders pick read as a fact told beside a keep reading")
-                reminder_verdict = "no"
+        reminder_verdict = told_beside_a_keep(reminder_verdict, "reminders")
         if unconfirmed(reminder_verdict):
             _log.info("tool ask: reminders pick not confirmed")
             tools = tuple(key for key in tools if key != "reminders")
@@ -435,6 +442,7 @@ def _memory_kind_confirmed(
         # Manual-mode approval card. No answer leaves the pick as it was.
         calendar_verdict = asked("calendar", intent_arbiter.arbitrate_calendar_ask)
         _log.info("tool ask: calendar pick, its own question read %s", calendar_verdict or "nothing")
+        calendar_verdict = told_beside_a_keep(calendar_verdict, "calendar")
         if unconfirmed(calendar_verdict):
             _log.info("tool ask: calendar pick not confirmed")
             tools = tuple(key for key in tools if key != "calendar")

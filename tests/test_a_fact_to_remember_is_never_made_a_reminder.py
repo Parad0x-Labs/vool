@@ -136,3 +136,20 @@ def test_with_no_reminder_pending_a_forget_is_not_asked_about_reminders(readings
     monkeypatch.setattr(plugin_ask, "_has_pending_reminders", lambda: False)
     assert "reminders" not in plugin_ask._memory_kind_confirmed("vergiss mein Fahrrad", (), {}, "chat-1")
     assert asked == []
+
+
+@pytest.mark.parametrize("told", ["yes", "no"])
+def test_a_calendar_pick_beside_a_keep_reading_is_settled_by_the_told_question(told, monkeypatch):
+    """iMac gate58 on 9a267b88d (qwen3:8b): a friend's wedding date told in Lithuanian was confirmed for the calendar
+    and got a Manual-mode card for a wrong day; nothing was kept. Mac probe g58: with the told question, 7 of 8 dated
+    facts kept (2 of 8 before) and 10 of 10 calendar asks still the calendar's."""
+    from core import intent_arbiter, plugin_ask
+
+    monkeypatch.setattr(intent_arbiter, "arbitrate_memory_kind", lambda *_a, **_k: "keep")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_calendar_ask", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_told_as_fact", lambda *_a, **_k: told)
+    monkeypatch.setattr(intent_arbiter, "arbitrate_worth_recalling", lambda *_a, **_k: "yes")
+    monkeypatch.setattr(intent_arbiter, "arbitrate_forget_order", lambda *_a, **_k: "no")
+    monkeypatch.setattr(plugin_ask, "_has_pending_reminders", lambda: False)
+    got = plugin_ask._memory_kind_confirmed("beje, Ugnės krikštynos bus liepos 9 d.", ("calendar",), {}, "chat-1")
+    assert got == (("memory_keep",) if told == "yes" else ("calendar",))
