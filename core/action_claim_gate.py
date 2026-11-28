@@ -1164,10 +1164,29 @@ _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
 _DATE_IN_TEXT = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})|\b(\d{1,2}) ([A-Z][a-z]{2}) (\d{4})\b")
 
 
+# A clock with its seconds ("08:20:00") and a word that mixes letters into digits ("id 1cf1c520").
+_CLOCK = re.compile(r"\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b")
+_CODE_WORD = re.compile(r"\b(?=\w*[^\W\d_]\d)\w+\b")
+
+
 def _numbers(text: str) -> set[str]:
-    """The numbers ``text`` states, a 12-hour clock also as its 24-hour hour, without leading zeros."""
-    found = {str(int(run)) for run in re.findall(r"\d+", text)}
-    for hour, _minute, half in _CLOCK_12H.findall(text):
+    """The numbers ``text`` states, a 12-hour clock also as its 24-hour hour, without leading zeros.
+
+    A clock's zero seconds state nothing its hour and minute don't: the reminder list shows "Fri 18 Dec 2026 at
+    08:20" and the model says it back as "08:20:00 UTC". The digits inside a code word are no number the text
+    states: the list's "(id 1cf1c520)" never shows a 1 or a 520, and the "0" of an id like "0a0b0c0d" once backed
+    those zero seconds by chance (the served reminder-list check passed or failed by the day's seeded id)."""
+    plain = _CODE_WORD.sub(" ", re.sub(r"(?<=\d)T(?=\d)", " ", text))  # an ISO time's "T" joins no code word
+    found: set[str] = set()
+
+    def clock(match: re.Match[str]) -> str:
+        found.update({str(int(match.group(1))), str(int(match.group(2)))})
+        if match.group(3) and int(match.group(3)):
+            found.add(str(int(match.group(3))))
+        return " "
+
+    found |= {str(int(run)) for run in re.findall(r"\d+", _CLOCK.sub(clock, plain))}
+    for hour, _minute, half in _CLOCK_12H.findall(plain):
         found.add(str(int(hour) % 12 + (12 if half.lower() == "p" else 0)))
     return found
 
