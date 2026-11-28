@@ -3785,6 +3785,19 @@ class VoolAgent(
             pass
         if _skill_keeps_turn_whole(str(raw_input or effective_input), source_context):
             return None
+        # And for a message the turn's judge settled as ONE recall with no tool ask beside it: "remind me, when is
+        # <name>'s wedding?" asks to be told a saved fact, and "remind me" is how it asks. iMac gate58 on 9a267b88d
+        # (qwen3:8b): the Reminders pick was turned down by its own question and the memory question read a recall,
+        # yet this seam cut the message into "remind me" and the question, and the reply ended in "I could not answer
+        # this part of your message: - remind me (I could not read a date or time in that ...)".
+        try:
+            from core import plugin_ask as _plugin_ask
+
+            _whole = str(raw_input or effective_input)
+            if _plugin_ask.judged_memory_ask(_whole) == "recall" and not _plugin_ask.judged_tool_ask(_whole):
+                return None
+        except Exception:
+            pass
         # --------------------------------------------------------------------
         # PHASE 1 — PRE-DISPATCH ELIGIBILITY. Nothing here may leave side
         # effects: no unit has been handed to a lane, so declining is free.
