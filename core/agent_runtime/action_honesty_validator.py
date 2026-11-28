@@ -2218,6 +2218,16 @@ def enforce_final_action_honesty(
         # 'Saved to memory: "I lost one stirrup leather last week".'
         return output
 
+    if claim_kind == "persistence":
+        chat_reply = _chat_reply_without_its_save_claim(response, user_input)
+        if chat_reply:
+            output["response"] = chat_reply
+            output["action_honesty_validator"] = {
+                "applied": True, "reason": "save_claim_removed_from_a_chat_reply", "claim_kind": claim_kind,
+                "original_response_excerpt": response[:240],
+            }
+            return output
+
     if claim_kind == "unjudged":
         from core.i18n.turn_locale import turn_text
 
@@ -2244,6 +2254,40 @@ def enforce_final_action_honesty(
     output["route_reason"] = "false_action_claim_blocked"
     output["web_calls"] = int(output.get("web_calls") or 0)
     return output
+
+
+def _chat_reply_without_its_save_claim(response: str, user_input: str) -> str:
+    """A chat reply with its false "saved to memory" sentences taken out, or "" when that is not the right repair.
+
+    Only for a message the turn's judge read as plain chat (no tool, no memory keep, recall or forget asked): there
+    the person asked for no save, and the reply's own words are the answer. iMac gate59 on 033c90daa (qwen3:8b):
+    "repotted all the herbs on the balcony this morning, the mint was a jungle" got a draft that also said it was
+    saved, and the whole reply became "I did not write anything to memory -- no preference, rule or setting ...".
+    A message that asked for a save, one nothing judged, and a reply that is only the claim keep the notice."""
+    try:
+        from core.plugin_ask import judged_no_tool_or_memory_ask
+
+        if not judged_no_tool_or_memory_ask(user_input):
+            return ""
+    except Exception:
+        return ""
+    kept_lines: list[str] = []
+    removed = False
+    for line in str(response or "").split("\n"):
+        survivors = []
+        for sentence in _split_sentences(line):
+            if _PERSISTENCE_CLAIM_RE.search(without_citations(sentence)) and not (
+                    _BUILD_CLAIM_NOT_SELF_RE.search(sentence) or _NOT_A_SELF_CLAIM_RE.search(sentence)):
+                removed = True
+                continue
+            survivors.append(sentence)
+        if line.strip() and not "".join(survivors).strip():
+            continue
+        kept_lines.append(" ".join(part for part in survivors if part))
+    body = "\n".join(kept_lines).strip()
+    if not removed or len(re.findall(r"\w+", body)) < 3:
+        return ""
+    return body if completion_claim_kind(body) == "" else ""
 
 
 def _keep_step_wrote(source_context: dict[str, object] | None) -> bool:
